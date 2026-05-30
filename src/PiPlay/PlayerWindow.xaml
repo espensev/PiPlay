@@ -43,6 +43,8 @@
                    FontSize="12" Foreground="{StaticResource TextSecondary}" />
 
         <StackPanel Grid.Column="1" Orientation="Horizontal">
+          <ToggleButton x:Name="FadeToggle" Style="{StaticResource PinToggle}" Width="30" Height="30"
+                        Content="&#xE7B3;" Click="FadeToggle_Click" ToolTip="Fade controls when idle" />
           <ToggleButton x:Name="PinToggle" Style="{StaticResource PinToggle}" Width="30" Height="30"
                         Content="&#xE840;" Click="PinToggle_Click" ToolTip="Pin on top" />
           <Button x:Name="CloseButton" Style="{StaticResource CloseIconButton}" Width="30" Height="30"

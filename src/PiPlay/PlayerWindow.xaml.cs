@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using PiPlay.Models;
@@ -23,6 +24,12 @@ public partial class PlayerWindow : Window
     private readonly DispatcherTimer _syncTimer;
     private readonly PlayerReturnState _returnState = new();
 
+    // Controls fade (spec 11, Phase 2): idle/hover state machine over the chrome strip only.
+    private readonly DispatcherTimer _idleTimer;
+    private bool _fadeEnabled;
+    private bool _isDragging;
+    private bool _controlsVisible = true;
+
     private bool _navCompleted;
     private bool _capturedReturn;
     private bool _nudgedPlay;
@@ -36,7 +43,8 @@ public partial class PlayerWindow : Window
         bool topmost,
         PlacementData? placement,
         int defaultWidth,
-        int defaultHeight)
+        int defaultHeight,
+        bool fadeEnabled)
     {
         InitializeComponent();
 
@@ -51,9 +59,20 @@ public partial class PlayerWindow : Window
         Topmost = topmost;
         PinToggle.IsChecked = topmost;
 
+        _fadeEnabled = fadeEnabled;
+        FadeToggle.IsChecked = fadeEnabled;
+        _returnState.FadeEnabled = fadeEnabled;
+
         _syncTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _syncTimer.Tick += SyncTimer_Tick;
 
+        // Idle timer drives the fade-out; any mouse move restarts it (spec 22.1 fade row).
+        _idleTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(FadePolicy.IdleDelayMs) };
+        _idleTimer.Tick += IdleTimer_Tick;
+        MouseMove += (_, _) => OnUserActivity();
+        MouseEnter += (_, _) => OnUserActivity();
+
+        Loaded += (_, _) => ApplyFadeState();
         Loaded += async (_, _) => await InitializePlayerAsync();
         SourceInitialized += (_, _) =>
         {
@@ -144,8 +163,88 @@ public partial class PlayerWindow : Window
     private void ChromeStrip_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ButtonState != MouseButtonState.Pressed) return;
+        _isDragging = true;
         try { DragMove(); }
         catch { /* DragMove throws if the button was already released */ }
+        finally
+        {
+            _isDragging = false;
+            OnUserActivity(); // keep controls up briefly after a drag, then resume idle countdown
+        }
+    }
+
+    // --- Controls fade (spec 11, Phase 2) ---
+
+    private void FadeToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _fadeEnabled = FadeToggle.IsChecked == true;
+        _returnState.FadeEnabled = _fadeEnabled;
+        ApplyFadeState();
+    }
+
+    /// <summary>Reset the fade lifecycle to match <see cref="_fadeEnabled"/>: either show-and-arm or pin visible.</summary>
+    private void ApplyFadeState()
+    {
+        if (_fadeEnabled)
+        {
+            ShowControls();
+            RestartIdleTimer();
+        }
+        else
+        {
+            _idleTimer.Stop();
+            ShowControls(); // disabling fade restores the MVP "always visible" behavior immediately
+        }
+    }
+
+    private void OnUserActivity()
+    {
+        if (!_fadeEnabled) return;
+        ShowControls();
+        RestartIdleTimer();
+    }
+
+    private void RestartIdleTimer()
+    {
+        _idleTimer.Stop();
+        _idleTimer.Start();
+    }
+
+    private void IdleTimer_Tick(object? sender, EventArgs e)
+    {
+        _idleTimer.Stop();
+        if (FadePolicy.ShouldHide(_fadeEnabled, ChromeStrip.IsMouseOver, _isDragging, idleElapsed: true))
+        {
+            HideControls();
+        }
+        else if (_fadeEnabled)
+        {
+            // Something is still holding controls up (pointer over the strip / mid-drag); re-arm.
+            RestartIdleTimer();
+        }
+    }
+
+    private void ShowControls()
+    {
+        if (_controlsVisible && ChromeStrip.IsHitTestVisible) return;
+        _controlsVisible = true;
+        ChromeStrip.IsHitTestVisible = true;
+        AnimateStripOpacity(1.0);
+    }
+
+    private void HideControls()
+    {
+        if (!_controlsVisible) return;
+        _controlsVisible = false;
+        // Drop hit-testing only once fully faded so a hidden strip can't swallow clicks (Q-8).
+        AnimateStripOpacity(0.0, onCompleted: () => { if (!_controlsVisible) ChromeStrip.IsHitTestVisible = false; });
+    }
+
+    private void AnimateStripOpacity(double to, Action? onCompleted = null)
+    {
+        var animation = new DoubleAnimation(to, TimeSpan.FromMilliseconds(FadePolicy.FadeDurationMs));
+        if (onCompleted is not null) animation.Completed += (_, _) => onCompleted();
+        ChromeStrip.BeginAnimation(OpacityProperty, animation);
     }
 
     // --- Close / return (spec 14) ---
@@ -156,7 +255,9 @@ public partial class PlayerWindow : Window
         _capturedReturn = true;
 
         _syncTimer.Stop();
+        _idleTimer.Stop();
         _returnState.Topmost = Topmost;
+        _returnState.FadeEnabled = _fadeEnabled;
         _returnState.Placement = WindowPlacementService.TryCapture(this);
     }
 

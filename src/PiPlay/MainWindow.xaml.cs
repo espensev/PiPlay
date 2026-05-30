@@ -327,7 +327,8 @@ public partial class MainWindow : Window
                       ?? await App.Current.WebViewEnvironment.EnsureCreatedAsync();
 
             _player = new PlayerWindow(env, popoutUrl, _settings.Player.Topmost,
-                _settings.Player.Placement, _settings.Player.LastWidth, _settings.Player.LastHeight);
+                _settings.Player.Placement, _settings.Player.LastWidth, _settings.Player.LastHeight,
+                _settings.Player.FadeEnabled);
             _player.PlayerClosed += Player_OnClosed;
             _player.Show();
 
@@ -377,6 +378,7 @@ public partial class MainWindow : Window
 
             // Persist Popout Player window state.
             _settings.Player.Topmost = state.Topmost;
+            _settings.Player.FadeEnabled = state.FadeEnabled;
             if (state.Placement is not null)
             {
                 _settings.Player.Placement = state.Placement;

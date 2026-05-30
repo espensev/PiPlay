@@ -11,5 +11,9 @@ public sealed class PlayerReturnState
     public int? LastKnownSeconds { get; set; }
 
     public bool Topmost { get; set; }
+
+    /// <summary>Whether controls fade was enabled when the player closed (persisted for next popout).</summary>
+    public bool FadeEnabled { get; set; }
+
     public PlacementData? Placement { get; set; }
 }
