@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <!-- Quality-first publish posture (spec 9.2): no trimming/single-file/AOT yet. -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishSingleFile>false</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+
+    <AssemblyName>PiPlay</AssemblyName>
+    <RootNamespace>PiPlay</RootNamespace>
+
+    <!-- App / taskbar icon and per-monitor DPI manifest (spec 5.4, REQ-WINDOW-01). -->
+    <ApplicationIcon>Assets\piplay.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- Defaults so a plain `dotnet build` works even without the Build-PiPlay.ps1
+         pipeline; the pipeline overrides these via -p:Version/-p:AssemblyVersion/
+         -p:FileVersion/-p:InformationalVersion (see scripts\Build-PiPlay.ps1). -->
+    <Version>0.1.0</Version>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.0</FileVersion>
+    <InformationalVersion>0.1.0</InformationalVersion>
+
+    <!-- FileVersionInfo metadata surfaced by the pipeline's build-info.json. -->
+    <Company>SevIQ</Company>
+    <Product>PiPlay</Product>
+    <Authors>SevIQ</Authors>
+    <!-- <Description> surfaces as the exe FileDescription (Task Manager / file properties).
+         Copyright follows the SevIQ house style used across SevIQ products
+         (cf. NVG-SmoothControl Resources\nvg_ingest.rc.in: "Copyright (C) 2026 SevIQ"). -->
+    <Description>SevIQ PiPlay — watch YouTube in a movable, resizable Video Popout window.</Description>
+    <Copyright>Copyright (C) 2026 SevIQ</Copyright>
+    <NeutralLanguage>en-US</NeutralLanguage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3967.48" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Embed the app icon as a WPF resource too, so XAML Image/Window.Icon can use it
+         (it is also the exe ApplicationIcon above). -->
+    <Resource Include="Assets\piplay.ico" />
+  </ItemGroup>
+
+</Project>

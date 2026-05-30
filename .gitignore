@@ -1,0 +1,21 @@
+## .NET / Visual Studio
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+## Build output
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+
+## Rider
+.idea/
+
+## Local app data (runtime)
+*.log
+
+## Stray local archives (release zips live under bin\publish\archive, which is ignored)
+docs.zip

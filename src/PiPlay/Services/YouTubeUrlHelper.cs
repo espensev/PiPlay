@@ -1,0 +1,153 @@
+using System.Text.RegularExpressions;
+using PiPlay.Models;
+
+namespace PiPlay.Services;
+
+/// <summary>
+/// Parses supported YouTube URLs and builds watch/embed target URLs (spec 12.4).
+/// Pure and side-effect free so it is easy to unit-test. Owns nothing about the UI or
+/// WebView - it only understands URL shapes and timestamps.
+/// </summary>
+public static class YouTubeUrlHelper
+{
+    private static readonly Regex VideoIdRegex = new(@"^[A-Za-z0-9_-]{11}$", RegexOptions.Compiled);
+    private static readonly Regex HmsRegex = new(@"^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>Try to parse any supported YouTube URL (or a bare 11-char video id).</summary>
+    public static bool TryParse(string? input, out YouTubeTarget target)
+    {
+        target = new YouTubeTarget();
+        if (string.IsNullOrWhiteSpace(input)) return false;
+
+        var text = input.Trim();
+        if (VideoIdRegex.IsMatch(text)) { target.VideoId = text; return true; }
+
+        if (!text.Contains("://")) text = "https://" + text;
+        if (!Uri.TryCreate(text, UriKind.Absolute, out var uri)) return false;
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) return false;
+
+        var host = uri.Host.ToLowerInvariant();
+        var query = ParseQuery(uri.Query);
+        var segments = uri.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        if (host == "youtu.be")
+        {
+            if (segments.Length >= 1 && IsVideoId(segments[0])) target.VideoId = segments[0];
+            if (query.TryGetValue("list", out var l)) ApplyList(target, l);
+            if (query.TryGetValue("t", out var t)) target.StartSeconds = ParseTime(t);
+            return target.IsValid;
+        }
+
+        if (!NavigationPolicy.IsYouTubeHost(host)) return false;
+
+        // Path-based ids: /embed/ID, /shorts/ID, /v/ID, /live/ID
+        if (segments.Length >= 2 &&
+            (segments[0] is "embed" or "shorts" or "v" or "live") && IsVideoId(segments[1]))
+        {
+            target.VideoId = segments[1];
+        }
+
+        // watch?v=ID (or any page carrying ?v=)
+        if (query.TryGetValue("v", out var v) && IsVideoId(v)) target.VideoId = v;
+
+        if (segments.Length >= 1 && segments[0] == "playlist" && target.VideoId is null)
+            target.IsPlaylistOnly = true;
+
+        if (query.TryGetValue("list", out var list)) ApplyList(target, list);
+
+        if (query.TryGetValue("t", out var ts)) target.StartSeconds = ParseTime(ts);
+        else if (query.TryGetValue("start", out var st)) target.StartSeconds = ParseTime(st);
+
+        return target.IsValid;
+    }
+
+    /// <summary>Build a normal-mode watch URL (default playback path, spec 10.1).</summary>
+    public static string BuildWatchUrl(YouTubeTarget target, int? seconds = null)
+    {
+        var s = seconds ?? target.StartSeconds;
+        if (!string.IsNullOrEmpty(target.VideoId))
+        {
+            var url = $"https://www.youtube.com/watch?v={target.VideoId}";
+            if (!string.IsNullOrEmpty(target.PlaylistId)) url += $"&list={target.PlaylistId}";
+            if (s is > 0) url += $"&t={s}s";
+            return url;
+        }
+        if (!string.IsNullOrEmpty(target.PlaylistId))
+            return $"https://www.youtube.com/playlist?list={target.PlaylistId}";
+        return "https://www.youtube.com/";
+    }
+
+    /// <summary>Build a compact embed URL (Phase 3 compact mode, spec 10.2). Not used by the MVP default path.</summary>
+    public static string BuildEmbedUrl(YouTubeTarget target, int? seconds = null)
+    {
+        var s = seconds ?? target.StartSeconds ?? 0;
+        if (!string.IsNullOrEmpty(target.VideoId))
+        {
+            var url = $"https://www.youtube.com/embed/{target.VideoId}?autoplay=1";
+            if (!string.IsNullOrEmpty(target.PlaylistId)) url += $"&list={target.PlaylistId}";
+            if (s > 0) url += $"&start={s}";
+            return url;
+        }
+        if (!string.IsNullOrEmpty(target.PlaylistId))
+            return $"https://www.youtube.com/embed/videoseries?list={target.PlaylistId}&autoplay=1";
+        return "https://www.youtube.com/";
+    }
+
+    /// <summary>Parse a YouTube time value: plain seconds ("90"), "90s", or "1h2m3s".</summary>
+    public static int? ParseTime(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        value = value.Trim();
+
+        if (int.TryParse(value, out var plain)) return plain >= 0 ? plain : null;
+
+        var m = HmsRegex.Match(value);
+        if (!m.Success || (!m.Groups[1].Success && !m.Groups[2].Success && !m.Groups[3].Success))
+            return null;
+
+        var h = m.Groups[1].Success ? int.Parse(m.Groups[1].Value) : 0;
+        var min = m.Groups[2].Success ? int.Parse(m.Groups[2].Value) : 0;
+        var sec = m.Groups[3].Success ? int.Parse(m.Groups[3].Value) : 0;
+        return (h * 3600) + (min * 60) + sec;
+    }
+
+    public static bool IsVideoId(string? id) => id is not null && VideoIdRegex.IsMatch(id);
+
+    /// <summary>
+    /// Mixes/radios (list ids starting with "RD") are auto-generated and not reliable to pop out.
+    /// Drop them but keep the current video, recording a non-blocking fallback note (spec 22.1).
+    /// </summary>
+    private static void ApplyList(YouTubeTarget target, string list)
+    {
+        if (string.IsNullOrEmpty(list)) return;
+        if (list.StartsWith("RD", StringComparison.OrdinalIgnoreCase))
+        {
+            if (target.VideoId is not null)
+                target.FallbackReason = "Mix/radio playlists aren't supported in Video Popout - popped out the current video.";
+            return; // drop the mix/radio list
+        }
+        target.PlaylistId = list;
+    }
+
+    private static Dictionary<string, string> ParseQuery(string query)
+    {
+        var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrEmpty(query)) return dict;
+
+        foreach (var pair in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var idx = pair.IndexOf('=');
+            if (idx < 0)
+            {
+                dict[Uri.UnescapeDataString(pair)] = string.Empty;
+            }
+            else
+            {
+                var key = Uri.UnescapeDataString(pair[..idx]);
+                var value = Uri.UnescapeDataString(pair[(idx + 1)..]);
+                dict[key] = value;
+            }
+        }
+        return dict;
+    }
+}

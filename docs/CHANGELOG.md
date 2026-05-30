@@ -1,0 +1,58 @@
+# Changelog
+
+All notable changes to PiPlay are recorded here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/); draft numbering is used until 1.0.
+
+## [Unreleased]
+
+### Added — Phase 1 (MVP) implemented
+- Initial WPF application (`src/PiPlay`, `net10.0-windows`): Source Window + borderless
+  Popout Player, dark visual identity from the spec color tokens, app icon and
+  PerMonitor V2 DPI manifest wired in.
+- **Video Popout** end-to-end: capture source timestamp + was-playing **before** pausing,
+  pause source, show the Tier-1 Source Placeholder (hide the source WebView, no
+  bleed-through), open one Popout Player on the shared WebView2 environment at the
+  handed-off timestamp; popout-in-progress + single-player guards against double-clicks.
+- **Return** lifecycle: closing the Popout Player restores the source, seeks to the last
+  known timestamp (nullable `LastKnownSeconds`; `0` is valid), and resumes **only if the
+  source was playing when popout started** (REQ-RETURN-01).
+- Shared `CoreWebView2Environment` / user-data folder so login/session is shared; friendly
+  "WebView2 runtime missing" recovery panel.
+- Navigation/new-window allowlist for both windows (REQ-NAV-01/02): YouTube everywhere,
+  Google sign-in on the Source Window only, everything else opens in the system browser.
+- `settings.json` with atomic save (temp + flush + rename) and corruption recovery; basic
+  profile save/load; Pin/topmost on both surfaces; window placement save/restore with
+  monitor clamping; local file logging with URL redaction.
+- Single-instance behaviour (REQ-APP-01): a second launch focuses the running instance and
+  hands off its URL instead of starting a new process.
+- Unit tests for URL parsing, settings recovery, and the navigation allowlist.
+
+### Fixed
+- Navigation allowlist no longer blocks legitimate Google sign-in (REQ-NAV-01/02). Google's
+  regional sign-in/account domains (e.g. `accounts.google.no`) were being bounced to the system
+  browser mid-login; the allowlist now treats those sign-in domains across any TLD as allowed on
+  both the Source Window and the Popout Player. It remains a guardrail against drifting onto
+  unrelated sites (stray links, ads, general Google browsing), not a hard blocker.
+- Chrome visual identity (REQ-UI-01 / REQ-UI-02): chrome icons now render reliably instead of
+  empty `.notdef` boxes (glyphs drawn through an in-template element with the icon font, so the
+  app-wide text style can't reset it); the profiles dropdown is fully dark (control, popup, and
+  items) with an intentional "No saved profiles yet" empty state instead of a blank light popup;
+  an overflowing dropdown now uses a dark scrollbar rather than the light system one; tooltips use
+  a dark style placed below their control so they don't occlude the caption buttons.
+- URL/address-bar text was being clipped to a thin band at fractional display scales — caused by
+  the window-level `UseLayoutRounding="True"` rounding the text line off the device grid. Layout
+  rounding is now off on both windows; the URL text renders fully and legibly (UI-CHK-5).
+- `Build-PiPlay.ps1` Release stage no longer exits non-zero on success when no old publish
+  folders are pruned.
+
+### Removed
+- Deleted the outdated `Main app.txt` pre-spec brainstorm (superseded by the Draft 0.4 spec).
+
+### Planned — Phase 2 (convenience and profile polish)
+- Controls fade, Auto off by default, profile edit/validation, release publish profiles, and Phase 2 QA coverage.
+
+## [0.3] - 2026-05-30
+- Documentation only (pre-MVP). Established the Video Popout terminology, visual-identity tokens, and the fade/opacity/transparency policy split. Spec deduplicated and cleaned; requirement IDs and an atomic settings-save fix added.
+
+---
+
+_No app release yet — the project is pre-MVP. Add a dated version section here when the first shareable build ships._

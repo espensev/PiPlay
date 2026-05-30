@@ -1,0 +1,56 @@
+<Window x:Class="PiPlay.PlayerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="PiPlay Video Popout"
+        Width="960" Height="540"
+        MinWidth="320" MinHeight="180"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        AllowsTransparency="False"
+        Background="Black"
+        ShowInTaskbar="True"
+        UseLayoutRounding="False"
+        SnapsToDevicePixels="True">
+
+  <!-- Borderless media window with native edge/corner resize (spec 16.1, 26.5).
+       AllowsTransparency stays False (HwndHost WebView2 airspace). CaptionHeight=0:
+       dragging is handled explicitly on the chrome strip so there's no accidental maximize. -->
+  <WindowChrome.WindowChrome>
+    <WindowChrome CaptionHeight="0"
+                  ResizeBorderThickness="6"
+                  CornerRadius="0"
+                  GlassFrameThickness="0"
+                  UseAeroCaptionButtons="False" />
+  </WindowChrome.WindowChrome>
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="32" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- Chrome strip: drag region + Pin + Close (always visible in MVP; fade is Phase 2). -->
+    <Border x:Name="ChromeStrip" Grid.Row="0" Background="{StaticResource SurfaceBase}"
+            MouseLeftButtonDown="ChromeStrip_MouseLeftButtonDown">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Text="PiPlay" Grid.Column="0" Margin="10,0,0,0" VerticalAlignment="Center"
+                   FontSize="12" Foreground="{StaticResource TextSecondary}" />
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal">
+          <ToggleButton x:Name="PinToggle" Style="{StaticResource PinToggle}" Width="30" Height="30"
+                        Content="&#xE840;" Click="PinToggle_Click" ToolTip="Pin on top" />
+          <Button x:Name="CloseButton" Style="{StaticResource CloseIconButton}" Width="30" Height="30"
+                  Content="&#xE8BB;" Click="CloseButton_Click" ToolTip="Close popout (return video)" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <wv2:WebView2 x:Name="Player" Grid.Row="1" />
+  </Grid>
+</Window>

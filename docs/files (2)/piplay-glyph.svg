@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="tri" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5BE6FF"/>
+      <stop offset="1" stop-color="#00BBE8"/>
+    </linearGradient>
+  </defs>
+  <polygon points="206,168 206,344 356,256" fill="url(#tri)" stroke="#2ED3F5" stroke-width="24" stroke-linejoin="round" stroke-linecap="round"/>
+  <g fill="none" stroke="#00D4FF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="332" y1="206" x2="394" y2="138"/>
+    <polyline points="356,138 394,138 394,176"/>
+  </g>
+</svg>

@@ -1,0 +1,142 @@
+<Window x:Class="PiPlay.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="PiPlay"
+        Height="760" Width="1180"
+        MinHeight="480" MinWidth="760"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        AllowsTransparency="False"
+        Background="{StaticResource AppBackground}"
+        UseLayoutRounding="False"
+        SnapsToDevicePixels="True">
+
+  <!-- Custom thin title bar with native resize (spec 5.5). AllowsTransparency stays False:
+       a transparent WPF window is incompatible with the HwndHost WebView2 (airspace). -->
+  <WindowChrome.WindowChrome>
+    <WindowChrome CaptionHeight="42"
+                  ResizeBorderThickness="6"
+                  CornerRadius="0"
+                  GlassFrameThickness="0"
+                  UseAeroCaptionButtons="False" />
+  </WindowChrome.WindowChrome>
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="42" />
+      <RowDefinition Height="50" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- Title bar -->
+    <Grid Grid.Row="0" Background="{StaticResource SurfaceBase}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0">
+        <Image Source="Assets/piplay.ico" Width="20" Height="20" Margin="0,0,10,0" />
+        <TextBlock Text="PiPlay" FontSize="14" FontWeight="SemiBold"
+                   Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center" />
+        <TextBlock x:Name="PinnedHint" Text="• Pinned" FontSize="12" Margin="10,0,0,0"
+                   Foreground="{StaticResource AccentCyan}" VerticalAlignment="Center"
+                   Visibility="Collapsed" />
+      </StackPanel>
+
+      <!-- Caption buttons must opt out of the draggable caption area. -->
+      <StackPanel Grid.Column="1" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+        <Button x:Name="MinimizeButton" Style="{StaticResource IconButton}" Click="MinimizeButton_Click"
+                Content="&#xE921;" ToolTip="Minimize" />
+        <Button x:Name="MaximizeButton" Style="{StaticResource IconButton}" Click="MaximizeButton_Click"
+                Content="&#xE922;" ToolTip="Maximize" />
+        <Button x:Name="CloseButton" Style="{StaticResource CloseIconButton}" Click="CloseButton_Click"
+                Content="&#xE8BB;" ToolTip="Close" />
+      </StackPanel>
+    </Grid>
+
+    <!-- Toolbar: navigation + URL/search + profiles + Pin + Pop out -->
+    <Grid Grid.Row="1" Background="{StaticResource AppBackground}"
+          WindowChrome.IsHitTestVisibleInChrome="True">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+
+      <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="8,0,4,0" VerticalAlignment="Center">
+        <Button x:Name="BackButton" Style="{StaticResource IconButton}" Click="BackButton_Click"
+                Content="&#xE72B;" ToolTip="Back" />
+        <Button x:Name="ReloadButton" Style="{StaticResource IconButton}" Click="ReloadButton_Click"
+                Content="&#xE72C;" ToolTip="Reload" />
+        <Button x:Name="HomeButton" Style="{StaticResource IconButton}" Click="HomeButton_Click"
+                Content="&#xE80F;" ToolTip="YouTube home" />
+      </StackPanel>
+
+      <TextBox x:Name="UrlBox" Grid.Column="1" Style="{StaticResource DarkTextBox}"
+               Margin="6,9" VerticalAlignment="Center"
+               KeyDown="UrlBox_KeyDown"
+               ToolTip="Paste a YouTube URL or type to search, then press Enter" />
+
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="4,0" VerticalAlignment="Center">
+        <ComboBox x:Name="ProfilesCombo" Style="{StaticResource DarkComboBox}" Width="150"
+                  DisplayMemberPath="Name" SelectionChanged="ProfilesCombo_SelectionChanged"
+                  ToolTip="Saved profiles" />
+        <Button x:Name="SaveProfileButton" Style="{StaticResource IconButton}" Click="SaveProfileButton_Click"
+                Content="&#xE74E;" ToolTip="Save current page as a profile" Margin="2,0,0,0" />
+      </StackPanel>
+
+      <ToggleButton x:Name="PinToggle" Grid.Column="3" Style="{StaticResource PinToggle}"
+                    Margin="6,0" Content="&#xE840;" Click="PinToggle_Click"
+                    ToolTip="Pin PiPlay on top" />
+
+      <Button x:Name="PopOutButton" Grid.Column="4" Style="{StaticResource AccentButton}"
+              Margin="6,9,10,9" Click="PopOutButton_Click" IsEnabled="False">
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="&#xE8A7;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14"
+                     VerticalAlignment="Center" Margin="0,0,8,0" />
+          <TextBlock Text="Pop out video" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+    </Grid>
+
+    <!-- Content: browser + overlays -->
+    <Grid Grid.Row="2" Background="Black">
+      <wv2:WebView2 x:Name="Browser" />
+
+      <!-- Tier-1 Source Placeholder: shown (and the WebView hidden) while popped out (spec 13.3). -->
+      <Border x:Name="SourcePlaceholder" Background="Black" Visibility="Collapsed">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+          <TextBlock Text="&#xE8A7;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="40"
+                     Foreground="{StaticResource AccentCyan}" HorizontalAlignment="Center" />
+          <TextBlock Text="Playing in Video Popout" FontSize="18" Margin="0,14,0,0"
+                     Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" />
+          <TextBlock Text="Close the popout window to bring the video back here."
+                     FontSize="12" Margin="0,6,0,0"
+                     Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" />
+        </StackPanel>
+      </Border>
+
+      <!-- WebView2 runtime-missing / init-failure recovery panel (spec 15.4, Q-6). -->
+      <Border x:Name="RuntimeErrorPanel" Background="{StaticResource AppBackground}" Visibility="Collapsed">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
+          <TextBlock Text="WebView2 Runtime is required" FontSize="20" FontWeight="SemiBold"
+                     Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" />
+          <TextBlock x:Name="RuntimeErrorText" TextWrapping="Wrap" TextAlignment="Center"
+                     FontSize="13" Margin="0,12,0,0" Foreground="{StaticResource TextSecondary}"
+                     Text="PiPlay needs the Microsoft Edge WebView2 Evergreen Runtime to display YouTube. Install it, then reopen PiPlay." />
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0">
+            <Button Content="Get WebView2 Runtime" Style="{StaticResource AccentButton}"
+                    Click="DownloadRuntime_Click" />
+            <Button Content="Retry" Style="{StaticResource DarkButton}" Margin="10,0,0,0"
+                    Click="RetryRuntime_Click" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</Window>
