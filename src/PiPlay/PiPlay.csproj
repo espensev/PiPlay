@@ -32,6 +32,10 @@
     <Company>SevIQ</Company>
     <Product>PiPlay</Product>
     <Authors>SevIQ</Authors>
+    <!-- AssemblyTitle drives the Win32 FileDescription (the column Task Manager / file
+         properties show), mirroring the SevIQ house style (cf. NVG-SmoothControl's
+         "SevIQ NVG Analysis Tool"). .NET does NOT derive FileDescription from Description. -->
+    <AssemblyTitle>SevIQ PiPlay</AssemblyTitle>
     <!-- <Description> surfaces as the exe FileDescription (Task Manager / file properties).
          Copyright follows the SevIQ house style used across SevIQ products
          (cf. NVG-SmoothControl Resources\nvg_ingest.rc.in: "Copyright (C) 2026 SevIQ"). -->
