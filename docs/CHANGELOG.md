@@ -47,12 +47,21 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 ### Removed
 - Deleted the outdated `Main app.txt` pre-spec brainstorm (superseded by the Draft 0.4 spec).
 
-### Planned — Phase 2 (convenience and profile polish)
-- Controls fade, Auto off by default, profile edit/validation, release publish profiles, and Phase 2 QA coverage.
+### Added — Phase 2 (convenience)
+- **Popout Player controls fade** (spec 11): the chrome strip (Fade, Pin, Close) fades
+  out after ~2.5 s idle and reappears on mouse movement, satisfying the §22.1 fade test
+  row. A new in-popout **Fade toggle** turns the behavior on/off live; the choice is
+  persisted (`PlayerSettings.FadeEnabled`, on by default). Only the WPF chrome fades —
+  the WebView2 video surface is never made transparent, so the player stays fully
+  interactable (Q-8, no click-through). Decision logic lives in `Services/FadePolicy.cs`
+  with unit-test coverage.
+
+### Planned — Phase 2 (remaining)
+- `Auto` off by default, profile edit/validation, release publish profiles, and Phase 2 QA coverage.
 
 ## [0.3] - 2026-05-30
 - Documentation only (pre-MVP). Established the Video Popout terminology, visual-identity tokens, and the fade/opacity/transparency policy split. Spec deduplicated and cleaned; requirement IDs and an atomic settings-save fix added.
 
 ---
 
-_No app release yet — the project is pre-MVP. Add a dated version section here when the first shareable build ships._
+_First shareable builds now ship from `bin\publish` via `Build-PiPlay.ps1 -Stage Release`. Promote `[Unreleased]` to a dated version section when cutting a tagged release._
