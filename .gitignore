@@ -5,6 +5,9 @@ obj/
 *.user
 *.suo
 
+## Test run output (vstest --blame dumps, TRX, coverage)
+[Tt]est[Rr]esults/
+
 ## Build output
 [Dd]ebug/
 [Rr]elease/
