@@ -77,6 +77,11 @@ public class XamlInvariantTests
         {
             "ChromeStrip", "FadeToggle", "PinToggle", "CloseButton", "Player",
         }},
+        new object[] { "SettingsWindow.xaml", new[]
+        {
+            "ResetAppStateButton", "ResetDescriptionText",
+            "ClearBrowserDataButton", "ClearDescriptionText", "CloseButton",
+        }},
     };
 
     // --- Glyph icon-font fallback (REQ-UI-02: no .notdef boxes) + tooltips (UI-CHK-4) ---
@@ -89,6 +94,7 @@ public class XamlInvariantTests
     [Theory]
     [InlineData("MainWindow.xaml")]
     [InlineData("PlayerWindow.xaml")]
+    [InlineData("SettingsWindow.xaml")]
     public void Glyph_controls_use_the_icon_font(string file)
     {
         var doc = XamlTestFiles.Load(file);
@@ -140,7 +146,7 @@ public class XamlInvariantTests
     {
         var files = new[]
         {
-            "App.xaml", "MainWindow.xaml", "PlayerWindow.xaml",
+            "App.xaml", "MainWindow.xaml", "PlayerWindow.xaml", "SettingsWindow.xaml",
             "Theme/ControlStyles.xaml", "Theme/Colors.xaml",
         };
 
@@ -193,6 +199,14 @@ public class XamlInvariantTests
         // AccentButton: foreground #FF06141A literal on AccentCyan fill (ControlStyles.xaml).
         var ratio = Wcag.ContrastRatio("#FF06141A", ColorTokens()["AccentCyanColor"]);
         Assert.True(ratio >= 4.5, $"Accent button text contrast = {ratio:F2}:1.");
+    }
+
+    [Fact]
+    public void SettingsWindow_is_not_transparent()
+    {
+        // The Settings dialog hosts no WebView2, but stays opaque for visual consistency.
+        var w = XamlTestFiles.Load("SettingsWindow.xaml").Root!;
+        Assert.NotEqual("True", w.Attribute("AllowsTransparency")?.Value);
     }
 
     [Fact]

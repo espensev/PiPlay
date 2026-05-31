@@ -37,6 +37,39 @@ public class WpfRuntimeTests
         Assert.Null(ex);
     });
 
+    [Fact]
+    public void SettingsWindow_constructs_without_throwing() => StaTestThread.Invoke(() =>
+    {
+        var ex = Record.Exception(() => new SettingsWindow(isBrowserReady: true));
+        Assert.Null(ex);
+    });
+
+    [Fact]
+    public void SettingsWindow_shows_the_tested_privacy_wording() => StaTestThread.Invoke(() =>
+    {
+        var w = new SettingsWindow(isBrowserReady: true);
+        Assert.Equal(PiPlay.Services.PrivacyService.ResetDescription,
+            ((TextBlock)w.FindName("ResetDescriptionText")!).Text);
+        Assert.Equal(PiPlay.Services.PrivacyService.ClearDescription,
+            ((TextBlock)w.FindName("ClearDescriptionText")!).Text);
+        Assert.Equal(PiPlay.Services.PrivacyService.ResetActionLabel,
+            (string)((Button)w.FindName("ResetAppStateButton")!).Content);
+        Assert.Equal(PiPlay.Services.PrivacyService.ClearActionLabel,
+            (string)((Button)w.FindName("ClearBrowserDataButton")!).Content);
+    });
+
+    [Fact]
+    public void SettingsWindow_disables_only_clear_when_browser_not_ready() => StaTestThread.Invoke(() =>
+    {
+        var notReady = new SettingsWindow(isBrowserReady: false);
+        Assert.True(((Button)notReady.FindName("ResetAppStateButton")!).IsEnabled);
+        Assert.False(((Button)notReady.FindName("ClearBrowserDataButton")!).IsEnabled);
+
+        var ready = new SettingsWindow(isBrowserReady: true);
+        Assert.True(((Button)ready.FindName("ResetAppStateButton")!).IsEnabled);
+        Assert.True(((Button)ready.FindName("ClearBrowserDataButton")!).IsEnabled);
+    });
+
     // --- Resolved DependencyProperty invariants (runtime counterpart to Layer 1) ---
 
     [Fact]
