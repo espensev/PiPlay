@@ -68,4 +68,112 @@ internal static class Prompt
 
         return win.ShowDialog() == true ? result : null;
     }
+
+    /// <summary>
+    /// Themed dark Yes/No confirmation. Returns true only if the user confirms. Sets the owner and
+    /// matches its Topmost so a pinned PiPlay does not occlude it. Default focus is Cancel so Enter
+    /// never confirms a destructive action by accident; <paramref name="danger"/> styles the
+    /// confirm button as destructive (red).
+    /// </summary>
+    public static bool AskConfirm(Window owner, string title, string message, string confirmText, bool danger = false)
+    {
+        var bg = (Brush)Application.Current.Resources["AppBackground"];
+        var fg = (Brush)Application.Current.Resources["TextPrimary"];
+
+        var win = new Window
+        {
+            Title = title,
+            Owner = owner,
+            Topmost = owner.Topmost,
+            Width = 460,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            WindowStyle = WindowStyle.ToolWindow,
+            ShowInTaskbar = false,
+            Background = bg,
+        };
+
+        var panel = new StackPanel { Margin = new Thickness(16) };
+        panel.Children.Add(new TextBlock
+        {
+            Text = message,
+            Foreground = fg,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 16),
+        });
+
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        var confirm = new Button
+        {
+            Content = confirmText,
+            Style = (Style)Application.Current.Resources[danger ? "DangerButton" : "AccentButton"],
+            MinWidth = 110,
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        var cancel = new Button
+        {
+            Content = "Cancel",
+            Style = (Style)Application.Current.Resources["DarkButton"],
+            MinWidth = 90,
+            IsCancel = true,
+            IsDefault = true,
+        };
+        buttons.Children.Add(confirm);
+        buttons.Children.Add(cancel);
+        panel.Children.Add(buttons);
+
+        win.Content = panel;
+
+        var result = false;
+        confirm.Click += (_, _) => { result = true; win.DialogResult = true; };
+
+        win.ShowDialog();
+        return result;
+    }
+
+    /// <summary>Themed dark message dialog with a single OK button (done / not-ready / failed notices).</summary>
+    public static void ShowInfo(Window owner, string title, string message)
+    {
+        var bg = (Brush)Application.Current.Resources["AppBackground"];
+        var fg = (Brush)Application.Current.Resources["TextPrimary"];
+
+        var win = new Window
+        {
+            Title = title,
+            Owner = owner,
+            Topmost = owner.Topmost,
+            Width = 460,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            WindowStyle = WindowStyle.ToolWindow,
+            ShowInTaskbar = false,
+            Background = bg,
+        };
+
+        var panel = new StackPanel { Margin = new Thickness(16) };
+        panel.Children.Add(new TextBlock
+        {
+            Text = message,
+            Foreground = fg,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 16),
+        });
+
+        var ok = new Button
+        {
+            Content = "OK",
+            Style = (Style)Application.Current.Resources["AccentButton"],
+            MinWidth = 90,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            IsDefault = true,
+            IsCancel = true,
+        };
+        ok.Click += (_, _) => { win.DialogResult = true; };
+        panel.Children.Add(ok);
+
+        win.Content = panel;
+        win.ShowDialog();
+    }
 }
