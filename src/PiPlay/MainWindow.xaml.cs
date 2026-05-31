@@ -272,7 +272,7 @@ public partial class MainWindow : Window
         var (ok, error) = ProfileService.ValidateUrl(currentUrl);
         if (!ok)
         {
-            MessageBox.Show(error, "PiPlay", MessageBoxButton.OK, MessageBoxImage.Information);
+            Prompt.ShowInfo(this, "Save profile", error!);
             return;
         }
 
@@ -282,10 +282,11 @@ public partial class MainWindow : Window
 
         if (ProfileService.Exists(_settings, name))
         {
-            var overwrite = MessageBox.Show(
-                $"A profile named \"{name}\" already exists. Overwrite it?",
-                "PiPlay", MessageBoxButton.YesNo, MessageBoxImage.Question);
-            if (overwrite != MessageBoxResult.Yes) return;
+            if (!Prompt.AskConfirm(this, "Overwrite profile?",
+                    $"A profile named \"{name}\" already exists. Overwrite it?", "Overwrite"))
+            {
+                return;
+            }
         }
 
         ProfileService.Save(_settings, new Profile { Name = name, Url = currentUrl, Topmost = Topmost });
@@ -422,8 +423,7 @@ public partial class MainWindow : Window
             var target = await ResolvePopoutTargetAsync(core);
             if (target is null || string.IsNullOrEmpty(target.VideoId))
             {
-                MessageBox.Show("Open a YouTube video first, then press Pop out video.", "PiPlay",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                Prompt.ShowInfo(this, "Pop out video", "Open a YouTube video first, then press Pop out video.");
                 return;
             }
 
@@ -453,8 +453,7 @@ public partial class MainWindow : Window
             ShowSourcePlaceholder(false);
             if (_player is not null) { try { _player.Close(); } catch { /* ignore */ } _player = null; }
             if (_sourceWasPlayingAtPopout && core is not null) await YouTubeDomBridge.PlayAsync(core);
-            MessageBox.Show("PiPlay couldn't pop out this video. It stayed in the main window.", "PiPlay",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            Prompt.ShowInfo(this, "Pop out video", "PiPlay couldn't pop out this video. It stayed in the main window.");
         }
         finally
         {

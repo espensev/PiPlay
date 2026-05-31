@@ -157,6 +157,27 @@ public class WpfRuntimeTests
     });
 
     [Fact]
+    public void Prompt_dialogs_are_borderless_dark() => StaTestThread.Invoke(() =>
+    {
+        // The themed dialogs are built in code (no XAML), so the markup suite can't guard them.
+        // Lock the borderless-dark invariants so they can't silently regress to a light chrome.
+        var win = Prompt.BuildShell(owner: null, title: "Test title", out var body);
+        Assert.Equal(WindowStyle.None, win.WindowStyle);
+        Assert.False(win.AllowsTransparency);
+        Assert.Equal(ResizeMode.NoResize, win.ResizeMode);
+        Assert.False(win.ShowInTaskbar);
+        Assert.Same(Application.Current.Resources["AppBackground"], win.Background);
+        Assert.NotNull(body);
+
+        // 1px border > dock panel > [draggable title bar with a CloseIconButton, body].
+        var border = Assert.IsType<Border>(win.Content);
+        var dock = Assert.IsType<DockPanel>(border.Child);
+        var bar = Assert.IsType<Grid>(dock.Children[0]);
+        Assert.Contains(bar.Children.OfType<Button>(),
+            b => ReferenceEquals(b.Style, Application.Current.Resources["CloseIconButton"]));
+    });
+
+    [Fact]
     public void Named_controls_resolve_to_expected_types() => StaTestThread.Invoke(() =>
     {
         var w = new MainWindow();
