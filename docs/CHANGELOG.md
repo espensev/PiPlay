@@ -56,6 +56,17 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   interactable (Q-8, no click-through). Decision logic lives in `Services/FadePolicy.cs`
   with unit-test coverage.
 
+### Added — Phase 2 (privacy)
+- **Reset app state** (REQ-PRIVACY-01) and **Clear browser data** (REQ-PRIVACY-02) as separate,
+  confirmed actions in a new themed **Settings** window (gear in the Source Window title bar).
+  Reset atomically rewrites `settings.json` to defaults (settings, profiles, placement) and
+  **keeps the YouTube session** — you stay signed in. Clear browser data is a separate, red-confirmed
+  action that clears the shared WebView2 profile (`ClearBrowsingDataAsync(AllProfile)`) and signs you
+  out. The only code path that logs you out is this explicit action — enforced by a regression test.
+  Wording lives in `Services/PrivacyService.cs` and the UI binds to it so the visible text and the
+  tested copy cannot drift. The flow is hardened against double-clicks, stale browser readiness,
+  failed clears, and modal-owner issues (result-based, work runs after the modal closes).
+
 ### Planned — Phase 2 (remaining)
 - `Auto` off by default, profile edit/validation, release publish profiles, and Phase 2 QA coverage.
 
