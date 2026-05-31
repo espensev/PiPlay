@@ -48,6 +48,8 @@
 
       <!-- Caption buttons must opt out of the draggable caption area. -->
       <StackPanel Grid.Column="1" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+        <Button x:Name="SettingsButton" Style="{StaticResource IconButton}" Click="SettingsButton_Click"
+                Content="&#xE713;" ToolTip="Settings" />
         <Button x:Name="MinimizeButton" Style="{StaticResource IconButton}" Click="MinimizeButton_Click"
                 Content="&#xE921;" ToolTip="Minimize" />
         <Button x:Name="MaximizeButton" Style="{StaticResource IconButton}" Click="MaximizeButton_Click"

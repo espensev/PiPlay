@@ -49,6 +49,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Expose internal test-only seams (e.g. MainWindow.ApplyResetState / PendingUrlForTests)
+         to the regression suite without widening the public API. -->
+    <InternalsVisibleTo Include="PiPlay.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Embed the app icon as a WPF resource too, so XAML Image/Window.Icon can use it
          (it is also the exe ApplicationIcon above). -->
     <Resource Include="Assets\piplay.ico" />

@@ -1,8 +1,10 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shell;
+using Microsoft.Web.WebView2.Wpf;
 using PiPlay;
 
 namespace PiPlay.Tests;
@@ -92,6 +94,28 @@ public class WpfRuntimeTests
         Assert.False(w.AllowsTransparency);
         Assert.Equal(WindowStyle.None, w.WindowStyle);
         Assert.Equal(new CornerRadius(0), WindowChrome.GetWindowChrome(w)!.CornerRadius);
+    });
+
+    [Fact]
+    public void MainWindow_exposes_settings_button() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        Assert.IsType<Button>(w.FindName("SettingsButton"));
+    });
+
+    [Fact]
+    public void Reset_applies_to_ui_without_a_live_browser() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+
+        // CoreWebView2 is null because the window is never shown (Loaded never runs).
+        var ex = Record.Exception(() => w.ApplyResetState());
+
+        Assert.Null(ex);
+        Assert.Empty(((ComboBox)w.FindName("ProfilesCombo")!).Items);
+        Assert.False(((ToggleButton)w.FindName("PinToggle")!).IsChecked);
+        Assert.Null(w.PendingUrlForTests);                          // reset queued no navigation
+        Assert.Null(((WebView2)w.FindName("Browser")!).Source);     // browser source untouched
     });
 
     [Fact]

@@ -21,7 +21,7 @@ public partial class MainWindow : Window
     private const string GlyphRestore = "";
 
     private readonly SettingsService _settingsService = new();
-    private readonly AppSettings _settings;
+    private AppSettings _settings;
 
     private bool _browserReady;
     private bool _placementRestored;
@@ -32,6 +32,9 @@ public partial class MainWindow : Window
     private bool _popoutInProgress;
     private PlayerWindow? _player;
     private bool _sourceWasPlayingAtPopout;
+
+    // Guards both privacy actions against re-entrancy (double-click, reopen mid-clear).
+    private bool _privacyActionInProgress;
 
     public MainWindow()
     {
@@ -287,6 +290,101 @@ public partial class MainWindow : Window
         LoadProfilesIntoCombo();
         Log.Info("Profile saved.");
     }
+
+    // --- Privacy actions: Settings window (spec 19, Phase 2, REQ-PRIVACY-01/02) ---
+
+    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_privacyActionInProgress) return;
+
+        var dialog = new SettingsWindow(isBrowserReady: _browserReady && Browser.CoreWebView2 is not null)
+        {
+            Owner = this,
+            Topmost = Topmost,
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        switch (dialog.RequestedAction)
+        {
+            case PrivacyAction.ResetAppState:
+                PerformResetAppState();
+                break;
+            case PrivacyAction.ClearBrowserData:
+                _ = PerformClearBrowserDataAsync();
+                break;
+        }
+    }
+
+    private void PerformResetAppState()
+    {
+        if (_privacyActionInProgress) return;
+        _privacyActionInProgress = true;
+        try
+        {
+            ApplyResetState();
+            Prompt.ShowInfo(this, PrivacyService.ResetDoneTitle, PrivacyService.ResetDoneBody);
+        }
+        finally
+        {
+            _privacyActionInProgress = false;
+        }
+    }
+
+    /// <summary>
+    /// Apply a reset to the live UI: defaults to settings.json, empty profiles combo, pin off.
+    /// References no Browser/WebView2 member and queues no navigation, so the user stays signed in.
+    /// Internal so a headless WPF test can prove it runs with a null CoreWebView2.
+    /// </summary>
+    internal void ApplyResetState()
+    {
+        _settings = _settingsService.Reset();
+        ApplyTopmost(false);
+        LoadProfilesIntoCombo();
+    }
+
+    private async Task PerformClearBrowserDataAsync()
+    {
+        if (_privacyActionInProgress) return;
+
+        // Re-check readiness at execution time (the cached enabled state can be stale).
+        var core = Browser.CoreWebView2;
+        if (!_browserReady || core is null)
+        {
+            Prompt.ShowInfo(this, PrivacyService.ClearConfirmTitle, PrivacyService.ClearBrowserNotReady);
+            return;
+        }
+
+        _privacyActionInProgress = true;
+        SettingsButton.IsEnabled = false;   // no second Settings window mid-await
+        try
+        {
+            // Single shared profile: closing the popout avoids it showing a logged-out surface.
+            if (_player is not null) { try { _player.Close(); } catch { /* ignore */ } }
+
+            await PrivacyService.ClearBrowserDataAsync(core);
+
+            // Reflect the signed-out state; a nav hiccup must not mask a successful clear.
+            try { NavigateInternal("https://www.youtube.com/"); }
+            catch (Exception navEx) { Log.Error("Post-clear navigation failed.", navEx); }
+
+            Log.Info("Browser data cleared (user signed out).");
+            Prompt.ShowInfo(this, PrivacyService.ClearDoneTitle, PrivacyService.ClearDoneBody);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Clear browser data failed.", ex);
+            Prompt.ShowInfo(this, PrivacyService.ClearConfirmTitle, PrivacyService.ClearFailed);
+        }
+        finally
+        {
+            _privacyActionInProgress = false;
+            SettingsButton.IsEnabled = true;
+        }
+    }
+
+    /// <summary>Test-only: the navigation queued while the browser was not ready (null = none).</summary>
+    internal string? PendingUrlForTests => _pendingUrl;
 
     // --- Video Popout lifecycle (spec 13) ---
 
