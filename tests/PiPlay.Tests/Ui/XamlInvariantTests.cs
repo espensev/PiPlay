@@ -195,6 +195,15 @@ public class XamlInvariantTests
         Assert.True(ratio >= 4.5, $"Accent button text contrast = {ratio:F2}:1.");
     }
 
+    [Fact]
+    public void DangerButton_style_is_defined()
+    {
+        var keys = XamlTestFiles.Load("Theme/ControlStyles.xaml").Descendants()
+            .Select(e => e.Attribute(XamlTestFiles.X + "Key")?.Value)
+            .Where(k => k is not null);
+        Assert.Contains("DangerButton", keys);
+    }
+
     // --- App manifest declares per-monitor-v2 DPI awareness (REQ-WINDOW-01, Q-7) ---
 
     [Fact]
