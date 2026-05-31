@@ -74,5 +74,10 @@ Binary pass/fail (spec section 22.2 Chrome acceptance). Prefer ChatGPT-operated 
 - [ ] **UI-CHK-2** Profiles dropdown (closed) renders dark, not a light platform control. **(REQ-UI-01)**
 - [ ] **UI-CHK-3** Profiles dropdown (open) + its items render dark; empty list looks intentional, not a blank light box. **(REQ-UI-01)**
 - [ ] **UI-CHK-4** Tooltips render dark and do not occlude the control they describe (esp. caption buttons). **(REQ-UI-01)**
+> **Automated coverage (Lane A, `dotnet test`):** UI-CHK-5's clipping cause (`UseLayoutRounding`)
+> and the contrast/resource/icon-font checks are now guarded by the markup (Layer 1) and live-WPF
+> (Layer 3) tests; the rows below remain the **true-render** confirmation via the manual smoke
+> (`scripts/Test-UiSmoke.ps1`, Lane B) at fractional DPI. See `tests/README.md`.
+
 - [ ] **UI-CHK-5** Address/URL field text is legible at 100/125/150 % DPI — no clipping or faint text.
 - [ ] **UI-CHK-6** Icons share weight, corner style, and active-color behavior across the chrome.

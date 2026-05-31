@@ -59,6 +59,30 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 ### Planned — Phase 2 (remaining)
 - `Auto` off by default, profile edit/validation, release publish profiles, and Phase 2 QA coverage.
 
+### Tests & quality
+- **Layered regression suite** (`docs/Regression_Test_Suite_Design.md`), 119 tests in
+  `dotnet test` across three lanes plus a manual smoke:
+  - **Layer 1 — XAML markup invariants** (`tests/.../Ui/XamlInvariantTests.cs`): parses the
+    `.xaml` as XML and asserts the burned-in properties that break the app if they silently
+    flip — `UseLayoutRounding="False"` (re-catches the "rounding = 0" URL-text clipping),
+    `AllowsTransparency="False"`, `WindowChrome CornerRadius=0`, the required `x:Name` controls,
+    glyph icon-font fallback, tooltips, that every `{StaticResource}` resolves, WCAG contrast,
+    and the PerMonitorV2 manifest.
+  - **Layer 2 — expanded logic** filling spec-coverage gaps: `Log.RedactUrl` (URL/token
+    redaction), `ProfileService`, `YouTubeUrlHelper` path/start/embed/playlist edges, nav in-app
+    schemes, plus the new pure `PlacementMath`/`ReturnPolicy`.
+  - **Layer 3 — live WPF on a shared STA thread** (`Ui/WpfRuntimeTests.cs`): constructs the real
+    windows (never shown, so WebView2/network are untouched) to verify runtime resource
+    resolution, the layout/airspace DependencyProperty invariants, dark-theme styles, and a
+    `RenderTargetBitmap` proving the URL text is not clipped at 150% DPI.
+  - **Layer 4 — manual UIA + screenshot smoke** (`scripts/Test-UiSmoke.ps1`) for the true-render
+    chrome gates at fractional DPI.
+- **Spec-conformance review** (`docs/Spec_Conformance_Review.md`): 92 findings, no current bugs.
+- **Test-enabling seams** (behavior-preserving): `AppPaths` honors `PIPLAY_DATA_ROOT`; the
+  placement clamp extracted to a pure `PlacementMath`; the return-resume decision extracted to a
+  pure `ReturnPolicy`; `MainWindow`'s icon pack URI made assembly-qualified
+  (`/PiPlay;component/...`) so it resolves independent of `Application.ResourceAssembly`.
+
 ## [0.3] - 2026-05-30
 - Documentation only (pre-MVP). Established the Video Popout terminology, visual-identity tokens, and the fade/opacity/transparency policy split. Spec deduplicated and cleaned; requirement IDs and an atomic settings-save fix added.
 
