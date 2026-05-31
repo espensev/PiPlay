@@ -35,6 +35,9 @@ public partial class MainWindow : Window
 
     // Guards both privacy actions against re-entrancy (double-click, reopen mid-clear).
     private bool _privacyActionInProgress;
+    // True only while Clear browser data is running, so the popout's return handler does not
+    // drive source playback against a session that is being wiped.
+    private bool _clearingBrowserData;
 
     public MainWindow()
     {
@@ -293,11 +296,14 @@ public partial class MainWindow : Window
 
     // --- Privacy actions: Settings window (spec 19, Phase 2, REQ-PRIVACY-01/02) ---
 
+    /// <summary>Whether Clear browser data can run right now (browser initialized + live core).</summary>
+    internal bool CanClearBrowserData => _browserReady && Browser.CoreWebView2 is not null;
+
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
         if (_privacyActionInProgress) return;
 
-        var dialog = new SettingsWindow(isBrowserReady: _browserReady && Browser.CoreWebView2 is not null)
+        var dialog = new SettingsWindow(isBrowserReady: CanClearBrowserData)
         {
             Owner = this,
             Topmost = Topmost,
@@ -349,20 +355,24 @@ public partial class MainWindow : Window
 
         // Re-check readiness at execution time (the cached enabled state can be stale).
         var core = Browser.CoreWebView2;
-        if (!_browserReady || core is null)
+        if (!CanClearBrowserData || core is null)
         {
             Prompt.ShowInfo(this, PrivacyService.ClearConfirmTitle, PrivacyService.ClearBrowserNotReady);
             return;
         }
 
         _privacyActionInProgress = true;
+        _clearingBrowserData = true;
         SettingsButton.IsEnabled = false;   // no second Settings window mid-await
         try
         {
             // Single shared profile: closing the popout avoids it showing a logged-out surface.
+            // _clearingBrowserData makes the popout's return handler skip driving source playback.
             if (_player is not null) { try { _player.Close(); } catch { /* ignore */ } }
 
-            await PrivacyService.ClearBrowserDataAsync(core);
+            // Bound the wait so a hung clear can never wedge the gear/privacy actions for the
+            // rest of the session; a timeout falls through to the catch and re-enables the UI.
+            await PrivacyService.ClearBrowserDataAsync(core).WaitAsync(TimeSpan.FromSeconds(30));
 
             // Reflect the signed-out state; a nav hiccup must not mask a successful clear.
             try { NavigateInternal("https://www.youtube.com/"); }
@@ -379,6 +389,7 @@ public partial class MainWindow : Window
         finally
         {
             _privacyActionInProgress = false;
+            _clearingBrowserData = false;
             SettingsButton.IsEnabled = true;
         }
     }
@@ -489,7 +500,9 @@ public partial class MainWindow : Window
             // Return to the source (spec 14). LastKnownSeconds is nullable; 0 is a valid timestamp.
             ShowSourcePlaceholder(false);
             var core = Browser.CoreWebView2;
-            if (core is not null)
+            // Skip driving source playback when a Clear browser data is wiping the session — the
+            // page is about to be cleared/navigated, so seek/play scripts would be wasted or race.
+            if (core is not null && !_clearingBrowserData)
             {
                 // REQ-RETURN-01: resume only if the source was playing when popout started;
                 // 0 is a valid timestamp distinct from unknown. Decision lives in ReturnPolicy.

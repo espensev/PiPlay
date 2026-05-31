@@ -6,6 +6,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Shell;
 using Microsoft.Web.WebView2.Wpf;
 using PiPlay;
+using PiPlay.Models;
 
 namespace PiPlay.Tests;
 
@@ -104,18 +105,55 @@ public class WpfRuntimeTests
     });
 
     [Fact]
-    public void Reset_applies_to_ui_without_a_live_browser() => StaTestThread.Invoke(() =>
+    public void Reset_clears_dirty_ui_without_a_live_browser() => StaTestThread.Invoke(() =>
     {
         var w = new MainWindow();
+        var pin = (ToggleButton)w.FindName("PinToggle")!;
+        var profiles = (ComboBox)w.FindName("ProfilesCombo")!;
+
+        // Drive a dirty pre-state so the assertions prove the reset TRANSITION, not the
+        // already-true fresh-construction defaults. (Setting IsChecked programmatically does not
+        // fire the Click handler; setting ItemsSource leaves SelectedIndex at -1, so no navigation.)
+        pin.IsChecked = true;
+        profiles.ItemsSource = new[]
+        {
+            new Profile { Name = "Lo-fi", Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+        };
+        Assert.NotEmpty(profiles.Items);
+        Assert.True(pin.IsChecked);
 
         // CoreWebView2 is null because the window is never shown (Loaded never runs).
         var ex = Record.Exception(() => w.ApplyResetState());
 
         Assert.Null(ex);
-        Assert.Empty(((ComboBox)w.FindName("ProfilesCombo")!).Items);
-        Assert.False(((ToggleButton)w.FindName("PinToggle")!).IsChecked);
+        Assert.Empty(profiles.Items);                               // profiles cleared by reset
+        Assert.False(pin.IsChecked);                                // pin turned off by reset
         Assert.Null(w.PendingUrlForTests);                          // reset queued no navigation
         Assert.Null(((WebView2)w.FindName("Browser")!).Source);     // browser source untouched
+    });
+
+    [Fact]
+    public void Clear_is_not_ready_on_a_window_without_a_browser() => StaTestThread.Invoke(() =>
+    {
+        // The window is never shown, so the WebView2 core is never created: Clear must gate off.
+        // Guards the execution-time readiness re-check that prevents clearing with a stale state.
+        var w = new MainWindow();
+        Assert.False(w.CanClearBrowserData);
+    });
+
+    [Fact]
+    public void SettingsWindow_has_no_requested_action_until_confirmed() => StaTestThread.Invoke(() =>
+    {
+        var w = new SettingsWindow(isBrowserReady: true);
+        Assert.Equal(PrivacyAction.None, w.RequestedAction);
+    });
+
+    [Fact]
+    public void DangerButton_style_resolves_at_runtime() => StaTestThread.Invoke(() =>
+    {
+        // The destructive confirm resolves DangerButton from code (Prompt.AskConfirm), not XAML,
+        // so the markup StaticResource sweep misses it — prove it resolves to a Style at runtime.
+        Assert.IsType<Style>(Application.Current.TryFindResource("DangerButton"));
     });
 
     [Fact]

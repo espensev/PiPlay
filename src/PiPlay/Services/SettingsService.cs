@@ -86,6 +86,11 @@ public sealed class SettingsService
             {
                 try { File.Delete(f); } catch { /* best-effort cleanup */ }
             }
+
+            // Drop any orphaned temp left by a crashed AtomicWrite (harmless, but a clean slate).
+            var tmp = _path + ".tmp";
+            if (File.Exists(tmp)) { try { File.Delete(tmp); } catch { /* best-effort cleanup */ } }
+
             Log.Info("App state reset to defaults (WebView2 session preserved).");
         }
         catch (Exception ex)

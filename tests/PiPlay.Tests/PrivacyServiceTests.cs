@@ -35,8 +35,10 @@ public class PrivacyServiceTests
                      PrivacyService.ClearDoneBody,
                  })
         {
-            Assert.True(Has(s, "sign") && Has(s, "out"),
-                $"Clear wording should state the user is signed out: '{s}'");
+            // Assert the PHRASE, not "sign" and "out" as independent tokens (which a reassuring
+            // "stay signed in ... log out of other apps" string could satisfy).
+            Assert.True(Has(s, "signed out") || Has(s, "signs you out") || Has(s, "sign you out"),
+                $"Clear wording should state the user is signed out (as a phrase): '{s}'");
         }
     }
 
