@@ -114,17 +114,11 @@ public static class WindowPlacementService
 
     private static RECT Clamp(RECT r, RECT work)
     {
-        var w = Math.Min(r.Right - r.Left, work.Right - work.Left);
-        var h = Math.Min(r.Bottom - r.Top, work.Bottom - work.Top);
-
-        var x = r.Left;
-        var y = r.Top;
-        if (x < work.Left) x = work.Left;
-        if (y < work.Top) y = work.Top;
-        if (x + w > work.Right) x = work.Right - w;
-        if (y + h > work.Bottom) y = work.Bottom - h;
-
-        return new RECT { Left = x, Top = y, Right = x + w, Bottom = y + h };
+        // Geometry lives in PlacementMath so it can be unit-tested without a Window/monitors.
+        var c = PlacementMath.Clamp(
+            new RectI(r.Left, r.Top, r.Right, r.Bottom),
+            new RectI(work.Left, work.Top, work.Right, work.Bottom));
+        return new RECT { Left = c.Left, Top = c.Top, Right = c.Right, Bottom = c.Bottom };
     }
 
     private static List<MONITORINFOEX> EnumerateMonitors()
