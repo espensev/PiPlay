@@ -391,15 +391,21 @@ public partial class MainWindow : Window
             var core = Browser.CoreWebView2;
             if (core is not null)
             {
-                if (state.LastKnownSeconds is int secs)
+                // REQ-RETURN-01: resume only if the source was playing when popout started;
+                // 0 is a valid timestamp distinct from unknown. Decision lives in ReturnPolicy.
+                switch (ReturnPolicy.Decide(state.LastKnownSeconds, _sourceWasPlayingAtPopout))
                 {
-                    // REQ-RETURN-01: resume only if the source was playing when popout started.
-                    if (_sourceWasPlayingAtPopout) await YouTubeDomBridge.SeekAndPlayAsync(core, secs);
-                    else await YouTubeDomBridge.SeekAsync(core, secs);
-                }
-                else if (_sourceWasPlayingAtPopout)
-                {
-                    await YouTubeDomBridge.PlayAsync(core);
+                    case ReturnAction.SeekAndPlay:
+                        await YouTubeDomBridge.SeekAndPlayAsync(core, state.LastKnownSeconds!.Value);
+                        break;
+                    case ReturnAction.Seek:
+                        await YouTubeDomBridge.SeekAsync(core, state.LastKnownSeconds!.Value);
+                        break;
+                    case ReturnAction.Play:
+                        await YouTubeDomBridge.PlayAsync(core);
+                        break;
+                    case ReturnAction.None:
+                        break;
                 }
             }
 
