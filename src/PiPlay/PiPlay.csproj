@@ -27,6 +27,12 @@
     <AssemblyVersion>0.1.0.0</AssemblyVersion>
     <FileVersion>0.1.0.0</FileVersion>
     <InformationalVersion>0.1.0</InformationalVersion>
+    <!-- Keep ProductVersion (the Win32 field shown in file properties) a clean
+         semantic version. The SDK otherwise appends "+<full-git-sha>" to the
+         InformationalVersion; the commit is already recorded in build-info.json
+         (sourceCommit), so the SHA here is redundant noise. Mirrors the SevIQ
+         house style (NVG-SmoothControl .rc: ProductVersion == version string). -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 
     <!-- FileVersionInfo metadata surfaced by the pipeline's build-info.json. -->
     <Company>SevIQ</Company>
