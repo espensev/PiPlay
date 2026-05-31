@@ -53,6 +53,7 @@ try {
     Assert-Element 'UrlBox'        'URL / address box'
     Assert-Element 'CloseButton'   'Close caption button'
     Assert-Element 'ProfilesCombo' 'Profiles dropdown'
+    Assert-Element 'SettingsButton' 'Settings gear button'
 
     # Screenshot the window region for the chrome-acceptance review (section 22.2).
     $rect = $root.Current.BoundingRectangle

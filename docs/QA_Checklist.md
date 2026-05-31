@@ -58,8 +58,10 @@ Mark each: pass / issue (link) / skipped.
 - [ ] Warm WebView: Popout Player shows video within about 1.5 s of pressing **Pop out video**; cold first-run WebView2 init is exempt.
 - [ ] CPU/GPU comparable to a normal browser tab playing the same video.
 - [ ] No unbounded log or settings growth.
-- [ ] Phase 2: `Reset app state` clears settings/profiles/placement but preserves YouTube login. **(REQ-PRIVACY-01 — not in MVP)**
-- [ ] Phase 2: `Clear browser data` is separate, confirmed, and logs the user out. **(REQ-PRIVACY-02 — not in MVP)**
+- [ ] Phase 2: Open Settings (gear) → **Reset app state** → confirm. Settings/profiles/placement clear, but the YouTube tab is **still signed in** (no re-login, no 2FA). **(REQ-PRIVACY-01 — not in MVP)**
+- [ ] Phase 2: Settings → **Clear browser data** is a separate, red-confirmed action; after confirming, reload youtube.com and verify you are **signed out**. **(REQ-PRIVACY-02 — not in MVP)**
+- [ ] Phase 2: The two actions are clearly worded as distinct; the Clear confirm warns about signing out; Cancel (not the destructive button) has default focus.
+- [ ] Phase 2: With the WebView2 runtime missing (recovery panel showing), the Clear browser data button is disabled or reports "browser isn't ready"; Reset still works.
 
 ## 7. Packaging
 - [ ] `bin/` and `obj/` excluded from the repo / ZIP.
