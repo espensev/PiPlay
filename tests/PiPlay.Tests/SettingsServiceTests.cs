@@ -4,6 +4,7 @@ using PiPlay.Services;
 
 namespace PiPlay.Tests;
 
+[Trait(TestCategories.Key, TestCategories.Logic)]
 public class SettingsServiceTests : IDisposable
 {
     private readonly string _dir;

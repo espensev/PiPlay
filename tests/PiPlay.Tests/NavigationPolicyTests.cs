@@ -2,6 +2,7 @@ using PiPlay.Services;
 
 namespace PiPlay.Tests;
 
+[Trait(TestCategories.Key, TestCategories.Logic)]
 public class NavigationPolicyTests
 {
     private static Uri U(string s) => new(s);
