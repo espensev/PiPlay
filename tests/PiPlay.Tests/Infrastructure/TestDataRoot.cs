@@ -4,17 +4,18 @@ using System.Runtime.CompilerServices;
 namespace PiPlay.Tests;
 
 /// <summary>
-/// Point PiPlay's on-disk root at a throwaway temp dir for the entire test process, so any
-/// code that touches <see cref="PiPlay.Services.AppPaths"/> (e.g. constructing MainWindow in
-/// Layer 3) never reads or writes the developer's real %LOCALAPPDATA%\PiPlay. Runs before any
-/// test via <see cref="ModuleInitializerAttribute"/>.
+/// Process-wide test setup that must run before any test or WPF resource resolution.
+/// Runs via <see cref="ModuleInitializerAttribute"/> (the earliest user-code hook).
+/// Points PiPlay's on-disk root at a throwaway temp dir so anything that touches AppPaths
+/// (e.g. constructing MainWindow in Layer 3) never reads/writes the real %LOCALAPPDATA%\PiPlay.
+/// (Resource resolution needs no setup: the windows reference resources via assembly-qualified
+/// /PiPlay;component/... URIs, which are independent of Application.ResourceAssembly.)
 /// </summary>
 internal static class TestDataRoot
 {
     [ModuleInitializer]
     public static void Init()
     {
-        // Don't clobber an override the caller set deliberately.
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PIPLAY_DATA_ROOT")))
             return;
         var dir = Path.Combine(Path.GetTempPath(), "PiPlayTests", "data-" + Guid.NewGuid().ToString("N"));

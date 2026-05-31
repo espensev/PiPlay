@@ -38,8 +38,10 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         _settings = _settingsService.Load();
+        // Assembly-qualified pack URI (not the short form): resolves against the PiPlay assembly
+        // regardless of Application.ResourceAssembly, so it loads in production and under tests.
         Icon = new System.Windows.Media.Imaging.BitmapImage(
-            new Uri("pack://application:,,,/Assets/piplay.ico"));
+            new Uri("pack://application:,,,/PiPlay;component/Assets/piplay.ico"));
 
         BorderlessWindowHelper.EnableProperMaximize(this);
 
