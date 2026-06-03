@@ -132,4 +132,8 @@ it is a known, deliberate trade-off rather than an oversight.
   disabled-Clear tooltip) under **Fixed/Changed** — landed with the code, per AGENTS.md.
 - This design spec + the new **Design docs (per change pass)** convention added to `AGENTS.md`
   (the `docs/superpowers/specs|plans` pattern existed by practice but was uncodified).
+- **The `ClearTimeout` constant carries an XML-doc** that states the value (30 s), summarizes §3
+  (hang-guard ≈ 2× the ≤ 15 s adverse worst-case clear), and links back to this spec — so the
+  rationale lives next to the number and survives even if this doc is missed. **Decision: 30 s,
+  settled.** Revisit only from logged real durations (change 8), tightening toward ~15–20 s.
 - The implementation plan will live at `docs/superpowers/plans/2026-06-03-phase2-privacy-polish.md`.
