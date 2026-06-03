@@ -57,4 +57,19 @@ public class PrivacyServiceTests
         // AllProfile clears cookies + cache + site storage, which logs the user out.
         Assert.Equal(CoreWebView2BrowsingDataKinds.AllProfile, PrivacyService.ClearKinds);
     }
+
+    [Fact]
+    public void Clear_result_titles_are_statements_not_questions()
+    {
+        // Result/status notices must read as outcomes, not the confirmation question, so a user
+        // on a privacy action is never left unsure whether their data was actually cleared.
+        foreach (var title in new[] { PrivacyService.ClearResultTitle, PrivacyService.ClearDoneTitle })
+        {
+            Assert.False(title.TrimEnd().EndsWith("?"),
+                $"Clear result/status title should be a statement, not a question: '{title}'");
+        }
+
+        // The confirmation prompt, by contrast, is allowed (and expected) to be a question.
+        Assert.EndsWith("?", PrivacyService.ClearConfirmTitle);
+    }
 }

@@ -6,6 +6,13 @@ Orientation for AI agents (Claude Code, etc.) and new contributors. Read this an
 - The product & engineering spec is authoritative: `PiPlay_Product_Engineering_Spec.md` (this folder).
 - Architecture decisions and their rationale live in `adr/`. If you change a decision, add or supersede an ADR — do not just change code silently.
 
+## Design docs (per change pass)
+Before writing code for any non-trivial change, record the **goals and approach** of that pass in a dated design spec at `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`:
+- Open with a `## Goals` section, then the requirement IDs it serves (`Q-n`, `REQ-*`), the settled decisions, and the changes by file.
+- Multi-step work also gets an implementation plan at `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`.
+- These are **subordinate** to the product spec (still authoritative) and the ADRs (which own architecture decisions); they capture what one pass set out to do and why. Link the spec from the PR.
+- Established examples: `docs/superpowers/specs/2026-05-31-privacy-actions-design.md`, `docs/superpowers/plans/2026-05-31-*.md`.
+
 ## Terminology (do not drift)
 Use these names everywhere — UI, code, comments, tests, commits, issues:
 

@@ -761,7 +761,12 @@ try {
         Write-Host ""
         Write-Host "[2] Restore..." -ForegroundColor Yellow
         $restoreArgs = @("restore", $projectPath, "-p:BuildInParallel=false")
-        if ($Runtime) { $restoreArgs += @("-r", $Runtime) }
+        if ($Runtime) {
+            # A previous no-RID restore (for example `dotnet test`) can leave project.assets.json
+            # without the runtime target while dotnet still reports restore as up to date. Force
+            # the RID restore so the following --no-restore build has netX-windows/<rid> assets.
+            $restoreArgs += @("-r", $Runtime, "--force")
+        }
         Invoke-External -FilePath "dotnet" -Arguments $restoreArgs -FailureMessage "Restore failed"
     } else {
         Write-Host ""
