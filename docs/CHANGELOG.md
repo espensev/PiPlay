@@ -43,6 +43,13 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   rounding is now off on both windows; the URL text renders fully and legibly (UI-CHK-5).
 - `Build-PiPlay.ps1` Release stage no longer exits non-zero on success when no old publish
   folders are pruned.
+- **Clear browser data** now reports outcomes truthfully (REQ-PRIVACY-02, Q-6): result and
+  not-ready notices read as statements rather than the "Clear browser data?" question; a clear
+  that exceeds its ~30 s safety timeout says it will finish in the background instead of claiming
+  it failed; and any unexpected error is surfaced instead of being silently swallowed.
+- The Settings **Clear browser data** button now explains via a tooltip why it is disabled while
+  the browser is still loading.
+- Themed dialogs treat the title-bar close as Cancel (consistent dismissal).
 
 ### Removed
 - Deleted the outdated `Main app.txt` pre-spec brainstorm (superseded by the Draft 0.4 spec).
