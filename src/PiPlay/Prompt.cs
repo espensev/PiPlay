@@ -61,7 +61,9 @@ internal static class Prompt
             HorizontalAlignment = HorizontalAlignment.Right,
             Margin = new Thickness(0, 0, 5, 0),
         };
-        close.Click += (_, _) => win.Close();
+        // Title-bar close behaves as Cancel: set DialogResult=false (which auto-closes the modal)
+        // so ShowDialog() returns false, matching the IsCancel button. (Was win.Close() -> null.)
+        close.Click += (_, _) => { win.DialogResult = false; };
         bar.Children.Add(close);
         DockPanel.SetDock(bar, Dock.Top);
         root.Children.Add(bar);
