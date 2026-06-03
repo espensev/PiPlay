@@ -4,6 +4,7 @@ using PiPlay.Services;
 
 namespace PiPlay.Tests;
 
+[Trait(TestCategories.Key, TestCategories.Logic)]
 public class SettingsServiceTests : IDisposable
 {
     private readonly string _dir;
@@ -78,5 +79,70 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal(1.0, settings.Player.IdleWindowOpacity);
         Assert.Equal(960, settings.Player.LastWidth);
         Assert.Equal(540, settings.Player.LastHeight);
+    }
+
+    [Fact]
+    public void Reset_recreates_the_file_with_defaults()
+    {
+        var svc = new SettingsService(_path);
+        var populated = new AppSettings { LastUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" };
+        populated.MainWindow.Topmost = true;
+        populated.Profiles.Add(new Profile { Name = "Lo-fi", Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" });
+        svc.Save(populated);
+
+        var fresh = svc.Reset();
+
+        // Returned object is defaults.
+        Assert.Equal("https://www.youtube.com/", fresh.LastUrl);
+        Assert.Empty(fresh.Profiles);
+        Assert.False(fresh.MainWindow.Topmost);
+
+        // On-disk file is defaults too (atomic rewrite, never absent).
+        Assert.True(File.Exists(_path));
+        var reloaded = svc.Load();
+        Assert.Empty(reloaded.Profiles);
+        Assert.Equal("https://www.youtube.com/", reloaded.LastUrl);
+    }
+
+    [Fact]
+    public void Reset_preserves_sibling_logs_and_webview_user_data()
+    {
+        // The sacred invariant: reset never touches the browser session (login) or logs.
+        var logsDir = Path.Combine(_dir, "logs");
+        var webViewDir = Path.Combine(_dir, "WebView2UserData");
+        Directory.CreateDirectory(logsDir);
+        Directory.CreateDirectory(webViewDir);
+        var logFile = Path.Combine(logsDir, "piplay.log");
+        var sessionFile = Path.Combine(webViewDir, "session-cookie");
+        File.WriteAllText(logFile, "log line");
+        File.WriteAllText(sessionFile, "logged-in");
+
+        new SettingsService(_path).Reset();
+
+        Assert.True(File.Exists(logFile), "Reset must not delete logs.");
+        Assert.True(File.Exists(sessionFile), "Reset must not delete the WebView2 session (login).");
+        Assert.Equal("logged-in", File.ReadAllText(sessionFile));
+    }
+
+    [Fact]
+    public void Reset_does_not_create_a_webview_user_data_dir()
+    {
+        var webViewDir = Path.Combine(_dir, "WebView2UserData");
+        Assert.False(Directory.Exists(webViewDir));
+
+        new SettingsService(_path).Reset();
+
+        Assert.False(Directory.Exists(webViewDir), "Reset must never create/recreate the WebView2 folder.");
+    }
+
+    [Fact]
+    public void Reset_removes_stale_corrupt_quarantine_files()
+    {
+        var corrupt = Path.Combine(_dir, "settings.json.corrupt.20200101-000000.json");
+        File.WriteAllText(corrupt, "{}");
+
+        new SettingsService(_path).Reset();
+
+        Assert.False(File.Exists(corrupt), "Reset should clean up stale quarantines for a clean slate.");
     }
 }

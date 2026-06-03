@@ -3,6 +3,7 @@ using Xunit;
 
 namespace PiPlay.Tests;
 
+[Trait(TestCategories.Key, TestCategories.Logic)]
 public class FadePolicyTests
 {
     // --- ShouldHide ---

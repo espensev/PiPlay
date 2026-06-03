@@ -1,0 +1,234 @@
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
+
+namespace PiPlay.Tests;
+
+/// <summary>
+/// Layer 1 — markup invariants. Parses the source .xaml as XML (no WPF runtime) and asserts the
+/// burned-in properties that, if silently flipped, break the app — most notably the
+/// <c>UseLayoutRounding="False"</c> guard that re-catches the "rounding = 0" URL-text clipping.
+/// </summary>
+[Trait(TestCategories.Key, TestCategories.Markup)]
+public class XamlInvariantTests
+{
+    // Segoe Fluent / MDL2 glyphs live in the Unicode Private Use Area (U+E000 and up).
+    private const int PuaStart = 0xE000;
+
+    private static XElement Window(string file) => XamlTestFiles.Load(file).Root!;
+    private static string? Attr(XElement e, string name) => e.Attribute(name)?.Value;
+
+    // --- Window layout / airspace / chrome ---
+
+    [Theory]
+    [InlineData("MainWindow.xaml")]
+    [InlineData("PlayerWindow.xaml")]
+    [InlineData("SettingsWindow.xaml")]
+    public void Window_layout_and_airspace_invariants_hold(string file)
+    {
+        var w = Window(file);
+
+        // The "rounding = 0" regression: layout rounding MUST be off on every window (UI-CHK-5).
+        Assert.Equal("False", Attr(w, "UseLayoutRounding"));
+        // WebView2 airspace hard constraint (ADR-0004): a transparent window breaks the HwndHost.
+        Assert.Equal("False", Attr(w, "AllowsTransparency"));
+        // Custom chrome + crisp scaling.
+        Assert.Equal("None", Attr(w, "WindowStyle"));
+        Assert.Equal("True", Attr(w, "SnapsToDevicePixels"));
+    }
+
+    [Theory]
+    [InlineData("MainWindow.xaml", "42")]
+    [InlineData("PlayerWindow.xaml", "0")]
+    public void WindowChrome_invariants_hold(string file, string expectedCaptionHeight)
+    {
+        var chrome = Window(file).Descendants(XamlTestFiles.Pres + "WindowChrome").Single();
+
+        Assert.Equal("0", chrome.Attribute("CornerRadius")?.Value);
+        Assert.Equal("0", chrome.Attribute("GlassFrameThickness")?.Value);
+        Assert.Equal("False", chrome.Attribute("UseAeroCaptionButtons")?.Value);
+        Assert.Equal("6", chrome.Attribute("ResizeBorderThickness")?.Value);
+        Assert.Equal(expectedCaptionHeight, chrome.Attribute("CaptionHeight")?.Value);
+    }
+
+    // --- Required named controls (code-behind FindName / generated fields depend on these) ---
+
+    [Theory]
+    [MemberData(nameof(RequiredNames))]
+    public void Required_named_controls_exist(string file, string[] names)
+    {
+        var present = XamlTestFiles.Load(file).Descendants()
+            .Select(e => e.Attribute(XamlTestFiles.X + "Name")?.Value)
+            .Where(n => n is not null)
+            .ToHashSet();
+
+        foreach (var name in names)
+            Assert.Contains(name, present!);
+    }
+
+    public static IEnumerable<object[]> RequiredNames() => new[]
+    {
+        new object[] { "MainWindow.xaml", new[]
+        {
+            "Browser", "UrlBox", "ProfilesCombo", "PinToggle", "PinnedHint", "PopOutButton",
+            "BackButton", "ReloadButton", "HomeButton", "SaveProfileButton",
+            "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton",
+            "SourcePlaceholder", "RuntimeErrorPanel", "RuntimeErrorText",
+        }},
+        new object[] { "PlayerWindow.xaml", new[]
+        {
+            "ChromeStrip", "FadeToggle", "PinToggle", "CloseButton", "Player",
+        }},
+        new object[] { "SettingsWindow.xaml", new[]
+        {
+            "ResetAppStateButton", "ResetDescriptionText",
+            "ClearBrowserDataButton", "ClearDescriptionText", "CloseButton",
+        }},
+    };
+
+    // --- Glyph icon-font fallback (REQ-UI-02: no .notdef boxes) + tooltips (UI-CHK-4) ---
+
+    private static readonly HashSet<string> IconFontStyles = new()
+    {
+        "{StaticResource IconButton}", "{StaticResource CloseIconButton}", "{StaticResource PinToggle}",
+    };
+
+    [Theory]
+    [InlineData("MainWindow.xaml")]
+    [InlineData("PlayerWindow.xaml")]
+    [InlineData("SettingsWindow.xaml")]
+    public void Glyph_controls_use_the_icon_font(string file)
+    {
+        var doc = XamlTestFiles.Load(file);
+
+        // Any TextBlock whose Text starts with a PUA glyph must declare the icon font inline.
+        foreach (var tb in doc.Descendants(XamlTestFiles.Pres + "TextBlock"))
+        {
+            var text = tb.Attribute("Text")?.Value;
+            if (string.IsNullOrEmpty(text) || text[0] < PuaStart) continue;
+            var font = tb.Attribute("FontFamily")?.Value;
+            Assert.True(font is not null && font.Contains("Segoe Fluent Icons"),
+                $"Glyph TextBlock '{text}' in {file} is missing the icon FontFamily.");
+        }
+
+        // Any Button/ToggleButton carrying a glyph Content must use an icon-font style.
+        foreach (var btn in doc.Descendants().Where(e =>
+                     e.Name == XamlTestFiles.Pres + "Button" || e.Name == XamlTestFiles.Pres + "ToggleButton"))
+        {
+            var content = btn.Attribute("Content")?.Value;
+            if (string.IsNullOrEmpty(content) || content[0] < PuaStart) continue;
+            var style = btn.Attribute("Style")?.Value;
+            Assert.True(style is not null && IconFontStyles.Contains(style),
+                $"Glyph button '{content}' in {file} must use an icon-font style (was '{style}').");
+        }
+    }
+
+    [Fact]
+    public void Caption_and_toolbar_controls_have_tooltips()
+    {
+        var byName = XamlTestFiles.Load("MainWindow.xaml").Descendants()
+            .Where(e => e.Attribute(XamlTestFiles.X + "Name") is not null)
+            .ToDictionary(e => e.Attribute(XamlTestFiles.X + "Name")!.Value);
+
+        foreach (var name in new[]
+        {
+            "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton", "BackButton",
+            "ReloadButton", "HomeButton", "UrlBox", "ProfilesCombo", "SaveProfileButton", "PinToggle",
+        })
+        {
+            Assert.False(string.IsNullOrWhiteSpace(byName[name].Attribute("ToolTip")?.Value),
+                $"{name} is missing a ToolTip (UI-CHK-4).");
+        }
+    }
+
+    // --- Resource integrity: every {StaticResource} reference resolves to a defined key ---
+
+    [Fact]
+    public void Every_StaticResource_reference_is_defined()
+    {
+        var files = new[]
+        {
+            "App.xaml", "MainWindow.xaml", "PlayerWindow.xaml", "SettingsWindow.xaml",
+            "Theme/ControlStyles.xaml", "Theme/Colors.xaml",
+        };
+
+        var defined = new HashSet<string>();
+        var referenced = new HashSet<string>();
+        var rx = new Regex(@"\{StaticResource\s+([^}]+)\}", RegexOptions.Compiled);
+
+        foreach (var f in files)
+        {
+            foreach (var el in XamlTestFiles.Load(f).Descendants())
+            {
+                if (el.Attribute(XamlTestFiles.X + "Key")?.Value is { } key) defined.Add(key.Trim());
+                foreach (var a in el.Attributes())
+                    foreach (Match m in rx.Matches(a.Value))
+                        referenced.Add(m.Groups[1].Value.Trim());
+            }
+        }
+
+        var missing = referenced.Where(r => !defined.Contains(r)).OrderBy(x => x).ToArray();
+        Assert.True(missing.Length == 0, "Undefined StaticResource keys: " + string.Join(", ", missing));
+    }
+
+    // --- Theme contrast (WCAG) computed from the actual Colors.xaml tokens ---
+
+    private static Dictionary<string, string> ColorTokens()
+    {
+        return XamlTestFiles.Load("Theme/Colors.xaml")
+            .Descendants(XamlTestFiles.Pres + "Color")
+            .Where(e => e.Attribute(XamlTestFiles.X + "Key") is not null)
+            .ToDictionary(
+                e => e.Attribute(XamlTestFiles.X + "Key")!.Value,
+                e => e.Value.Trim());
+    }
+
+    [Theory]
+    [InlineData("TextPrimaryColor", "SurfaceRaisedColor", 4.5)]   // URL box (UI-CHK-5)
+    [InlineData("TextPrimaryColor", "AppBackgroundColor", 4.5)]
+    [InlineData("TextPrimaryColor", "SurfaceBaseColor", 4.5)]
+    [InlineData("TextSecondaryColor", "SurfaceBaseColor", 4.5)]   // secondary text / empty state
+    public void Theme_contrast_meets_minimum(string fg, string bg, double min)
+    {
+        var t = ColorTokens();
+        var ratio = Wcag.ContrastRatio(t[fg], t[bg]);
+        Assert.True(ratio >= min, $"{fg} on {bg} = {ratio:F2}:1, below {min}:1.");
+    }
+
+    [Fact]
+    public void Accent_button_text_is_readable_on_accent_fill()
+    {
+        // AccentButton: foreground #FF06141A literal on AccentCyan fill (ControlStyles.xaml).
+        var ratio = Wcag.ContrastRatio("#FF06141A", ColorTokens()["AccentCyanColor"]);
+        Assert.True(ratio >= 4.5, $"Accent button text contrast = {ratio:F2}:1.");
+    }
+
+    [Fact]
+    public void SettingsWindow_is_not_transparent()
+    {
+        // The Settings dialog hosts no WebView2, but stays opaque for visual consistency.
+        var w = XamlTestFiles.Load("SettingsWindow.xaml").Root!;
+        Assert.NotEqual("True", w.Attribute("AllowsTransparency")?.Value);
+    }
+
+    [Fact]
+    public void DangerButton_style_is_defined()
+    {
+        var keys = XamlTestFiles.Load("Theme/ControlStyles.xaml").Descendants()
+            .Select(e => e.Attribute(XamlTestFiles.X + "Key")?.Value)
+            .Where(k => k is not null);
+        Assert.Contains("DangerButton", keys);
+    }
+
+    // --- App manifest declares per-monitor-v2 DPI awareness (REQ-WINDOW-01, Q-7) ---
+
+    [Fact]
+    public void App_manifest_declares_per_monitor_v2_dpi()
+    {
+        var dpiAwareness = XamlTestFiles.Load("app.manifest")
+            .Descendants()
+            .FirstOrDefault(e => e.Name.LocalName == "dpiAwareness");
+
+        Assert.NotNull(dpiAwareness);
+        Assert.Contains("PerMonitorV2", dpiAwareness!.Value);
+    }
+}

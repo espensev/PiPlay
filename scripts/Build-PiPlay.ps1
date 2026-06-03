@@ -751,7 +751,11 @@ try {
 
     $numericParts = Get-NumericVersionParts -Version $resolvedVersion
     $assemblyVersion = "$($numericParts[0]).$($numericParts[1]).$($numericParts[2]).$resolvedBuildNumber"
-    $informationalVersion = if ($sourceCommit) { "$resolvedVersion+$($sourceCommit.Substring(0, [Math]::Min(12, $sourceCommit.Length)))" } else { $resolvedVersion }
+    # Keep InformationalVersion (-> Win32 ProductVersion, shown in file properties)
+    # a clean semantic version, matching the SevIQ house style. The commit is still
+    # captured in build-info.json (sourceCommit); see IncludeSourceRevisionIn-
+    # InformationalVersion=false in PiPlay.csproj which suppresses the SDK's +sha.
+    $informationalVersion = $resolvedVersion
 
     if (-not $NoRestore) {
         Write-Host ""

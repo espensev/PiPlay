@@ -103,8 +103,7 @@ public partial class PlayerWindow : Window
         catch (Exception ex)
         {
             Log.Error("Failed to initialize the Popout Player.", ex);
-            MessageBox.Show("PiPlay couldn't start the popout player.\n\n" + ex.Message,
-                "PiPlay", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Prompt.ShowInfo(this, "Video Popout", "PiPlay couldn't start the popout player.\n\n" + ex.Message);
             Close();
         }
     }

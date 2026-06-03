@@ -78,6 +78,32 @@
     </Setter>
   </Style>
 
+  <!-- Destructive action button (e.g. the Clear browser data confirm): red fill, white text. -->
+  <Style TargetType="Button" x:Key="DangerButton" BasedOn="{StaticResource DarkButton}">
+    <Setter Property="Background" Value="{StaticResource DangerPin}" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="10">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                              Margin="{TemplateBinding Padding}" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="bd" Property="Opacity" Value="0.88" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.4" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <!-- Chrome icon button: 32x32 hit target, transparent, hover surface, rounded 10px.
        Set Content to a glyph (Segoe Fluent / MDL2) or short text. -->
   <Style TargetType="Button" x:Key="IconButton">

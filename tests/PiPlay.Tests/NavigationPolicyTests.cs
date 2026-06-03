@@ -2,6 +2,7 @@ using PiPlay.Services;
 
 namespace PiPlay.Tests;
 
+[Trait(TestCategories.Key, TestCategories.Logic)]
 public class NavigationPolicyTests
 {
     private static Uri U(string s) => new(s);
@@ -69,5 +70,23 @@ public class NavigationPolicyTests
         Assert.False(NavigationPolicy.IsGoogleAuthHost("accounts.notgoogle.com"));
         Assert.False(NavigationPolicy.IsGoogleAuthHost("www.google.com"));
         Assert.False(NavigationPolicy.IsGoogleAuthHost("google.com"));
+    }
+
+    // --- In-app runtime schemes + null guard (relied on by both NavigationStarting handlers) ---
+
+    [Theory]
+    [InlineData("about:blank")]
+    [InlineData("data:text/html,<p>x</p>")]
+    [InlineData("blob:https://www.youtube.com/abc")]
+    public void Inapp_runtime_schemes_are_allowed(string url)
+    {
+        Assert.True(NavigationPolicy.IsAllowed(U(url), NavigationSurface.Source));
+        Assert.True(NavigationPolicy.IsAllowed(U(url), NavigationSurface.Player));
+    }
+
+    [Fact]
+    public void Null_uri_is_not_allowed()
+    {
+        Assert.False(NavigationPolicy.IsAllowed(null, NavigationSurface.Source));
     }
 }

@@ -21,7 +21,7 @@ public partial class MainWindow : Window
     private const string GlyphRestore = "";
 
     private readonly SettingsService _settingsService = new();
-    private readonly AppSettings _settings;
+    private AppSettings _settings;
 
     private bool _browserReady;
     private bool _placementRestored;
@@ -33,13 +33,21 @@ public partial class MainWindow : Window
     private PlayerWindow? _player;
     private bool _sourceWasPlayingAtPopout;
 
+    // Guards both privacy actions against re-entrancy (double-click, reopen mid-clear).
+    private bool _privacyActionInProgress;
+    // True only while Clear browser data is running, so the popout's return handler does not
+    // drive source playback against a session that is being wiped.
+    private bool _clearingBrowserData;
+
     public MainWindow()
     {
         InitializeComponent();
 
         _settings = _settingsService.Load();
+        // Assembly-qualified pack URI (not the short form): resolves against the PiPlay assembly
+        // regardless of Application.ResourceAssembly, so it loads in production and under tests.
         Icon = new System.Windows.Media.Imaging.BitmapImage(
-            new Uri("pack://application:,,,/Assets/piplay.ico"));
+            new Uri("pack://application:,,,/PiPlay;component/Assets/piplay.ico"));
 
         BorderlessWindowHelper.EnableProperMaximize(this);
 
@@ -264,7 +272,7 @@ public partial class MainWindow : Window
         var (ok, error) = ProfileService.ValidateUrl(currentUrl);
         if (!ok)
         {
-            MessageBox.Show(error, "PiPlay", MessageBoxButton.OK, MessageBoxImage.Information);
+            Prompt.ShowInfo(this, "Save profile", error!);
             return;
         }
 
@@ -274,10 +282,11 @@ public partial class MainWindow : Window
 
         if (ProfileService.Exists(_settings, name))
         {
-            var overwrite = MessageBox.Show(
-                $"A profile named \"{name}\" already exists. Overwrite it?",
-                "PiPlay", MessageBoxButton.YesNo, MessageBoxImage.Question);
-            if (overwrite != MessageBoxResult.Yes) return;
+            if (!Prompt.AskConfirm(this, "Overwrite profile?",
+                    $"A profile named \"{name}\" already exists. Overwrite it?", "Overwrite"))
+            {
+                return;
+            }
         }
 
         ProfileService.Save(_settings, new Profile { Name = name, Url = currentUrl, Topmost = Topmost });
@@ -285,6 +294,109 @@ public partial class MainWindow : Window
         LoadProfilesIntoCombo();
         Log.Info("Profile saved.");
     }
+
+    // --- Privacy actions: Settings window (spec 19, Phase 2, REQ-PRIVACY-01/02) ---
+
+    /// <summary>Whether Clear browser data can run right now (browser initialized + live core).</summary>
+    internal bool CanClearBrowserData => _browserReady && Browser.CoreWebView2 is not null;
+
+    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_privacyActionInProgress) return;
+
+        var dialog = new SettingsWindow(isBrowserReady: CanClearBrowserData)
+        {
+            Owner = this,
+            Topmost = Topmost,
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        switch (dialog.RequestedAction)
+        {
+            case PrivacyAction.ResetAppState:
+                PerformResetAppState();
+                break;
+            case PrivacyAction.ClearBrowserData:
+                _ = PerformClearBrowserDataAsync();
+                break;
+        }
+    }
+
+    private void PerformResetAppState()
+    {
+        if (_privacyActionInProgress) return;
+        _privacyActionInProgress = true;
+        try
+        {
+            ApplyResetState();
+            Prompt.ShowInfo(this, PrivacyService.ResetDoneTitle, PrivacyService.ResetDoneBody);
+        }
+        finally
+        {
+            _privacyActionInProgress = false;
+        }
+    }
+
+    /// <summary>
+    /// Apply a reset to the live UI: defaults to settings.json, empty profiles combo, pin off.
+    /// References no Browser/WebView2 member and queues no navigation, so the user stays signed in.
+    /// Internal so a headless WPF test can prove it runs with a null CoreWebView2.
+    /// </summary>
+    internal void ApplyResetState()
+    {
+        _settings = _settingsService.Reset();
+        ApplyTopmost(false);
+        LoadProfilesIntoCombo();
+    }
+
+    private async Task PerformClearBrowserDataAsync()
+    {
+        if (_privacyActionInProgress) return;
+
+        // Re-check readiness at execution time (the cached enabled state can be stale).
+        var core = Browser.CoreWebView2;
+        if (!CanClearBrowserData || core is null)
+        {
+            Prompt.ShowInfo(this, PrivacyService.ClearConfirmTitle, PrivacyService.ClearBrowserNotReady);
+            return;
+        }
+
+        _privacyActionInProgress = true;
+        _clearingBrowserData = true;
+        SettingsButton.IsEnabled = false;   // no second Settings window mid-await
+        try
+        {
+            // Single shared profile: closing the popout avoids it showing a logged-out surface.
+            // _clearingBrowserData makes the popout's return handler skip driving source playback.
+            if (_player is not null) { try { _player.Close(); } catch { /* ignore */ } }
+
+            // Bound the wait so a hung clear can never wedge the gear/privacy actions for the
+            // rest of the session; a timeout falls through to the catch and re-enables the UI.
+            await PrivacyService.ClearBrowserDataAsync(core).WaitAsync(TimeSpan.FromSeconds(30));
+
+            // Reflect the signed-out state; a nav hiccup must not mask a successful clear.
+            try { NavigateInternal("https://www.youtube.com/"); }
+            catch (Exception navEx) { Log.Error("Post-clear navigation failed.", navEx); }
+
+            Log.Info("Browser data cleared (user signed out).");
+            Prompt.ShowInfo(this, PrivacyService.ClearDoneTitle, PrivacyService.ClearDoneBody);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Clear browser data failed.", ex);
+            Prompt.ShowInfo(this, PrivacyService.ClearConfirmTitle, PrivacyService.ClearFailed);
+        }
+        finally
+        {
+            _privacyActionInProgress = false;
+            _clearingBrowserData = false;
+            SettingsButton.IsEnabled = true;
+        }
+    }
+
+    /// <summary>Test-only: the navigation queued while the browser was not ready (null = none).</summary>
+    internal string? PendingUrlForTests => _pendingUrl;
 
     // --- Video Popout lifecycle (spec 13) ---
 
@@ -311,8 +423,7 @@ public partial class MainWindow : Window
             var target = await ResolvePopoutTargetAsync(core);
             if (target is null || string.IsNullOrEmpty(target.VideoId))
             {
-                MessageBox.Show("Open a YouTube video first, then press Pop out video.", "PiPlay",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                Prompt.ShowInfo(this, "Pop out video", "Open a YouTube video first, then press Pop out video.");
                 return;
             }
 
@@ -342,8 +453,7 @@ public partial class MainWindow : Window
             ShowSourcePlaceholder(false);
             if (_player is not null) { try { _player.Close(); } catch { /* ignore */ } _player = null; }
             if (_sourceWasPlayingAtPopout && core is not null) await YouTubeDomBridge.PlayAsync(core);
-            MessageBox.Show("PiPlay couldn't pop out this video. It stayed in the main window.", "PiPlay",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
+            Prompt.ShowInfo(this, "Pop out video", "PiPlay couldn't pop out this video. It stayed in the main window.");
         }
         finally
         {
@@ -389,17 +499,25 @@ public partial class MainWindow : Window
             // Return to the source (spec 14). LastKnownSeconds is nullable; 0 is a valid timestamp.
             ShowSourcePlaceholder(false);
             var core = Browser.CoreWebView2;
-            if (core is not null)
+            // Skip driving source playback when a Clear browser data is wiping the session — the
+            // page is about to be cleared/navigated, so seek/play scripts would be wasted or race.
+            if (core is not null && !_clearingBrowserData)
             {
-                if (state.LastKnownSeconds is int secs)
+                // REQ-RETURN-01: resume only if the source was playing when popout started;
+                // 0 is a valid timestamp distinct from unknown. Decision lives in ReturnPolicy.
+                switch (ReturnPolicy.Decide(state.LastKnownSeconds, _sourceWasPlayingAtPopout))
                 {
-                    // REQ-RETURN-01: resume only if the source was playing when popout started.
-                    if (_sourceWasPlayingAtPopout) await YouTubeDomBridge.SeekAndPlayAsync(core, secs);
-                    else await YouTubeDomBridge.SeekAsync(core, secs);
-                }
-                else if (_sourceWasPlayingAtPopout)
-                {
-                    await YouTubeDomBridge.PlayAsync(core);
+                    case ReturnAction.SeekAndPlay:
+                        await YouTubeDomBridge.SeekAndPlayAsync(core, state.LastKnownSeconds!.Value);
+                        break;
+                    case ReturnAction.Seek:
+                        await YouTubeDomBridge.SeekAsync(core, state.LastKnownSeconds!.Value);
+                        break;
+                    case ReturnAction.Play:
+                        await YouTubeDomBridge.PlayAsync(core);
+                        break;
+                    case ReturnAction.None:
+                        break;
                 }
             }
 

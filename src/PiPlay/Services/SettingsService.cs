@@ -60,26 +60,65 @@ public sealed class SettingsService
         {
             Sanitize(settings);
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-
-            // Atomic save (spec 26.4): write a temp file, flush it durably to disk, then
-            // swap it in with an atomic same-volume rename. DO NOT use File.Copy or a
-            // direct overwrite - a crash mid-write would leave settings.json half-written.
-            var tmp = _path + ".tmp";
-            using (var stream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
-            {
-                JsonSerializer.Serialize(stream, settings, Options);
-                stream.Flush(flushToDisk: true);
-            }
-
-            if (File.Exists(_path))
-                File.Replace(tmp, _path, destinationBackupFileName: null);
-            else
-                File.Move(tmp, _path);
+            AtomicWrite(settings);
         }
         catch (Exception ex)
         {
             Log.Error("Failed to save settings.", ex);
         }
+    }
+
+    /// <summary>
+    /// Reset app state (REQ-PRIVACY-01): atomically replace settings.json with defaults and drop
+    /// stale corrupt-quarantine files. Touches ONLY the settings-file path — never the WebView2
+    /// user-data folder or logs — so the user stays signed in to YouTube. Returns the defaults.
+    /// </summary>
+    public AppSettings Reset()
+    {
+        var fresh = Sanitize(new AppSettings());
+        try
+        {
+            var dir = Path.GetDirectoryName(_path)!;
+            Directory.CreateDirectory(dir);
+            AtomicWrite(fresh);
+
+            foreach (var f in Directory.EnumerateFiles(dir, "*.corrupt.*.json"))
+            {
+                try { File.Delete(f); } catch { /* best-effort cleanup */ }
+            }
+
+            // Drop any orphaned temp left by a crashed AtomicWrite (harmless, but a clean slate).
+            var tmp = _path + ".tmp";
+            if (File.Exists(tmp)) { try { File.Delete(tmp); } catch { /* best-effort cleanup */ } }
+
+            Log.Info("App state reset to defaults (WebView2 session preserved).");
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to reset app state.", ex);
+        }
+        return fresh;
+    }
+
+    /// <summary>
+    /// Atomic write (spec 26.4): temp file, durable flush, atomic same-volume swap. Shared by
+    /// <see cref="Save"/> and <see cref="Reset"/>. DO NOT use File.Copy or a direct overwrite — a
+    /// crash mid-write would leave settings.json half-written. The live file is always either the
+    /// previous content or the new content — never absent or partial.
+    /// </summary>
+    private void AtomicWrite(AppSettings settings)
+    {
+        var tmp = _path + ".tmp";
+        using (var stream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            JsonSerializer.Serialize(stream, settings, Options);
+            stream.Flush(flushToDisk: true);
+        }
+
+        if (File.Exists(_path))
+            File.Replace(tmp, _path, destinationBackupFileName: null);
+        else
+            File.Move(tmp, _path);
     }
 
     private void Quarantine()
