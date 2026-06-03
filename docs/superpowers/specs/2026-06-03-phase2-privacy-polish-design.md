@@ -122,7 +122,7 @@ it is a known, deliberate trade-off rather than an oversight.
   a new assertion on `Application.Windows.Count` (which would couple tests to each other).
 - **No new flake surface:** the suite remains serial (`AssemblyConfig.cs`); changes 2–4 are on the
   Clear path, exercised by existing `CanClearBrowserData` gating tests.
-- Gate: `dotnet test` green (currently 141; +1 for the new title test).
+- Gate: `dotnet test` green (currently 141; +2 for the neutral-title and disabled-Clear tooltip tests).
 
 ---
 

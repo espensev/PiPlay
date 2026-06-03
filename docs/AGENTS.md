@@ -11,7 +11,7 @@ Before writing code for any non-trivial change, record the **goals and approach*
 - Open with a `## Goals` section, then the requirement IDs it serves (`Q-n`, `REQ-*`), the settled decisions, and the changes by file.
 - Multi-step work also gets an implementation plan at `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`.
 - These are **subordinate** to the product spec (still authoritative) and the ADRs (which own architecture decisions); they capture what one pass set out to do and why. Link the spec from the PR.
-- Established examples: `superpowers/specs/2026-05-31-privacy-actions-design.md`, `superpowers/plans/2026-05-31-*.md`.
+- Established examples: `docs/superpowers/specs/2026-05-31-privacy-actions-design.md`, `docs/superpowers/plans/2026-05-31-*.md`.
 
 ## Terminology (do not drift)
 Use these names everywhere — UI, code, comments, tests, commits, issues:

@@ -50,6 +50,9 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 - The Settings **Clear browser data** button now explains via a tooltip why it is disabled while
   the browser is still loading.
 - Themed dialogs treat the title-bar close as Cancel (consistent dismissal).
+- `Build-PiPlay.ps1` now forces runtime-specific restore assets when a Runtime is configured, so
+  a prior no-RID restore such as `dotnet test` cannot leave the Release build missing its `win-x64`
+  asset target.
 
 ### Removed
 - Deleted the outdated `Main app.txt` pre-spec brainstorm (superseded by the Draft 0.4 spec).
@@ -78,7 +81,7 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 - `Auto` off by default, profile edit/validation, release publish profiles, and Phase 2 QA coverage.
 
 ### Tests & quality
-- **Layered regression suite** (`docs/Regression_Test_Suite_Design.md`), 119 tests in
+- **Layered regression suite** (`docs/Regression_Test_Suite_Design.md`), 143 tests in
   `dotnet test` across three lanes plus a manual smoke:
   - **Layer 1 — XAML markup invariants** (`tests/.../Ui/XamlInvariantTests.cs`): parses the
     `.xaml` as XML and asserts the burned-in properties that break the app if they silently
