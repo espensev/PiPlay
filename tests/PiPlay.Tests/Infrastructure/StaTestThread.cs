@@ -17,9 +17,10 @@ namespace PiPlay.Tests;
 ///   of this type from the STA thread while the initializer is mid-run would deadlock on the
 ///   CLR type-initialization lock.
 /// - App/resource init is queued onto the dispatcher and runs only once the pump is going.
-/// - <see cref="Application.ResourceAssembly"/> is set in <see cref="TestDataRoot"/> so the
-///   windows' short-form pack URIs resolve from the PiPlay assembly. Windows are constructed,
-///   never shown, so WebView2 (Loaded) and the network are never touched.
+/// - The windows reference resources via assembly-qualified /PiPlay;component/... pack URIs, so
+///   resolution does not depend on <see cref="Application.ResourceAssembly"/> (the test host seals
+///   it to itself). Windows are constructed, never shown, so WebView2 (Loaded) and the network are
+///   never touched.
 /// </summary>
 internal static class StaTestThread
 {

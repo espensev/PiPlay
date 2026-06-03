@@ -164,6 +164,7 @@ public class WpfRuntimeTests
         var win = Prompt.BuildShell(owner: null, title: "Test title", out var body);
         Assert.Equal(WindowStyle.None, win.WindowStyle);
         Assert.False(win.AllowsTransparency);
+        Assert.False(win.UseLayoutRounding);   // the "rounding = 0" guard also covers code-built dialogs
         Assert.Equal(ResizeMode.NoResize, win.ResizeMode);
         Assert.False(win.ShowInTaskbar);
         Assert.Same(Application.Current.Resources["AppBackground"], win.Background);

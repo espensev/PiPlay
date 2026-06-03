@@ -22,11 +22,12 @@ public class XamlInvariantTests
     [Theory]
     [InlineData("MainWindow.xaml")]
     [InlineData("PlayerWindow.xaml")]
+    [InlineData("SettingsWindow.xaml")]
     public void Window_layout_and_airspace_invariants_hold(string file)
     {
         var w = Window(file);
 
-        // The "rounding = 0" regression: layout rounding MUST be off on both windows (UI-CHK-5).
+        // The "rounding = 0" regression: layout rounding MUST be off on every window (UI-CHK-5).
         Assert.Equal("False", Attr(w, "UseLayoutRounding"));
         // WebView2 airspace hard constraint (ADR-0004): a transparent window breaks the HwndHost.
         Assert.Equal("False", Attr(w, "AllowsTransparency"));
