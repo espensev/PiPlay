@@ -73,6 +73,19 @@ public class WpfRuntimeTests
         Assert.True(((Button)ready.FindName("ClearBrowserDataButton")!).IsEnabled);
     });
 
+    [Fact]
+    public void SettingsWindow_explains_why_clear_is_disabled() => StaTestThread.Invoke(() =>
+    {
+        var notReady = new SettingsWindow(isBrowserReady: false);
+        var clear = (Button)notReady.FindName("ClearBrowserDataButton")!;
+        Assert.Equal(PiPlay.Services.PrivacyService.ClearNotReadyHint, (string)clear.ToolTip);
+        Assert.True(ToolTipService.GetShowOnDisabled(clear));   // tip shows on the disabled button
+
+        // When the browser is ready the button is enabled and carries no explanatory tooltip.
+        var ready = new SettingsWindow(isBrowserReady: true);
+        Assert.Null(((Button)ready.FindName("ClearBrowserDataButton")!).ToolTip);
+    });
+
     // --- Resolved DependencyProperty invariants (runtime counterpart to Layer 1) ---
 
     [Fact]

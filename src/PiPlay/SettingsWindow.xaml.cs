@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using PiPlay.Services;
 
@@ -26,8 +27,14 @@ public partial class SettingsWindow : Window
         ClearDescriptionText.Text = PrivacyService.ClearDescription;
         ClearBrowserDataButton.Content = PrivacyService.ClearActionLabel;
 
-        // Only the Clear action needs a live browser; Reset never does.
+        // Only the Clear action needs a live browser; Reset never does. When it is disabled,
+        // explain why (and let the tooltip show on the disabled control).
         ClearBrowserDataButton.IsEnabled = isBrowserReady;
+        if (!isBrowserReady)
+        {
+            ClearBrowserDataButton.ToolTip = PrivacyService.ClearNotReadyHint;
+            ToolTipService.SetShowOnDisabled(ClearBrowserDataButton, true);
+        }
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
