@@ -39,6 +39,28 @@ public static class PrivacyService
     public const string ClearBrowserNotReady = "PiPlay's browser isn't ready yet. Try again in a moment.";
     public const string ClearFailed = "PiPlay couldn't clear the browser data. Please try again.";
 
+    // Dialog TITLE for Clear result/status notices (not-ready, failed, timed-out) — kept distinct
+    // from the confirmation question. Intentionally shares ClearActionLabel's value: a dialog title
+    // and a button label are independent roles (mirrors ResetActionLabel / ResetConfirmButton), so
+    // either can change without dragging the other. See
+    // PrivacyServiceTests.Clear_result_titles_are_statements_not_questions.
+    public const string ClearResultTitle = "Clear browser data";
+    public const string ClearTimedOut =
+        "Clearing browser data is taking longer than expected. It will finish in the background, " +
+        "and you may be signed out of YouTube.";
+    // Tooltip on the disabled Clear button while the browser is still loading (set by SettingsWindow).
+    public const string ClearNotReadyHint = "Available once the browser has finished loading.";
+
+    /// <summary>
+    /// Hang-guard bound for the Clear operation (NOT a progress wait). 30 s is about 2x the ~15 s
+    /// adverse worst-case clear (slow HDD, sub-GB profile; the cleared volume is disk cache + site
+    /// storage, and Chromium caps the HTTP cache near 256-320 MB). On an SSD the clear finishes in
+    /// about 1-2 s. Chosen high enough not to false-flag a slow-but-succeeding clear, and short of
+    /// 60 s. Retune only from logged real durations (MainWindow logs the measured ms).
+    /// See docs/superpowers/specs/2026-06-03-phase2-privacy-polish-design.md section 3.
+    /// </summary>
+    public static readonly TimeSpan ClearTimeout = TimeSpan.FromSeconds(30);
+
     /// <summary>Clear the shared WebView2 profile's browsing data (signs the user out). Needs a live core.</summary>
     public static Task ClearBrowserDataAsync(CoreWebView2 core) =>
         core.Profile.ClearBrowsingDataAsync(ClearKinds);
