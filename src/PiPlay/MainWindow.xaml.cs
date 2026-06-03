@@ -354,38 +354,52 @@ public partial class MainWindow : Window
     {
         if (_privacyActionInProgress) return;
 
-        // Re-check readiness at execution time (the cached enabled state can be stale).
-        var core = Browser.CoreWebView2;
-        if (!CanClearBrowserData || core is null)
-        {
-            Prompt.ShowInfo(this, PrivacyService.ClearConfirmTitle, PrivacyService.ClearBrowserNotReady);
-            return;
-        }
-
-        _privacyActionInProgress = true;
-        _clearingBrowserData = true;
-        SettingsButton.IsEnabled = false;   // no second Settings window mid-await
         try
         {
+            // Re-check readiness at execution time (the cached enabled state can be stale). This
+            // lives INSIDE the try so a throw here (e.g. CoreWebView2 access during a WebView2
+            // teardown) can never escape this fire-and-forget task unobserved.
+            var core = Browser.CoreWebView2;
+            if (!CanClearBrowserData || core is null)
+            {
+                Prompt.ShowInfo(this, PrivacyService.ClearResultTitle, PrivacyService.ClearBrowserNotReady);
+                return;
+            }
+
+            _privacyActionInProgress = true;
+            _clearingBrowserData = true;
+            SettingsButton.IsEnabled = false;   // no second Settings window mid-await
+
             // Single shared profile: closing the popout avoids it showing a logged-out surface.
             // _clearingBrowserData makes the popout's return handler skip driving source playback.
             if (_player is not null) { try { _player.Close(); } catch { /* ignore */ } }
 
-            // Bound the wait so a hung clear can never wedge the gear/privacy actions for the
-            // rest of the session; a timeout falls through to the catch and re-enables the UI.
-            await PrivacyService.ClearBrowserDataAsync(core).WaitAsync(TimeSpan.FromSeconds(30));
+            // Bound the wait (PrivacyService.ClearTimeout) so a hung clear can never wedge the
+            // gear/privacy actions for the rest of the session. The clear runs on the SOURCE core,
+            // which we keep alive, so its completion handler always fires (a closed WebView would
+            // release it un-invoked). Time it so the bound can be retuned from real durations.
+            var sw = Stopwatch.StartNew();
+            await PrivacyService.ClearBrowserDataAsync(core).WaitAsync(PrivacyService.ClearTimeout);
+            sw.Stop();
 
             // Reflect the signed-out state; a nav hiccup must not mask a successful clear.
             try { NavigateInternal("https://www.youtube.com/"); }
             catch (Exception navEx) { Log.Error("Post-clear navigation failed.", navEx); }
 
-            Log.Info("Browser data cleared (user signed out).");
+            Log.Info($"Browser data cleared in {sw.ElapsedMilliseconds} ms (user signed out).");
             Prompt.ShowInfo(this, PrivacyService.ClearDoneTitle, PrivacyService.ClearDoneBody);
+        }
+        catch (TimeoutException)
+        {
+            // The wait elapsed, not the clear: ClearBrowsingDataAsync may still finish in the
+            // background. Tell the truth instead of reporting a failure that may not be one.
+            Log.Warn("Clear browser data exceeded the timeout; it may still complete in the background.");
+            Prompt.ShowInfo(this, PrivacyService.ClearResultTitle, PrivacyService.ClearTimedOut);
         }
         catch (Exception ex)
         {
             Log.Error("Clear browser data failed.", ex);
-            Prompt.ShowInfo(this, PrivacyService.ClearConfirmTitle, PrivacyService.ClearFailed);
+            Prompt.ShowInfo(this, PrivacyService.ClearResultTitle, PrivacyService.ClearFailed);
         }
         finally
         {
