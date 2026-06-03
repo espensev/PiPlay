@@ -17,7 +17,7 @@ namespace PiPlay.Tests;
 /// is not clipped to a band at 150% DPI (the affirmative guard for the "rounding = 0" bug).
 /// </summary>
 [Trait(TestCategories.Key, TestCategories.Wpf)]
-public class WpfRuntimeTests
+public class WpfRuntimeTests : IDisposable
 {
     private static PlayerWindow NewPlayer() =>
         // environment is only used in InitializePlayerAsync (Loaded), never in the ctor.
@@ -287,4 +287,14 @@ public class WpfRuntimeTests
         }
         return rows;
     }
+
+    // Layer 3 constructs real windows (never shown). Close any that remain on the shared STA
+    // thread after each test so they don't accumulate on Application.Windows for the whole run.
+    public void Dispose() => StaTestThread.Invoke(() =>
+    {
+        foreach (var w in Application.Current.Windows.Cast<Window>().ToArray())
+        {
+            try { w.Close(); } catch { /* a never-shown window may resist closing; ignore */ }
+        }
+    });
 }
