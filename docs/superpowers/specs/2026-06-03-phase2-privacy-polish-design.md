@@ -55,17 +55,55 @@ adversarial confidence score (≥ items were the four review follow-ups; the res
 |---|---|---|---|
 | 1 | Neutral result/error titles — add `ClearResultTitle = "Clear browser data"` (no `?`); use it for the not-ready, failed, and timeout notices. Confirmation keeps `ClearConfirmTitle`; success keeps `ClearDoneTitle`. | `Services/PrivacyService.cs`, `MainWindow.xaml.cs` (clear notices) | Review finding (75) |
 | 2 | Exception-safe Clear — wrap the **whole** `PerformClearBrowserDataAsync` body (incl. the readiness re-check) in one `try`; `finally` resets `_privacyActionInProgress` / `_clearingBrowserData` / `SettingsButton.IsEnabled`. No path is unobserved. | `MainWindow.xaml.cs` | Review finding (68) |
-| 3 | Honest timeout — dedicated `catch (TimeoutException)` shows a new `ClearTimedOut` message ("…taking longer than expected; it will finish in the background and you may be signed out…"); other exceptions → `ClearFailed`. | `MainWindow.xaml.cs`, `Services/PrivacyService.cs` | Review finding (72) |
+| 3 | Honest timeout — dedicated `catch (TimeoutException)` shows a new `ClearTimedOut` message ("…taking longer than expected; it will finish in the background and you may be signed out…"); other exceptions → `ClearFailed`. The 30 s bound is a named constant `ClearTimeout` (derived in §3). | `MainWindow.xaml.cs`, `Services/PrivacyService.cs` | Review finding (72) |
 | 4 | Title-bar close → `win.DialogResult = false` (auto-closes the modal), so `ShowDialog()` returns `false` not `null`, matching `IsCancel`. | `Prompt.cs` | Review finding (72) |
 | 5 | Disabled-Clear tooltip — when `!isBrowserReady`, set `ClearBrowserDataButton.ToolTip = PrivacyService.ClearNotReadyHint` and `ToolTipService.ShowOnDisabled = true`. | `SettingsWindow.xaml.cs`, `Services/PrivacyService.cs` | Opted-in polish |
 | 6 | Regression test — assert Clear's result/done titles are not interrogative and the confirm title is. | `tests/PiPlay.Tests/PrivacyServiceTests.cs` | Opted-in polish |
 | 7 | Close Layer-3 windows — make `WpfRuntimeTests` `IDisposable`; close open `Application.Current.Windows` on the STA thread per test (guarded). | `tests/PiPlay.Tests/Ui/WpfRuntimeTests.cs` | Review finding (72) |
+| 8 | Instrument the clear — time it with a `Stopwatch`; log the measured duration on success (local-only) so the §3 bound can be retuned from real data instead of estimate. | `MainWindow.xaml.cs` | Resource-lean / data |
 
-**New `PrivacyService` constants:** `ClearResultTitle`, `ClearTimedOut`, `ClearNotReadyHint`.
+**New `PrivacyService` members:** strings `ClearResultTitle`, `ClearTimedOut`, `ClearNotReadyHint`; and `ClearTimeout = TimeSpan.FromSeconds(30)` — the hang-guard bound derived in §3.
 
 ---
 
-## 3. Accepted residual
+## 3. Timeout bound (30 s) — rationale
+
+The 30 s bound on `ClearBrowsingDataAsync` is a **hang guard, not a progress wait**: it exists so a
+wedged clear can never dead-end the gear/privacy actions for the rest of the session — not to pace a
+normal clear. It is derived, not guessed.
+
+**What gets cleared.** `AllProfile` is inclusive of disk cache, all site storage (IndexedDB,
+CacheStorage, Local/Session/WebSQL, Service Workers), cookies, download/browsing history, autofill,
+and settings. Cookies/settings/autofill/history are kilobytes; the cleared **volume is dominated by
+the HTTP disk cache + Service-Worker/CacheStorage + IndexedDB** for `youtube.com`.
+
+**Volume ceiling.** WebView2 imposes no global cap on the user-data folder, but Chromium sizes the
+HTTP disk cache from a disk-space heuristic with a default on the order of **~256–320 MB** (tunable
+via the `--disk-cache-size` switch). Single-origin site storage adds tens to low-hundreds of MB. A
+realistic **worst case for a YouTube-only profile is sub-GB**, and typically < 300 MB.
+
+**Time math.** The clear is I/O-bound — truncate/remove the block-file cache backend and clear the
+LevelDB-backed storage, *not* a walk over millions of tiny files:
+- **SSD / NVMe (the 2026 norm):** a few hundred MB → **< 1–2 s**; even ~1 GB in a few seconds.
+- **Adverse case (slow 5400-rpm HDD, ~GB, AV scanning the deletes):** single-digit seconds with a
+  pathological tail to **~10–15 s**.
+
+So the worst-case **successful** completion is ≈ **≤ 15 s**. 30 s places the bound at **~2× that
+adverse worst case** — high enough that a slow-but-succeeding clear is never false-flagged as
+"didn't finish" (mis-reporting a privacy action is the worse failure), low enough to un-wedge
+promptly. We deliberately do **not** stretch to 60 s (diminishing safety, longer dead-time); per the
+resource-lean we sit at the short end of "safe," and the only thing held during the wait is one
+awaited continuation plus the disabled gear — negligible CPU/memory. The expectation when retuning
+from data (change 8) is that we *tighten* toward ~15–20 s, never grow it.
+
+**Correctness note (API contract).** Per the WebView2 docs, if the WebView is *closed* before the
+clear completes the completion handler "will be released, but not invoked." Our clear runs on the
+**source** `Browser.CoreWebView2`, which we keep alive — only the popout is closed — so the handler
+always fires. The 30 s path is therefore reached only on a genuine stall, never on our own teardown.
+
+---
+
+## 4. Accepted residual
 
 On a 30 s timeout the `finally` still clears `_clearingBrowserData` — the UI **must** un-wedge so
 the gear/privacy actions are not dead for the rest of the session. The review noted that this could
@@ -76,7 +114,7 @@ it is a known, deliberate trade-off rather than an oversight.
 
 ---
 
-## 4. Testing
+## 5. Testing
 
 - **Unit (Layer 2):** the new neutral-title assertions (change 6) extend `PrivacyServiceTests`.
 - **Live-WPF (Layer 3):** the existing `Clear_is_not_ready_*` / construction tests must stay green
@@ -88,7 +126,7 @@ it is a known, deliberate trade-off rather than an oversight.
 
 ---
 
-## 5. Documentation
+## 6. Documentation
 
 - `CHANGELOG.md` `[Unreleased]` gets entries for the user-visible bits (truthful Clear notices,
   disabled-Clear tooltip) under **Fixed/Changed** — landed with the code, per AGENTS.md.
