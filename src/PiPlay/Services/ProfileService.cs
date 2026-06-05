@@ -2,10 +2,23 @@ using PiPlay.Models;
 
 namespace PiPlay.Services;
 
+/// <summary>Result of <see cref="ProfileService.Update"/> (the Phase 2 edit path).</summary>
+public enum ProfileUpdateOutcome
+{
+    /// <summary>The named profile was found and replaced in place.</summary>
+    Updated,
+    /// <summary>No profile matched the original name; nothing changed.</summary>
+    NotFound,
+    /// <summary>The edited name now matches a different existing profile; nothing changed.
+    /// The caller must resolve it (overwrite or cancel) and retry with <c>overwrite: true</c>.</summary>
+    NameConflict,
+}
+
 /// <summary>
 /// Basic profile management for the MVP (spec 17): find, upsert (overwrite by name),
-/// remove, and graceful URL validation. Profiles live in <see cref="AppSettings.Profiles"/>;
-/// persistence is owned by <see cref="SettingsService"/>.
+/// remove, and graceful URL validation. Phase 2 adds <see cref="Update"/> for the edit path.
+/// Profiles live in <see cref="AppSettings.Profiles"/>; persistence is owned by
+/// <see cref="SettingsService"/>.
 /// </summary>
 public static class ProfileService
 {
@@ -34,6 +47,34 @@ public static class ProfileService
         if (existing is null) return false;
         settings.Profiles.Remove(existing);
         return true;
+    }
+
+    /// <summary>
+    /// Edit the profile stored under <paramref name="originalName"/> in place, preserving its
+    /// list position (unlike <see cref="Save"/>, which appends). If the edited name now matches a
+    /// *different* existing profile, returns <see cref="ProfileUpdateOutcome.NameConflict"/> and
+    /// makes no change unless <paramref name="overwrite"/> is set — then the colliding profile is
+    /// removed and the edited profile keeps the original's slot. The caller surfaces the
+    /// overwrite/rename prompt (spec 17: duplicate names prompt instead of silent clutter).
+    /// </summary>
+    public static ProfileUpdateOutcome Update(
+        AppSettings settings, string originalName, Profile updated, bool overwrite = false)
+    {
+        var list = settings.Profiles;
+        var index = list.FindIndex(p => string.Equals(p.Name, originalName, StringComparison.OrdinalIgnoreCase));
+        if (index < 0) return ProfileUpdateOutcome.NotFound;
+
+        // A rename that lands on a DIFFERENT existing profile is a collision.
+        var collision = list.FindIndex(p => string.Equals(p.Name, updated.Name, StringComparison.OrdinalIgnoreCase));
+        if (collision >= 0 && collision != index)
+        {
+            if (!overwrite) return ProfileUpdateOutcome.NameConflict;
+            list.RemoveAt(collision);
+            if (collision < index) index--;   // removing an earlier item shifts our slot down
+        }
+
+        list[index] = updated;
+        return ProfileUpdateOutcome.Updated;
     }
 
     /// <summary>Validate a profile URL. Broken URLs must fail gracefully, even in the MVP (spec 17).</summary>

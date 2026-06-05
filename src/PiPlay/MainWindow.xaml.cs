@@ -257,10 +257,16 @@ public partial class MainWindow : Window
         ProfilesCombo.ItemsSource = _settings.Profiles.ToList();
         ProfilesCombo.SelectedIndex = -1;
         _loadingProfiles = false;
+        UpdateProfileCommandState();
     }
+
+    /// <summary>Edit/Delete act on the selected profile, so they are enabled only when one is picked.</summary>
+    private void UpdateProfileCommandState() =>
+        EditProfileButton.IsEnabled = DeleteProfileButton.IsEnabled = ProfilesCombo.SelectedItem is Profile;
 
     private void ProfilesCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        UpdateProfileCommandState();
         if (_loadingProfiles || ProfilesCombo.SelectedItem is not Profile profile) return;
         if (profile.Topmost is bool tm) ApplyTopmost(tm);
         NavigateInternal(profile.Url);
@@ -293,6 +299,59 @@ public partial class MainWindow : Window
         _settingsService.Save(_settings);
         LoadProfilesIntoCombo();
         Log.Info("Profile saved.");
+    }
+
+    private void EditProfileButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ProfilesCombo.SelectedItem is not Profile original) return;
+
+        var edited = Prompt.EditProfile(this, original.Name, original.Url);
+        if (edited is null) return;   // cancelled (and an invalid edit never gets here)
+
+        // Carry the existing Phase 2 fields through unchanged; only Name/Url are editable here.
+        var updated = new Profile
+        {
+            Name = edited.Value.Name,
+            Url = edited.Value.Url,
+            Mode = original.Mode,
+            Topmost = original.Topmost,
+            FadeEnabled = original.FadeEnabled,
+            Bounds = original.Bounds,
+        };
+
+        var outcome = ProfileService.Update(_settings, original.Name, updated);
+        if (outcome == ProfileUpdateOutcome.NameConflict)
+        {
+            // Same overwrite/rename prompt the Save path uses (spec 17: no silent clutter).
+            if (!Prompt.AskConfirm(this, "Overwrite profile?",
+                    $"A profile named \"{updated.Name}\" already exists. Overwrite it?", "Overwrite"))
+            {
+                return;
+            }
+            outcome = ProfileService.Update(_settings, original.Name, updated, overwrite: true);
+        }
+
+        if (outcome != ProfileUpdateOutcome.Updated) return;   // NotFound is not reachable from a live selection
+
+        _settingsService.Save(_settings);
+        LoadProfilesIntoCombo();
+        Log.Info("Profile edited.");
+    }
+
+    private void DeleteProfileButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ProfilesCombo.SelectedItem is not Profile profile) return;
+
+        if (!Prompt.AskConfirm(this, "Delete profile?",
+                $"Delete the profile \"{profile.Name}\"? This can't be undone.", "Delete", danger: true))
+        {
+            return;
+        }
+
+        ProfileService.Remove(_settings, profile.Name);
+        _settingsService.Save(_settings);
+        LoadProfilesIntoCombo();
+        Log.Info("Profile deleted.");
     }
 
     // --- Privacy actions: Settings window (spec 19, Phase 2, REQ-PRIVACY-01/02) ---

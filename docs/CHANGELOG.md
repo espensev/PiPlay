@@ -77,11 +77,20 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   tested copy cannot drift. The flow is hardened against double-clicks, stale browser readiness,
   failed clears, and modal-owner issues (result-based, work runs after the modal closes).
 
+### Added — Phase 2 (profiles)
+- **Edit and delete saved profiles** from the Source Window (spec 17). Two new toolbar buttons next
+  to the profiles dropdown act on the selected profile: **Edit** opens a themed Name + URL editor
+  with **inline ("proactive") URL validation** — a broken URL or empty name is flagged in place and
+  nothing is saved until it's fixed — and **Delete** removes it behind a red confirmation. Editing
+  keeps the profile's position in the list and, if a rename collides with another profile, prompts
+  to overwrite (the same prompt the Save action uses) instead of silently creating clutter. The
+  buttons are disabled until a profile is selected.
+
 ### Planned — Phase 2 (remaining)
-- `Auto` off by default, profile edit/validation, release publish profiles, and Phase 2 QA coverage.
+- `Auto` off by default, release publish profiles, and Phase 2 QA coverage.
 
 ### Tests & quality
-- **Layered regression suite** (`docs/Regression_Test_Suite_Design.md`), 143 tests in
+- **Layered regression suite** (`docs/Regression_Test_Suite_Design.md`), 148 tests in
   `dotnet test` across three lanes plus a manual smoke:
   - **Layer 1 — XAML markup invariants** (`tests/.../Ui/XamlInvariantTests.cs`): parses the
     `.xaml` as XML and asserts the burned-in properties that break the app if they silently

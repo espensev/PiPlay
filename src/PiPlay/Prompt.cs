@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using PiPlay.Services;
 
 namespace PiPlay;
 
@@ -110,6 +111,79 @@ internal static class Prompt
         string? result = null;
         ok.Click += (_, _) => { result = box.Text; win.DialogResult = true; };
         box.Loaded += (_, _) => { box.Focus(); box.SelectAll(); };
+
+        return win.ShowDialog() == true ? result : null;
+    }
+
+    /// <summary>
+    /// Themed Name + URL profile editor (spec 17, Phase 2 edit path). Both fields are prefilled.
+    /// The URL is validated inline ("proactive validation UI"): an invalid URL or empty name shows
+    /// a themed error and keeps the dialog open instead of closing — so a broken edit fails
+    /// gracefully and is never saved. Returns the trimmed <c>(Name, Url)</c>, or null on cancel.
+    /// Name-collision policy is the caller's (ProfileService.Update + the overwrite prompt); this
+    /// dialog only validates the URL format, so it stays settings-agnostic.
+    /// </summary>
+    public static (string Name, string Url)? EditProfile(Window owner, string name, string url)
+    {
+        var win = BuildShell(owner, "Edit profile", out var body);
+
+        body.Children.Add(new TextBlock
+        {
+            Text = "Name",
+            Foreground = Brush("TextSecondary"),
+            Margin = new Thickness(0, 0, 0, 4),
+        });
+        var nameBox = new TextBox { Text = name, Style = Style("DarkTextBox"), Margin = new Thickness(0, 0, 0, 12) };
+        body.Children.Add(nameBox);
+
+        body.Children.Add(new TextBlock
+        {
+            Text = "URL",
+            Foreground = Brush("TextSecondary"),
+            Margin = new Thickness(0, 0, 0, 4),
+        });
+        var urlBox = new TextBox { Text = url, Style = Style("DarkTextBox"), Margin = new Thickness(0, 0, 0, 8) };
+        body.Children.Add(urlBox);
+
+        var error = new TextBlock
+        {
+            Foreground = Brush("DangerPin"),
+            TextWrapping = TextWrapping.Wrap,
+            Visibility = Visibility.Collapsed,
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+        body.Children.Add(error);
+
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        var ok = new Button { Content = "Save", Style = Style("AccentButton"), MinWidth = 90, IsDefault = true, Margin = new Thickness(0, 0, 8, 0) };
+        var cancel = new Button { Content = "Cancel", Style = Style("DarkButton"), MinWidth = 90, IsCancel = true };
+        buttons.Children.Add(ok);
+        buttons.Children.Add(cancel);
+        body.Children.Add(buttons);
+
+        (string Name, string Url)? result = null;
+        ok.Click += (_, _) =>
+        {
+            var trimmedName = nameBox.Text.Trim();
+            if (trimmedName.Length == 0)
+            {
+                error.Text = "Enter a name.";
+                error.Visibility = Visibility.Visible;
+                return;   // keep the dialog open
+            }
+
+            var (valid, urlError) = ProfileService.ValidateUrl(urlBox.Text);
+            if (!valid)
+            {
+                error.Text = urlError!;
+                error.Visibility = Visibility.Visible;
+                return;   // keep the dialog open; nothing is saved
+            }
+
+            result = (trimmedName, urlBox.Text.Trim());
+            win.DialogResult = true;
+        };
+        nameBox.Loaded += (_, _) => { nameBox.Focus(); nameBox.SelectAll(); };
 
         return win.ShowDialog() == true ? result : null;
     }
