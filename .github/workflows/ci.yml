@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and test (Windows)
+    runs-on: windows-latest
+
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "true"
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+      PIPLAY_DATA_ROOT: ${{ runner.temp }}\PiPlayData
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up .NET from global.json
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Display .NET SDK information
+        run: dotnet --info
+
+      - name: Restore solution
+        run: dotnet restore PiPlay.sln -p:BuildInParallel=false
+
+      - name: Run deterministic test lane
+        run: dotnet test PiPlay.sln --configuration Debug --no-restore
+
+      - name: Run non-mutating release build gate
+        run: .\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump

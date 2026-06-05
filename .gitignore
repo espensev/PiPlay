@@ -17,6 +17,9 @@ x86/
 ## Rider
 .idea/
 
+## Local AI-agent settings (Claude Code). Personal, machine-local; never shared.
+.claude/settings.local.json
+
 ## Local app data (runtime)
 *.log
 
