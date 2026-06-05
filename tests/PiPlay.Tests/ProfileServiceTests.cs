@@ -64,4 +64,64 @@ public class ProfileServiceTests
     {
         Assert.Equal(ok, ProfileService.ValidateUrl(url).Ok);
     }
+
+    // --- Update (Phase 2 edit path): position-preserving + collision-aware ---
+
+    [Fact]
+    public void Update_changes_url_in_place_and_keeps_position()
+    {
+        var s = WithProfiles("A", "B", "C");
+        var outcome = ProfileService.Update(s, "B",
+            new Profile { Name = "B", Url = "https://youtu.be/new12345678" });
+
+        Assert.Equal(ProfileUpdateOutcome.Updated, outcome);
+        Assert.Equal(new[] { "A", "B", "C" }, s.Profiles.Select(p => p.Name)); // order kept
+        Assert.Equal("https://youtu.be/new12345678", s.Profiles[1].Url);       // still at index 1
+    }
+
+    [Fact]
+    public void Update_rename_to_free_name_keeps_position()
+    {
+        var s = WithProfiles("A", "B", "C");
+        var outcome = ProfileService.Update(s, "B",
+            new Profile { Name = "Beta", Url = "https://youtu.be/dQw4w9WgXcQ" });
+
+        Assert.Equal(ProfileUpdateOutcome.Updated, outcome);
+        Assert.Equal(new[] { "A", "Beta", "C" }, s.Profiles.Select(p => p.Name));
+    }
+
+    [Fact]
+    public void Update_rename_onto_other_profile_reports_conflict_and_does_not_mutate()
+    {
+        var s = WithProfiles("A", "B", "C");
+        var outcome = ProfileService.Update(s, "B",
+            new Profile { Name = "c", Url = "https://youtu.be/dQw4w9WgXcQ" }); // collides with "C"
+
+        Assert.Equal(ProfileUpdateOutcome.NameConflict, outcome);
+        Assert.Equal(new[] { "A", "B", "C" }, s.Profiles.Select(p => p.Name)); // unchanged
+    }
+
+    [Fact]
+    public void Update_rename_with_overwrite_removes_collision_and_keeps_position()
+    {
+        var s = WithProfiles("A", "B", "C");
+        var outcome = ProfileService.Update(s, "B",
+            new Profile { Name = "A", Url = "https://youtu.be/new12345678" }, overwrite: true);
+
+        // The colliding "A" (before B) is removed; the edited profile keeps B's relative slot.
+        Assert.Equal(ProfileUpdateOutcome.Updated, outcome);
+        Assert.Equal(new[] { "A", "C" }, s.Profiles.Select(p => p.Name));
+        Assert.Equal("https://youtu.be/new12345678", ProfileService.Find(s, "A")!.Url);
+    }
+
+    [Fact]
+    public void Update_unknown_original_returns_NotFound()
+    {
+        var s = WithProfiles("A", "B");
+        var outcome = ProfileService.Update(s, "missing",
+            new Profile { Name = "missing", Url = "https://youtu.be/dQw4w9WgXcQ" });
+
+        Assert.Equal(ProfileUpdateOutcome.NotFound, outcome);
+        Assert.Equal(new[] { "A", "B" }, s.Profiles.Select(p => p.Name));
+    }
 }
