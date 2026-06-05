@@ -71,6 +71,7 @@ public class XamlInvariantTests
         {
             "Browser", "UrlBox", "ProfilesCombo", "PinToggle", "PinnedHint", "PopOutButton",
             "BackButton", "ReloadButton", "HomeButton", "SaveProfileButton",
+            "EditProfileButton", "DeleteProfileButton",
             "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton",
             "SourcePlaceholder", "RuntimeErrorPanel", "RuntimeErrorText",
         }},
@@ -132,7 +133,8 @@ public class XamlInvariantTests
         foreach (var name in new[]
         {
             "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton", "BackButton",
-            "ReloadButton", "HomeButton", "UrlBox", "ProfilesCombo", "SaveProfileButton", "PinToggle",
+            "ReloadButton", "HomeButton", "UrlBox", "ProfilesCombo", "SaveProfileButton",
+            "EditProfileButton", "DeleteProfileButton", "PinToggle",
         })
         {
             Assert.False(string.IsNullOrWhiteSpace(byName[name].Attribute("ToolTip")?.Value),
