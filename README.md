@@ -11,6 +11,7 @@ driven by the product and engineering docs.
 - [Documentation index](docs/README.md)
 - [Product & engineering spec](docs/PiPlay_Product_Engineering_Spec.md)
 - [Working rules & terminology (AGENTS.md)](docs/AGENTS.md)
+- [Feature workflow](docs/Feature_Workflow.md)
 - [Spec gaps and ownership notes](docs/SPEC_GAPS_AND_OWNERSHIP.md)
 - [Architecture decisions](docs/adr/README.md)
 - [Manual QA checklist](docs/QA_Checklist.md)
