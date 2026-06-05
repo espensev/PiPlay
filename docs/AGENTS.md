@@ -46,6 +46,7 @@ Quality outranks scope: no duplicate audio after popout (Q-1); no lost video/tim
 - No network telemetry. Logs are local only and must never contain cookies, auth headers, or credential URLs.
 - Reference requirement IDs (`Q-n`, `REQ-*`) in PRs and tests. Update `CHANGELOG.md` for user-visible changes.
 - Sign release binaries with the SevIQ code-signing certificate before sharing.
+- Before opening a PR, run the same deterministic gate as CI: `dotnet test PiPlay.sln --configuration Debug` and `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump`. Release candidates also need the manual smoke and `QA_Checklist.md`.
 
 ## UI implementation notes (REQ-UI-01 / REQ-UI-02)
 

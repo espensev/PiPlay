@@ -10,6 +10,7 @@ PiPlay is a quality-first Windows desktop utility for watching YouTube in a mova
 |---|---|
 | [PiPlay_Product_Engineering_Spec.md](PiPlay_Product_Engineering_Spec.md) | The product & engineering spec - the source of truth. |
 | [AGENTS.md](AGENTS.md) | Orientation for AI agents / Claude Code working in this repo. |
+| [Feature_Workflow.md](Feature_Workflow.md) | How to add features, write change notes, run gates, and open PRs. |
 | [CHANGELOG.md](CHANGELOG.md) | Product/app release notes. |
 | [SPEC_GAPS_AND_OWNERSHIP.md](SPEC_GAPS_AND_OWNERSHIP.md) | Missing/unclear spec items and ownership boundaries to resolve. |
 | [adr/](adr/) | Architecture Decision Records - why the big choices were made. |
@@ -29,6 +30,13 @@ PiPlay is a quality-first Windows desktop utility for watching YouTube in a mova
 # from the repo root (..\PiPlay)
 dotnet build PiPlay.sln -c Debug
 dotnet run --project src\PiPlay\PiPlay.csproj
+```
+
+Deterministic local gate, matching CI:
+
+```powershell
+dotnet test PiPlay.sln --configuration Debug
+.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump
 ```
 
 Release pipeline:

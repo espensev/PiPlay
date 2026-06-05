@@ -6,6 +6,7 @@ Layered regression suite. See `docs/Regression_Test_Suite_Design.md` for the des
 ## Lane A — `dotnet test` (fast, deterministic, headless)
 
 No WebView2, no network, no visible desktop. Runs in well under a second.
+This is the lane run by `.github/workflows/ci.yml` before the non-mutating release build gate.
 
 ```bash
 dotnet test                              # everything in PiPlay.Tests

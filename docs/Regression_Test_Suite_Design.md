@@ -44,7 +44,8 @@ several have already bitten:
 - Golden-image pixel-equality snapshots as the primary mechanism (too fragile across
   machines/fonts/OS updates). Allowed only as an opt-in aid in the manual lane.
 - Testing real YouTube playback behavior in `dotnet test`.
-- CI wiring (no CI exists yet); the suite must simply run cleanly via `dotnet test`.
+- CI wiring was out of scope for the original suite design. It is now handled by
+  `.github/workflows/ci.yml`, which runs Lane A plus the non-mutating build gate on Windows.
 
 ## 3. Architecture
 
