@@ -21,7 +21,6 @@ jobs:
       DOTNET_CLI_TELEMETRY_OPTOUT: "1"
       DOTNET_NOLOGO: "true"
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
-      PIPLAY_DATA_ROOT: ${{ runner.temp }}\PiPlayData
 
     steps:
       - name: Check out repository
@@ -39,6 +38,9 @@ jobs:
         run: dotnet restore PiPlay.sln -p:BuildInParallel=false
 
       - name: Run deterministic test lane
+        env:
+          # runner context is only available at step scope, not job-level env.
+          PIPLAY_DATA_ROOT: ${{ runner.temp }}\PiPlayData
         run: dotnet test PiPlay.sln --configuration Debug --no-restore
 
       - name: Run non-mutating release build gate
