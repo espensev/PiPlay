@@ -203,6 +203,14 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void Auto_toggle_reflects_loaded_setting_and_is_off_by_default() => StaTestThread.Invoke(() =>
+    {
+        // No settings file in the temp data root => AutoPopout defaults off => the toggle is unchecked.
+        var auto = (ToggleButton)new MainWindow().FindName("AutoToggle")!;
+        Assert.NotEqual(true, auto.IsChecked);
+    });
+
+    [Fact]
     public void DarkTextBox_template_applies_and_resolves_part_content_host() => StaTestThread.Invoke(() =>
     {
         var w = new MainWindow();

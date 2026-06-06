@@ -33,6 +33,13 @@ public partial class MainWindow : Window
     private PlayerWindow? _player;
     private bool _sourceWasPlayingAtPopout;
 
+    // Auto (spec §6.1): source-side playback detector + the de-dup key that blocks the return-resume
+    // re-pop loop. The timer only runs while Auto is on and the browser is ready.
+    private System.Windows.Threading.DispatcherTimer? _autoTimer;
+    private bool _autoTickInProgress;
+    private bool _autoSeedPending;
+    private string? _autoLastHandledVideoId;
+
     // Guards both privacy actions against re-entrancy (double-click, reopen mid-clear).
     private bool _privacyActionInProgress;
     // True only while Clear browser data is running, so the popout's return handler does not
@@ -63,6 +70,7 @@ public partial class MainWindow : Window
         };
 
         ApplyTopmost(_settings.MainWindow.Topmost);
+        ApplyAuto(_settings.AutoPopout);
         LoadProfilesIntoCombo();
         ApplyChannelTitle();
     }
@@ -106,6 +114,7 @@ public partial class MainWindow : Window
             var startUrl = _pendingUrl ?? _settings.LastUrl;
             _pendingUrl = null;
             NavigateInternal(startUrl);
+            UpdateAutoDetector();   // start the Auto detector if Auto was left on
             Log.Info("Source browser initialized.");
         }
         catch (WebView2RuntimeNotFoundException ex)
@@ -259,6 +268,92 @@ public partial class MainWindow : Window
         Topmost = on;
         PinToggle.IsChecked = on;
         PinnedHint.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // --- Auto: auto-popout on playback (spec §6.1) ---
+
+    private void AutoToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.AutoPopout = AutoToggle.IsChecked == true;
+        _settingsService.Save(_settings);
+        UpdateAutoDetector();
+    }
+
+    /// <summary>Reflect the Auto setting on the toolbar toggle (no side effects on the detector).</summary>
+    private void ApplyAuto(bool on) => AutoToggle.IsChecked = on;
+
+    /// <summary>Start/stop the playback detector to match the Auto setting and browser readiness.</summary>
+    private void UpdateAutoDetector()
+    {
+        if (_browserReady && _settings.AutoPopout)
+        {
+            if (_autoTimer is null)
+            {
+                _autoTimer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(250),   // matches PlayerWindow._syncTimer
+                };
+                _autoTimer.Tick += AutoTimer_Tick;
+            }
+            // (Re)seed on enable so turning Auto on never yanks the video already playing.
+            _autoSeedPending = true;
+            _autoTimer.Start();
+        }
+        else
+        {
+            _autoTimer?.Stop();
+        }
+    }
+
+    private async void AutoTimer_Tick(object? sender, EventArgs e)
+    {
+        // One tick at a time (a slow DOM read must not stack); skip while a popout owns the source.
+        if (_autoTickInProgress) return;
+        if (!_browserReady || !_settings.AutoPopout) return;
+        if (_popoutInProgress || _player is not null || _clearingBrowserData) return;
+        var core = Browser.CoreWebView2;
+        if (core is null) return;
+
+        _autoTickInProgress = true;
+        try
+        {
+            var src = core.Source;
+            YouTubeUrlHelper.TryParse(src, out var target);
+            var videoId = target.VideoId;
+
+            // Seed (on enable/startup): record the current video as already-handled, then wait —
+            // so enabling Auto on a playing video does not immediately pop it (spec §6.1).
+            if (_autoSeedPending)
+            {
+                _autoLastHandledVideoId = videoId;
+                _autoSeedPending = false;
+                return;
+            }
+
+            var state = await YouTubeDomBridge.ReadPlayerStateAsync(core);
+            var decision = AutoPopoutPolicy.Decide(
+                autoEnabled: true,
+                isPlaying: state is { Paused: false },
+                isWatchVideo: YouTubeUrlHelper.IsWatchUrl(src),
+                currentVideoId: videoId,
+                lastHandledVideoId: _autoLastHandledVideoId,
+                popoutActive: _popoutInProgress || _player is not null);
+
+            if (decision == AutoPopDecision.Pop)
+            {
+                Log.Info("Auto: playback detected on a new video; starting Video Popout.");
+                await StartVideoPopoutAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            // Best-effort, per the DOM-bridge contract (Q-6): a hiccup means no auto-pop, never a crash.
+            Log.Error("Auto-popout detector tick failed.", ex);
+        }
+        finally
+        {
+            _autoTickInProgress = false;
+        }
     }
 
     // --- Profiles (spec 17, MVP basic save/load) ---
@@ -418,6 +513,8 @@ public partial class MainWindow : Window
     {
         _settings = _settingsService.Reset();
         ApplyTopmost(false);
+        ApplyAuto(false);
+        UpdateAutoDetector();   // Auto is off after reset → stop the detector
         LoadProfilesIntoCombo();
     }
 
@@ -511,6 +608,10 @@ public partial class MainWindow : Window
                 Prompt.ShowInfo(this, "Pop out video", "Open a YouTube video first, then press Pop out video.");
                 return;
             }
+
+            // Auto de-dup: remember this video so the return-resume play edge (and an in-source
+            // pause/resume) isn't read as a fresh play that should re-pop it (spec §6.1).
+            _autoLastHandledVideoId = target.VideoId;
 
             var popoutUrl = YouTubeUrlHelper.BuildWatchUrl(target, seconds);
 
@@ -647,6 +748,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            _autoTimer?.Stop();
             // Close the Popout Player too (its handler captures/persists player state).
             if (_player is not null) { try { _player.Close(); } catch { /* ignore */ } }
 

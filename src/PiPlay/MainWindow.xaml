@@ -63,11 +63,12 @@
     <Grid Grid.Row="1" Background="{StaticResource AppBackground}"
           WindowChrome.IsHitTestVisibleInChrome="True">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="Auto" />
-        <ColumnDefinition Width="*" />
-        <ColumnDefinition Width="Auto" />
-        <ColumnDefinition Width="Auto" />
-        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />   <!-- nav -->
+        <ColumnDefinition Width="*" />       <!-- URL / search -->
+        <ColumnDefinition Width="Auto" />   <!-- profiles -->
+        <ColumnDefinition Width="Auto" />   <!-- Pin -->
+        <ColumnDefinition Width="Auto" />   <!-- Auto -->
+        <ColumnDefinition Width="Auto" />   <!-- Pop out -->
       </Grid.ColumnDefinitions>
 
       <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="8,0,4,0" VerticalAlignment="Center">
@@ -100,7 +101,11 @@
                     Margin="6,0" Content="&#xE840;" Click="PinToggle_Click"
                     ToolTip="Pin PiPlay on top" />
 
-      <Button x:Name="PopOutButton" Grid.Column="4" Style="{StaticResource AccentButton}"
+      <ToggleButton x:Name="AutoToggle" Grid.Column="4" Style="{StaticResource PinToggle}"
+                    Margin="6,0" Content="&#xE768;" Click="AutoToggle_Click"
+                    ToolTip="Auto: pop out videos when they start playing" />
+
+      <Button x:Name="PopOutButton" Grid.Column="5" Style="{StaticResource AccentButton}"
               Margin="6,9,10,9" Click="PopOutButton_Click" IsEnabled="False">
         <StackPanel Orientation="Horizontal">
           <TextBlock Text="&#xE8A7;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14"
