@@ -18,10 +18,26 @@ If a request touches YouTube behavior, also read `docs/YouTube_Compliance.md`.
 Before code for a non-trivial change, add:
 
 - A dated design spec at `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`.
+  Start from `docs/superpowers/templates/feature-design-template.md`.
 - A dated implementation plan at `docs/superpowers/plans/YYYY-MM-DD-<topic>.md` when the work spans multiple steps.
 
-The design note should list goals, requirement IDs served, settled decisions, testing approach,
-and expected file changes. Link it from the PR.
+Link the spec from the PR.
+
+### Definition of Ready
+
+A change is ready to implement once its design spec settles all of:
+
+- **Goals** — the gap closed and what "done" looks like; what stays unchanged.
+- **Requirement IDs served** — `REQ-*`, `Q-*`, or spec § numbers (or "tooling/docs" with the motivating note).
+- **Acceptance criteria** — observable, checkable conditions for "done".
+- **Non-goals** — what this pass deliberately does not do.
+- **Affected files** — the expected change-by-file list.
+- **Test plan** — which layer covers what, and what is verified live vs locally.
+- **Docs / changelog impact** — `docs/CHANGELOG.md` for user-visible changes; any ADRs.
+- **Unresolved decisions** — open questions, or "none".
+
+CI enforces the spec half of this: any PR touching `src/`, `scripts/`, or `tests/` must ship a changed
+dated spec (see step 5).
 
 ## 3. Implement inside the ownership boundaries
 
@@ -88,13 +104,24 @@ window state — and relaunch it afterward.
 
 ## 5. Open the PR
 
-Include:
+The PR description is pre-filled from `.github/pull_request_template.md`; fill every section:
 
 - Design spec link.
 - Requirement IDs served, such as `Q-6`, `REQ-UI-01`, or `REQ-PROFILE-01`.
+- Acceptance criteria.
 - Local verification commands and results.
-- Any manual QA evidence paths under `docs/evidence/` for release-candidate or visual work.
+- Docs / changelog impact, and any manual QA evidence paths under `docs/evidence/` for
+  release-candidate or visual work.
 
-The GitHub Actions workflow at `.github/workflows/ci.yml` runs on every push and pull request.
-After the first successful run on GitHub, make `Build and test (Windows)` a required branch
-protection check for `main` so red commits cannot merge unnoticed.
+Two GitHub Actions checks run on every pull request:
+
+- **Build and test (Windows)** (`.github/workflows/ci.yml`) — the deterministic test lane and the
+  non-mutating build gate.
+- **Require design spec** (`.github/workflows/spec-check.yml`) — fails a PR that changes `src/`,
+  `scripts/`, or `tests/` without a changed dated spec matching
+  `docs/superpowers/specs/YYYY-MM-DD-*-design.md`. To override deliberately (a trivial or urgent
+  change), add a line `Spec-Exception: <reason>` to the PR description; the check then passes and
+  records the reason.
+
+After a check's first successful run on GitHub, make it a required branch-protection check for `main`
+so red commits cannot merge unnoticed.

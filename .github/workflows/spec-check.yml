@@ -1,0 +1,75 @@
+name: Spec check
+
+# Soft gate: a PR that changes code under src/, scripts/, or tests/ must either add a dated design
+# spec under docs/superpowers/specs/YYYY-MM-DD-*-design.md OR carry an explicit
+# "Spec-Exception: <reason>" line in its body.
+# See docs/Feature_Workflow.md and docs/superpowers/specs/2026-06-06-feature-workflow-enforcement-design.md.
+#
+# Runs UNCONDITIONALLY (no paths: filter) and decides inside the job, so it always reports a conclusive
+# status and is safe to mark as a required branch-protection check (a path-filtered required check can
+# hang a PR in "pending" forever).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: spec-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  require-spec:
+    name: Require design spec
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a dated design spec for code changes
+        # The untrusted PR body is passed via env and never interpolated into the script, so a hostile
+        # body cannot inject shell commands. GH_REPO lets `gh` target the repo without a checkout.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Fail-closed: a gh/jq failure aborts via `set -e` (the gate fails rather than passing blind).
+          # An empty list is also treated as a failure, not a silent pass.
+          files="$(gh pr view "$PR_NUMBER" --json files --jq '.files[].path')"
+          if [ -z "$files" ]; then
+            echo "::error::Could not determine the changed files for PR #${PR_NUMBER}; failing closed."
+            exit 1
+          fi
+
+          echo "Changed files:"
+          printf '%s\n' "$files" | sed 's/^/  /'
+
+          # 1. Does the PR touch gated code paths?
+          gated="$(printf '%s\n' "$files" | grep -E '^(src|scripts|tests)/' || true)"
+          if [ -z "$gated" ]; then
+            echo "::notice::No changes under src/, scripts/, or tests/ — design-spec gate not required."
+            exit 0
+          fi
+
+          # 2. Does the PR add or change a dated design spec?
+          spec="$(printf '%s\n' "$files" | grep -E '^docs/superpowers/specs/[0-9]{4}-[0-9]{2}-[0-9]{2}-.+-design\.md$' || true)"
+          if [ -n "$spec" ]; then
+            echo "::notice::Design spec present in this PR:"
+            printf '%s\n' "$spec" | sed 's/^/  /'
+            exit 0
+          fi
+
+          # 3. Escape hatch: an explicit, non-empty Spec-Exception line in the PR body.
+          if printf '%s' "${PR_BODY:-}" | grep -qiE '^[[:space:]]*Spec-Exception:[[:space:]]*[^[:space:]].*$'; then
+            reason="$(printf '%s' "${PR_BODY:-}" | grep -iE '^[[:space:]]*Spec-Exception:' | head -n 1)"
+            echo "::warning::Spec gate bypassed by exception — ${reason}"
+            exit 0
+          fi
+
+          echo "::error::This PR changes code under src/, scripts/, or tests/ but adds no dated design spec matching docs/superpowers/specs/YYYY-MM-DD-*-design.md (see docs/Feature_Workflow.md). Add one, or add a line 'Spec-Exception: <reason>' to the PR description to override deliberately."
+          exit 1
