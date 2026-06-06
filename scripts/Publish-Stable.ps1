@@ -71,10 +71,15 @@ if ($SkipTests) {
 
 # 2. Build + publish the Stable channel Release.
 Write-Step 2 "Building + publishing the Stable channel Release..."
-$buildArgs = @("-Stage", "Release", "-Channel", "Stable", "-KeepPublishCount", $KeepPublishCount)
-if ($Version) { $buildArgs += @("-Version", $Version) }
-else { $buildArgs += "-NoVersionBump" }   # keep the semantic version; BUILD_NUMBER still bumps for a unique build
-& $buildScript @buildArgs
+# Hashtable splat = named parameters (an array splat would pass them positionally).
+$buildParams = @{
+    Stage = "Release"
+    Channel = "Stable"
+    KeepPublishCount = $KeepPublishCount
+}
+if ($Version) { $buildParams["Version"] = $Version }
+else { $buildParams["NoVersionBump"] = $true }   # keep the semantic version; BUILD_NUMBER still bumps for a unique build
+& $buildScript @buildParams
 if ($LASTEXITCODE -ne 0) { throw "Build-PiPlay.ps1 failed (exit $LASTEXITCODE)." }
 
 # Read what was just published (latest mirrors the newest build).
