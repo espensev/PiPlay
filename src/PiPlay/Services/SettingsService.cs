@@ -163,6 +163,9 @@ public sealed class SettingsService
         s.Profiles ??= new List<Profile>();
 
         if (string.IsNullOrWhiteSpace(s.LastUrl)) s.LastUrl = "https://www.youtube.com/";
+        s.Player.PinAccent = PlayerAppearancePolicy.NormalizeAccent(s.Player.PinAccent);
+        s.Player.FadeAccent = PlayerAppearancePolicy.NormalizeAccent(s.Player.FadeAccent);
+        s.Player.FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(s.Player.FadeIdleDelayMs);
         if (s.Player.IdleWindowOpacity is < 0.1 or > 1.0) s.Player.IdleWindowOpacity = 1.0;
         if (s.Player.LastWidth < 320) s.Player.LastWidth = 960;
         if (s.Player.LastHeight < 180) s.Player.LastHeight = 540;

@@ -6,11 +6,13 @@
 while preserving current defaults and keeping whole-window opacity / click-through transparency out of
 this phase.
 
-**Result:** Ready for implementation. No product code has been changed yet.
+**Result:** Implemented on `docs/player-customization-spec` after the spec pass. Product code now
+contains the fixed swatch palette, persisted Pin/Fade accents, fade-delay presets, Settings UI, and
+focused regression coverage.
 
 ## Tasks
 
-- [ ] **Task 1 - Model and palette policy.**
+- [x] **Task 1 - Model and palette policy.**
   - Add appearance settings under `PlayerSettings`: `PinAccent = "cyan"`, `FadeAccent = "cyan"`,
     and `FadeIdleDelayMs = 2500`.
   - Add a small `PlayerAppearancePolicy` helper that owns allowed accent keys, display names, brush
@@ -19,10 +21,9 @@ this phase.
   - Allowed fade-delay values: 1500, 2500, 4000 ms.
   - Keep persistence JSON readable with string keys, not numeric enum values.
   - Update `SettingsService.Sanitize` to repair unknown accent keys and out-of-range delay values.
-  - Verify: `dotnet test --filter "FullyQualifiedName~SettingsServiceTests"` plus new policy tests.
-  - Commit: `feat(settings): add player appearance customization model`
+  - Verified by `SettingsServiceTests` and `PlayerAppearancePolicyTests`.
 
-- [ ] **Task 2 - Theme tokens and toggle accent plumbing.**
+- [x] **Task 2 - Theme tokens and toggle accent plumbing.**
   - Add `AccentViolet`, `AccentGreen`, and `AccentAmber` to `Theme/Colors.xaml`; keep existing
     `AccentCyan` as the default and keep `DangerPin` reserved for danger / close states.
   - Do not use current `AccentPurple` for toggle customization unless a contrast test proves it meets
@@ -32,10 +33,9 @@ this phase.
   - Prefer a tiny attached property or equivalent local WPF seam over duplicating one style per color.
   - Apply the configured Pin accent to `MainWindow.PinToggle` and `PlayerWindow.PinToggle`.
   - Apply the configured Fade accent to `PlayerWindow.FadeToggle`.
-  - Verify: `dotnet test --filter Category=Markup` and `dotnet test --filter Category=Wpf`.
-  - Commit: `feat(ui): apply configurable Pin and Fade accents`
+  - Verified by markup contrast/resource tests and WPF runtime tests.
 
-- [ ] **Task 3 - Settings window Appearance section.**
+- [x] **Task 3 - Settings window Appearance section.**
   - Add an `Appearance` section below Privacy in `SettingsWindow`.
   - Use swatches for `Pin color` and `Fade color`, with stable names/tooltips and visible selected
     state. Do not use free-form color text input.
@@ -43,30 +43,25 @@ this phase.
     Normal maps to the current `FadePolicy.IdleDelayMs` behavior.
   - Keep `SettingsWindow` input-only: it reports changes to `MainWindow`; `MainWindow` copies them
     into `_settings`, saves through `SettingsService`, and updates any open player/source controls.
-  - Verify: targeted WPF runtime tests for construction, default selected swatches, and callback /
-    selected-value behavior.
-  - Commit: `feat(settings): add Appearance controls for player customization`
+  - Verified by targeted WPF runtime tests for construction and selected-value behavior.
 
-- [ ] **Task 4 - Fade delay application.**
+- [x] **Task 4 - Fade delay application.**
   - Thread the configured fade idle delay from `MainWindow` into `PlayerWindow`.
   - Keep `FadePolicy` as the pure decision layer; use configured timing for the timer interval, not
     for the hide/show truth table.
   - Preserve the invariant that disabling Fade makes controls always visible immediately.
-  - Verify: `dotnet test --filter "FullyQualifiedName~FadePolicyTests"` plus a WPF construction test
-    that the player accepts the configured delay without showing the window.
-  - Commit: `feat(fade): honor configured controls fade delay`
+  - Verified by WPF construction tests that the player accepts configured delay without showing the window.
 
-- [ ] **Task 5 - Reset, docs, and manual QA hooks.**
+- [x] **Task 5 - Reset, docs, and manual QA hooks.**
   - Ensure `ApplyResetState` and `SettingsService.Reset` restore default accents and fade delay.
   - Update `docs/CHANGELOG.md` under Phase 2 customization.
   - Update `docs/QA_Checklist.md` with a short visual pass: default colors, alternate Pin color,
     alternate Fade color, and fade after idle at a fractional DPI.
   - Confirm transparency wording stays separate: whole-window opacity remains Phase 4 and click-through
     remains out of scope.
-  - Verify: `dotnet test PiPlay.sln --configuration Debug`.
-  - Commit: `docs(customization): document Pin and Fade appearance settings`
+  - Verified by `dotnet test PiPlay.sln --configuration Debug`.
 
-- [ ] **Task 6 - Full gate and review.**
+- [x] **Task 6 - Full gate and review.**
   - Run the deterministic gate:
 
     ```powershell
@@ -79,6 +74,8 @@ this phase.
   - If releasing a shareable build, run `scripts/Test-UiSmoke.ps1` and capture manual evidence under
     `docs/evidence/`.
   - Commit or PR summary should call out that whole-window opacity and click-through were not added.
+  - Verified: `dotnet test PiPlay.sln --configuration Debug` passed 221/221; `.\Build-PiPlay.ps1
+    -Stage Build -NoVersionBump -NoBuildNumberBump` passed with 0 warnings / 0 errors.
 
 ## Self-review
 
@@ -89,5 +86,6 @@ this phase.
   fade truth-table logic stays in `FadePolicy`.
 - Risk: highest risk is WPF styling drift and confusing Fade with opacity. Markup/WPF tests cover
   resource/style behavior; docs and review keep opacity/click-through separate.
-- Verified: docs/spec pass only; product-code tests are not required until implementation, but the
-  markdown and repo status should be checked before opening the docs PR.
+- Verified: full implementation pass; `dotnet test PiPlay.sln --configuration Debug` passed 221/221
+  and `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` passed with 0 warnings /
+  0 errors.

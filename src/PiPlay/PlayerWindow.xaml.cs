@@ -2,11 +2,13 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using PiPlay.Models;
 using PiPlay.Services;
+using PiPlay.Theme;
 
 namespace PiPlay;
 
@@ -37,6 +39,8 @@ public partial class PlayerWindow : Window
     /// <summary>Raised once when the player has closed, carrying the state needed to return (spec 14).</summary>
     public event EventHandler<PlayerReturnState>? PlayerClosed;
 
+    internal TimeSpan FadeIdleDelayForTests => _idleTimer.Interval;
+
     public PlayerWindow(
         CoreWebView2Environment environment,
         string url,
@@ -44,7 +48,10 @@ public partial class PlayerWindow : Window
         PlacementData? placement,
         int defaultWidth,
         int defaultHeight,
-        bool fadeEnabled)
+        bool fadeEnabled,
+        string pinAccent = PlayerAppearancePolicy.DefaultAccent,
+        string fadeAccent = PlayerAppearancePolicy.DefaultAccent,
+        int fadeIdleDelayMs = PlayerAppearancePolicy.DefaultFadeIdleDelayMs)
     {
         InitializeComponent();
 
@@ -67,8 +74,9 @@ public partial class PlayerWindow : Window
         _syncTimer.Tick += SyncTimer_Tick;
 
         // Idle timer drives the fade-out; any mouse move restarts it (spec 22.1 fade row).
-        _idleTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(FadePolicy.IdleDelayMs) };
+        _idleTimer = new DispatcherTimer();
         _idleTimer.Tick += IdleTimer_Tick;
+        ApplyAppearance(pinAccent, fadeAccent, fadeIdleDelayMs);
         MouseMove += (_, _) => OnUserActivity();
         MouseEnter += (_, _) => OnUserActivity();
 
@@ -180,6 +188,19 @@ public partial class PlayerWindow : Window
         _returnState.FadeEnabled = _fadeEnabled;
         ApplyFadeState();
     }
+
+    internal void ApplyAppearance(string? pinAccent, string? fadeAccent, int fadeIdleDelayMs)
+    {
+        ToggleAccent.SetCheckedBrush(PinToggle, ResolveAccentBrush(pinAccent));
+        ToggleAccent.SetCheckedBrush(FadeToggle, ResolveAccentBrush(fadeAccent));
+        _idleTimer.Interval = TimeSpan.FromMilliseconds(
+            PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs));
+
+        if (_fadeEnabled && _idleTimer.IsEnabled) RestartIdleTimer();
+    }
+
+    private Brush ResolveAccentBrush(string? accentKey) =>
+        (Brush)FindResource(PlayerAppearancePolicy.BrushResourceKeyFor(accentKey));
 
     /// <summary>Reset the fade lifecycle to match <see cref="_fadeEnabled"/>: either show-and-arm or pin visible.</summary>
     private void ApplyFadeState()

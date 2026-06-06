@@ -32,6 +32,9 @@ public class SettingsServiceTests : IDisposable
         Assert.NotNull(settings.MainWindow);
         Assert.NotNull(settings.Player);
         Assert.Equal("https://www.youtube.com/", settings.LastUrl);
+        Assert.Equal("cyan", settings.Player.PinAccent);
+        Assert.Equal("cyan", settings.Player.FadeAccent);
+        Assert.Equal(2500, settings.Player.FadeIdleDelayMs);
     }
 
     [Fact]
@@ -40,6 +43,9 @@ public class SettingsServiceTests : IDisposable
         var svc = new SettingsService(_path);
         var settings = new AppSettings { LastUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" };
         settings.Player.Topmost = true;
+        settings.Player.PinAccent = "green";
+        settings.Player.FadeAccent = "amber";
+        settings.Player.FadeIdleDelayMs = 4000;
         settings.Profiles.Add(new Profile { Name = "Lo-fi", Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" });
         svc.Save(settings);
 
@@ -47,6 +53,9 @@ public class SettingsServiceTests : IDisposable
         var loaded = svc.Load();
         Assert.Equal(settings.LastUrl, loaded.LastUrl);
         Assert.True(loaded.Player.Topmost);
+        Assert.Equal("green", loaded.Player.PinAccent);
+        Assert.Equal("amber", loaded.Player.FadeAccent);
+        Assert.Equal(4000, loaded.Player.FadeIdleDelayMs);
         Assert.Single(loaded.Profiles);
         Assert.Equal("Lo-fi", loaded.Profiles[0].Name);
     }
@@ -79,13 +88,16 @@ public class SettingsServiceTests : IDisposable
     public void Sanitize_repairs_out_of_range_values()
     {
         File.WriteAllText(_path,
-            "{\"schemaVersion\":0,\"lastUrl\":\"\",\"player\":{\"idleWindowOpacity\":5.0,\"lastWidth\":10,\"lastHeight\":10}}");
+            "{\"schemaVersion\":0,\"lastUrl\":\"\",\"player\":{\"pinAccent\":\"hotpink\",\"fadeAccent\":\"\",\"fadeIdleDelayMs\":777,\"idleWindowOpacity\":5.0,\"lastWidth\":10,\"lastHeight\":10}}");
         var svc = new SettingsService(_path);
 
         var settings = svc.Load();
 
         Assert.Equal(AppSettings.CurrentSchemaVersion, settings.SchemaVersion);
         Assert.Equal("https://www.youtube.com/", settings.LastUrl);
+        Assert.Equal("cyan", settings.Player.PinAccent);
+        Assert.Equal("cyan", settings.Player.FadeAccent);
+        Assert.Equal(2500, settings.Player.FadeIdleDelayMs);
         Assert.Equal(1.0, settings.Player.IdleWindowOpacity);
         Assert.Equal(960, settings.Player.LastWidth);
         Assert.Equal(540, settings.Player.LastHeight);

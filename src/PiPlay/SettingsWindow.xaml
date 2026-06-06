@@ -12,6 +12,73 @@
         UseLayoutRounding="False"
         SnapsToDevicePixels="True">
 
+  <Window.Resources>
+    <Style x:Key="SwatchToggle" TargetType="ToggleButton">
+      <Setter Property="Width" Value="34" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Margin" Value="0,0,8,0" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderSubtle}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="SnapsToDevicePixels" Value="True" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ToggleButton">
+            <Border x:Name="bd" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="8" />
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource TextPrimary}" />
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource TextPrimary}" />
+                <Setter TargetName="bd" Property="BorderThickness" Value="2" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="PresetToggle" TargetType="ToggleButton">
+      <Setter Property="MinWidth" Value="76" />
+      <Setter Property="Height" Value="30" />
+      <Setter Property="Margin" Value="0,0,8,0" />
+      <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+      <Setter Property="Background" Value="{StaticResource SurfaceRaised}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderSubtle}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="FontFamily" Value="Segoe UI" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="SnapsToDevicePixels" Value="True" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ToggleButton">
+            <Border x:Name="bd" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="8" Padding="10,0">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                TextElement.Foreground="{TemplateBinding Foreground}" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="bd" Property="Background" Value="{StaticResource SurfaceHover}" />
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource AccentCyan}" />
+                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource AccentCyan}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
+
   <Border BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1">
     <StackPanel>
 
@@ -41,6 +108,70 @@
                    Foreground="{StaticResource TextSecondary}" Margin="0,0,0,8" />
         <Button x:Name="ClearBrowserDataButton" Style="{StaticResource DarkButton}"
                 HorizontalAlignment="Left" Click="ClearBrowserDataButton_Click" />
+
+        <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,18" />
+
+        <TextBlock Text="Appearance" FontSize="16" FontWeight="SemiBold"
+                   Foreground="{StaticResource TextPrimary}" Margin="0,0,0,10" />
+
+        <TextBlock Text="Pin color" FontSize="12" Foreground="{StaticResource TextSecondary}"
+                   Margin="0,0,0,6" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+          <ToggleButton x:Name="PinAccentCyanSwatch" Style="{StaticResource SwatchToggle}"
+                        Background="{StaticResource AccentCyan}" Tag="cyan"
+                        Click="PinAccent_Click" ToolTip="Pin color: Cyan"
+                        AutomationProperties.Name="Pin color Cyan" />
+          <ToggleButton x:Name="PinAccentVioletSwatch" Style="{StaticResource SwatchToggle}"
+                        Background="{StaticResource AccentViolet}" Tag="violet"
+                        Click="PinAccent_Click" ToolTip="Pin color: Violet"
+                        AutomationProperties.Name="Pin color Violet" />
+          <ToggleButton x:Name="PinAccentGreenSwatch" Style="{StaticResource SwatchToggle}"
+                        Background="{StaticResource AccentGreen}" Tag="green"
+                        Click="PinAccent_Click" ToolTip="Pin color: Green"
+                        AutomationProperties.Name="Pin color Green" />
+          <ToggleButton x:Name="PinAccentAmberSwatch" Style="{StaticResource SwatchToggle}"
+                        Background="{StaticResource AccentAmber}" Tag="amber"
+                        Click="PinAccent_Click" ToolTip="Pin color: Amber"
+                        AutomationProperties.Name="Pin color Amber" />
+        </StackPanel>
+
+        <TextBlock Text="Fade color" FontSize="12" Foreground="{StaticResource TextSecondary}"
+                   Margin="0,0,0,6" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+          <ToggleButton x:Name="FadeAccentCyanSwatch" Style="{StaticResource SwatchToggle}"
+                        Background="{StaticResource AccentCyan}" Tag="cyan"
+                        Click="FadeAccent_Click" ToolTip="Fade color: Cyan"
+                        AutomationProperties.Name="Fade color Cyan" />
+          <ToggleButton x:Name="FadeAccentVioletSwatch" Style="{StaticResource SwatchToggle}"
+                        Background="{StaticResource AccentViolet}" Tag="violet"
+                        Click="FadeAccent_Click" ToolTip="Fade color: Violet"
+                        AutomationProperties.Name="Fade color Violet" />
+          <ToggleButton x:Name="FadeAccentGreenSwatch" Style="{StaticResource SwatchToggle}"
+                        Background="{StaticResource AccentGreen}" Tag="green"
+                        Click="FadeAccent_Click" ToolTip="Fade color: Green"
+                        AutomationProperties.Name="Fade color Green" />
+          <ToggleButton x:Name="FadeAccentAmberSwatch" Style="{StaticResource SwatchToggle}"
+                        Background="{StaticResource AccentAmber}" Tag="amber"
+                        Click="FadeAccent_Click" ToolTip="Fade color: Amber"
+                        AutomationProperties.Name="Fade color Amber" />
+        </StackPanel>
+
+        <TextBlock Text="Fade delay" FontSize="12" Foreground="{StaticResource TextSecondary}"
+                   Margin="0,0,0,6" />
+        <StackPanel Orientation="Horizontal">
+          <ToggleButton x:Name="FadeDelayShortPreset" Style="{StaticResource PresetToggle}"
+                        Content="Short" Tag="1500" Click="FadeDelay_Click"
+                        ToolTip="Fade controls after 1.5 seconds"
+                        AutomationProperties.Name="Fade delay Short" />
+          <ToggleButton x:Name="FadeDelayNormalPreset" Style="{StaticResource PresetToggle}"
+                        Content="Normal" Tag="2500" Click="FadeDelay_Click"
+                        ToolTip="Fade controls after 2.5 seconds"
+                        AutomationProperties.Name="Fade delay Normal" />
+          <ToggleButton x:Name="FadeDelayLongPreset" Style="{StaticResource PresetToggle}"
+                        Content="Long" Tag="4000" Click="FadeDelay_Click"
+                        ToolTip="Fade controls after 4 seconds"
+                        AutomationProperties.Name="Fade delay Long" />
+        </StackPanel>
       </StackPanel>
 
     </StackPanel>

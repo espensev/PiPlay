@@ -3,9 +3,11 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 using PiPlay.Models;
 using PiPlay.Services;
+using PiPlay.Theme;
 
 namespace PiPlay;
 
@@ -70,6 +72,7 @@ public partial class MainWindow : Window
 
         ApplyTopmost(_settings.MainWindow.Topmost);
         ApplyAuto(_settings.AutoPopout);
+        ApplySourceAppearance();
         LoadProfilesIntoCombo();
         ApplyChannelTitle();
     }
@@ -269,6 +272,16 @@ public partial class MainWindow : Window
         PinnedHint.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    private void ApplySourceAppearance()
+    {
+        var pinBrush = ResolveAccentBrush(_settings.Player.PinAccent);
+        ToggleAccent.SetCheckedBrush(PinToggle, pinBrush);
+        PinnedHint.Foreground = pinBrush;
+    }
+
+    private Brush ResolveAccentBrush(string? accentKey) =>
+        (Brush)FindResource(PlayerAppearancePolicy.BrushResourceKeyFor(accentKey));
+
     // --- Auto: auto-popout on playback (spec §6.1) ---
 
     private void AutoToggle_Click(object sender, RoutedEventArgs e)
@@ -459,7 +472,11 @@ public partial class MainWindow : Window
     {
         if (_privacyActionInProgress) return;
 
-        var dialog = new SettingsWindow(isBrowserReady: CanClearBrowserData)
+        var dialog = new SettingsWindow(
+            isBrowserReady: CanClearBrowserData,
+            pinAccent: _settings.Player.PinAccent,
+            fadeAccent: _settings.Player.FadeAccent,
+            fadeIdleDelayMs: _settings.Player.FadeIdleDelayMs)
         {
             Owner = this,
             Topmost = Topmost,
@@ -467,11 +484,19 @@ public partial class MainWindow : Window
 
         if (dialog.ShowDialog() != true) return;
 
+        if (dialog.RequestedAction == PrivacyAction.ResetAppState)
+        {
+            PerformResetAppState();
+            return;
+        }
+
+        if (dialog.AppearanceChanged)
+        {
+            ApplyAppearanceSettings(dialog.PinAccent, dialog.FadeAccent, dialog.FadeIdleDelayMs);
+        }
+
         switch (dialog.RequestedAction)
         {
-            case PrivacyAction.ResetAppState:
-                PerformResetAppState();
-                break;
             case PrivacyAction.ClearBrowserData:
                 _ = PerformClearBrowserDataAsync();
                 break;
@@ -503,8 +528,21 @@ public partial class MainWindow : Window
         _settings = _settingsService.Reset();
         ApplyTopmost(false);
         ApplyAuto(false);
+        ApplySourceAppearance();
+        _player?.ApplyAppearance(_settings.Player.PinAccent, _settings.Player.FadeAccent, _settings.Player.FadeIdleDelayMs);
         UpdateAutoDetector();   // Auto is off after reset → stop the detector
         LoadProfilesIntoCombo();
+    }
+
+    private void ApplyAppearanceSettings(string pinAccent, string fadeAccent, int fadeIdleDelayMs)
+    {
+        _settings.Player.PinAccent = PlayerAppearancePolicy.NormalizeAccent(pinAccent);
+        _settings.Player.FadeAccent = PlayerAppearancePolicy.NormalizeAccent(fadeAccent);
+        _settings.Player.FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
+
+        ApplySourceAppearance();
+        _player?.ApplyAppearance(_settings.Player.PinAccent, _settings.Player.FadeAccent, _settings.Player.FadeIdleDelayMs);
+        _settingsService.Save(_settings);
     }
 
     private async Task PerformClearBrowserDataAsync()
@@ -614,7 +652,8 @@ public partial class MainWindow : Window
 
             _player = new PlayerWindow(env, popoutUrl, _settings.Player.Topmost,
                 _settings.Player.Placement, _settings.Player.LastWidth, _settings.Player.LastHeight,
-                _settings.Player.FadeEnabled);
+                _settings.Player.FadeEnabled, _settings.Player.PinAccent, _settings.Player.FadeAccent,
+                _settings.Player.FadeIdleDelayMs);
             _player.PlayerClosed += Player_OnClosed;
             _player.Show();
 

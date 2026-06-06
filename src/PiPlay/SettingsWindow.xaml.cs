@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using PiPlay.Services;
 
@@ -17,10 +18,23 @@ internal enum PrivacyAction { None, ResetAppState, ClearBrowserData }
 public partial class SettingsWindow : Window
 {
     internal PrivacyAction RequestedAction { get; private set; } = PrivacyAction.None;
+    internal bool AppearanceChanged { get; private set; }
+    internal string PinAccent { get; private set; }
+    internal string FadeAccent { get; private set; }
+    internal int FadeIdleDelayMs { get; private set; }
 
-    public SettingsWindow(bool isBrowserReady)
+    public SettingsWindow(
+        bool isBrowserReady,
+        string? pinAccent = PlayerAppearancePolicy.DefaultAccent,
+        string? fadeAccent = PlayerAppearancePolicy.DefaultAccent,
+        int fadeIdleDelayMs = PlayerAppearancePolicy.DefaultFadeIdleDelayMs)
     {
         InitializeComponent();
+
+        PinAccent = PlayerAppearancePolicy.NormalizeAccent(pinAccent);
+        FadeAccent = PlayerAppearancePolicy.NormalizeAccent(fadeAccent);
+        FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
+        ApplyAppearanceSelections();
 
         ResetDescriptionText.Text = PrivacyService.ResetDescription;
         ResetAppStateButton.Content = PrivacyService.ResetActionLabel;
@@ -42,7 +56,41 @@ public partial class SettingsWindow : Window
         if (e.ButtonState == MouseButtonState.Pressed) DragMove();
     }
 
-    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+    private void CloseButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (AppearanceChanged)
+        {
+            CompleteDialog();
+            return;
+        }
+
+        Close();
+    }
+
+    private void PinAccent_Click(object sender, RoutedEventArgs e)
+    {
+        PinAccent = PlayerAppearancePolicy.NormalizeAccent(((FrameworkElement)sender).Tag as string);
+        AppearanceChanged = true;
+        ApplyAppearanceSelections();
+    }
+
+    private void FadeAccent_Click(object sender, RoutedEventArgs e)
+    {
+        FadeAccent = PlayerAppearancePolicy.NormalizeAccent(((FrameworkElement)sender).Tag as string);
+        AppearanceChanged = true;
+        ApplyAppearanceSelections();
+    }
+
+    private void FadeDelay_Click(object sender, RoutedEventArgs e)
+    {
+        var tag = ((FrameworkElement)sender).Tag as string;
+        if (int.TryParse(tag, out var delay))
+        {
+            FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(delay);
+            AppearanceChanged = true;
+        }
+        ApplyAppearanceSelections();
+    }
 
     private void ResetAppStateButton_Click(object sender, RoutedEventArgs e)
     {
@@ -51,7 +99,7 @@ public partial class SettingsWindow : Window
                 PrivacyService.ResetConfirmButton, danger: false))
         {
             RequestedAction = PrivacyAction.ResetAppState;
-            DialogResult = true;
+            CompleteDialog();
         }
         else
         {
@@ -66,11 +114,47 @@ public partial class SettingsWindow : Window
                 PrivacyService.ClearConfirmButton, danger: true))
         {
             RequestedAction = PrivacyAction.ClearBrowserData;
-            DialogResult = true;
+            CompleteDialog();
         }
         else
         {
             ClearBrowserDataButton.IsEnabled = true;
+        }
+    }
+
+    private void ApplyAppearanceSelections()
+    {
+        SelectAccent(PinAccent, PinAccentCyanSwatch, PinAccentVioletSwatch, PinAccentGreenSwatch, PinAccentAmberSwatch);
+        SelectAccent(FadeAccent, FadeAccentCyanSwatch, FadeAccentVioletSwatch, FadeAccentGreenSwatch, FadeAccentAmberSwatch);
+        SelectDelay(FadeIdleDelayMs, FadeDelayShortPreset, FadeDelayNormalPreset, FadeDelayLongPreset);
+    }
+
+    private static void SelectAccent(string selected, params ToggleButton[] buttons)
+    {
+        foreach (var button in buttons)
+        {
+            button.IsChecked = string.Equals(button.Tag as string, selected, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private static void SelectDelay(int selected, params ToggleButton[] buttons)
+    {
+        foreach (var button in buttons)
+        {
+            var matches = int.TryParse(button.Tag as string, out var delay) && delay == selected;
+            button.IsChecked = matches;
+        }
+    }
+
+    private void CompleteDialog()
+    {
+        try
+        {
+            DialogResult = true;
+        }
+        catch (InvalidOperationException)
+        {
+            Close();
         }
     }
 }

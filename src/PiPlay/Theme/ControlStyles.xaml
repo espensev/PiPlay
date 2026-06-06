@@ -1,10 +1,11 @@
 <!--
   PiPlay control styles - dark, minimal, utility-first (spec section 5).
   Soft rounded rectangles, high-contrast controls, low-glow cyan/purple accents.
-  Pin active state uses AccentCyan (obvious without being loud, spec 6.3).
+  Pin/Fade active state defaults to AccentCyan and can be overridden per control (spec 6.3).
 -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:theme="clr-namespace:PiPlay.Theme">
 
   <ResourceDictionary.MergedDictionaries>
     <ResourceDictionary Source="Colors.xaml" />
@@ -164,22 +165,25 @@
     </Setter>
   </Style>
 
-  <!-- Pin toggle: active = AccentCyan glyph + subtle filled background -->
+  <!-- Pin/Fade toggle: active = configurable glyph + subtle active border. -->
   <Style TargetType="ToggleButton" x:Key="PinToggle">
     <Setter Property="Width" Value="32" />
     <Setter Property="Height" Value="32" />
     <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
     <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
     <Setter Property="FontSize" Value="14" />
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="ToolTip" Value="Pin (keep on top)" />
     <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="theme:ToggleAccent.CheckedBrush" Value="{StaticResource AccentCyan}" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="ToggleButton">
-          <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8"
-                  BorderBrush="Transparent" BorderThickness="1">
+          <Border x:Name="bd" Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  CornerRadius="8" BorderThickness="1">
             <TextBlock Text="{TemplateBinding Content}"
                        FontFamily="{TemplateBinding FontFamily}"
                        FontSize="{TemplateBinding FontSize}"
@@ -189,10 +193,6 @@
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
               <Setter TargetName="bd" Property="Background" Value="{StaticResource SurfaceHover}" />
-            </Trigger>
-            <Trigger Property="IsChecked" Value="True">
-              <Setter Property="Foreground" Value="{StaticResource AccentCyan}" />
-              <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource AccentCyan}" />
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>

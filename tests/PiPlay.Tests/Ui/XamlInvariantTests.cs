@@ -83,6 +83,9 @@ public class XamlInvariantTests
         {
             "ResetAppStateButton", "ResetDescriptionText",
             "ClearBrowserDataButton", "ClearDescriptionText", "CloseButton",
+            "PinAccentCyanSwatch", "PinAccentVioletSwatch", "PinAccentGreenSwatch", "PinAccentAmberSwatch",
+            "FadeAccentCyanSwatch", "FadeAccentVioletSwatch", "FadeAccentGreenSwatch", "FadeAccentAmberSwatch",
+            "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
         }},
     };
 
@@ -202,6 +205,40 @@ public class XamlInvariantTests
         // AccentButton: foreground #FF06141A literal on AccentCyan fill (ControlStyles.xaml).
         var ratio = Wcag.ContrastRatio("#FF06141A", ColorTokens()["AccentCyanColor"]);
         Assert.True(ratio >= 4.5, $"Accent button text contrast = {ratio:F2}:1.");
+    }
+
+    [Theory]
+    [InlineData("AccentCyanColor")]
+    [InlineData("AccentVioletColor")]
+    [InlineData("AccentGreenColor")]
+    [InlineData("AccentAmberColor")]
+    public void Customization_accents_are_readable_as_active_glyphs_on_hover_surface(string accent)
+    {
+        var t = ColorTokens();
+        var ratio = Wcag.ContrastRatio(t[accent], t["SurfaceHoverColor"]);
+        Assert.True(ratio >= 3.0, $"{accent} on SurfaceHoverColor = {ratio:F2}:1, below 3:1.");
+    }
+
+    [Fact]
+    public void Settings_appearance_controls_have_tooltips_and_accessible_names()
+    {
+        var byName = XamlTestFiles.Load("SettingsWindow.xaml").Descendants()
+            .Where(e => e.Attribute(XamlTestFiles.X + "Name") is not null)
+            .GroupBy(e => e.Attribute(XamlTestFiles.X + "Name")!.Value)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        foreach (var name in new[]
+        {
+            "PinAccentCyanSwatch", "PinAccentVioletSwatch", "PinAccentGreenSwatch", "PinAccentAmberSwatch",
+            "FadeAccentCyanSwatch", "FadeAccentVioletSwatch", "FadeAccentGreenSwatch", "FadeAccentAmberSwatch",
+            "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
+        })
+        {
+            Assert.False(string.IsNullOrWhiteSpace(byName[name].Attribute("ToolTip")?.Value),
+                $"{name} is missing a ToolTip.");
+            Assert.False(string.IsNullOrWhiteSpace(byName[name].Attribute("AutomationProperties.Name")?.Value),
+                $"{name} is missing AutomationProperties.Name.");
+        }
     }
 
     [Fact]
