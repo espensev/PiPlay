@@ -6,11 +6,13 @@
 reusing `StartVideoPopoutAsync` and the single-player lifecycle, with the false-positive/anti-loop logic
 in a pure, unit-tested seam. Manual popout and the return policy stay unchanged.
 
-**Result:** _pending — fill with `dotnet test PiPlay.sln -c Debug` counts and the manual-smoke outcome._
+**Result:** Implemented across 4 commits on `feature/auto-popout`. `dotnet test PiPlay.sln -c Debug` =
+**197 passing** (+22). The app builds and launches healthy (log: `Source browser initialized`); the live
+Auto smoke (auto-pop once, no re-pop loop, Shorts excluded, easy disable) is left for manual confirmation.
 
 ## Tasks
 
-- [ ] **Task 1 — Pure decision seam + setting (no UI, fully unit-tested).**
+- [x] **Task 1 — Pure decision seam + setting (no UI, fully unit-tested).**
   - Add `AppSettings.AutoPopout` (bool, default false). Add `src/PiPlay/Services/AutoPopoutPolicy.cs`:
     static `Decide(autoEnabled, isPlaying, isWatchVideo, currentVideoId, lastHandledVideoId,
     popoutActive) → AutoPopDecision { Skip, Pop }` (Pop only when enabled + isPlaying + `/watch` + id ≠
@@ -19,14 +21,14 @@ in a pure, unit-tested seam. Manual popout and the return policy stay unchanged.
     `SettingsServiceTests` Auto default-false + round-trip green.
   - Commit: `feat(auto): AutoPopoutPolicy decision seam + off-by-default AutoPopout setting (spec §6.1)`
 
-- [ ] **Task 2 — Toolbar toggle (persisted, no trigger yet).**
+- [x] **Task 2 — Toolbar toggle (persisted, no trigger yet).**
   - `MainWindow.xaml`: new `ColumnDefinition` + `AutoToggle` mirroring `PinToggle`. `MainWindow.xaml.cs`:
     `AutoToggle_Click`/`ApplyAuto` (Pin-style → `Save`); apply in ctor; re-sync in `ApplyResetState`.
   - Verify: `dotnet test --filter "Category=Markup|Category=Wpf"`. `XamlInvariantTests` asserts
     `AutoToggle` + tooltip; `WpfRuntimeTests` constructs MainWindow and reflects the loaded flag.
   - Commit: `feat(auto): off-by-default Auto toolbar toggle wired to settings`
 
-- [ ] **Task 3 — Live playback detector (manual/Lane-B verified).**
+- [x] **Task 3 — Live playback detector (manual/Lane-B verified).**
   - `MainWindow.xaml.cs`: source-side `DispatcherTimer` (~250 ms, `_autoTickInProgress` reentrancy guard)
     that best-effort reads "is playing + current `/watch` id", consults `AutoPopoutPolicy.Decide`, and
     calls `StartVideoPopoutAsync` on `Pop`. Record the handled id **inside `StartVideoPopoutAsync`** (covers
@@ -38,7 +40,7 @@ in a pure, unit-tested seam. Manual popout and the return policy stay unchanged.
     one player under rapid trigger.
   - Commit: `feat(auto): source-side playback-start detector that auto-starts the popout (spec §6.1)`
 
-- [ ] **Task 4 — Docs: resolve the open decision + record the feature.**
+- [x] **Task 4 — Docs: resolve the open decision + record the feature.**
   - `CHANGELOG.md` `[Unreleased]` Phase-2 Auto entry; `SPEC_GAPS_AND_OWNERSHIP.md` move "Auto trigger
     timing" to Resolved (playback-start); spec §6.1 decided-behavior; `QA_Checklist.md` Phase-2 Auto row.
   - Verify: `docs-sync` clean; no contradictions; `Planned — Phase 2 (remaining)` updated.

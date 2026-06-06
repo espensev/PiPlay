@@ -265,7 +265,17 @@ Rules:
 - Must not open more than one Popout Player.
 - Must respect the same single-player lifecycle as manual popout.
 - Must be easy to disable.
-- Trigger timing remains an open decision until `Auto` is implemented.
+- **Trigger = playback-start** (decided 2026-06-06): `Auto` pops out a `/watch` video when it is
+  playing, **once per video** (keyed on the video id). Because autoplay is enabled, a freshly
+  navigated video is usually already playing, so this is detected as "is playing", not a literal
+  pause→play transition.
+- **`/watch` only:** Shorts and embeds never auto-pop (they would otherwise pop on every scroll).
+  Playlist autoplay-next pops each new video.
+- **No re-pop loop:** returning from a popout (which resumes source playback) does not re-pop the same
+  video; enabling `Auto` while a video is already playing does not yank it. A different `/watch` video
+  playing re-pops normally.
+- Detection is best-effort (Q-6): a DOM hiccup means no auto-pop, never a crash. Design:
+  `docs/superpowers/specs/2026-06-06-auto-popout-design.md`.
 
 ### 6.2 Fade
 
