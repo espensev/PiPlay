@@ -54,6 +54,19 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 - `Build-PiPlay.ps1` now forces runtime-specific restore assets when a Runtime is configured, so
   a prior no-RID restore such as `dotnet test` cannot leave the Release build missing its `win-x64`
   asset target.
+- Single-instance activation (REQ-APP-01) no longer drops a maximized Source Window: when the running
+  instance was minimized and a second launch handed it a URL, it used to come back at the *Normal* size,
+  silently discarding the maximized layout. It now un-minimizes to the prior state (spec 16.4 / REQ-WINDOW-01).
+- A pasted/typed YouTube link carrying an out-of-range timestamp (e.g. `t=99999999999h`) no longer pops the
+  generic "unexpected problem" dialog or silently jumps to a wrong time. `YouTubeUrlHelper.ParseTime` now
+  parses each h/m/s component safely and rejects out-of-range values, so a broken timestamp degrades to
+  "no offset" and the link still plays (spec 17: broken URLs fail gracefully).
+- `Build-PiPlay.ps1` prunes by recency (`LastWriteTimeUtc`) and never deletes the current label, so a
+  custom `-PublishLabel` that sorts lexically below the default timestamp labels can no longer delete the
+  just-built publish folder (data-loss guard).
+- `Build-PiPlay.ps1` no longer rolls back `VERSION`/`BUILD_NUMBER` when a *post-publish* step fails after
+  the artifact was already produced (which broke the monotonic build counter and orphaned the stamped
+  folder); a pre-publish failure still rolls back and now also removes the partial publish folder.
 
 ### Removed
 - Deleted the outdated `Main app.txt` pre-spec brainstorm (superseded by the Draft 0.4 spec).
@@ -91,11 +104,21 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   to overwrite (the same prompt the Save action uses) instead of silently creating clutter. The
   buttons are disabled until a profile is selected.
 
+### Added — Phase 2 (release)
+- **Stable channel + differentiable stable publish.** A release channel is baked into the binary
+  (`PiPlayChannel`, default `Default`, read at runtime by `AppChannel`). `scripts\Publish-Stable.ps1`
+  builds the **Stable** channel, validates the publish metadata, and deploys a runnable copy to
+  `E:\Dev_test_implemenations\PiPlay` (configurable via `-DeployRoot`), replacing binaries but preserving
+  the runtime data folder across redeploys. A Stable copy keeps its **data beside the exe** (`PiPlayData`,
+  isolated from the dev profile), gets its **own single-instance identity** (so dev + stable run together,
+  each single-instance), and shows **"PiPlay — Stable vX.Y.Z (bN)"** in the title bar/taskbar. The Default
+  channel is byte-for-byte unchanged. See `docs/adr/0007-stable-channel-and-portable-data.md`.
+
 ### Planned — Phase 2 (remaining)
-- `Auto` off by default, release publish profiles, and Phase 2 QA coverage.
+- `Auto` off by default and Phase 2 QA coverage.
 
 ### Tests & quality
-- **Layered regression suite** (`docs/Regression_Test_Suite_Design.md`), 148 tests in
+- **Layered regression suite** (`docs/Regression_Test_Suite_Design.md`), 173 tests in
   `dotnet test` across three lanes plus a manual smoke:
   - **Layer 1 — XAML markup invariants** (`tests/.../Ui/XamlInvariantTests.cs`): parses the
     `.xaml` as XML and asserts the burned-in properties that break the app if they silently
@@ -113,7 +136,8 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   - **Layer 4 — manual UIA + screenshot smoke** (`scripts/Test-UiSmoke.ps1`) for the true-render
     chrome gates at fractional DPI.
 - **Spec-conformance review** (`docs/Spec_Conformance_Review.md`): 92 findings, no current bugs.
-- **Test-enabling seams** (behavior-preserving): `AppPaths` honors `PIPLAY_DATA_ROOT`; the
+- **Test-enabling seams** (behavior-preserving): `AppPaths` honors `PIPLAY_DATA_ROOT` and `AppChannel`
+  honors `PIPLAY_CHANNEL` (both resolved per access; production channel identity is baked into the build); the
   placement clamp extracted to a pure `PlacementMath`; the return-resume decision extracted to a
   pure `ReturnPolicy`; `MainWindow`'s icon pack URI made assembly-qualified
   (`/PiPlay;component/...`) so it resolves independent of `Application.ResourceAssembly`.

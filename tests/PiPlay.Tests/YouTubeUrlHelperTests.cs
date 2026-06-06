@@ -121,9 +121,23 @@ public class YouTubeUrlHelperTests
     [InlineData("-5")]
     [InlineData("abc")]
     [InlineData("")]
-    public void ParseTime_rejects_garbage_and_negatives(string value)
+    [InlineData("99999999999h")]   // 11-digit hours: int.Parse used to THROW OverflowException
+    [InlineData("999999999h")]     // 9-digit hours: int.Parse succeeded but the sum silently overflowed
+    [InlineData("9999999999")]     // plain seconds past int range
+    public void ParseTime_rejects_garbage_negatives_and_out_of_range(string value)
     {
         Assert.Null(YouTubeUrlHelper.ParseTime(value));
+    }
+
+    [Fact]
+    public void TryParse_keeps_video_when_timestamp_is_out_of_range()
+    {
+        // A real link carrying an out-of-range t= must degrade to "no offset" and still navigate -
+        // never throw into the generic crash dialog (spec 17: broken URLs fail gracefully).
+        Assert.True(YouTubeUrlHelper.TryParse(
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=99999999999h", out var t));
+        Assert.Equal("dQw4w9WgXcQ", t.VideoId);
+        Assert.Null(t.StartSeconds);
     }
 
     [Fact]

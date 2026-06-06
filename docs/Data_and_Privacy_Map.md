@@ -2,11 +2,23 @@
 
 **Status:** Draft 0.5. Consolidates spec sections 12.6, 17, 18, and 19. Lists everything PiPlay writes to disk, where, and how to clear it.
 
-PiPlay stores everything under one root:
+PiPlay stores everything under one root. The normal (Default channel) app uses:
 
 ```
 %LOCALAPPDATA%\PiPlay\
 ```
+
+A **Stable** (portable) channel — e.g. a copy deployed to `E:\Dev_test_implemenations\PiPlay` — keeps the
+same layout **beside the exe** instead, so its session and settings are self-contained and isolated from the
+dev profile:
+
+```
+<exe folder>\PiPlayData\
+```
+
+The `%LOCALAPPDATA%\PiPlay` paths below describe the Default channel; for a Stable copy, read `<exe
+folder>\PiPlayData` in their place. (`PIPLAY_DATA_ROOT` overrides the root for tests/CI.) See
+[adr/0007-stable-channel-and-portable-data.md](adr/0007-stable-channel-and-portable-data.md).
 
 ## What PiPlay writes
 

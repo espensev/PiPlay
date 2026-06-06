@@ -69,7 +69,7 @@ public class XamlInvariantTests
     {
         new object[] { "MainWindow.xaml", new[]
         {
-            "Browser", "UrlBox", "ProfilesCombo", "PinToggle", "PinnedHint", "PopOutButton",
+            "Browser", "UrlBox", "ProfilesCombo", "PinToggle", "TitleText", "PinnedHint", "PopOutButton",
             "BackButton", "ReloadButton", "HomeButton", "SaveProfileButton",
             "EditProfileButton", "DeleteProfileButton",
             "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton",

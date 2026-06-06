@@ -34,6 +34,11 @@
          house style (NVG-SmoothControl .rc: ProductVersion == version string). -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 
+    <!-- Release channel baked into the assembly and read at runtime by AppChannel. The default is the
+         normal app; the Build-PiPlay.ps1 pipeline overrides this with -p:PiPlayChannel=Stable so a
+         deployed stable copy gets its own data root (beside the exe), single-instance identity, and title. -->
+    <PiPlayChannel Condition="'$(PiPlayChannel)' == ''">Default</PiPlayChannel>
+
     <!-- FileVersionInfo metadata surfaced by the pipeline's build-info.json. -->
     <Company>SevIQ</Company>
     <Product>PiPlay</Product>
@@ -58,6 +63,12 @@
     <!-- Expose internal test-only seams (e.g. MainWindow.ApplyResetState / PendingUrlForTests)
          to the regression suite without widening the public API. -->
     <InternalsVisibleTo Include="PiPlay.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Emitted as [assembly: AssemblyMetadata("PiPlay.Channel", "<channel>")] so a copied exe keeps
+         its baked-in identity. AppChannel reads it at runtime (PIPLAY_CHANNEL env overrides for tests). -->
+    <AssemblyMetadata Include="PiPlay.Channel" Value="$(PiPlayChannel)" />
   </ItemGroup>
 
   <ItemGroup>

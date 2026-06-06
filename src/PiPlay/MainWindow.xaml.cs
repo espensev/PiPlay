@@ -64,6 +64,18 @@ public partial class MainWindow : Window
 
         ApplyTopmost(_settings.MainWindow.Topmost);
         LoadProfilesIntoCombo();
+        ApplyChannelTitle();
+    }
+
+    /// <summary>
+    /// Surface a non-default channel (e.g. Stable) in the title bar and taskbar so a deployed copy is
+    /// differentiable from the dev app at a glance. The Default channel keeps the plain "PiPlay" title.
+    /// </summary>
+    private void ApplyChannelTitle()
+    {
+        if (AppInfo.Channel == PiPlayChannel.Default) return;
+        Title = AppInfo.WindowTitle;
+        TitleText.Text = AppInfo.WindowTitle;
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e) => await InitializeBrowserAsync();
@@ -607,7 +619,10 @@ public partial class MainWindow : Window
 
     public void ActivateFromSecondInstance(string? url)
     {
-        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        // Un-minimize to the window's prior state (Normal or Maximized) rather than forcing Normal,
+        // which would silently drop a maximized layout the user left (REQ-WINDOW-01 / spec 16.4).
+        // RestoreWindow remembers the pre-minimize state; the guard keeps it from un-maximizing.
+        if (WindowState == WindowState.Minimized) System.Windows.SystemCommands.RestoreWindow(this);
         Show();
         Activate();
 
