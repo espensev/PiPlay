@@ -128,6 +128,27 @@ public static class YouTubeUrlHelper
     public static bool IsVideoId(string? id) => id is not null && VideoIdRegex.IsMatch(id);
 
     /// <summary>
+    /// Whether <paramref name="url"/> is a YouTube <c>/watch</c> video page (or a <c>youtu.be</c> share
+    /// link) — the only surface Auto pops out (spec §6.1). Excludes <c>/shorts/</c>, <c>/embed/</c>,
+    /// <c>/playlist</c>, search, and the home page, so Auto does not fire while scrolling Shorts (which
+    /// also resolve to a video id). Pure URL-shape check; says nothing about playback.
+    /// </summary>
+    public static bool IsWatchUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return false;
+        var text = url.Trim();
+        if (!text.Contains("://")) text = "https://" + text;
+        if (!Uri.TryCreate(text, UriKind.Absolute, out var uri)) return false;
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) return false;
+
+        var host = uri.Host.ToLowerInvariant();
+        if (host == "youtu.be")
+            return uri.AbsolutePath.Trim('/').Length > 0;   // youtu.be/<id> is a watch-video share link
+        if (!NavigationPolicy.IsYouTubeHost(host)) return false;
+        return string.Equals(uri.AbsolutePath.TrimEnd('/'), "/watch", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
     /// Mixes/radios (list ids starting with "RD") are auto-generated and not reliable to pop out.
     /// Drop them but keep the current video, recording a non-blocking fallback note (spec 22.1).
     /// </summary>

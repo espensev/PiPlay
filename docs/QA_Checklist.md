@@ -26,6 +26,10 @@ Mark each: pass / issue (link) / skipped.
 - [ ] Source Window external non-YouTube link opens in the system browser without hijacking the WebView.
 - [ ] Popout Player blocks or externally redirects off-YouTube navigation; the player never wanders.
 - [ ] Sign-in / new-window popup is handled intentionally on the allowed Google auth surface.
+- [ ] **Phase 2 — Auto:** with Auto on, navigating to a `/watch` video that plays auto-starts the popout **once**.
+- [ ] **Phase 2 — Auto:** returning from an Auto popout does **not** re-pop the same video; a *different* video does.
+- [ ] **Phase 2 — Auto:** a Short (`/shorts/`) does **not** auto-pop; enabling Auto on an already-playing video pops it **immediately**.
+- [ ] **Phase 2 — Auto:** toggling Auto off stops auto-popping; the setting persists across restarts; manual Pop out is unaffected.
 
 ## 2. Window quality (Q-7)
 - [ ] Player drags smoothly from the chrome area; video controls still work.

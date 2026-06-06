@@ -114,9 +114,14 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   each single-instance), and shows **"PiPlay — Stable vX.Y.Z (bN)"** in the title bar/taskbar. The Default
   channel is behaviorally unchanged (same data location, single-instance identity, and plain "PiPlay"
   title). See `docs/adr/0007-stable-channel-and-portable-data.md`.
+- **Auto (opt-in auto-popout).** A new toolbar toggle (off by default) that automatically starts a
+  Video Popout when a `/watch` video is playing, reusing the manual popout's single-player lifecycle.
+  It fires **once per video** (so returning from a popout doesn't re-pop it, and an in-source
+  pause/resume won't either) and **excludes Shorts/embeds**. Resolves the open "Auto trigger timing"
+  decision in favour of playback-start. See `docs/superpowers/specs/2026-06-06-auto-popout-design.md`.
 
 ### Planned — Phase 2 (remaining)
-- `Auto` off by default and Phase 2 QA coverage.
+- Phase 2 QA coverage.
 
 ### Tests & quality
 - **Layered regression suite** (`docs/Regression_Test_Suite_Design.md`), 173 tests in

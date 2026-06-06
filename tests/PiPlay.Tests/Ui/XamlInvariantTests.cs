@@ -69,7 +69,7 @@ public class XamlInvariantTests
     {
         new object[] { "MainWindow.xaml", new[]
         {
-            "Browser", "UrlBox", "ProfilesCombo", "PinToggle", "TitleText", "PinnedHint", "PopOutButton",
+            "Browser", "UrlBox", "ProfilesCombo", "PinToggle", "AutoToggle", "TitleText", "PinnedHint", "PopOutButton",
             "BackButton", "ReloadButton", "HomeButton", "SaveProfileButton",
             "EditProfileButton", "DeleteProfileButton",
             "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton",
@@ -134,7 +134,7 @@ public class XamlInvariantTests
         {
             "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton", "BackButton",
             "ReloadButton", "HomeButton", "UrlBox", "ProfilesCombo", "SaveProfileButton",
-            "EditProfileButton", "DeleteProfileButton", "PinToggle",
+            "EditProfileButton", "DeleteProfileButton", "PinToggle", "AutoToggle",
         })
         {
             Assert.False(string.IsNullOrWhiteSpace(byName[name].Attribute("ToolTip")?.Value),
