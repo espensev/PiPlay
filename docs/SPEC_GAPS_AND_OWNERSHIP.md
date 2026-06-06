@@ -31,6 +31,7 @@
 | `AGENTS.md` / `CHANGELOG.md` location | Decision: keep canonical copies under `docs/` intentionally; `AGENTS.md` already documents the path-prefix rule if moved to root. No duplicates to maintain. |
 | Stable publish + channel/data isolation | A stable, runnable copy deploys to `E:\Dev_test_implemenations\PiPlay` via `scripts\Publish-Stable.ps1`. The release channel is baked into the binary (`PiPlayChannel`); a Stable copy uses portable data beside the exe, its own single-instance identity, and a `PiPlay — Stable …` title, while the Default channel is unchanged. Recorded in `adr/0007-stable-channel-and-portable-data.md`. |
 | Auto trigger timing | **Playback-start**, `/watch`-only, **once per video** (id-keyed). `Auto` detects a watch video playing on the Source Window and reuses `StartVideoPopoutAsync`; an id de-dup blocks the return-resume re-pop loop, and Shorts/embeds are excluded. Off by default. Recorded in `docs/superpowers/specs/2026-06-06-auto-popout-design.md`. |
+| Popout control customization first slice | Fixed swatches for Pin and Fade active colors plus controls-fade idle-delay presets. No hex picker, profile override, whole-window opacity UI, click-through, or transparent WebView2 behavior. Recorded in `docs/superpowers/specs/2026-06-06-player-customization-design.md`. |
 
 ## Documentation ownership
 
