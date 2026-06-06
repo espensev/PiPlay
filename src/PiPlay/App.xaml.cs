@@ -16,9 +16,10 @@ namespace PiPlay;
 /// </summary>
 public partial class App : Application
 {
-    // Per-user single-instance identity, scoped per channel so a Stable copy and the dev app each stay
-    // single-instance without colliding (the Default channel keeps the original .v1 names). The guard
-    // exists to protect each channel's own WebView2 user-data folder from concurrent access.
+    // Per-session single-instance identity (the Local\ mutex namespace is scoped to the Windows logon
+    // session), scoped per channel so a Stable copy and the dev app each stay single-instance without
+    // colliding (the Default channel keeps the original .v1 names). The guard exists to protect each
+    // channel's own WebView2 user-data folder from concurrent access.
     private static string IdentitySuffix =>
         AppChannel.Current == PiPlayChannel.Default ? "v1" : AppChannel.Name;
     private static string MutexName => $@"Local\PiPlay.SingleInstance.{IdentitySuffix}";

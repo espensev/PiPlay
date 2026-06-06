@@ -71,11 +71,30 @@ if ($SkipTests) {
 
 # 2. Build + publish the Stable channel Release.
 Write-Step 2 "Building + publishing the Stable channel Release..."
+
+# Free only build-tree locks: stop PiPlay processes running from THIS repo's build/publish output so the
+# build can overwrite them, but leave a side-by-side dev app (installed / run from elsewhere) and the
+# deployed stable copy running. Build-PiPlay's own stop is blunt (every PiPlay.exe by name), so we disable
+# it below (StopProcessName = '') and scope the stop here, mirroring the deploy step's path-scoped stop.
+$repoRootPrefix = $repoRoot.TrimEnd('\') + '\'
+$stoppedBuildTreeInstance = $false
+foreach ($proc in @(Get-Process -Name $projectName -ErrorAction SilentlyContinue)) {
+    try {
+        if ($proc.Path -and $proc.Path.StartsWith($repoRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            Write-Host "  Stopping repo build-tree instance (pid $($proc.Id))..." -ForegroundColor DarkGray
+            $proc | Stop-Process -Force -ErrorAction SilentlyContinue
+            $stoppedBuildTreeInstance = $true
+        }
+    } catch { <# Path may be inaccessible; ignore and continue #> }
+}
+if ($stoppedBuildTreeInstance) { Start-Sleep -Milliseconds 400 }
+
 # Hashtable splat = named parameters (an array splat would pass them positionally).
 $buildParams = @{
     Stage = "Release"
     Channel = "Stable"
     KeepPublishCount = $KeepPublishCount
+    StopProcessName = ""          # don't let Build-PiPlay kill every PiPlay.exe; the dev app survives a publish
 }
 if ($Version) { $buildParams["Version"] = $Version }
 else { $buildParams["NoVersionBump"] = $true }   # keep the semantic version; BUILD_NUMBER still bumps for a unique build

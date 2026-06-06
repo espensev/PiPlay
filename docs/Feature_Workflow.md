@@ -82,6 +82,10 @@ identity, and a `PiPlay — Stable vX.Y.Z (bN)` title. After deploying, launch t
 confirm it opens its own window with an isolated `PiPlayData` folder beside it. Background and trade-offs:
 `docs/adr/0007-stable-channel-and-portable-data.md`.
 
+Heads-up: the build stage force-stops every running `PiPlay.exe` (including the dev app) to free the build
+tree, so close the dev app before publishing — or expect it to be stopped mid-publish, losing its unsaved
+window state — and relaunch it afterward.
+
 ## 5. Open the PR
 
 Include:

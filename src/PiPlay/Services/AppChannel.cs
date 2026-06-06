@@ -32,8 +32,12 @@ public static class AppChannel
     /// <summary>Channel name (e.g. "Stable") used in identifiers and the window title.</summary>
     public static string Name => Current.ToString();
 
-    /// <summary>True when the channel keeps its data beside the exe rather than in the user profile.</summary>
-    public static bool IsPortable => Current == PiPlayChannel.Stable;
+    /// <summary>
+    /// True when <paramref name="channel"/> keeps its data beside the exe rather than in the user profile.
+    /// Single source of truth for "which channels are portable"; <see cref="AppPaths.ResolveRoot"/> uses it
+    /// so the portability rule lives in exactly one place.
+    /// </summary>
+    public static bool IsPortableChannel(PiPlayChannel channel) => channel == PiPlayChannel.Stable;
 
     /// <summary>
     /// Pure resolution: the env override wins (diagnostic/test), then the baked build value,
