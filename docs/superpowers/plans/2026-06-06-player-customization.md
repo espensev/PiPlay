@@ -10,6 +10,10 @@ this phase.
 contains the fixed swatch palette, persisted Pin/Fade accents, fade-delay presets, Settings UI, and
 focused regression coverage.
 
+**Phase 2 landing note:** This slice closes the Pin/Fade customization code path. The remaining
+Phase 2 work is release evidence from the manual QA checklist plus the compact-mode placement
+decision only if compact mode is exposed before Phase 3; no extra CI gate is needed for this slice.
+
 ## Tasks
 
 - [x] **Task 1 - Model and palette policy.**

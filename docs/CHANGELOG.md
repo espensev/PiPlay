@@ -126,7 +126,9 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   decision in favour of playback-start. See `docs/superpowers/specs/2026-06-06-auto-popout-design.md`.
 
 ### Planned — Phase 2 (remaining)
-- Phase 2 QA coverage.
+- Manual Phase 2 release evidence: Auto smoke, controls fade/customization visual pass, profile edit/delete,
+  privacy actions, and Stable publish/deploy checks.
+- Compact-mode placement decision only if compact mode is exposed before Phase 3; otherwise keep it deferred.
 
 ### Tests & quality
 - **Layered regression suite** (`docs/Regression_Test_Suite_Design.md`), 173 tests in
