@@ -96,3 +96,26 @@ the template headings, the PR template, and the gate's spec-path expectation all
 - Auto-generating requirement IDs or validating that cited `REQ-*` IDs exist.
 - Enforcing the PR template's contents (GitHub cannot require template fields; the DoR + review do).
 - Linting the *content* of a spec (the gate only checks that a dated spec changed, not its quality).
+
+## Known limitations (accepted)
+
+- **Any changed dated `-design.md` satisfies the gate** — editing a months-old spec during a `src/`
+  change passes it. The gate's job is to make the design note impossible to *forget*, not to referee
+  whether the spec is the *right* one for the change; the Definition of Ready and human review do that.
+- The gate proves a spec *moved*, not that it is good. That is the deliberate floor of a soft gate.
+
+## Deliberately not pulled in (from the shared methodology)
+
+The broader "superpowers" skill set offers heavier machinery; this pass leaves it out as over-ceremony
+for a solo WPF app, keeping the repo's lightweight bias. Each remains reachable *ad hoc* via its skill
+when a change genuinely needs it, without being baked into the repo's required surface:
+
+- **Machine-readable plans + `project.toml`** (JSON plan as source of truth, runtime task state) — the
+  dated markdown plan stays the human-and-machine-readable record here.
+- **Agent-roster / `/manager` campaign orchestration** (file-ownership maps, conflict zones, worktree
+  fan-out) — multi-agent sweeps already happen *ad hoc* (see the stable-publish worklog); they don't
+  need a standing campaign schema in-repo.
+- **`/observer` project-intelligence log** (`observations.jsonl`) — the worklog covers the
+  session-record need without a parallel intelligence store.
+- **A discovery *template*** — step 0 is a one-line pointer to `/discover`, not a new required
+  artifact, because the repo has no discovery examples yet to template from.
