@@ -32,4 +32,10 @@ public class AppChannelTests
     [Fact]
     public void Resolve_defaults_when_nothing_is_set()
         => Assert.Equal(PiPlayChannel.Default, AppChannel.Resolve(null, null));
+
+    [Theory]
+    [InlineData(PiPlayChannel.Stable, true)]
+    [InlineData(PiPlayChannel.Default, false)]
+    public void IsPortableChannel_is_true_only_for_stable(PiPlayChannel channel, bool expected)
+        => Assert.Equal(expected, AppChannel.IsPortableChannel(channel));
 }

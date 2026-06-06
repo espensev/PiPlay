@@ -24,7 +24,7 @@ public static class AppPaths
     internal static string ResolveRoot(string? envOverride, PiPlayChannel channel, string baseDirectory, string localAppData)
     {
         if (!string.IsNullOrEmpty(envOverride)) return envOverride;
-        if (channel == PiPlayChannel.Stable) return Path.Combine(baseDirectory, "PiPlayData");
+        if (AppChannel.IsPortableChannel(channel)) return Path.Combine(baseDirectory, "PiPlayData");
         return Path.Combine(localAppData, "PiPlay");
     }
 
