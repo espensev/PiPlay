@@ -32,13 +32,23 @@ channels:
   (the normal app — unchanged).
 - **Single-instance identity** is scoped per channel: `Default` keeps the original `…SingleInstance.v1`
   mutex/pipe; other channels (e.g. `Stable`) get their own. Each channel stays single-instance; they do
-  not collide, so dev + stable run together.
+  not collide, so dev + stable run together. The guarding invariant is **one running instance ↔ one data
+  root ↔ one identity**: the data location and the single-instance identity are the *same* decision (both
+  derive from the channel), so they cannot drift apart.
 - **Title** surfaces a non-default channel as `PiPlay — Stable v0.3.0 (b8)` (the XAML title stays `"PiPlay"`;
   the label is set at runtime so the Default channel's behavior is unchanged).
 
 We chose **build-time baking** over a deploy-time marker file (identity travels in the binary, can't be
 lost) and **portable data beside the exe** over a `%LOCALAPPDATA%\PiPlay-Stable` subfolder (the deployment
 is self-contained and can be wiped/cloned atomically, matching the AppZone precedent).
+
+We also chose to key the single-instance identity on the **channel (a baked constant)**, not on the resolved
+data root. The mutex exists to keep one instance per data folder, so the data root looks like the "natural"
+key — but keying on it would make correctness depend on runtime **path canonicalization** (Windows
+case-insensitivity, 8.3 short names, mapped vs. UNC drives, symlinks, trailing separators). A single deploy
+launched via two path spellings would then fail to collide and run two instances over one
+`WebView2UserData` folder — the exact hazard the mutex prevents. A baked channel constant has no such
+dependency, so for the assumed single-Stable-deploy it is the *more* robust key, not a compromise.
 
 ## Consequences
 - Dev and Stable run simultaneously, each single-instance within its channel, each with its own settings,
@@ -48,7 +58,8 @@ is self-contained and can be wiped/cloned atomically, matching the AppZone prece
 - Portable mode requires a **writable app directory** (fine on `E:`; not suitable for `Program Files`).
 - A single Stable deployment location is assumed. Two Stable copies in *different* folders would share the
   channel-scoped single-instance identity (one would hand off to the other) even though their data folders
-  differ; if we ever need multiple simultaneous Stable deployments, key the mutex to the resolved data root
-  instead of the channel name.
+  differ. This is a deliberate, deferred trade — not debt: only if we ever need multiple simultaneous Stable
+  deployments should we key the mutex on the resolved data root, and only with explicit path canonicalization
+  (see the keying rationale above), since a naive data-root key would regress the common single-deploy case.
 - The publish posture is unchanged: framework-dependent, no trimming/single-file/AOT (ADR-0002), so the
   target machine needs the .NET 10 runtime.
