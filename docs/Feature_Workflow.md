@@ -17,6 +17,9 @@ Use this path for any non-trivial product, UI, quality, or pipeline change.
 The per-pass records start from skeletons in
 [`docs/superpowers/templates/`](superpowers/templates/README.md).
 
+> Steps below that reference a `/command` (e.g. `/discover`, `/code-review`, `/qa`) use the
+> maintainer's Claude Code skills, not tooling this repo ships — the workflow stands without them.
+
 ## 0. Discover (optional)
 
 If a change has open questions that block a confident design — feasibility, dependency reach, which

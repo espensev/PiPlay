@@ -12,4 +12,4 @@
 - [x] Verify local simulation of the gate logic.
 - [x] Verify live pass path via the introducing PR.
 - [x] Verify live fail + exception paths via a throwaway PR.
-- [ ] Re-verify live paths after the paginated file-listing improvement.
+- [x] Re-verify live paths after the paginated file-listing improvement.
