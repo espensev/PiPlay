@@ -86,7 +86,8 @@ the template headings, the PR template, and the gate's spec-path expectation all
 | `.github/workflows/spec-check.yml` | New "Require design spec" gate: fail-closed paginated `gh api` file list, dated-design-spec path check, soft gate with `Spec-Exception:` escape hatch. |
 | `.github/pull_request_template.md` | New PR template: spec link, requirement IDs, acceptance criteria, verification output, docs/changelog impact, `Spec-Exception:` guidance. |
 | `docs/superpowers/templates/` | New README plus design, plan, and worklog skeletons mirroring the house spec/plan/worklog shape. |
-| `docs/Feature_Workflow.md` | Add a "Definition of Ready" subsection and document the spec-link gate + exception mechanism. |
+| `docs/Feature_Workflow.md` | Add the "Definition of Ready", a phase-at-a-glance map, the optional discover (step 0) and worklog (step 6) steps, a "review the risky changes" pass, the plan-template link, and document the spec-link gate + exception mechanism. |
+| `docs/AGENTS.md` | Point agent/contributor guidance at the templates, Definition of Ready, spec-check gate, and gold-standard examples. |
 | `docs/superpowers/plans/2026-06-06-feature-workflow-enforcement.md` | Track this implementation pass. |
 
 ## Out of scope

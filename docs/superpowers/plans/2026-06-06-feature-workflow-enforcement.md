@@ -7,6 +7,7 @@
 - [x] Add `docs/superpowers/templates/feature-design-template.md` mirroring the house spec shape + DoR fields.
 - [x] Add `docs/superpowers/templates/plan-template.md` and `worklog-template.md` plus a template README.
 - [x] Add a "Definition of Ready" subsection to `docs/Feature_Workflow.md` and document the gate + exception.
+- [x] Update `docs/AGENTS.md` to point agents/contributors at the templates, DoR, spec gate, and examples.
 - [x] Delete `docs/TEMP_WORKFLOW_REVIEW_NOTE.md` once its findings are acted on.
 - [x] Verify local simulation of the gate logic.
 - [x] Verify live pass path via the introducing PR.

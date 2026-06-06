@@ -8,10 +8,11 @@ Orientation for AI agents (Claude Code, etc.) and new contributors. Read this an
 
 ## Design docs (per change pass)
 Before writing code for any non-trivial change, record the **goals and approach** of that pass in a dated design spec at `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`:
-- Open with a `## Goals` section, then the requirement IDs it serves (`Q-n`, `REQ-*`), the settled decisions, and the changes by file.
-- Multi-step work also gets an implementation plan at `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`.
+- Open with a `## Goals` section, then the requirement IDs it serves (`Q-n`, `REQ-*`), the settled decisions, and the changes by file. Start from the skeletons in `docs/superpowers/templates/` (design, plan, and worklog).
+- Multi-step work also gets an implementation plan at `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`; a substantial session (a release or a multi-fix sweep) also earns a worklog at `docs/superpowers/worklog/YYYY-MM-DD-<topic>.md`.
 - These are **subordinate** to the product spec (still authoritative) and the ADRs (which own architecture decisions); they capture what one pass set out to do and why. Link the spec from the PR.
-- Established examples: `docs/superpowers/specs/2026-05-31-privacy-actions-design.md`, `docs/superpowers/plans/2026-05-31-*.md`.
+- `docs/Feature_Workflow.md` is the full contributor path: the **Definition of Ready** that makes a spec implementable, and the CI **spec-check gate** that fails a `src/`/`scripts/`/`tests/` PR carrying no changed dated `-design.md` spec (override deliberately with a `Spec-Exception:` line in the PR body).
+- Gold-standard examples: spec `docs/superpowers/specs/2026-06-06-profile-edit-validation-design.md`, plan `docs/superpowers/plans/2026-06-06-profile-edit-validation.md`, worklog `docs/superpowers/worklog/2026-06-06-stable-publish-session.md`.
 
 ## Terminology (do not drift)
 Use these names everywhere — UI, code, comments, tests, commits, issues:
