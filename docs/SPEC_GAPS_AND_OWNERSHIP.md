@@ -1,6 +1,6 @@
 # PiPlay - Spec gaps and ownership boundaries
 
-**Status:** Working notes after Draft 0.6 Phase 2 refinement. Resolved items have been folded into `PiPlay_Product_Engineering_Spec.md`; keep this file for the remaining open decisions and ownership boundaries.
+**Status:** Working notes after Draft 0.7 Phase 2 landing. Resolved items have been folded into `PiPlay_Product_Engineering_Spec.md`; keep this file for the remaining open decisions and ownership boundaries.
 
 ## Remaining open product decisions
 
@@ -9,11 +9,11 @@
 | Compact-mode placement | Phase 2 only if compact mode is exposed before Phase 3 | Profile precedence is defined, but compact mode itself is not approved for broad exposure and its setting surface remains undecided. | Decide whether compact mode is global only, profile override, or both before broad exposure. |
 | Source Window after direct profile launch | Future/profile polish | Profiles can be launch targets, but the app has not decided whether direct launch can run without a visible Source Window. | Decide whether Source Window remains required, can start minimized/hidden, or becomes optional. |
 
-## Remaining Phase 2 done-list
+## Phase 2 landing status
 
 | Item | Scope | CI impact |
 |---|---|---|
-| Manual release evidence | Run the Phase 2 rows in `docs/QA_Checklist.md` and save evidence for Auto, controls fade/customization, profile edit/delete, privacy actions, and Stable publish/deploy behavior before calling any build a release candidate. | No new CI gate needed; current deterministic tests already cover schema, policy, XAML resources, and WPF construction seams. |
+| Release evidence | Phase 2 Stable build `v0.3.0` build `9` has automated release evidence in `docs/evidence/phase2-release-v0.3.0-b9.md`: deterministic tests, build gate, Stable publish/deploy, metadata validation, and deployed UI smoke. Account-backed/live YouTube rows in `docs/QA_Checklist.md` remain the release-candidate manual gate, not an implementation blocker. | No new CI gate needed; current deterministic tests cover schema, policy, XAML resources, and WPF construction seams. |
 | Compact-mode placement | Decide global/profile/both only before exposing compact mode broadly. | No CI change until compact mode implementation starts. |
 
 ## Resolved in the spec cleanup

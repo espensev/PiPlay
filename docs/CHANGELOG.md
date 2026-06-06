@@ -125,13 +125,15 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   pause/resume won't either) and **excludes Shorts/embeds**. Resolves the open "Auto trigger timing"
   decision in favour of playback-start. See `docs/superpowers/specs/2026-06-06-auto-popout-design.md`.
 
-### Planned — Phase 2 (remaining)
-- Manual Phase 2 release evidence: Auto smoke, controls fade/customization visual pass, profile edit/delete,
-  privacy actions, and Stable publish/deploy checks.
-- Compact-mode placement decision only if compact mode is exposed before Phase 3; otherwise keep it deferred.
+### Validation — Phase 2 landing
+- Stable Phase 2 evidence captured for `v0.3.0` build `9`: deterministic tests, non-mutating build
+  gate, Stable publish/deploy, metadata validation, and deployed Stable UI smoke. See
+  `docs/evidence/phase2-release-v0.3.0-b9.md`.
+- Account-backed/live YouTube rows in `docs/QA_Checklist.md` remain the release-candidate manual
+  gate; compact-mode placement stays deferred unless compact mode is exposed before Phase 3.
 
 ### Tests & quality
-- **Layered regression suite** (`docs/Regression_Test_Suite_Design.md`), 173 tests in
+- **Layered regression suite** (`docs/Regression_Test_Suite_Design.md`), 221 tests in
   `dotnet test` across three lanes plus a manual smoke:
   - **Layer 1 — XAML markup invariants** (`tests/.../Ui/XamlInvariantTests.cs`): parses the
     `.xaml` as XML and asserts the burned-in properties that break the app if they silently

@@ -1,6 +1,6 @@
 # PiPlay Product & Engineering Specification
 
-**Status:** Draft 0.6
+**Status:** Draft 0.7
 **Project:** PiPlay
 **Purpose:** Quality-first Windows desktop app for playing YouTube videos in a movable, resizable Video Popout window.
 **Primary platform:** Windows desktop
@@ -1350,9 +1350,14 @@ Delivered Phase 2 scope:
 - `Reset app state` and `Clear browser data` actions (REQ-PRIVACY-01 / REQ-PRIVACY-02), worded as separate confirmed actions.
 - Fixed-swatch Pin/Fade active-color customization and controls-fade idle-delay presets.
 
-Remaining Phase 2 done-list:
+Phase 2 landing status:
 
-- Complete and save manual Phase 2 release evidence for Auto, controls fade/customization, profile edit/delete, privacy actions, and Stable publish/deploy behavior.
+- Stable build `v0.3.0` build `9` has release evidence for the deterministic test lane,
+  build gate, Stable publish/deploy, metadata validation, and deployed UI smoke in
+  `docs/evidence/phase2-release-v0.3.0-b9.md`.
+- Account-backed/live YouTube rows in `docs/QA_Checklist.md` remain the release-candidate
+  manual gate for Auto playback, controls fade/customization in live playback, profile edit/delete
+  through the running Source Window, and privacy sign-in/sign-out invariants.
 - Decide compact-mode placement before exposing compact mode broadly. If compact mode remains deferred to Phase 3, this is not a blocker for landing Phase 2 work.
 
 ### Phase 3 — Compact player upgrade
@@ -1497,3 +1502,4 @@ These references support the current technical direction and should be rechecked
 | 0.4 | 2026-05-30 | Folded resolved defaults from spec-gap cleanup into normative requirements: MVP scope, return behavior, navigation policy, timestamp/performance tolerances, playlist fallback, reset/browser-data split, profile precedence/placement, and brand asset roles. |
 | 0.5 | 2026-05-30 | Made visual identity verifiable after the chrome UI review: added REQ-UI-01 (dark-theme completeness for all popup-bearing controls and tooltips) and REQ-UI-02 (icon-font contract, no `.notdef` glyphs); added the binary Chrome acceptance table and the section 22.5 Definition of Done; specified the minimal Source Window nav control set; and resolved the privacy-actions scope contradiction by marking REQ-PRIVACY-01/02 as Phase 2 consistently across sections 19, 23, and 24. |
 | 0.6 | 2026-06-06 | Folded current Phase 2 decisions into the spec: Auto playback-start behavior, profile edit/validation, privacy actions, Stable publish, and fixed-swatch Pin/Fade customization. Clarified that remaining Phase 2 work is manual release evidence plus the compact-mode placement decision only if compact mode is exposed before Phase 3. |
+| 0.7 | 2026-06-06 | Recorded Phase 2 landing evidence for Stable build `v0.3.0` build `9`; clarified that live/account-backed YouTube checks remain the release-candidate manual gate while compact-mode placement is deferred unless compact mode is exposed before Phase 3. |

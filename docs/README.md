@@ -2,7 +2,7 @@
 
 PiPlay is a quality-first Windows desktop utility for watching YouTube in a movable, resizable **Video Popout** window - browser picture-in-picture behavior, but driven by PiPlay's own native window so move, resize, pin, fade, and monitor-restore behave like a real desktop tool.
 
-**Status:** Draft 0.4 | **Platform:** Windows | **Stack:** WPF on .NET 10 | Microsoft Edge WebView2 (Evergreen)
+**Status:** Draft 0.7 / Phase 2 landed | **Platform:** Windows | **Stack:** WPF on .NET 10 | Microsoft Edge WebView2 (Evergreen)
 
 ## Documents
 
@@ -73,5 +73,5 @@ Per-monitor DPI awareness (PerMonitorV2) belongs in `src\PiPlay\app.manifest`.
 
 1. Launch PiPlay and open a YouTube video.
 2. Click **Pop out video** - the video moves into a floating Popout Player.
-3. Move, resize, or **Pin** (always-on-top) the player while you work. MVP controls stay visible; Fade arrives in Phase 2.
+3. Move, resize, **Pin** (always-on-top), or use **Fade** controls while you work.
 4. Close the player to return playback to the main window.
