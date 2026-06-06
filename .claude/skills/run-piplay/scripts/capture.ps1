@@ -26,9 +26,12 @@ public static class W2 {
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+    [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT p);
+    [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr h, uint flags);
     [DllImport("shcore.dll")] public static extern int SetProcessDpiAwareness(int v);
     [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int a, out RECT r, int s);
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
 }
 "@
 try { [void][W2]::SetProcessDpiAwareness(2) } catch {}
@@ -57,7 +60,11 @@ foreach ($proc in $procs) {
         try { $g.CopyFromScreen($r.Left, $r.Top, 0, 0, (New-Object System.Drawing.Size($w, $ht))) } catch {}
         $cp = $bmp.GetPixel([int]($w/2), [int]($ht/2)); $path = Join-Path $OutDir "live-win$n.png"
         $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png); $g.Dispose(); $bmp.Dispose()
-        Write-Output "WIN|$n|name=$($win.Current.Name)|${w}x${ht}|center=$($cp.R),$($cp.G),$($cp.B)|$path"
+        # Passive capture grabs screen pixels at the window rect, so an occluding window shows instead
+        # of PiPlay. Ask which window owns the centre point; a mismatch means the shot is occluded.
+        $mid = New-Object W2+POINT; $mid.X = [int]($r.Left + $w/2); $mid.Y = [int]($r.Top + $ht/2)
+        $occluded = ([W2]::GetAncestor([W2]::WindowFromPoint($mid), 2) -ne $wh)   # GA_ROOT = 2
+        Write-Output "WIN|$n|name=$($win.Current.Name)|${w}x${ht}|center=$($cp.R),$($cp.G),$($cp.B)|occluded=$occluded|$path"
         $n++
     }
 }

@@ -42,9 +42,12 @@ public static class Win {
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT p);
+    [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr h, uint flags);
     [DllImport("shcore.dll")] public static extern int SetProcessDpiAwareness(int v);
     [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int a, out RECT r, int s);
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
 }
 "@
 try { [void][Win]::SetProcessDpiAwareness(2) } catch {}   # PROCESS_PER_MONITOR_DPI_AWARE
@@ -58,14 +61,22 @@ function Get-Rect([IntPtr]$h) {
     return $r
 }
 function Capture([IntPtr]$h, [string]$path, [string]$label) {
-    [void][Win]::ShowWindow($h, 9); [void][Win]::SetForegroundWindow($h); Start-Sleep -Milliseconds 500
+    # SetForegroundWindow alone is blocked from a background process, so on a busy desktop the window
+    # stays occluded and CopyFromScreen grabs whatever is on top. A minimize->restore cycle reliably
+    # raises the window; then confirm it owns its centre point before trusting the shot.
+    [void][Win]::ShowWindow($h, 6); Start-Sleep -Milliseconds 200    # SW_MINIMIZE
+    [void][Win]::ShowWindow($h, 9); Start-Sleep -Milliseconds 350    # SW_RESTORE (wins foreground)
+    [void][Win]::SetForegroundWindow($h); Start-Sleep -Milliseconds 300
     $r = Get-Rect $h; $w = $r.Right - $r.Left; $ht = $r.Bottom - $r.Top
     if ($w -le 0 -or $ht -le 0) { Write-Output "CAP|$label|FAIL|zero-size"; return }
+    $mid = New-Object Win+POINT; $mid.X = [int]($r.Left + $w/2); $mid.Y = [int]($r.Top + $ht/2)
+    $occluded = ([Win]::GetAncestor([Win]::WindowFromPoint($mid), 2) -ne $h)   # GA_ROOT = 2
     $bmp = New-Object System.Drawing.Bitmap($w, $ht); $g = [System.Drawing.Graphics]::FromImage($bmp)
     $g.CopyFromScreen($r.Left, $r.Top, 0, 0, (New-Object System.Drawing.Size($w, $ht)))   # NOT PrintWindow: it returns black for WebView2
     $cp = $bmp.GetPixel([int]($w/2), [int]($ht/2)); $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
     $g.Dispose(); $bmp.Dispose()
-    Write-Output "CAP|$label|OK|${w}x${ht}|center=$($cp.R),$($cp.G),$($cp.B)|$path"
+    $status = if ($occluded) { "OCCLUDED" } else { "OK" }
+    Write-Output "CAP|$label|$status|${w}x${ht}|center=$($cp.R),$($cp.G),$($cp.B)|$path"
 }
 
 Write-Output "LAUNCH|$Exe|$Url"

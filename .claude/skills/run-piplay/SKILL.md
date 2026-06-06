@@ -46,6 +46,11 @@ for the window handle, takes staged shots (shell → page), invokes **Pop out vi
 (`AutomationId=PopOutButton`) via UIAutomation, then captures every top-level PiPlay window to
 `%TEMP%\piplay_run\`. **Read each PNG** and report literally what rendered.
 
+Useful switches: **`-NoPopout`** (launch + screenshot but do *not* click Pop out — use this to test
+Auto, or to just see the source window without spawning a player), **`-Build`** (build first),
+**`-KillExisting`** (stop a running instance so the launch isn't swallowed by single-instance
+hand-off), and **`-Url`**.
+
 If PiPlay is **already running** and you only want to snapshot the current state without stealing
 the user's focus (e.g. they're mid-use), use the passive capture instead:
 
@@ -85,6 +90,14 @@ Popout Player initialized
   WebView2 surface** — use CopyFromScreen. Make the capturing process DPI-aware
   (`SetProcessDpiAwareness`) or the rect is offset/clipped. This machine renders at **150% DPI**
   (a 1180×760 logical window captures at 1770×1140 physical).
+- **Occlusion (the #1 screenshot trap):** `CopyFromScreen` grabs whatever pixels sit at the window's
+  rect — so if another window is on top, the shot is the *occluder*, not PiPlay, even though the
+  capture still reports `name=PiPlay`. `SetForegroundWindow` alone is **blocked from a background
+  process** and will not raise the window; a **minimize→restore cycle** (`ShowWindow SW_MINIMIZE` then
+  `SW_RESTORE`) reliably does. `launch-and-capture.ps1` now does this and tags a shot `OCCLUDED` if the
+  window still isn't on top; the passive `capture.ps1` reports `occluded=true/false` per window (via
+  `WindowFromPoint` at the window centre). If a shot is occluded, raise PiPlay (or re-run
+  `launch-and-capture.ps1`) and capture again — never trust an `OCCLUDED`/`occluded=true` frame.
 - **Cleanup:** the app keeps running after the script — leave it for the user, or
   `Stop-Process -Name PiPlay`. If the user is actively using it, prefer `capture.ps1` (passive,
   no focus steal).
