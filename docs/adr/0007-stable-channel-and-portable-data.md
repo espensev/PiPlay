@@ -34,7 +34,7 @@ channels:
   mutex/pipe; other channels (e.g. `Stable`) get their own. Each channel stays single-instance; they do
   not collide, so dev + stable run together.
 - **Title** surfaces a non-default channel as `PiPlay — Stable v0.3.0 (b8)` (the XAML title stays `"PiPlay"`;
-  the label is set at runtime so the Default channel is byte-for-byte unchanged).
+  the label is set at runtime so the Default channel's behavior is unchanged).
 
 We chose **build-time baking** over a deploy-time marker file (identity travels in the binary, can't be
 lost) and **portable data beside the exe** over a `%LOCALAPPDATA%\PiPlay-Stable` subfolder (the deployment

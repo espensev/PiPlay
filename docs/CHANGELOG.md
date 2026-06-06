@@ -112,7 +112,8 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   the runtime data folder across redeploys. A Stable copy keeps its **data beside the exe** (`PiPlayData`,
   isolated from the dev profile), gets its **own single-instance identity** (so dev + stable run together,
   each single-instance), and shows **"PiPlay — Stable vX.Y.Z (bN)"** in the title bar/taskbar. The Default
-  channel is byte-for-byte unchanged. See `docs/adr/0007-stable-channel-and-portable-data.md`.
+  channel is behaviorally unchanged (same data location, single-instance identity, and plain "PiPlay"
+  title). See `docs/adr/0007-stable-channel-and-portable-data.md`.
 
 ### Planned — Phase 2 (remaining)
 - `Auto` off by default and Phase 2 QA coverage.
