@@ -37,7 +37,6 @@ public partial class MainWindow : Window
     // re-pop loop. The timer only runs while Auto is on and the browser is ready.
     private System.Windows.Threading.DispatcherTimer? _autoTimer;
     private bool _autoTickInProgress;
-    private bool _autoSeedPending;
     private string? _autoLastHandledVideoId;
 
     // Guards both privacy actions against re-entrancy (double-click, reopen mid-clear).
@@ -295,8 +294,8 @@ public partial class MainWindow : Window
                 };
                 _autoTimer.Tick += AutoTimer_Tick;
             }
-            // (Re)seed on enable so turning Auto on never yanks the video already playing.
-            _autoSeedPending = true;
+            // Clear the de-dup on (re)enable so Auto immediately pops the video already playing.
+            _autoLastHandledVideoId = null;
             _autoTimer.Start();
         }
         else
@@ -319,23 +318,13 @@ public partial class MainWindow : Window
         {
             var src = core.Source;
             YouTubeUrlHelper.TryParse(src, out var target);
-            var videoId = target.VideoId;
-
-            // Seed (on enable/startup): record the current video as already-handled, then wait —
-            // so enabling Auto on a playing video does not immediately pop it (spec §6.1).
-            if (_autoSeedPending)
-            {
-                _autoLastHandledVideoId = videoId;
-                _autoSeedPending = false;
-                return;
-            }
 
             var state = await YouTubeDomBridge.ReadPlayerStateAsync(core);
             var decision = AutoPopoutPolicy.Decide(
                 autoEnabled: true,
                 isPlaying: state is { Paused: false },
                 isWatchVideo: YouTubeUrlHelper.IsWatchUrl(src),
-                currentVideoId: videoId,
+                currentVideoId: target.VideoId,
                 lastHandledVideoId: _autoLastHandledVideoId,
                 popoutActive: _popoutInProgress || _player is not null);
 

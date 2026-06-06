@@ -15,7 +15,8 @@ public enum AutoPopDecision
 /// <c>/watch</c> video with an id is playing, it is <b>not</b> the id we last handled, and no popout is
 /// already active. The "last handled id" de-dup is what blocks the return-resume re-pop loop (the return
 /// path resumes source playback, which would otherwise read as a fresh play) and an in-source pause/resume
-/// of the same video; it is also seeded on enable so turning Auto on never yanks the current video.
+/// of the same video. (The caller clears the last-handled id when Auto is enabled, so turning Auto on
+/// pops whatever is currently playing right away.)
 /// </summary>
 public static class AutoPopoutPolicy
 {

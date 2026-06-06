@@ -33,9 +33,9 @@ are **unchanged**: `Auto` is purely an additional, opt-in *trigger* in front of 
   for that video**, reusing `StartVideoPopoutAsync` (source paused, placeholder shown, one player, no
   duplicate audio). This covers the autoplay case — the video is usually *already playing* when detected,
   so detection is "is playing", **not** a literal pause→play transition.
-- **Enabling Auto does not yank the current video:** turning Auto on (or launching with Auto on) while a
-  watch video is already playing does **not** pop *that* video; Auto pops the **next** watch video that
-  plays. (The currently-playing id is seeded as already-handled.)
+- **Enabling Auto pops immediately:** turning Auto on while a `/watch` video is already playing pops
+  *that* video right away (not only on the next video). The de-dup is cleared on enable so the
+  currently-playing video is treated as fresh.
 - **No re-pop loop:** returning from a popout (which resumes source playback) does **not** re-pop the same
   video; Auto re-pops only when a *different* `/watch` video plays.
 - **`/watch`-only:** Auto fires only for `/watch` videos. **Shorts and embeds are excluded** (never pop).
@@ -43,7 +43,7 @@ are **unchanged**: `Auto` is purely an additional, opt-in *trigger* in front of 
   feature).
 - Auto never opens a second player while one is open or a popout is in progress, and never fires while
   `Clear browser data` is running.
-- Toggling Auto **off** stops auto-popping immediately; toggling it on re-arms (re-seeding the current id).
+- Toggling Auto **off** stops auto-popping immediately; toggling it on clears the de-dup so the current `/watch` video pops right away.
 - The pure `AutoPopoutPolicy` decision is unit-tested (Logic lane); `AutoPopout` default + round-trip are
   tested (Logic lane); the new toolbar toggle constructs without throwing (Wpf lane) and is asserted to
   exist with a tooltip (Markup lane).
@@ -65,14 +65,14 @@ are **unchanged**: `Auto` is purely an additional, opt-in *trigger* in front of 
    on would pop out every short. Shorts and embeds are excluded; playlist autoplay-next is allowed (each
    next item is a new `/watch` id, which is the intended behavior).
 
-3. **Anti-loop + de-dup = "last handled `VideoId`".** Auto fires only when the current `VideoId` differs
+3. **De-dup + anti-loop = "last handled `VideoId`".** Auto fires only when the current `VideoId` differs
    from the **last handled** id. Starting any popout for a video (manual *or* auto) records that id as
-   handled; on enable, the currently-playing id is **seeded** as handled. Therefore: the return path's own
-   resume-playback (`Player_OnClosed`, `MainWindow.xaml.cs:589-607`), an in-source pause/resume of the same
-   video, and the just-enabled current video are all **no-ops** — the single biggest integration risk
-   (discovery gotcha #1) is closed structurally, with **no timing/debounce constant required**. A
-   *different* `/watch` video playing re-pops normally; navigating back to an earlier video later also
-   re-pops (its id is no longer the most-recently-handled one).
+   handled; **enabling Auto clears the last-handled id** so the currently-playing video pops immediately.
+   The return path's own resume-playback (`Player_OnClosed`, `MainWindow.xaml.cs:589-607`) and an
+   in-source pause/resume of the same video are then **no-ops** — the biggest integration risk (discovery
+   gotcha #1) is closed structurally by the id recorded at popout-start, with **no timing/debounce
+   constant required**. A *different* `/watch` video playing re-pops normally; navigating back to an
+   earlier video later also re-pops (its id is no longer the most-recently-handled one).
 
 4. **Reuse `StartVideoPopoutAsync` unchanged; pre-validate before calling.** Auto invokes the existing
    parameterless `StartVideoPopoutAsync` (`MainWindow.xaml.cs:490`) so it inherits the single-player guards
@@ -104,7 +104,7 @@ are **unchanged**: `Auto` is purely an additional, opt-in *trigger* in front of 
 8. **Testable decision extracted to a pure `AutoPopoutPolicy`.** Mirroring `ReturnPolicy`/`FadePolicy`, a
    static `AutoPopoutPolicy.Decide(autoEnabled, isPlaying, isWatchVideo, currentVideoId, lastHandledVideoId,
    popoutActive) → AutoPopDecision { Skip, Pop }` holds the `/watch`-only, de-dup, and single-player branch
-   logic so it is unit-tested without WebView2. The 250 ms timer, the DOM reads, and the seed/record of
+   logic so it is unit-tested without WebView2. The 250 ms timer, the DOM reads, and the clear-on-enable / record-at-popout of
    `lastHandledVideoId` stay in `MainWindow` (manual/Lane-B territory).
 
 ## Non-goals / out of scope
@@ -121,7 +121,7 @@ are **unchanged**: `Auto` is purely an additional, opt-in *trigger* in front of 
 
 - **Logic lane (Layer 2)** — new `AutoPopoutPolicyTests` with `[Theory]`/`[InlineData]` truth-table rows
   (mirrors `ReturnPolicyTests`): off ⇒ Skip; not playing ⇒ Skip; non-`/watch` (Shorts/embed/no id) ⇒ Skip;
-  player active ⇒ Skip; current id == last handled (return-resume, in-source resume, just-enabled current)
+  player active ⇒ Skip; current id == last handled (return-resume, in-source resume)
   ⇒ Skip; enabled + playing + `/watch` + new id + no player ⇒ Pop. Plus `SettingsServiceTests`:
   `AutoPopout` default-false and Save/Load round-trip.
 - **Markup lane (Layer 1)** — assert the new named `AutoToggle` exists and carries a tooltip
@@ -141,7 +141,7 @@ are **unchanged**: `Auto` is purely an additional, opt-in *trigger* in front of 
 | `src/PiPlay/Services/AutoPopoutPolicy.cs` | **New** pure seam: `Decide(autoEnabled, isPlaying, isWatchVideo, currentVideoId, lastHandledVideoId, popoutActive) → AutoPopDecision`. |
 | `src/PiPlay/Services/YouTubeDomBridge.cs` | *(if needed)* a combined best-effort read returning `{ paused, videoId }` in one `ExecuteScriptAsync`, so the detector resolves "is playing + which `/watch` id" in a single DOM call; otherwise reuse `ReadPlayerStateAsync` + `ReadCanonicalUrlAsync`. |
 | `src/PiPlay/MainWindow.xaml` | Add a toolbar `ColumnDefinition` + `AutoToggle` `ToggleButton` (mirrors `PinToggle`). |
-| `src/PiPlay/MainWindow.xaml.cs` | `AutoToggle_Click`/`ApplyAuto` (Pin-style); apply in ctor + `ApplyResetState`; seed `lastHandledVideoId` on enable; a source-side `DispatcherTimer` (with an `_autoTickInProgress` reentrancy guard) that reads playback + id, consults `AutoPopoutPolicy`, and calls `StartVideoPopoutAsync`; record the handled id inside `StartVideoPopoutAsync`; start/stop the timer with `_browserReady`, the Auto flag, popout state, `_clearingBrowserData`, and `MainWindow_Closing`. |
+| `src/PiPlay/MainWindow.xaml.cs` | `AutoToggle_Click`/`ApplyAuto` (Pin-style); apply in ctor + `ApplyResetState`; clear `lastHandledVideoId` on enable (so the current video pops); a source-side `DispatcherTimer` (with an `_autoTickInProgress` reentrancy guard) that reads playback + id, consults `AutoPopoutPolicy`, and calls `StartVideoPopoutAsync`; record the handled id inside `StartVideoPopoutAsync`; start/stop the timer with `_browserReady`, the Auto flag, popout state, `_clearingBrowserData`, and `MainWindow_Closing`. |
 | `tests/PiPlay.Tests/AutoPopoutPolicyTests.cs` | **New** Logic-lane truth-table for the decision seam. |
 | `tests/PiPlay.Tests/SettingsServiceTests.cs` | Add `AutoPopout` default-false + Save/Load round-trip cases. |
 | `tests/PiPlay.Tests/Ui/XamlInvariantTests.cs` | Assert `AutoToggle` exists with a tooltip. |

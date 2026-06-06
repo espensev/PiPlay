@@ -271,9 +271,10 @@ Rules:
   pause→play transition.
 - **`/watch` only:** Shorts and embeds never auto-pop (they would otherwise pop on every scroll).
   Playlist autoplay-next pops each new video.
+- **Enabling Auto pops immediately:** turning `Auto` on while a `/watch` video is already playing pops
+  *that* video right away — not only on the next video.
 - **No re-pop loop:** returning from a popout (which resumes source playback) does not re-pop the same
-  video; enabling `Auto` while a video is already playing does not yank it. A different `/watch` video
-  playing re-pops normally.
+  video. A different `/watch` video playing re-pops normally.
 - Detection is best-effort (Q-6): a DOM hiccup means no auto-pop, never a crash. Design:
   `docs/superpowers/specs/2026-06-06-auto-popout-design.md`.
 
