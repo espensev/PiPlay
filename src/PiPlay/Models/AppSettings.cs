@@ -11,6 +11,13 @@ public sealed class AppSettings
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
     public string LastUrl { get; set; } = "https://www.youtube.com/";
+
+    /// <summary>
+    /// Auto (spec §6.1): automatically start a Video Popout when a /watch video is playing. Off by
+    /// default; a missing value deserializes to false, so every existing settings.json loads as Auto off.
+    /// </summary>
+    public bool AutoPopout { get; set; }
+
     public WindowSettings MainWindow { get; set; } = new();
     public PlayerSettings Player { get; set; } = new();
     public List<Profile> Profiles { get; set; } = new();

@@ -155,4 +155,21 @@ public class YouTubeUrlHelperTests
             "https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&list=PLabc&start=30",
             YouTubeUrlHelper.BuildEmbedUrl(t, 30));
     }
+
+    [Theory]
+    [InlineData("https://www.youtube.com/watch?v=dQw4w9WgXcQ", true)]
+    [InlineData("https://m.youtube.com/watch?v=dQw4w9WgXcQ&t=30s", true)]
+    [InlineData("https://youtu.be/dQw4w9WgXcQ", true)]            // share link is a watch video
+    [InlineData("https://www.youtube.com/shorts/dQw4w9WgXcQ", false)]  // Shorts must not pop
+    [InlineData("https://www.youtube.com/embed/dQw4w9WgXcQ", false)]
+    [InlineData("https://www.youtube.com/playlist?list=PLabc", false)]
+    [InlineData("https://www.youtube.com/results?search_query=lofi", false)]
+    [InlineData("https://www.youtube.com/", false)]
+    [InlineData("https://example.com/watch?v=dQw4w9WgXcQ", false)]  // not a YouTube host
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void IsWatchUrl_is_true_only_for_watch_pages_and_share_links(string? url, bool expected)
+    {
+        Assert.Equal(expected, YouTubeUrlHelper.IsWatchUrl(url));
+    }
 }

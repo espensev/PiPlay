@@ -52,6 +52,16 @@ public class SettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public void AutoPopout_defaults_off_and_roundtrips()
+    {
+        var svc = new SettingsService(_path);
+        Assert.False(svc.Load().AutoPopout);   // off by default (and for a missing property)
+
+        svc.Save(new AppSettings { AutoPopout = true });
+        Assert.True(svc.Load().AutoPopout);     // survives the atomic round trip
+    }
+
+    [Fact]
     public void Corrupt_file_is_quarantined_and_defaults_returned()
     {
         File.WriteAllText(_path, "{ this is not valid json ]]]");
