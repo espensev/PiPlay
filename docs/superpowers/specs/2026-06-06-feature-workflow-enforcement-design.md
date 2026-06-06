@@ -6,7 +6,7 @@
 note before non-trivial code, but enforcement is purely social: nothing in CI or the PR surface
 requires a traceable design spec, and there is no shared shape for the note or the PR. The recent
 stable-channel work was less traceable than the profile-edit work precisely because of this gap
-(captured in `docs/TEMP_WORKFLOW_REVIEW_NOTE.md`).
+(captured at the time in a temporary review note, now superseded by this spec).
 
 This pass turns the social convention into a lightweight, self-documenting **gate plus templates**:
 
@@ -22,7 +22,7 @@ This pass turns the social convention into a lightweight, self-documenting **gat
 
 ## Motivation / source
 
-Findings #1–#3 of `docs/TEMP_WORKFLOW_REVIEW_NOTE.md` (2026-06-06):
+Findings #1–#3 of a temporary 2026-06-06 review note (a working-tree scratch file, never committed — inlined and superseded here):
 1. Non-trivial changes should have an obvious dated design note before implementation.
 2. Important behavior must be easy to discover and hard to misuse.
 3. The workflow rules are good, but enforcement is still mostly social.
@@ -42,11 +42,13 @@ This is process tooling, not product behavior, so it serves no `REQ-*`/`Q-*` ID 
    check skipped by a `paths:` filter can leave a PR stuck "pending" forever. By always running and
    always emitting a conclusive pass/fail, the check is safe to mark **required** in branch protection.
 
-3. **Changed files come from `gh pr view --json files`, not a local `git diff`.** The GitHub-native
-   file list needs no checkout, no `fetch-depth: 0`, and no merge-base reasoning — eliminating the
-   most common way such a gate silently **fails open** (an empty diff from an unreachable base SHA).
-   The step runs under `set -euo pipefail`, so a *failure to list files* fails the gate (fail-closed),
-   never silently passes.
+3. **Changed files come from the paginated GitHub PR files API, not a local `git diff`.** The
+   GitHub-native file list needs no checkout, no `fetch-depth: 0`, and no merge-base reasoning —
+   eliminating the most common way such a gate silently **fails open** (an empty diff from an
+   unreachable base SHA). The workflow uses `gh api --paginate /pulls/{number}/files`, not
+   `gh pr view --json files`, so PRs with more than 100 files do not lose gated paths after the first
+   page. The step runs under `set -euo pipefail`, so a *failure to list files* fails the gate
+   (fail-closed), never silently passes.
 
 4. **Security posture.** The job uses `pull_request` (never `pull_request_target`), `permissions:
    contents: read` + `pull-requests: read`, and passes the untrusted PR body through an **environment
@@ -68,7 +70,8 @@ against synthetic inputs.
 
 GitHub-Actions-context behavior cannot be proven locally, so it is verified **live**:
 - The introducing PR for this change touches only `.github/` and `docs/` → it exercises the **pass**
-  path (no gated paths) live, and confirms the `gh pr view --json files` + token/repo wiring works.
+  path (no gated paths) live, and confirms the paginated `gh api` file-listing + token/repo wiring
+  works.
 - The **fail** path and the **`Spec-Exception:` pass** path are exercised with a **throwaway PR** that
   adds a dummy gated file (closed and deleted after observation). They are *not* claimed verified
   until that live run is observed.
@@ -80,12 +83,11 @@ the template headings, the PR template, and the gate's spec-path expectation all
 
 | File | Change |
 |---|---|
-| `.github/workflows/spec-check.yml` | New "Require design spec" gate: fail-closed `gh`-based file list, dated-design-spec path check, soft gate with `Spec-Exception:` escape hatch. |
+| `.github/workflows/spec-check.yml` | New "Require design spec" gate: fail-closed paginated `gh api` file list, dated-design-spec path check, soft gate with `Spec-Exception:` escape hatch. |
 | `.github/pull_request_template.md` | New PR template: spec link, requirement IDs, acceptance criteria, verification output, docs/changelog impact, `Spec-Exception:` guidance. |
-| `docs/superpowers/templates/feature-design-template.md` | New design-note skeleton mirroring the house spec shape + DoR fields. |
+| `docs/superpowers/templates/` | New README plus design, plan, and worklog skeletons mirroring the house spec/plan/worklog shape. |
 | `docs/Feature_Workflow.md` | Add a "Definition of Ready" subsection and document the spec-link gate + exception mechanism. |
 | `docs/superpowers/plans/2026-06-06-feature-workflow-enforcement.md` | Track this implementation pass. |
-| `docs/TEMP_WORKFLOW_REVIEW_NOTE.md` | Deleted — its findings are now acted on here. |
 
 ## Out of scope
 

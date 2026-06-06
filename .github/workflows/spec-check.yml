@@ -38,9 +38,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Fail-closed: a gh/jq failure aborts via `set -e` (the gate fails rather than passing blind).
-          # An empty list is also treated as a failure, not a silent pass.
-          files="$(gh pr view "$PR_NUMBER" --json files --jq '.files[].path')"
+          # Use the paginating REST endpoint, NOT `gh pr view --json files` (that GraphQL path caps at
+          # 100 files with no pagination and would fail OPEN on a >100-file PR whose gated files land
+          # past the first 100). REST exposes the path as `.filename`; --paginate walks every page.
+          # Fail-closed: a gh/jq failure aborts via `set -e` (the gate fails rather than passing blind);
+          # an empty list is also treated as a failure, not a silent pass.
+          files="$(gh api --paginate "/repos/$GH_REPO/pulls/$PR_NUMBER/files" --jq '.[].filename')"
           if [ -z "$files" ]; then
             echo "::error::Could not determine the changed files for PR #${PR_NUMBER}; failing closed."
             exit 1
@@ -66,7 +69,7 @@ jobs:
 
           # 3. Escape hatch: an explicit, non-empty Spec-Exception line in the PR body.
           if printf '%s' "${PR_BODY:-}" | grep -qiE '^[[:space:]]*Spec-Exception:[[:space:]]*[^[:space:]].*$'; then
-            reason="$(printf '%s' "${PR_BODY:-}" | grep -iE '^[[:space:]]*Spec-Exception:' | head -n 1)"
+            reason="$(printf '%s' "${PR_BODY:-}" | grep -m1 -iE '^[[:space:]]*Spec-Exception:' || true)"
             echo "::warning::Spec gate bypassed by exception — ${reason}"
             exit 0
           fi

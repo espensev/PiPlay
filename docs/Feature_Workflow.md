@@ -30,6 +30,7 @@ A change is ready to implement once its design spec settles all of:
 - **Goals** — the gap closed and what "done" looks like; what stays unchanged.
 - **Requirement IDs served** — `REQ-*`, `Q-*`, or spec § numbers (or "tooling/docs" with the motivating note).
 - **Acceptance criteria** — observable, checkable conditions for "done".
+- **Settled decisions** — each key choice plus the one-line reason it beat the alternative.
 - **Non-goals** — what this pass deliberately does not do.
 - **Affected files** — the expected change-by-file list.
 - **Test plan** — which layer covers what, and what is verified live vs locally.
