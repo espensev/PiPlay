@@ -43,6 +43,9 @@ Mark each: pass / issue (link) / skipped.
 ## 3. Fade / opacity (Q-8)
 - [ ] MVP: Popout controls remain visible and usable; no fade required.
 - [ ] Phase 2: Controls fade after idle and restore on hover / mouse-move.
+- [ ] Phase 2: Settings → Appearance Pin color changes the active Pin color on the Source Window and Popout Player, and persists across restart.
+- [ ] Phase 2: Settings → Appearance Fade color changes the active Fade toggle color in the Popout Player, independent of Pin.
+- [ ] Phase 2: Settings → Appearance fade delay Short / Normal / Long changes the controls-fade idle timing; Normal is the default 2.5 s behavior.
 - [ ] Phase 4: With whole-window opacity on, the player stays clickable — clicks do **not** pass through. **(Q-8)**
 - [ ] Phase 4: Opacity cannot drop below the 45% normal floor without an explicit unlock.
 

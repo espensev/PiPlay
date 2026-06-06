@@ -1,13 +1,20 @@
 # PiPlay - Spec gaps and ownership boundaries
 
-**Status:** Working notes after Draft 0.5 cleanup. Resolved items have been folded into `PiPlay_Product_Engineering_Spec.md`; keep this file for the remaining open decisions and ownership boundaries.
+**Status:** Working notes after Draft 0.6 Phase 2 refinement. Resolved items have been folded into `PiPlay_Product_Engineering_Spec.md`; keep this file for the remaining open decisions and ownership boundaries.
 
 ## Remaining open product decisions
 
-| Item | Current issue | Needed decision |
+| Item | Phase pressure | Current issue | Needed decision |
+|---|---|---|---|
+| Compact-mode placement | Phase 2 only if compact mode is exposed before Phase 3 | Profile precedence is defined, but compact mode itself is not approved for broad exposure and its setting surface remains undecided. | Decide whether compact mode is global only, profile override, or both before broad exposure. |
+| Source Window after direct profile launch | Future/profile polish | Profiles can be launch targets, but the app has not decided whether direct launch can run without a visible Source Window. | Decide whether Source Window remains required, can start minimized/hidden, or becomes optional. |
+
+## Remaining Phase 2 done-list
+
+| Item | Scope | CI impact |
 |---|---|---|
-| Compact-mode placement | Profile precedence is defined, but compact mode itself is not approved for MVP and its setting surface remains undecided. | Decide whether compact mode is global only, profile override, or both before broad exposure. |
-| Source Window after direct profile launch | Profiles can be launch targets, but the app has not decided whether direct launch can run without a visible Source Window. | Decide whether Source Window remains required, can start minimized/hidden, or becomes optional. |
+| Manual release evidence | Run the Phase 2 rows in `docs/QA_Checklist.md` and save evidence for Auto, controls fade/customization, profile edit/delete, privacy actions, and Stable publish/deploy behavior before calling any build a release candidate. | No new CI gate needed; current deterministic tests already cover schema, policy, XAML resources, and WPF construction seams. |
+| Compact-mode placement | Decide global/profile/both only before exposing compact mode broadly. | No CI change until compact mode implementation starts. |
 
 ## Resolved in the spec cleanup
 
@@ -31,6 +38,7 @@
 | `AGENTS.md` / `CHANGELOG.md` location | Decision: keep canonical copies under `docs/` intentionally; `AGENTS.md` already documents the path-prefix rule if moved to root. No duplicates to maintain. |
 | Stable publish + channel/data isolation | A stable, runnable copy deploys to `E:\Dev_test_implemenations\PiPlay` via `scripts\Publish-Stable.ps1`. The release channel is baked into the binary (`PiPlayChannel`); a Stable copy uses portable data beside the exe, its own single-instance identity, and a `PiPlay — Stable …` title, while the Default channel is unchanged. Recorded in `adr/0007-stable-channel-and-portable-data.md`. |
 | Auto trigger timing | **Playback-start**, `/watch`-only, **once per video** (id-keyed). `Auto` detects a watch video playing on the Source Window and reuses `StartVideoPopoutAsync`; an id de-dup blocks the return-resume re-pop loop, and Shorts/embeds are excluded. Off by default. Recorded in `docs/superpowers/specs/2026-06-06-auto-popout-design.md`. |
+| Popout control customization first slice | Fixed swatches for Pin and Fade active colors plus controls-fade idle-delay presets. No hex picker, profile override, whole-window opacity UI, click-through, or transparent WebView2 behavior. Recorded in `docs/superpowers/specs/2026-06-06-player-customization-design.md`. |
 
 ## Documentation ownership
 

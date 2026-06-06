@@ -1,11 +1,11 @@
 # PiPlay Product & Engineering Specification
 
-**Status:** Draft 0.5  
-**Project:** PiPlay  
-**Purpose:** Quality-first Windows desktop app for playing YouTube videos in a movable, resizable Video Popout window.  
-**Primary platform:** Windows desktop  
-**Primary user:** A power user who wants a reliable always-available YouTube video surface while working in other apps.  
-**Last updated:** 2026-05-30
+**Status:** Draft 0.6
+**Project:** PiPlay
+**Purpose:** Quality-first Windows desktop app for playing YouTube videos in a movable, resizable Video Popout window.
+**Primary platform:** Windows desktop
+**Primary user:** A power user who wants a reliable always-available YouTube video surface while working in other apps.
+**Last updated:** 2026-06-06
 
 ---
 
@@ -155,7 +155,10 @@ Suggested tokens:
 | `AccentCyan` | `#00D4FF` | PiPlay brand/action accent. |
 | `AccentCyanLight` | `#5BE6FF` | Gradient highlight. |
 | `AccentPurple` | `#6D3BFF` | Secondary popout/action accent. |
-| `DangerPin` | `#FF4B55` | Active pin or close-danger state only. |
+| `AccentViolet` | `#A78BFA` | Customization palette accent for active Pin/Fade controls. |
+| `AccentGreen` | `#38D996` | Customization palette accent for active Pin/Fade controls. |
+| `AccentAmber` | `#FFC857` | Customization palette accent for active Pin/Fade controls. |
+| `DangerPin` | `#FF4B55` | Destructive/danger states such as close/delete. Not used for Pin/Fade customization. |
 
 YouTube red should remain YouTube-owned. PiPlay action accents should use cyan/purple rather than copying YouTube red.
 
@@ -174,6 +177,8 @@ YouTube red should remain YouTube-owned. PiPlay action accents should use cyan/p
 - Default menu/action icons should use an 18-20 px glyph inside a 32-36 px hit target.
 - Stroke weight should feel consistent, roughly 1.75-2.25 px at 20 px size.
 - Use `TextPrimary` for inactive icons, `AccentCyan`/`AccentPurple` for active or brand actions.
+  Customized Pin/Fade active icons may use `AccentCyan`, `AccentViolet`, `AccentGreen`, or
+  `AccentAmber`.
 - App/taskbar icon family: the cyan play/out-arrow assets under `docs/files (2)/` (`piplay.ico`, `piplay.svg`, `piplay-glyph.svg`, `piplay-small.svg`, `piplay-256.png`). These are the Windows app icon and Video Popout action identity.
 - Logo/favicon family: the `P` monogram assets under `docs/files/` (`piplay-monogram.svg`, variants, and `piplay-favicon.ico`). These are the product logo, docs/marketing mark, and favicon family.
 - The shipped app references `src/PiPlay/Assets/piplay.ico`; `docs/files (2)/piplay.ico` is the reference copy for the app/taskbar icon family.
@@ -200,7 +205,7 @@ Required:
 - App name/logo on the left.
 - Window controls on the right.
 - Navigation controls: the MVP minimal set is **Back**, **Reload**, and **Home** (YouTube home). Forward is optional. A URL/search field is required. Any additional nav control is an intentional spec change, not implementer discretion.
-- MVP utility controls: `Pin` and profile save/load. `Auto` and `Fade` may be shown disabled or omitted until their phases.
+- MVP utility controls: `Pin` and profile save/load. Phase 2 adds `Auto` on the Source Window and `Fade` in the Popout Player.
 - WebView2 content below the title bar.
 - If pinned, show a clear but small active state.
 
@@ -249,8 +254,9 @@ PiPlay's shell is dark and custom-styled (section 5.1). Any control surface left
 Scope by phase:
 
 - **MVP:** `Pin` plus basic profile save/load. Popout controls are always visible in MVP.
-- **Phase 2:** controls fade, `Auto`, and profile edit/validation.
-- **Phase 3:** `Auto` may slip here if Phase 2 becomes heavy.
+- **Phase 2:** controls fade, `Auto`, profile edit/validation, and small Pin/Fade appearance
+  customization.
+- **Phase 3:** compact-mode polish and any deferred playback/profile refinements.
 - **Phase 4:** chrome fade and whole-window opacity.
 
 ### 6.1 Auto
@@ -260,7 +266,7 @@ Scope by phase:
 Rules:
 
 - Off by default.
-- Phase 2 or Phase 3; never required for MVP.
+- Implemented in Phase 2; never required for MVP.
 - Must not trigger on YouTube home, search, settings, history, or login pages.
 - Must not open more than one Popout Player.
 - Must respect the same single-player lifecycle as manual popout.
@@ -291,6 +297,8 @@ Rules:
 - Chrome fade is Phase 4 polish.
 - Whole-window opacity is a Phase 4 advanced sub-setting, not the default meaning of Fade.
 - Fade never implies click-through behavior.
+- Phase 2 customization may expose constrained controls-fade idle-delay presets. The default remains
+  2500 ms; initial presets are Short = 1500 ms, Normal = 2500 ms, and Long = 4000 ms.
 
 ### 6.3 Pin
 
@@ -303,6 +311,8 @@ Rules:
 - Persist separate pin values for the Source Window and Popout Player.
 - The title-bar Pin toggle should control the active PiPlay surface.
 - The Popout Player must expose a direct Pin toggle, because it may be used without focusing the Source Window.
+- Phase 2 customization may expose a fixed dark-theme-safe active-color palette for Pin. The Source
+  Window Pin and Popout Player Pin use the same configured Pin accent.
 
 ---
 
@@ -322,7 +332,7 @@ Phase 2 quality path. MVP controls remain visible at all times.
 Suggested defaults:
 
 ```text
-Idle timeout:          1200 ms
+Idle timeout:          2500 ms
 Fade duration:         150-220 ms
 Idle control opacity:  0-20%
 Hover control opacity: 100%
@@ -1021,7 +1031,12 @@ MVP support:
 - Save a basic named profile.
 - Load a basic named profile.
 - Keep Pin/topmost and placement when already available.
-- Controls fade, profile editing, proactive validation UI, and per-field precedence are Phase 2.
+
+Phase 2 support:
+
+- Edit and delete saved profiles from the Source Window.
+- Validate names and URLs before saving in the edit path.
+- Apply per-field precedence for optional profile fields that the profile explicitly carries.
 
 Phase 2 profile model:
 
@@ -1047,7 +1062,7 @@ Phase 2 profile model:
 Quality requirements:
 
 - Duplicate profile names should prompt overwrite/rename instead of silently creating clutter.
-- Profiles should validate URLs before saving once the Phase 2 edit path exists.
+- Profiles validate URLs before saving in the Phase 2 edit path.
 - Broken profile URLs must fail gracefully even in MVP.
 - **[REQ-PROFILE-01]** For fields that a profile is allowed to carry, a launched profile overrides the global default per field. Unset/null fields fall back to the global value.
 - **[REQ-PROFILE-02]** Profiles store both bounds and monitor identity. Restore to the saved monitor when present; otherwise clamp to the nearest visible work area using `WindowPlacementService`.
@@ -1325,14 +1340,20 @@ MVP should defer:
 
 ### Phase 2 — Convenience and profile polish
 
-- Add controls fade.
-- Add `Auto`, off by default, using the manual-popout lifecycle.
-- Add profile edit/validation and overwrite/rename path.
-- Add release publish profiles.
-- Add manual test checklist coverage for Phase 2 features.
-- Add `Reset app state` and `Clear browser data` actions (REQ-PRIVACY-01 / REQ-PRIVACY-02), worded as separate confirmed actions.
-- Decide compact-mode placement before exposing compact mode broadly.
-- `Auto` may slip to Phase 3 if Phase 2 becomes heavy.
+Delivered Phase 2 scope:
+
+- Controls fade.
+- `Auto`, off by default, using the manual-popout lifecycle.
+- Profile edit/validation and overwrite/rename path.
+- Stable release publish profile.
+- Manual test checklist coverage for Phase 2 features.
+- `Reset app state` and `Clear browser data` actions (REQ-PRIVACY-01 / REQ-PRIVACY-02), worded as separate confirmed actions.
+- Fixed-swatch Pin/Fade active-color customization and controls-fade idle-delay presets.
+
+Remaining Phase 2 done-list:
+
+- Complete and save manual Phase 2 release evidence for Auto, controls fade/customization, profile edit/delete, privacy actions, and Stable publish/deploy behavior.
+- Decide compact-mode placement before exposing compact mode broadly. If compact mode remains deferred to Phase 3, this is not a blocker for landing Phase 2 work.
 
 ### Phase 3 — Compact player upgrade
 
@@ -1342,7 +1363,6 @@ MVP should defer:
 - Add WebView2 virtual host mapping for local app HTML.
 - Bridge C# and JavaScript with WebView2 messaging.
 - Move polished Popout shell controls into the shell mode.
-- Pick up `Auto` here if deferred from Phase 2.
 
 ### Phase 4 — Utility polish
 
@@ -1372,12 +1392,13 @@ The following are normative defaults unless superseded by a later ADR or require
 | REQ-PRIVACY-01 / REQ-PRIVACY-02 | `Reset app state` and `Clear browser data` are separate actions. Reset keeps the YouTube session; clear browser data logs the user out. |
 | Section 16.3 | Popout resize is free by default; aspect lock is optional later. |
 | REQ-PROFILE-02 | Profiles store both bounds and monitor identity; restore same monitor when present, otherwise clamp to visible work area. |
+| Section 6.1 Auto | Trigger is playback-start, `/watch`-only, once per video id, off by default. Shorts and embeds are excluded, and return-resume does not re-pop the same video. |
+| Section 6.2 / 6.3 customization | First slice is fixed swatches for Pin/Fade active colors plus controls-fade idle-delay presets. Defaults preserve current cyan and 2500 ms fade timing; no hex picker, profile override, opacity UI, click-through, or transparent WebView2. |
 
 ### 25.2 Open decisions
 
 1. Should compact mode be a profile setting, a global setting, or both?
 2. Should the Source Window be optional after launching a profile directly?
-3. For `Auto`, should the trigger be video playback start, supported watch-page navigation, or both? This couples to the Phase 2 implementation plan and can slip to Phase 3.
 
 ---
 
@@ -1475,3 +1496,4 @@ These references support the current technical direction and should be rechecked
 | 0.3 | 2026-05-30 | Established the Video Popout terminology and visual-identity tokens; split the fade / opacity / transparency policy into distinct behaviors; deduplicated and cleaned the document (three stacked copies collapsed to one); added a Conventions section, requirement IDs (Q-1…Q-8), and an atomic settings-save fix (section 26.4). |
 | 0.4 | 2026-05-30 | Folded resolved defaults from spec-gap cleanup into normative requirements: MVP scope, return behavior, navigation policy, timestamp/performance tolerances, playlist fallback, reset/browser-data split, profile precedence/placement, and brand asset roles. |
 | 0.5 | 2026-05-30 | Made visual identity verifiable after the chrome UI review: added REQ-UI-01 (dark-theme completeness for all popup-bearing controls and tooltips) and REQ-UI-02 (icon-font contract, no `.notdef` glyphs); added the binary Chrome acceptance table and the section 22.5 Definition of Done; specified the minimal Source Window nav control set; and resolved the privacy-actions scope contradiction by marking REQ-PRIVACY-01/02 as Phase 2 consistently across sections 19, 23, and 24. |
+| 0.6 | 2026-06-06 | Folded current Phase 2 decisions into the spec: Auto playback-start behavior, profile edit/validation, privacy actions, Stable publish, and fixed-swatch Pin/Fade customization. Clarified that remaining Phase 2 work is manual release evidence plus the compact-mode placement decision only if compact mode is exposed before Phase 3. |

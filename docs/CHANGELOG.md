@@ -83,6 +83,11 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   the WebView2 video surface is never made transparent, so the player stays fully
   interactable (Q-8, no click-through). Decision logic lives in `Services/FadePolicy.cs`
   with unit-test coverage.
+- **Pin/Fade appearance customization.** Settings now includes an Appearance section with fixed
+  swatches for active Pin and Fade colors plus Short / Normal / Long controls-fade delay presets.
+  Defaults preserve the existing cyan active color and 2.5 s fade delay; values persist in
+  `PlayerSettings` and are sanitized on load. This does not add whole-window opacity,
+  click-through, profile overrides, or transparent WebView2 behavior.
 
 ### Added — Phase 2 (privacy)
 - **Reset app state** (REQ-PRIVACY-01) and **Clear browser data** (REQ-PRIVACY-02) as separate,
@@ -121,7 +126,9 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   decision in favour of playback-start. See `docs/superpowers/specs/2026-06-06-auto-popout-design.md`.
 
 ### Planned — Phase 2 (remaining)
-- Phase 2 QA coverage.
+- Manual Phase 2 release evidence: Auto smoke, controls fade/customization visual pass, profile edit/delete,
+  privacy actions, and Stable publish/deploy checks.
+- Compact-mode placement decision only if compact mode is exposed before Phase 3; otherwise keep it deferred.
 
 ### Tests & quality
 - **Layered regression suite** (`docs/Regression_Test_Suite_Design.md`), 173 tests in

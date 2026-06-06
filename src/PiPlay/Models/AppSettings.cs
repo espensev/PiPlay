@@ -40,6 +40,9 @@ public sealed class PlayerSettings
     /// when off the chrome strip stays visible exactly as in the MVP.
     /// </summary>
     public bool FadeEnabled { get; set; } = true;
+    public string PinAccent { get; set; } = "cyan";
+    public string FadeAccent { get; set; } = "cyan";
+    public int FadeIdleDelayMs { get; set; } = 2500;
     public double IdleWindowOpacity { get; set; } = 1.0;
     public int LastWidth { get; set; } = 960;
     public int LastHeight { get; set; } = 540;

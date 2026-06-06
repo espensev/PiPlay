@@ -7,6 +7,7 @@ using System.Windows.Shell;
 using Microsoft.Web.WebView2.Wpf;
 using PiPlay;
 using PiPlay.Models;
+using PiPlay.Theme;
 
 namespace PiPlay.Tests;
 
@@ -86,6 +87,31 @@ public class WpfRuntimeTests : IDisposable
         Assert.Null(((Button)ready.FindName("ClearBrowserDataButton")!).ToolTip);
     });
 
+    [Fact]
+    public void SettingsWindow_reflects_and_updates_player_appearance_input() => StaTestThread.Invoke(() =>
+    {
+        var w = new SettingsWindow(isBrowserReady: true, pinAccent: "green", fadeAccent: "amber", fadeIdleDelayMs: 4000);
+
+        Assert.Equal("green", w.PinAccent);
+        Assert.Equal("amber", w.FadeAccent);
+        Assert.Equal(4000, w.FadeIdleDelayMs);
+        Assert.True(((ToggleButton)w.FindName("PinAccentGreenSwatch")!).IsChecked);
+        Assert.True(((ToggleButton)w.FindName("FadeAccentAmberSwatch")!).IsChecked);
+        Assert.True(((ToggleButton)w.FindName("FadeDelayLongPreset")!).IsChecked);
+
+        ((ToggleButton)w.FindName("PinAccentVioletSwatch")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        ((ToggleButton)w.FindName("FadeAccentCyanSwatch")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        ((ToggleButton)w.FindName("FadeDelayShortPreset")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+
+        Assert.True(w.AppearanceChanged);
+        Assert.Equal("violet", w.PinAccent);
+        Assert.Equal("cyan", w.FadeAccent);
+        Assert.Equal(1500, w.FadeIdleDelayMs);
+        Assert.True(((ToggleButton)w.FindName("PinAccentVioletSwatch")!).IsChecked);
+        Assert.True(((ToggleButton)w.FindName("FadeAccentCyanSwatch")!).IsChecked);
+        Assert.True(((ToggleButton)w.FindName("FadeDelayShortPreset")!).IsChecked);
+    });
+
     // --- Resolved DependencyProperty invariants (runtime counterpart to Layer 1) ---
 
     [Fact]
@@ -115,6 +141,42 @@ public class WpfRuntimeTests : IDisposable
     {
         var w = new MainWindow();
         Assert.IsType<Button>(w.FindName("SettingsButton"));
+    });
+
+    [Fact]
+    public void MainWindow_source_pin_uses_configurable_accent_behavior() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        var pin = (ToggleButton)w.FindName("PinToggle")!;
+        Assert.Same(Application.Current.FindResource("AccentCyan"), ToggleAccent.GetCheckedBrush(pin));
+    });
+
+    [Fact]
+    public void PlayerWindow_applies_configurable_pin_fade_accents_and_delay() => StaTestThread.Invoke(() =>
+    {
+        var w = new PlayerWindow(
+            environment: null!,
+            url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            topmost: false,
+            placement: null,
+            defaultWidth: 960,
+            defaultHeight: 540,
+            fadeEnabled: true,
+            pinAccent: "green",
+            fadeAccent: "amber",
+            fadeIdleDelayMs: 4000);
+
+        Assert.Same(Application.Current.FindResource("AccentGreen"),
+            ToggleAccent.GetCheckedBrush((ToggleButton)w.FindName("PinToggle")!));
+        Assert.Same(Application.Current.FindResource("AccentAmber"),
+            ToggleAccent.GetCheckedBrush((ToggleButton)w.FindName("FadeToggle")!));
+
+        w.ApplyAppearance("violet", "cyan", 1500);
+        Assert.Same(Application.Current.FindResource("AccentViolet"),
+            ToggleAccent.GetCheckedBrush((ToggleButton)w.FindName("PinToggle")!));
+        Assert.Same(Application.Current.FindResource("AccentCyan"),
+            ToggleAccent.GetCheckedBrush((ToggleButton)w.FindName("FadeToggle")!));
+        Assert.Equal(TimeSpan.FromMilliseconds(1500), w.FadeIdleDelayForTests);
     });
 
     [Fact]

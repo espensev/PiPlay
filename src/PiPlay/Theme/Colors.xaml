@@ -16,6 +16,9 @@
   <Color x:Key="AccentCyanColor">#FF00D4FF</Color>
   <Color x:Key="AccentCyanLightColor">#FF5BE6FF</Color>
   <Color x:Key="AccentPurpleColor">#FF6D3BFF</Color>
+  <Color x:Key="AccentVioletColor">#FFA78BFA</Color>
+  <Color x:Key="AccentGreenColor">#FF38D996</Color>
+  <Color x:Key="AccentAmberColor">#FFFFC857</Color>
   <Color x:Key="DangerPinColor">#FFFF4B55</Color>
 
   <SolidColorBrush x:Key="AppBackground" Color="{StaticResource AppBackgroundColor}" />
@@ -28,6 +31,9 @@
   <SolidColorBrush x:Key="AccentCyan" Color="{StaticResource AccentCyanColor}" />
   <SolidColorBrush x:Key="AccentCyanLight" Color="{StaticResource AccentCyanLightColor}" />
   <SolidColorBrush x:Key="AccentPurple" Color="{StaticResource AccentPurpleColor}" />
+  <SolidColorBrush x:Key="AccentViolet" Color="{StaticResource AccentVioletColor}" />
+  <SolidColorBrush x:Key="AccentGreen" Color="{StaticResource AccentGreenColor}" />
+  <SolidColorBrush x:Key="AccentAmber" Color="{StaticResource AccentAmberColor}" />
   <SolidColorBrush x:Key="DangerPin" Color="{StaticResource DangerPinColor}" />
 
 </ResourceDictionary>
