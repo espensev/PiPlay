@@ -27,7 +27,8 @@
 | Visual-identity verifiability (Draft 0.5) | Visual identity is now ID-backed: REQ-UI-01 (dark-theme completeness for all popup-bearing controls + tooltips) and REQ-UI-02 (icon-font contract, no `.notdef` glyphs), with a binary Chrome acceptance table (section 22.2) and a Definition of Done (section 22.5). Resolves the chrome deviations found in `Chrome_UI_Spec_Review.md`. |
 | Privacy actions scope (Draft 0.5) | `Reset app state` / `Clear browser data` (REQ-PRIVACY-01/02) are **Phase 2**, consistent across sections 19, 23, and 24 and the QA checklist. Previously contradictory (normative + QA-tested but absent from MVP scope). |
 | Source Window nav controls (Draft 0.5) | MVP minimal set fixed at Back, Reload, Home + URL/search field; Forward optional (section 5.5). |
-| App icon canonical path | The shipped app references `src/PiPlay/Assets/piplay.ico` (self-contained source tree); the `docs/*.ico` copies are reference-only. The "code references a canonical app-icon path" precondition for removing the root `docs/piplay.ico` duplicate is now met. |
+| App icon canonical path | The shipped app references `src/PiPlay/Assets/piplay.ico` (self-contained source tree); `docs/files (2)/piplay.ico` remains the reference copy. The duplicate root `docs/piplay.ico` has been removed. |
+| Generated brand lockup snippet | The unlinked `docs/piplay_brand_lockup_and_usage.html` snippet was removed; canonical brand asset roles live in `PiPlay_Product_Engineering_Spec.md`. |
 | `AGENTS.md` / `CHANGELOG.md` location | Decision: keep canonical copies under `docs/` intentionally; `AGENTS.md` already documents the path-prefix rule if moved to root. No duplicates to maintain. |
 
 ## Documentation ownership
@@ -59,6 +60,4 @@
 
 | Candidate | Reason | Recommendation |
 |---|---|---|
-| `docs/piplay_brand_lockup_and_usage.html` | Standalone generated brand snippet, not linked from the docs index. | Keep only if it remains the active brand reference; otherwise fold useful parts into the spec and delete. |
-| `docs/piplay.ico` (root duplicate) | Byte-identical to `docs/files (2)/piplay.ico`; the shipped app now references `src/PiPlay/Assets/piplay.ico`, so the precondition for removal is met (see Resolved table). | Safe to delete the root `docs/piplay.ico`; keep `docs/files (2)/piplay.ico` as the brand reference. Pure housekeeping. |
 | `docs/files/` and `docs/files (2)/` | Two active icon families with unclear folder names. | Cosmetic only. Keep both roles; optionally rename to canonical paths such as `assets/app-icon/` and `assets/logo-monogram/`. |

@@ -6,12 +6,13 @@
 Source Window toolbar, satisfying spec §17 Phase 2 ("profile editing, proactive validation UI"),
 without changing the MVP save/load happy path.
 
-**Baseline:** `dotnet test` = **143** passing. This plan adds **6** tests → **149**
-(5 service-logic + 1 markup invariant).
+**Result:** implemented. Verified on 2026-06-06 with `dotnet test PiPlay.sln --configuration Debug`
+= **148** passing. The implementation includes 5 service-logic update tests plus markup coverage
+for the Edit/Delete profile buttons.
 
 ## Tasks
 
-- [ ] **Task 1 — `ProfileService.Update` (TDD, Layer 2).**
+- [x] **Task 1 — `ProfileService.Update` (TDD, Layer 2).**
   - Write failing tests in `ProfileServiceTests.cs`:
     - `Update_changes_url_in_place_and_keeps_position`
     - `Update_rename_to_free_name_keeps_position`
@@ -27,7 +28,7 @@ without changing the MVP save/load happy path.
   - Verify the 5 tests pass; full suite green.
   - Commit: `feat(profiles): position-preserving, collision-aware ProfileService.Update (spec 17)`
 
-- [ ] **Task 2 — `Prompt.EditProfile` editor with inline validation.**
+- [x] **Task 2 — `Prompt.EditProfile` editor with inline validation.**
   - Add `public static (string Name, string Url)? EditProfile(Window owner, string name, string url)`
     built on `BuildShell`: a "Name" label + `DarkTextBox` (prefilled), a "URL" label + `DarkTextBox`
     (prefilled), a collapsed error `TextBlock` (Foreground `DangerPin`), Save (default) + Cancel.
@@ -37,7 +38,7 @@ without changing the MVP save/load happy path.
   - Build only (ShowDialog path, not unit-tested per the established convention).
   - Commit: `feat(profiles): themed Edit-profile dialog with inline URL validation (REQ-UI-01)`
 
-- [ ] **Task 3 — Toolbar buttons + handlers + enablement.**
+- [x] **Task 3 — Toolbar buttons + handlers + enablement.**
   - `MainWindow.xaml`: after `SaveProfileButton`, add
     `EditProfileButton` (`Content="&#xE70F;"`, `ToolTip="Edit selected profile"`) and
     `DeleteProfileButton` (`Content="&#xE74D;"`, `ToolTip="Delete selected profile"`), both
@@ -59,17 +60,17 @@ without changing the MVP save/load happy path.
   - Build; run `dotnet test --filter Category=Wpf` (no regression).
   - Commit: `feat(profiles): edit + delete selected profile from the Source Window (spec 17)`
 
-- [ ] **Task 4 — Markup invariant test (Layer 1).**
+- [x] **Task 4 — Markup invariant test (Layer 1).**
   - In `XamlInvariantTests.cs`, extend the required-`x:Name` assertion (or add one) to include
     `EditProfileButton` and `DeleteProfileButton` so the toolbar wiring can't silently regress.
   - Verify it passes.
   - Commit: `test(ui): assert Edit/Delete profile buttons exist in MainWindow markup`
 
-- [ ] **Task 5 — CHANGELOG + full verify + PR.**
+- [x] **Task 5 — CHANGELOG + full verify + PR.**
   - `docs/CHANGELOG.md`: add an `[Unreleased]` "Added — Phase 2" bullet for profile edit/delete +
     inline validation; remove "profile edit/validation" from the "Planned — Phase 2 (remaining)"
     bullet (leaving `Auto`, release publish profiles, Phase 2 QA).
-  - `dotnet test` → expect 149/149.
+  - `dotnet test` → current verified count is 148/148.
   - Commit: `docs(changelog): Phase 2 profile edit + delete with inline URL validation`
   - Push, open PR to `main` referencing the design spec and spec §17.
 
@@ -82,4 +83,4 @@ without changing the MVP save/load happy path.
 - Ownership: profile commands stay in `MainWindow`; Settings window untouched.
 - Risk concentrated in `Update` (covered by 5 Layer-2 tests); UI dialog follows the existing
   untested-ShowDialog convention; markup invariant guards the wiring.
-- Test count 143 → 149 consistent across Tasks 1, 4, 5.
+- Current verified test count: 148/148.

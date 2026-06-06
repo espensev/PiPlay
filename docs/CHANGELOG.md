@@ -18,7 +18,8 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 - Shared `CoreWebView2Environment` / user-data folder so login/session is shared; friendly
   "WebView2 runtime missing" recovery panel.
 - Navigation/new-window allowlist for both windows (REQ-NAV-01/02): YouTube everywhere,
-  Google sign-in on the Source Window only, everything else opens in the system browser.
+  Google sign-in/auth redirects on allowed Google account domains, everything else opens in
+  the system browser.
 - `settings.json` with atomic save (temp + flush + rename) and corruption recovery; basic
   profile save/load; Pin/topmost on both surfaces; window placement save/restore with
   monitor clamping; local file logging with URL redaction.
@@ -56,6 +57,10 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ### Removed
 - Deleted the outdated `Main app.txt` pre-spec brainstorm (superseded by the Draft 0.4 spec).
+- Deleted the duplicate reference icon at `docs/piplay.ico`; the app/taskbar icon reference copy
+  remains under `docs/files (2)/piplay.ico`, and the shipped app uses `src/PiPlay/Assets/piplay.ico`.
+- Deleted the unlinked generated brand-lockup HTML snippet; the product spec owns the canonical
+  brand asset roles.
 
 ### Added — Phase 2 (convenience)
 - **Popout Player controls fade** (spec 11): the chrome strip (Fade, Pin, Close) fades
