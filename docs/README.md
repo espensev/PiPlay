@@ -54,6 +54,17 @@ Release pipeline:
 
 The pipeline uses `VERSION` as the semantic version source and `BUILD_NUMBER` as the monotonic build counter. Release outputs go under `bin\publish\<label>`, with `bin\publish\latest`, `bin\publish\archive`, `build-info.json`, `BUILDINFO.json`, and `VERSION_TABLE.json`.
 
+Stable publish (a differentiable, runnable copy deployed for side-by-side test use):
+
+```powershell
+# Test-gate, build the Stable channel, validate metadata, and deploy a runnable copy to
+# E:\Dev_test_implemenations\PiPlay (override with -DeployRoot). Keeps the semantic version and
+# bumps BUILD_NUMBER; pass -Version patch|minor|major to bump the version.
+.\scripts\Publish-Stable.ps1
+```
+
+A Stable build is **differentiable** from the dev app: its data lives beside the exe (`PiPlayData`, isolated from your dev profile), it has its own single-instance identity (so dev + stable run at once, each single-instance), and its title bar reads `PiPlay — Stable vX.Y.Z (bN)`. The channel is baked into the binary. See [adr/0007-stable-channel-and-portable-data.md](adr/0007-stable-channel-and-portable-data.md) and [Feature_Workflow.md](Feature_Workflow.md).
+
 Signing is intentionally not part of the local pipeline yet. Treat unsigned outputs as local/internal builds until signing is added for distribution.
 
 Per-monitor DPI awareness (PerMonitorV2) belongs in `src\PiPlay\app.manifest`.

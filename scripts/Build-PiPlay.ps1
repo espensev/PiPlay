@@ -23,6 +23,11 @@ param(
     [string]$Runtime = "win-x64",
     [switch]$SelfContained,
 
+    # Release channel baked into the binary as [AssemblyMetadata("PiPlay.Channel", ...)]. "Stable"
+    # gives a deployed copy its own data root (beside the exe), single-instance identity, and title.
+    [ValidateSet("Default", "Stable")]
+    [string]$Channel = "Default",
+
     [switch]$NoRestore,
     [switch]$ClearCache,
     [switch]$NoVersionBump,
@@ -384,6 +389,7 @@ function Write-BuildInfo {
         [Parameter(Mandatory = $true)][int]$BuildNumber,
         [Parameter(Mandatory = $true)][string]$PublishLabel,
         [Parameter(Mandatory = $true)][string]$Configuration,
+        [string]$Channel = "Default",
         [string]$Framework,
         [string]$Runtime,
         [bool]$SelfContained,
@@ -424,6 +430,7 @@ function Write-BuildInfo {
         version = $ProjectVersion
         buildNumber = $BuildNumber
         publishLabel = $PublishLabel
+        channel = $Channel
         configuration = $Configuration
         framework = $Framework
         runtime = $Runtime
@@ -613,17 +620,22 @@ function Set-LatestSnapshot {
 function Remove-OldPublishes {
     param(
         [Parameter(Mandatory = $true)][string]$PublishRoot,
-        [Parameter(Mandatory = $true)][int]$KeepPublishCount
+        [Parameter(Mandatory = $true)][int]$KeepPublishCount,
+        [string]$CurrentLabel
     )
 
     $removed = @()
+    # Sort by recency, not folder name: a custom -PublishLabel that sorts lexically below the default
+    # yyyyMMdd-HHmmss timestamps must never land the just-built folder in the prune set (data-loss).
     $publishFolders = @(Get-ChildItem -LiteralPath $PublishRoot -Directory -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -ne "latest" -and $_.Name -ne "archive" } |
-        Sort-Object Name -Descending)
+        Sort-Object LastWriteTimeUtc -Descending)
 
     if ($publishFolders.Count -le $KeepPublishCount) { return $removed }
 
     foreach ($folder in @($publishFolders | Select-Object -Skip $KeepPublishCount)) {
+        # Belt-and-braces: never delete the publish this run just produced.
+        if ($CurrentLabel -and $folder.Name -eq $CurrentLabel) { continue }
         Remove-Item -LiteralPath $folder.FullName -Recurse -Force
         $removed += $folder.FullName
     }
@@ -695,6 +707,9 @@ $resolvedVersion = $originalVersion
 $resolvedBuildNumber = $originalBuildNumber
 $versionFileUpdated = $false
 $buildNumberUpdated = $false
+$artifactProduced = $false
+$versionRoot = $null
+$versionRootCreated = $false
 $sourceCommit = Get-SourceCommit -RepositoryRoot $repoRoot
 
 Write-Host "--- PiPlay pipeline: $Stage / $Configuration ---" -ForegroundColor Cyan
@@ -781,6 +796,7 @@ try {
         "-p:FileVersion=$assemblyVersion",
         "-p:InformationalVersion=$informationalVersion",
         "-p:BuildNumber=$resolvedBuildNumber",
+        "-p:PiPlayChannel=$Channel",
         "-p:PublishTrimmed=false",
         "-p:PublishSingleFile=false"
     )
@@ -803,6 +819,7 @@ try {
     Write-Host "[4] Publish..." -ForegroundColor Yellow
     if (-not $PublishLabel) {
         $PublishLabel = "$(Get-Date -Format 'yyyyMMdd-HHmmss')-v$resolvedVersion-b$resolvedBuildNumber"
+        if ($Channel -ne "Default") { $PublishLabel += "-$($Channel.ToLowerInvariant())" }
     }
 
     New-Item -ItemType Directory -Path $publishRootResolved -Force | Out-Null
@@ -811,6 +828,7 @@ try {
         throw "Publish label already exists: $PublishLabel"
     }
     New-Item -ItemType Directory -Path $versionRoot -Force | Out-Null
+    $versionRootCreated = $true
 
     $publishArgs = @(
         "publish", $projectPath,
@@ -824,6 +842,9 @@ try {
     $publishArgs += $propertyArgs
     $publishArgs += "--no-restore"
     Invoke-External -FilePath "dotnet" -Arguments $publishArgs -FailureMessage "Publish failed"
+    # The stamped binary now exists on disk. A later post-publish step failing must NOT roll back the
+    # version/build counters - that would orphan this artifact and break monotonic build numbers.
+    $artifactProduced = $true
 
     Copy-PublishExtras -RepositoryRoot $repoRoot -VersionRoot $versionRoot -Extras $PublishExtras
 
@@ -834,6 +855,7 @@ try {
         -BuildNumber $resolvedBuildNumber `
         -PublishLabel $PublishLabel `
         -Configuration $Configuration `
+        -Channel $Channel `
         -Framework $Framework `
         -Runtime $Runtime `
         -SelfContained ([bool]$SelfContained) `
@@ -847,7 +869,7 @@ try {
         $buildInfoPath = Update-BuildInfoArchive -BuildInfoPath $buildInfoPath -ArchivePath $archivePath
     }
 
-    $removedFolders = @(Remove-OldPublishes -PublishRoot $publishRootResolved -KeepPublishCount $KeepPublishCount)
+    $removedFolders = @(Remove-OldPublishes -PublishRoot $publishRootResolved -KeepPublishCount $KeepPublishCount -CurrentLabel $PublishLabel)
 
     $versionTablePath = $null
     if (-not $NoVersionTable) {
@@ -888,21 +910,39 @@ try {
     Write-Host "Folders pruned : $($removedFolders.Count)"
     Write-Host ("Completed in {0:mm\:ss\.fff}" -f $timer.Elapsed)
 } catch {
-    if ($versionFileUpdated) {
-        try {
-            Set-ProjectVersion -VersionFile $versionFile -NewVersion $originalVersion
-            Write-Warning "Build failed; restored VERSION to $originalVersion."
-        } catch {
-            Write-Warning "Build failed and VERSION could not be restored automatically: $($_.Exception.Message)"
+    if ($artifactProduced) {
+        # The publish folder is already written and BUILD_NUMBER $resolvedBuildNumber is stamped into
+        # its binary; only a post-publish step (archive / version table / latest snapshot) failed.
+        # Keep VERSION/BUILD_NUMBER committed so the counter stays monotonic and the stamped artifact
+        # is not orphaned behind a rolled-back number.
+        Write-Warning "A post-publish step failed, but the v$resolvedVersion build $resolvedBuildNumber artifact was produced; keeping VERSION/BUILD_NUMBER."
+    } else {
+        if ($versionFileUpdated) {
+            try {
+                Set-ProjectVersion -VersionFile $versionFile -NewVersion $originalVersion
+                Write-Warning "Build failed before publishing; restored VERSION to $originalVersion."
+            } catch {
+                Write-Warning "Build failed and VERSION could not be restored automatically: $($_.Exception.Message)"
+            }
         }
-    }
 
-    if ($buildNumberUpdated) {
-        try {
-            Set-BuildNumberValue -BuildNumberFile $buildNumberFile -Value $originalBuildNumber
-            Write-Warning "Build failed; restored BUILD_NUMBER to $originalBuildNumber."
-        } catch {
-            Write-Warning "Build failed and BUILD_NUMBER could not be restored automatically: $($_.Exception.Message)"
+        if ($buildNumberUpdated) {
+            try {
+                Set-BuildNumberValue -BuildNumberFile $buildNumberFile -Value $originalBuildNumber
+                Write-Warning "Build failed before publishing; restored BUILD_NUMBER to $originalBuildNumber."
+            } catch {
+                Write-Warning "Build failed and BUILD_NUMBER could not be restored automatically: $($_.Exception.Message)"
+            }
+        }
+
+        # Remove the partial publish folder we created so a rolled-back counter leaves nothing behind.
+        if ($versionRootCreated -and $versionRoot -and (Test-Path -LiteralPath $versionRoot)) {
+            try {
+                Remove-Item -LiteralPath $versionRoot -Recurse -Force
+                Write-Warning "Removed partial publish folder: $versionRoot"
+            } catch {
+                Write-Warning "Could not remove partial publish folder '$versionRoot': $($_.Exception.Message)"
+            }
         }
     }
 

@@ -16,9 +16,13 @@ namespace PiPlay;
 /// </summary>
 public partial class App : Application
 {
-    // Per-user scope so the guard works correctly across user sessions.
-    private const string MutexName = @"Local\PiPlay.SingleInstance.v1";
-    private const string PipeName = "PiPlay.SingleInstance.v1";
+    // Per-user single-instance identity, scoped per channel so a Stable copy and the dev app each stay
+    // single-instance without colliding (the Default channel keeps the original .v1 names). The guard
+    // exists to protect each channel's own WebView2 user-data folder from concurrent access.
+    private static string IdentitySuffix =>
+        AppChannel.Current == PiPlayChannel.Default ? "v1" : AppChannel.Name;
+    private static string MutexName => $@"Local\PiPlay.SingleInstance.{IdentitySuffix}";
+    private static string PipeName => $"PiPlay.SingleInstance.{IdentitySuffix}";
 
     private Mutex? _mutex;
     private CancellationTokenSource? _pipeCts;

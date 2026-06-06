@@ -67,6 +67,21 @@ pwsh -File scripts\Test-UiSmoke.ps1
 
 Then run `docs/QA_Checklist.md` for shareable builds.
 
+### Stable publish (deploy a differentiable copy)
+
+To cut a **stable** copy that runs side by side with the dev app and deploy it for test use:
+
+```powershell
+.\scripts\Publish-Stable.ps1            # deploys to E:\Dev_test_implemenations\PiPlay (override with -DeployRoot)
+```
+
+This test-gates, builds the **Stable** channel (baked in via `-p:PiPlayChannel=Stable`), validates the
+publish metadata, and deploys a runnable copy — replacing binaries but **preserving** the `PiPlayData`
+runtime folder. A Stable copy is differentiable from dev: data beside the exe, its own single-instance
+identity, and a `PiPlay — Stable vX.Y.Z (bN)` title. After deploying, launch the deployed `PiPlay.exe` and
+confirm it opens its own window with an isolated `PiPlayData` folder beside it. Background and trade-offs:
+`docs/adr/0007-stable-channel-and-portable-data.md`.
+
 ## 5. Open the PR
 
 Include:

@@ -24,5 +24,7 @@ driven by the product and engineering docs.
 - WPF on .NET 10
 - Microsoft Edge WebView2 Evergreen Runtime
 
-See [docs/README.md](docs/README.md) for build/run commands and release notes.
+See [docs/README.md](docs/README.md) for build/run commands and release notes. A differentiable **stable**
+copy (own data folder, own single-instance identity, "PiPlay — Stable" title) can be built and deployed with
+`scripts\Publish-Stable.ps1` — see the [Feature workflow](docs/Feature_Workflow.md).
 ──────────────────────────────────────────────────────────────────────

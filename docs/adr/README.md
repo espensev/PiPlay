@@ -14,6 +14,7 @@ Short, dated records of significant decisions: the context, the decision, and it
 | [0004](0004-native-fake-pip.md) | Native "fake-PiP" architecture | Accepted |
 | [0005](0005-single-player.md) | Single Popout Player for now | Accepted |
 | [0006](0006-no-click-through.md) | No click-through / pass-through transparency | Accepted |
+| [0007](0007-stable-channel-and-portable-data.md) | Stable channel + portable data for deployed copies | Accepted |
 
 ## Template
 

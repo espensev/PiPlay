@@ -39,7 +39,7 @@
 
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0">
         <Image Source="Assets/piplay.ico" Width="20" Height="20" Margin="0,0,10,0" />
-        <TextBlock Text="PiPlay" FontSize="14" FontWeight="SemiBold"
+        <TextBlock x:Name="TitleText" Text="PiPlay" FontSize="14" FontWeight="SemiBold"
                    Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center" />
         <TextBlock x:Name="PinnedHint" Text="• Pinned" FontSize="12" Margin="10,0,0,0"
                    Foreground="{StaticResource AccentCyan}" VerticalAlignment="Center"

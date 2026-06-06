@@ -105,10 +105,24 @@ public static class YouTubeUrlHelper
         if (!m.Success || (!m.Groups[1].Success && !m.Groups[2].Success && !m.Groups[3].Success))
             return null;
 
-        var h = m.Groups[1].Success ? int.Parse(m.Groups[1].Value) : 0;
-        var min = m.Groups[2].Success ? int.Parse(m.Groups[2].Value) : 0;
-        var sec = m.Groups[3].Success ? int.Parse(m.Groups[3].Value) : 0;
-        return (h * 3600) + (min * 60) + sec;
+        // Out-of-range components (e.g. a pasted URL carrying t=99999999999h) must degrade to
+        // "no offset" - never throw or silently overflow into a wrong timestamp. Plain int.Parse +
+        // unchecked arithmetic did both, surfacing the generic crash dialog instead of failing
+        // gracefully (spec 17: broken URLs fail gracefully).
+        if (!TryParseComponent(m.Groups[1], out var h) ||
+            !TryParseComponent(m.Groups[2], out var min) ||
+            !TryParseComponent(m.Groups[3], out var sec))
+            return null;
+
+        long total = ((long)h * 3600) + ((long)min * 60) + sec;
+        return total is >= 0 and <= int.MaxValue ? (int)total : null;
+    }
+
+    /// <summary>Parse one optional h/m/s capture group; an unmatched group is 0, an out-of-range one fails.</summary>
+    private static bool TryParseComponent(Group group, out int value)
+    {
+        if (!group.Success) { value = 0; return true; }
+        return int.TryParse(group.Value, out value);
     }
 
     public static bool IsVideoId(string? id) => id is not null && VideoIdRegex.IsMatch(id);
