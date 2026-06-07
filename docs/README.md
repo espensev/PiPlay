@@ -2,7 +2,7 @@
 
 PiPlay is a quality-first Windows desktop utility for watching YouTube in a movable, resizable **Video Popout** window - browser picture-in-picture behavior, but driven by PiPlay's own native window so move, resize, pin, fade, and monitor-restore behave like a real desktop tool.
 
-**Status:** Draft 0.7 / Phase 2 landed | **Platform:** Windows | **Stack:** WPF on .NET 10 | Microsoft Edge WebView2 (Evergreen)
+**Status:** Draft 0.8 / Phase 2 landed | **Platform:** Windows | **Stack:** WPF on .NET 10 | Microsoft Edge WebView2 (Evergreen)
 
 ## Documents
 

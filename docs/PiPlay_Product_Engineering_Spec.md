@@ -1,6 +1,6 @@
 # PiPlay Product & Engineering Specification
 
-**Status:** Draft 0.7
+**Status:** Draft 0.8
 **Project:** PiPlay
 **Purpose:** Quality-first Windows desktop app for playing YouTube videos in a movable, resizable Video Popout window.
 **Primary platform:** Windows desktop
@@ -1352,9 +1352,10 @@ Delivered Phase 2 scope:
 
 Phase 2 landing status:
 
-- Stable build `v0.3.0` build `9` has release evidence for the deterministic test lane,
-  build gate, Stable publish/deploy, metadata validation, and deployed UI smoke in
-  `docs/evidence/phase2-release-v0.3.0-b9.md`.
+- Stable build `v0.3.0` build `10` has release evidence for the deterministic test lane,
+  build gate, Stable publish/deploy, metadata validation, deployed UI smoke, and UI Automation
+  title check in `docs/evidence/phase2-release-v0.3.0-b10.md`. Build 10 replaces the earlier
+  build 9 Stable deploy and is built from the final Phase 2 landing commit.
 - Account-backed/live YouTube rows in `docs/QA_Checklist.md` remain the release-candidate
   manual gate for Auto playback, controls fade/customization in live playback, profile edit/delete
   through the running Source Window, and privacy sign-in/sign-out invariants.
@@ -1503,3 +1504,4 @@ These references support the current technical direction and should be rechecked
 | 0.5 | 2026-05-30 | Made visual identity verifiable after the chrome UI review: added REQ-UI-01 (dark-theme completeness for all popup-bearing controls and tooltips) and REQ-UI-02 (icon-font contract, no `.notdef` glyphs); added the binary Chrome acceptance table and the section 22.5 Definition of Done; specified the minimal Source Window nav control set; and resolved the privacy-actions scope contradiction by marking REQ-PRIVACY-01/02 as Phase 2 consistently across sections 19, 23, and 24. |
 | 0.6 | 2026-06-06 | Folded current Phase 2 decisions into the spec: Auto playback-start behavior, profile edit/validation, privacy actions, Stable publish, and fixed-swatch Pin/Fade customization. Clarified that remaining Phase 2 work is manual release evidence plus the compact-mode placement decision only if compact mode is exposed before Phase 3. |
 | 0.7 | 2026-06-06 | Recorded Phase 2 landing evidence for Stable build `v0.3.0` build `9`; clarified that live/account-backed YouTube checks remain the release-candidate manual gate while compact-mode placement is deferred unless compact mode is exposed before Phase 3. |
+| 0.8 | 2026-06-07 | Recorded Stable build `v0.3.0` build `10` as the replacement deployed build from the final Phase 2 landing commit. |

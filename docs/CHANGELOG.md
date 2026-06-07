@@ -126,9 +126,10 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   decision in favour of playback-start. See `docs/superpowers/specs/2026-06-06-auto-popout-design.md`.
 
 ### Validation — Phase 2 landing
-- Stable Phase 2 evidence captured for `v0.3.0` build `9`: deterministic tests, non-mutating build
-  gate, Stable publish/deploy, metadata validation, and deployed Stable UI smoke. See
-  `docs/evidence/phase2-release-v0.3.0-b9.md`.
+- Stable Phase 2 evidence captured for `v0.3.0` build `10`: deterministic tests,
+  non-mutating build gate, Stable publish/deploy, metadata validation, and deployed Stable UI
+  smoke. Build 10 replaces the earlier build 9 Stable deploy and is built from the final Phase 2
+  landing commit. See `docs/evidence/phase2-release-v0.3.0-b10.md`.
 - Account-backed/live YouTube rows in `docs/QA_Checklist.md` remain the release-candidate manual
   gate; compact-mode placement stays deferred unless compact mode is exposed before Phase 3.
 

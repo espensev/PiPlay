@@ -1,6 +1,6 @@
 # PiPlay - Spec gaps and ownership boundaries
 
-**Status:** Working notes after Draft 0.7 Phase 2 landing. Resolved items have been folded into `PiPlay_Product_Engineering_Spec.md`; keep this file for the remaining open decisions and ownership boundaries.
+**Status:** Working notes after Draft 0.8 Phase 2 stable replacement. Resolved items have been folded into `PiPlay_Product_Engineering_Spec.md`; keep this file for the remaining open decisions and ownership boundaries.
 
 ## Remaining open product decisions
 
@@ -13,7 +13,7 @@
 
 | Item | Scope | CI impact |
 |---|---|---|
-| Release evidence | Phase 2 Stable build `v0.3.0` build `9` has automated release evidence in `docs/evidence/phase2-release-v0.3.0-b9.md`: deterministic tests, build gate, Stable publish/deploy, metadata validation, and deployed UI smoke. Account-backed/live YouTube rows in `docs/QA_Checklist.md` remain the release-candidate manual gate, not an implementation blocker. | No new CI gate needed; current deterministic tests cover schema, policy, XAML resources, and WPF construction seams. |
+| Release evidence | Phase 2 Stable build `v0.3.0` build `10` has automated release evidence in `docs/evidence/phase2-release-v0.3.0-b10.md`: deterministic tests, build gate, Stable publish/deploy, metadata validation, deployed UI smoke, and a UI Automation title check. Build 10 replaces the earlier build 9 Stable deploy and is built from the final Phase 2 landing commit. Account-backed/live YouTube rows in `docs/QA_Checklist.md` remain the release-candidate manual gate, not an implementation blocker. | No new CI gate needed; current deterministic tests cover schema, policy, XAML resources, and WPF construction seams. |
 | Compact-mode placement | Decide global/profile/both only before exposing compact mode broadly. | No CI change until compact mode implementation starts. |
 
 ## Resolved in the spec cleanup
