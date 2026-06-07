@@ -103,6 +103,38 @@ design's own staged risk plan.
   bridge, return/resume, playlists, restricted/embed-disabled handling, signed-in/out sessions, the
   shell↔IFrame-API path (origin/enablejsapi/DenyCors), and manual DPI resize smoke.
 
+## Live smoke (compact shell, 2026-06-07, no account)
+
+Ran the `run-piplay` driver against the public 19-second video `jNQXAC9IVRw` ("Me at the zoo") with
+the global `PlayerSettings.CompactMode` forced on, a fresh Debug build, and `-KillExisting`. This is
+verification-only — nothing already-committed changed. The previously-deferred "shell↔IFrame-API
+path" smoke now has **direct live evidence** for the core compact path:
+
+- **Mode threaded end to end.** Log: `Video Popout started at t=0s, wasPlaying=True, mode=Compact.`
+  then `Popout Player initialized (mode=Compact).`
+- **Shell loaded from `https://piplay.local/` and the IFrame API played the video.** The captured
+  Popout Player window rendered the live YouTube video playing (letterboxed) — not a blank frame and
+  not an externally-opened page. So `player.html → player-shell.js → iframe_api → new YT.Player`
+  initialized and autoplayed off the virtual host.
+- **Host↔shell bridge round-trip proven by the return timestamp.** On close the log reported
+  `Popout Player closed; lastKnownSeconds=19`. Compact mode disables the DOM sync timer
+  (`UsesDomSyncTimer(Compact) == false`), so the only possible source of that value is
+  `PlayerShellBridge.StateReceived` — i.e. the shell posted `state` messages that the host received,
+  parsed (`PlayerShellProtocol`), and wired into return state. `19` is the full video length (it
+  played to the end).
+- **Return/resume carried the bridge timestamp.** After the close, auto-popout restarted in compact
+  mode at `t=19s` — the bridge-sourced timestamp survived the return round-trip.
+
+Driver fix (incidental): `launch-and-capture.ps1` had an em-dash in its final `Write-Output` that
+broke parsing under the prescribed `powershell.exe -STA` (Windows PowerShell 5.1 reads the
+BOM-less UTF-8 file as ANSI, and the em-dash's `0x94` byte decodes to a curly quote that terminated
+the string). Replaced with an ASCII hyphen.
+
+**Still release-candidate QA (not exercised live):** signed-in/account-backed playback (this run was
+an anonymous/consent-passed session), playlists, restricted/embed-disabled handling plus the Task 6
+in-app fallback (Stage 4), explicit host→shell commands (play/pause/seek) under real use, Pin/Fade in
+compact, manual DPI resize, and CSP tuning.
+
 ## Disposition
 
 - Branch `feat/compact-player-stage1` (off `main`), working tree clean. **Not pushed; no PR opened**

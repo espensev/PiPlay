@@ -36,9 +36,19 @@ is kept as a reserved direct-embed fallback tier (design unresolved decision #1)
 **Verified locally (deterministic):** policy/precedence/min-size, the mode->URL and profile-override
 seams, `BuildShellUrl` + the host single-source-of-truth, the shell-host navigation allowlist, the
 host<->shell protocol, the shell-asset invariants (structure, no third-party origins, no credential
-strings, build-copy), and that every window constructs. **Release-candidate QA (live, not run):** a
-compact video actually playing through the IFrame API, timestamp/state flowing over the bridge,
-playlists, restricted/embed-disabled handling, and signed-in/out sessions.
+strings, build-copy), and that every window constructs.
+
+**Live smoke (2026-06-07, no account):** the core compact path is now live-verified via the
+`run-piplay` driver against a public video. The shell loaded from `https://piplay.local/` and the
+IFrame API played the video (not blank / not opened externally); the log shows `mode=Compact` on both
+the Video Popout start and the Popout Player init; and the host<->shell bridge round-trip is proven
+by the return timestamp (`lastKnownSeconds=19`, the full video length — sourced from
+`PlayerShellBridge.StateReceived` because compact disables the DOM sync timer), which also survived
+the return/resume round-trip (auto re-popout at `t=19s`). See the session worklog for the evidence.
+
+**Release-candidate QA (still live, not run):** signed-in/account-backed playback, playlists,
+restricted/embed-disabled handling plus the Task 6 in-app fallback (Stage 4), explicit host->shell
+commands (play/pause/seek) under real use, Pin/Fade in compact, manual DPI resize, and CSP tuning.
 
 **Why stop before Stage 4:** Task 6's robust embed-disabled detection needs live IFrame-API error
 behavior to design against, and the in-app error→normal fallback is a Stage-4 concern. Normal page
@@ -84,7 +94,7 @@ release-candidate QA.
     or token-bearing strings in shell URLs/messages.
   - Commit: `feat(player): add local compact shell`
 
-- [x] **Task 5 - Host/shell messaging bridge.** *(Done: pure versioned `PlayerShellProtocol` (shell: ready/state/error; host: play/pause/seek/requestState, string-JSON transport) + host-side `PlayerShellBridge`; `player-shell.js` implements every protocol type. Compact return state comes from the bridge (IFrame API); normal keeps `YouTubeDomBridge`. Protocol + asset tests are deterministic; live compact return/resume smoke remains a release-candidate check.)*
+- [x] **Task 5 - Host/shell messaging bridge.** *(Done: pure versioned `PlayerShellProtocol` (shell: ready/state/error; host: play/pause/seek/requestState, string-JSON transport) + host-side `PlayerShellBridge`; `player-shell.js` implements every protocol type. Compact return state comes from the bridge (IFrame API); normal keeps `YouTubeDomBridge`. Protocol + asset tests are deterministic; the live compact return/resume smoke passed on 2026-06-07 — `lastKnownSeconds` came from the bridge with the DOM timer disabled, and the timestamp survived return/resume. Signed-in/playlist/restricted live QA still pending.)*
   - Add a host-side `PlayerShellBridge` and shell message protocol.
   - Shell sends `ready`, periodic/current state, playback state changes, and errors.
   - Host sends `play`, `pause`, `seek`, and `requestState` commands.
