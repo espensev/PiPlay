@@ -1,7 +1,7 @@
-# Session worklog — borderless resize zones landing + compact player Stage 1 (2026-06-07)
+# Session worklog — borderless resize zones landing + compact player Stages 1-3 (2026-06-07)
 
 Saved record of the working session that produced branch `feat/compact-player-stage1`
-(commits `dceb0cf` borderless, `0433095` compact Stage 1).
+(commits: `dceb0cf` borderless, `0433095` compact Stage 1, `c0982f1` worklog, compact Stages 2-3).
 
 ## Request
 
@@ -43,6 +43,13 @@ design's own staged risk plan.
   apply a profile's compact preference to an unrelated video. The decision lives in the pure
   `PlaybackModePolicy.ResolveProfileOverride`.
 - **Hold push/PR for the user.** Committing per the flow is in-scope; opening a PR is outward-facing.
+- **(Mid-session user decision)** After Stage 1 landed, asked the user: stop at Stage 1, or continue
+  into Stages 2-3 (shell + IFrame bridge are unit-testable here; only live behavior needs their QA)?
+  User chose **continue to Stages 2-3** and **hold the PR**. So compact evolved from direct embed to
+  **shell mode**: the local `player.html` + IFrame API + a host↔shell bridge. Task 6 (in-app
+  embed-disabled→normal fallback) and a tuned shell CSP stay deferred to Stage 4 / live QA — the CSP
+  must be enumerated against the real IFrame-API requests live before a restrictive policy can ship
+  without breaking playback.
 
 ## Implementation
 
@@ -65,28 +72,47 @@ design's own staged risk plan.
     `Ui/WpfRuntimeTests`, `Ui/XamlInvariantTests`.
   - Docs: `CHANGELOG.md`, `PiPlay_Product_Engineering_Spec.md`, `SPEC_GAPS_AND_OWNERSHIP.md`, the
     compact plan, the QA checklist (compact rows were already present from planning).
+- New (Stages 2-3): `Services/PlayerShellProtocol.cs` (pure host↔shell contract),
+  `Services/PlayerShellBridge.cs` (host bridge), `PlayerShell/player.html` + `player-shell.js`
+  (local shell driving the YouTube IFrame API), and tests `PlayerShellProtocolTests` +
+  `PlayerShellAssetTests`.
+- Edited (Stages 2-3): `NavigationPolicy` (SSOT shell host + Player-only allowlist),
+  `WebViewEnvironmentService` (virtual-host mapping, DenyCors), `YouTubeUrlHelper` (`BuildShellUrl`),
+  `PlaybackModePolicy` (compact→shell URL, `UsesDomSyncTimer`), `PlayerWindow` (compact-shell wiring:
+  map-before-navigate, bridge→return-state, DOM timer normal-only, bridge dispose),
+  `MainWindow` (pass shell base), `PiPlay.csproj` (copy shell assets), and the matching tests/docs.
 
 ## Verification
 
 - **Deterministic gate (local, matches CI):** `dotnet test PiPlay.sln --configuration Debug` =
-  **293/293, 0 skipped** (Logic/Markup/Wpf lanes); `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump
-  -NoBuildNumberBump` = **0 warnings / 0 errors**. Baseline before this session was 254/254.
-- **Adversarial review (workflow, 12 agents):** five dimensions (correctness, YouTube
-  compliance/privacy, ownership/terminology, coverage, docs accuracy), each finding independently
-  verified. 7 findings → 5 confirmed real+material, 2 dismissed. All 5 fixed: extracted the pure
-  `BuildPopoutUrl` and `ResolveProfileOverride` seams with tests (closed two untested-behavior
-  gaps); made the restored-placement clamp true-by-construction via `EnsureMinSize` + unit tests
-  (removed a comment/acceptance-criterion over-claim); re-scoped a `REQ-PROFILE-01` citation.
-- **Not run / deferred to release-candidate QA:** live compact playback, return/resume, playlist
-  behavior, the embed-page DOM read, manual DPI resize smoke. These remain the manual gate.
+  **330/330, 0 skipped** (Logic/Markup/Wpf lanes) at session end; `.\Build-PiPlay.ps1 -Stage Build
+  -NoVersionBump -NoBuildNumberBump` = **0 warnings / 0 errors**. Baseline before this session was
+  254/254 (→ 293 after Stage 1 → 330 after Stages 2-3).
+- **Two adversarial review passes (workflow, 12 agents each), each finding independently verified:**
+  - Stage 1 review (5 dimensions): 7 findings → 5 confirmed, 2 dismissed. Fixed: extracted the pure
+    `BuildPopoutUrl` + `ResolveProfileOverride` seams with tests; made the restored-placement clamp
+    true-by-construction via `EnsureMinSize` + tests; re-scoped a `REQ-PROFILE-01` citation.
+  - Stage 2-3 review (6 dimensions incl. security + YouTube compliance): 6 findings → 5 confirmed,
+    1 dismissed. Fixed: `DenyCors` least-privilege virtual host; protocol field-name single source of
+    truth + a JS↔C# drift guard; a pure `UsesDomSyncTimer` predicate pinning the one-timestamp-source
+    invariant; malformed-field parse coverage; a stale plan note. The security surface was confirmed
+    sound (exact host match, no credential leakage, the bridge unreachable from the cross-origin
+    YouTube iframe). Proactively removed an untested CSP that would likely have broken the live
+    IFrame API (deferred to live-QA tuning).
+- **Not run / deferred to release-candidate QA:** live compact playback, timestamp/state over the
+  bridge, return/resume, playlists, restricted/embed-disabled handling, signed-in/out sessions, the
+  shell↔IFrame-API path (origin/enablejsapi/DenyCors), and manual DPI resize smoke.
 
 ## Disposition
 
-- Branch `feat/compact-player-stage1` (off `main`), two commits, working tree clean, 31 files vs
-  `main`. **Not pushed; no PR opened** — held for the user (outward-facing). PR scope (combined vs
-  split borderless) and whether to continue into Stage 2–3 are open user decisions.
+- Branch `feat/compact-player-stage1` (off `main`), working tree clean. **Not pushed; no PR opened**
+  — held for the user (outward-facing). Open: PR scope (combined vs split borderless). Compact is
+  implemented through **Stage 3** (shell + IFrame bridge); **Stage 4** (in-app embed-disabled→normal
+  fallback + tuned CSP) and the live release QA remain.
 
 ## Commits
 
+- (Stages 2-3) feat(player): compact player Stage 2-3 — local shell + YouTube IFrame-API bridge
+- `c0982f1` docs(worklog): record the 2026-06-07 session (this file; updated to cover Stages 1-3)
 - `0433095` feat(player): compact player mode — Stage 1 (policy + direct embed)
 - `dceb0cf` feat(window): land borderless resize zones (REQ-WINDOW-02)
