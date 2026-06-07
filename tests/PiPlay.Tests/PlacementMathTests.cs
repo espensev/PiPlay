@@ -1,3 +1,4 @@
+using PiPlay.Models;
 using PiPlay.Services;
 
 namespace PiPlay.Tests;
@@ -51,5 +52,69 @@ public class PlacementMathTests
         var c = PlacementMath.Clamp(r, work2);
         Assert.True(c.Left >= work2.Left && c.Right <= work2.Right);
         Assert.True(c.Top >= work2.Top && c.Bottom <= work2.Bottom);
+    }
+
+    // --- EnsureMinSize: raise a saved sub-minimum placement up to the mode floor (compact 480x270) ---
+
+    [Fact]
+    public void EnsureMinSize_raises_a_sub_minimum_placement_to_the_floor()
+    {
+        // A normal-mode 320x180 placement reopened in compact mode (480x270) must clamp up.
+        var saved = new PlacementData { X = 100, Y = 50, Width = 320, Height = 180, DpiScale = 1.0 };
+
+        var clamped = PlacementMath.EnsureMinSize(saved, 480, 270);
+
+        Assert.Equal(480, clamped.Width);
+        Assert.Equal(270, clamped.Height);
+        Assert.Equal(100, clamped.X);   // position preserved
+        Assert.Equal(50, clamped.Y);
+    }
+
+    [Fact]
+    public void EnsureMinSize_leaves_an_already_large_placement_unchanged()
+    {
+        var saved = new PlacementData { X = 0, Y = 0, Width = 960, Height = 540, DpiScale = 1.0 };
+        var clamped = PlacementMath.EnsureMinSize(saved, 480, 270);
+        Assert.Equal(960, clamped.Width);
+        Assert.Equal(540, clamped.Height);
+    }
+
+    [Fact]
+    public void EnsureMinSize_converts_the_dip_minimum_with_the_saved_dpi_scale()
+    {
+        // Physical px bounds at 150%: the 480x270 DIP floor is 720x405 physical px.
+        var saved = new PlacementData { Width = 600, Height = 300, DpiScale = 1.5 };
+        var clamped = PlacementMath.EnsureMinSize(saved, 480, 270);
+        Assert.Equal(720, clamped.Width);
+        Assert.Equal(405, clamped.Height);
+    }
+
+    [Fact]
+    public void EnsureMinSize_treats_a_non_positive_dpi_scale_as_one()
+    {
+        // Older/partial saved data with DpiScale = 0 must not zero the floor.
+        var saved = new PlacementData { Width = 100, Height = 100, DpiScale = 0 };
+        var clamped = PlacementMath.EnsureMinSize(saved, 480, 270);
+        Assert.Equal(480, clamped.Width);
+        Assert.Equal(270, clamped.Height);
+    }
+
+    [Fact]
+    public void EnsureMinSize_preserves_monitor_and_maximized_metadata()
+    {
+        var saved = new PlacementData
+        {
+            X = 10, Y = 20, Width = 100, Height = 100, Maximized = true,
+            MonitorDeviceName = @"\\.\DISPLAY2",
+            MonitorWorkArea = new RectData { X = 1920, Y = 0, Width = 1920, Height = 1080 },
+            DpiScale = 1.0,
+        };
+
+        var clamped = PlacementMath.EnsureMinSize(saved, 480, 270);
+
+        Assert.True(clamped.Maximized);
+        Assert.Equal(@"\\.\DISPLAY2", clamped.MonitorDeviceName);
+        Assert.NotNull(clamped.MonitorWorkArea);
+        Assert.Equal(1920, clamped.MonitorWorkArea!.X);
     }
 }

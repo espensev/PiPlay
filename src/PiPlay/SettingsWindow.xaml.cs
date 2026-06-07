@@ -18,22 +18,29 @@ internal enum PrivacyAction { None, ResetAppState, ClearBrowserData }
 public partial class SettingsWindow : Window
 {
     internal PrivacyAction RequestedAction { get; private set; } = PrivacyAction.None;
+
+    /// <summary>True when any persisted player preference changed (accents, fade delay, or compact
+    /// mode), so MainWindow knows to persist and re-apply on close.</summary>
     internal bool AppearanceChanged { get; private set; }
     internal string PinAccent { get; private set; }
     internal string FadeAccent { get; private set; }
     internal int FadeIdleDelayMs { get; private set; }
+    internal bool CompactMode { get; private set; }
 
     public SettingsWindow(
         bool isBrowserReady,
         string? pinAccent = PlayerAppearancePolicy.DefaultAccent,
         string? fadeAccent = PlayerAppearancePolicy.DefaultAccent,
-        int fadeIdleDelayMs = PlayerAppearancePolicy.DefaultFadeIdleDelayMs)
+        int fadeIdleDelayMs = PlayerAppearancePolicy.DefaultFadeIdleDelayMs,
+        bool compactMode = false)
     {
         InitializeComponent();
 
         PinAccent = PlayerAppearancePolicy.NormalizeAccent(pinAccent);
         FadeAccent = PlayerAppearancePolicy.NormalizeAccent(fadeAccent);
         FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
+        CompactMode = compactMode;
+        CompactModeToggle.IsChecked = compactMode;
         ApplyAppearanceSelections();
 
         ResetDescriptionText.Text = PrivacyService.ResetDescription;
@@ -90,6 +97,12 @@ public partial class SettingsWindow : Window
             AppearanceChanged = true;
         }
         ApplyAppearanceSelections();
+    }
+
+    private void CompactModeToggle_Click(object sender, RoutedEventArgs e)
+    {
+        CompactMode = CompactModeToggle.IsChecked == true;
+        AppearanceChanged = true;
     }
 
     private void ResetAppStateButton_Click(object sender, RoutedEventArgs e)

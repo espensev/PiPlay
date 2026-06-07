@@ -415,15 +415,15 @@ public partial class MainWindow : Window
     {
         if (ProfilesCombo.SelectedItem is not Profile original) return;
 
-        var edited = Prompt.EditProfile(this, original.Name, original.Url);
+        var edited = Prompt.EditProfile(this, original.Name, original.Url, original.Mode);
         if (edited is null) return;   // cancelled (and an invalid edit never gets here)
 
-        // Carry the existing Phase 2 fields through unchanged; only Name/Url are editable here.
+        // Name, Url, and the Phase 3 playback Mode are editable; carry the other Phase 2 fields through.
         var updated = new Profile
         {
             Name = edited.Value.Name,
             Url = edited.Value.Url,
-            Mode = original.Mode,
+            Mode = PlaybackModePolicy.NormalizeProfileMode(edited.Value.Mode),
             Topmost = original.Topmost,
             FadeEnabled = original.FadeEnabled,
             Bounds = original.Bounds,
@@ -477,7 +477,8 @@ public partial class MainWindow : Window
             isBrowserReady: CanClearBrowserData,
             pinAccent: _settings.Player.PinAccent,
             fadeAccent: _settings.Player.FadeAccent,
-            fadeIdleDelayMs: _settings.Player.FadeIdleDelayMs)
+            fadeIdleDelayMs: _settings.Player.FadeIdleDelayMs,
+            compactMode: _settings.Player.CompactMode)
         {
             Owner = this,
             Topmost = Topmost,
@@ -493,7 +494,7 @@ public partial class MainWindow : Window
 
         if (dialog.AppearanceChanged)
         {
-            ApplyAppearanceSettings(dialog.PinAccent, dialog.FadeAccent, dialog.FadeIdleDelayMs);
+            ApplyPlayerPreferences(dialog.PinAccent, dialog.FadeAccent, dialog.FadeIdleDelayMs, dialog.CompactMode);
         }
 
         switch (dialog.RequestedAction)
@@ -535,11 +536,13 @@ public partial class MainWindow : Window
         LoadProfilesIntoCombo();
     }
 
-    private void ApplyAppearanceSettings(string pinAccent, string fadeAccent, int fadeIdleDelayMs)
+    private void ApplyPlayerPreferences(string pinAccent, string fadeAccent, int fadeIdleDelayMs, bool compactMode)
     {
         _settings.Player.PinAccent = PlayerAppearancePolicy.NormalizeAccent(pinAccent);
         _settings.Player.FadeAccent = PlayerAppearancePolicy.NormalizeAccent(fadeAccent);
         _settings.Player.FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
+        // Global compact-mode default takes effect on the NEXT popout; an open player keeps its mode.
+        _settings.Player.CompactMode = compactMode;
 
         ApplySourceAppearance();
         _player?.ApplyAppearance(_settings.Player.PinAccent, _settings.Player.FadeAccent, _settings.Player.FadeIdleDelayMs);
@@ -641,25 +644,31 @@ public partial class MainWindow : Window
             // pause/resume) isn't read as a fresh play that should re-pop it (spec §6.1).
             _autoLastHandledVideoId = target.VideoId;
 
-            var popoutUrl = YouTubeUrlHelper.BuildWatchUrl(target, seconds);
+            // 2b) Resolve the effective playback mode (spec 10): a matching profile override wins,
+            // otherwise the global compact default. Compact mode uses the embedded YouTube player;
+            // normal mode keeps the full watch page. Normal remains the default and the fallback.
+            var mode = PlaybackModePolicy.ResolveEffectiveMode(
+                ResolveActiveProfileMode(target.VideoId), _settings.Player.CompactMode);
+            var popoutUrl = PlaybackModePolicy.BuildPopoutUrl(mode, target, seconds);
 
             // 3) Pause the source and show the placeholder (Q-1: no duplicate audio).
             await YouTubeDomBridge.PauseAsync(core);
             ShowSourcePlaceholder(true);
 
-            // 4) Create the single Popout Player on the shared environment.
+            // 4) Create the single Popout Player on the shared environment, in the resolved mode.
             var env = App.Current.WebViewEnvironment.Environment
                       ?? await App.Current.WebViewEnvironment.EnsureCreatedAsync();
 
             _player = new PlayerWindow(env, popoutUrl, _settings.Player.Topmost,
                 _settings.Player.Placement, _settings.Player.LastWidth, _settings.Player.LastHeight,
                 _settings.Player.FadeEnabled, _settings.Player.PinAccent, _settings.Player.FadeAccent,
-                _settings.Player.FadeIdleDelayMs);
+                _settings.Player.FadeIdleDelayMs, mode);
             _player.PlayerClosed += Player_OnClosed;
             _player.Show();
 
             if (target.FallbackReason is not null) Log.Info($"Popout fallback: {target.FallbackReason}");
-            Log.Info($"Video Popout started at t={seconds?.ToString() ?? "0"}s, wasPlaying={_sourceWasPlayingAtPopout}.");
+            Log.Info($"Video Popout started at t={seconds?.ToString() ?? "0"}s, " +
+                     $"wasPlaying={_sourceWasPlayingAtPopout}, mode={mode}.");
         }
         catch (Exception ex)
         {
@@ -675,6 +684,23 @@ public partial class MainWindow : Window
             _popoutInProgress = false;
             PopOutButton.IsEnabled = true;
         }
+    }
+
+    /// <summary>
+    /// The selected profile's playback-mode override for this popout. REQ-PROFILE-01 governs the
+    /// per-field precedence (a profile field overrides the global default); the pure
+    /// <see cref="PlaybackModePolicy.ResolveProfileOverride"/> additionally scopes the override to
+    /// the profile's own video, so a stale combo selection plus manual navigation can't apply a
+    /// profile's compact preference to an unrelated video. Null when no profile is selected, the
+    /// profile carries no mode, or the popout target is not that profile's video.
+    /// </summary>
+    private string? ResolveActiveProfileMode(string? targetVideoId)
+    {
+        if (ProfilesCombo.SelectedItem is not Profile profile) return null;
+        var profileVideoId = YouTubeUrlHelper.TryParse(profile.Url, out var profileTarget)
+            ? profileTarget.VideoId
+            : null;
+        return PlaybackModePolicy.ResolveProfileOverride(profile.Mode, profileVideoId, targetVideoId);
     }
 
     private static async Task<YouTubeTarget?> ResolvePopoutTargetAsync(CoreWebView2 core)

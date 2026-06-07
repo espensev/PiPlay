@@ -23,6 +23,7 @@ public partial class PlayerWindow : Window
     private readonly CoreWebView2Environment _environment;
     private readonly string _url;
     private readonly PlacementData? _placement;
+    private readonly PlaybackMode _mode;
     private readonly DispatcherTimer _syncTimer;
     private readonly PlayerReturnState _returnState = new();
 
@@ -51,14 +52,27 @@ public partial class PlayerWindow : Window
         bool fadeEnabled,
         string pinAccent = PlayerAppearancePolicy.DefaultAccent,
         string fadeAccent = PlayerAppearancePolicy.DefaultAccent,
-        int fadeIdleDelayMs = PlayerAppearancePolicy.DefaultFadeIdleDelayMs)
+        int fadeIdleDelayMs = PlayerAppearancePolicy.DefaultFadeIdleDelayMs,
+        PlaybackMode mode = PlaybackMode.Normal)
     {
         InitializeComponent();
         BorderlessWindowHelper.EnableExpandedResizeZones(this);
 
         _environment = environment;
         _url = url;
-        _placement = placement;
+        _mode = mode;
+
+        // Mode-specific minimum (spec 10.2 / 16.1): compact embed mode needs a larger floor than the
+        // 320x180 normal minimum so the embedded player controls stay usable. MinWidth/MinHeight set
+        // the floor and clamp the launch size up (the Math.Max below). A saved sub-minimum placement
+        // is raised to the same floor via PlacementMath.EnsureMinSize (the saved bounds are physical
+        // pixels; EnsureMinSize converts the DIP minimum with the saved DPI scale), so a window
+        // restored across modes never opens below the mode minimum.
+        var minWidth = PlaybackModePolicy.MinWidthFor(mode);
+        var minHeight = PlaybackModePolicy.MinHeightFor(mode);
+        MinWidth = minWidth;
+        MinHeight = minHeight;
+        _placement = placement is null ? null : PlacementMath.EnsureMinSize(placement, minWidth, minHeight);
 
         Width = Math.Max(MinWidth, defaultWidth);
         Height = Math.Max(MinHeight, defaultHeight);
@@ -107,7 +121,7 @@ public partial class PlayerWindow : Window
             core.NavigationCompleted += Core_NavigationCompleted;
 
             core.Navigate(_url);
-            Log.Info("Popout Player initialized.");
+            Log.Info($"Popout Player initialized (mode={_mode}).");
         }
         catch (Exception ex)
         {

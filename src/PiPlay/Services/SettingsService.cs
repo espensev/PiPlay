@@ -172,6 +172,10 @@ public sealed class SettingsService
         if (s.SchemaVersion <= 0) s.SchemaVersion = AppSettings.CurrentSchemaVersion;
 
         s.Profiles.RemoveAll(p => p is null || string.IsNullOrWhiteSpace(p.Name));
+        // Repair the per-profile playback mode to the durable vocabulary (null/normal/compact),
+        // folding the legacy "embed" alias to "compact" and unknown values to null (Phase 3).
+        foreach (var p in s.Profiles)
+            p.Mode = PlaybackModePolicy.NormalizeProfileMode(p.Mode);
         return s;
     }
 }

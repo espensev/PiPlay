@@ -129,6 +129,23 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   pause/resume won't either) and **excludes Shorts/embeds**. Resolves the open "Auto trigger timing"
   decision in favour of playback-start. See `docs/superpowers/specs/2026-06-06-auto-popout-design.md`.
 
+### Added — Phase 3 (compact player, Stage 1)
+- **Compact player mode — settings, profile override, and direct-embed launch (spec 10.2).** A new
+  global **Settings → Playback → Compact player** preference (off by default) makes new popouts open
+  in YouTube's embedded player instead of the full watch page; **Normal page mode stays the default
+  and the fallback**. Saved profiles gain a per-profile **playback mode** override in the profile
+  editor — *Use global default*, *Normal page*, or *Compact player* — that wins over the global
+  default (REQ-PROFILE-01); the override is additionally scoped to that profile's own video so a
+  stale combo selection can't apply compact to an unrelated video. Mode resolution, the durable
+  `null`/`normal`/`compact`
+  vocabulary (with the legacy internal `embed` token folded to `compact`), and the separate
+  **480×270 compact minimum** (vs. 320×180 normal) live in a pure `PlaybackModePolicy` with full
+  unit coverage; the compact Popout Player clamps its launch size up to that minimum. This is the
+  conservative **Stage 1** of the compact-player sweep — the local `player.html` shell, the YouTube
+  IFrame-API messaging bridge, and the embed-disabled error→normal fallback are the next,
+  live-verified stages. Live compact playback, return/resume, and playlist behavior remain
+  release-candidate QA. See `docs/superpowers/specs/2026-06-07-compact-player-sweep-design.md`.
+
 ### Validation — Phase 2 landing
 - Stable Phase 2 evidence captured for `v0.3.0` build `10`: deterministic tests,
   non-mutating build gate, Stable publish/deploy, metadata validation, and deployed Stable UI

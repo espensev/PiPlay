@@ -13,7 +13,7 @@
 | Item | Ready status | Notes |
 |---|---|---|
 | Borderless resize zones | Implemented in working tree | Previous implementation was `WindowChrome.ResizeBorderThickness="6"` on both primary windows. `REQ-WINDOW-02` now uses 10 DIP edge resize zones plus 32 DIP corner length via native hit testing, without adding a visible size grip or touch-first 40 x 40 target. Design: `docs/superpowers/specs/2026-06-07-borderless-resize-zones-design.md`; plan: `docs/superpowers/plans/2026-06-07-borderless-resize-zones.md`. Manual DPI resize QA remains a release-candidate check. |
-| Compact player sweep | Ready for implementation | Larger Phase 3 plan covering compact placement, direct embed, local `player.html`, virtual-host mapping, IFrame API messaging, fallback behavior, docs, and release QA. Design: `docs/superpowers/specs/2026-06-07-compact-player-sweep-design.md`; plan: `docs/superpowers/plans/2026-06-07-compact-player-sweep.md`. |
+| Compact player sweep | Stage 1 implemented in working tree | Stage 1 (mode policy + global/profile placement UI + direct-embed launch with a separate 480×270 compact minimum) is implemented with logic/markup/WPF coverage; `PlaybackModePolicy` owns the durable `null`/`normal`/`compact` vocabulary and global/profile precedence. Stages 2–4 (local `player.html` shell + virtual-host mapping, YouTube IFrame-API messaging bridge, embed-disabled error→normal fallback, and live release QA) are intentionally deferred and gated on live Stage-1 verification, per the design's risk staging (do not stack a JS messaging layer on an unverified embed path). Design: `docs/superpowers/specs/2026-06-07-compact-player-sweep-design.md`; plan: `docs/superpowers/plans/2026-06-07-compact-player-sweep.md`. |
 
 ## Phase 2 landing status
 

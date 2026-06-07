@@ -327,6 +327,72 @@ public class WpfRuntimeTests : IDisposable
         Assert.NotNull(url.Template.FindName("PART_ContentHost", url));
     });
 
+    // --- Compact player mode (Phase 3, Stage 1): mode-specific minimums + settings/profile UI ---
+
+    [Fact]
+    public void PlayerWindow_uses_normal_minimum_size_by_default() => StaTestThread.Invoke(() =>
+    {
+        var w = NewPlayer();   // no mode argument -> PlaybackMode.Normal
+        Assert.Equal(PlaybackModePolicy.NormalMinWidth, w.MinWidth);
+        Assert.Equal(PlaybackModePolicy.NormalMinHeight, w.MinHeight);
+    });
+
+    [Fact]
+    public void PlayerWindow_uses_compact_minimum_and_clamps_launch_size_up() => StaTestThread.Invoke(() =>
+    {
+        // Launch below the compact floor: MinWidth/MinHeight must be the compact minimum and the
+        // resolved launch size must clamp up to it (spec 10.2: no 320x180 for embed mode).
+        var w = new PlayerWindow(
+            environment: null!,
+            url: "https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1",
+            topmost: false,
+            placement: null,
+            defaultWidth: 320,
+            defaultHeight: 180,
+            fadeEnabled: true,
+            mode: PlaybackMode.Compact);
+
+        Assert.Equal(PlaybackModePolicy.CompactMinWidth, w.MinWidth);
+        Assert.Equal(PlaybackModePolicy.CompactMinHeight, w.MinHeight);
+        Assert.True(w.Width >= PlaybackModePolicy.CompactMinWidth, $"Width {w.Width} below compact floor.");
+        Assert.True(w.Height >= PlaybackModePolicy.CompactMinHeight, $"Height {w.Height} below compact floor.");
+    });
+
+    [Fact]
+    public void SettingsWindow_reflects_and_toggles_compact_mode() => StaTestThread.Invoke(() =>
+    {
+        var on = new SettingsWindow(isBrowserReady: true, compactMode: true);
+        Assert.True(on.CompactMode);
+        Assert.True(((ToggleButton)on.FindName("CompactModeToggle")!).IsChecked);
+
+        var w = new SettingsWindow(isBrowserReady: true, compactMode: false);
+        Assert.False(w.CompactMode);
+        var toggle = (ToggleButton)w.FindName("CompactModeToggle")!;
+        Assert.False(toggle.IsChecked);   // strictly off, not merely "not true" (rejects null too)
+
+        // Simulate a user toggle: the checked state flips, then the Click handler reads it.
+        toggle.IsChecked = true;
+        toggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        Assert.True(w.CompactMode);
+        Assert.True(w.AppearanceChanged);   // any persisted player preference change is flagged
+    });
+
+    [Fact]
+    public void Profile_mode_picker_round_trips_the_durable_token() => StaTestThread.Invoke(() =>
+    {
+        Assert.Equal("compact", Prompt.BuildModePicker("compact").SelectedMode());
+        Assert.Equal("normal", Prompt.BuildModePicker("normal").SelectedMode());
+        Assert.Null(Prompt.BuildModePicker(null).SelectedMode());
+        Assert.Equal("compact", Prompt.BuildModePicker("embed").SelectedMode());   // legacy alias
+        Assert.Null(Prompt.BuildModePicker("bogus").SelectedMode());               // unknown -> global
+
+        // Changing the selection is reflected by the getter (covers the editor round-trip).
+        var (element, selectedMode) = Prompt.BuildModePicker(null);
+        var combo = (ComboBox)element;
+        combo.SelectedIndex = 2;   // "Compact player"
+        Assert.Equal("compact", selectedMode());
+    });
+
     // --- Dark theme is actually wired at runtime (rebuts the stale "renders light" reports) ---
 
     [Fact]

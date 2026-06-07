@@ -104,6 +104,39 @@ public class SettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public void Profile_mode_is_normalized_on_load()
+    {
+        // Legacy "embed" -> durable "compact"; unknown -> null (use global); "compact"/"normal" kept;
+        // an empty string is treated as unset (null). Proves SettingsService.Sanitize repairs modes.
+        File.WriteAllText(_path,
+            "{\"profiles\":[" +
+            "{\"name\":\"Legacy\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"mode\":\"embed\"}," +
+            "{\"name\":\"Bogus\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"mode\":\"hologram\"}," +
+            "{\"name\":\"Keep\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"mode\":\"compact\"}," +
+            "{\"name\":\"Blank\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"mode\":\"\"}]}");
+        var svc = new SettingsService(_path);
+
+        var loaded = svc.Load();
+
+        Assert.Equal("compact", loaded.Profiles.Single(p => p.Name == "Legacy").Mode);
+        Assert.Null(loaded.Profiles.Single(p => p.Name == "Bogus").Mode);
+        Assert.Equal("compact", loaded.Profiles.Single(p => p.Name == "Keep").Mode);
+        Assert.Null(loaded.Profiles.Single(p => p.Name == "Blank").Mode);
+    }
+
+    [Fact]
+    public void Compact_mode_global_default_is_off_and_roundtrips()
+    {
+        var svc = new SettingsService(_path);
+        Assert.False(svc.Load().Player.CompactMode);   // off by default (and for a missing property)
+
+        var s = new AppSettings();
+        s.Player.CompactMode = true;
+        svc.Save(s);
+        Assert.True(svc.Load().Player.CompactMode);
+    }
+
+    [Fact]
     public void Reset_recreates_the_file_with_defaults()
     {
         var svc = new SettingsService(_path);

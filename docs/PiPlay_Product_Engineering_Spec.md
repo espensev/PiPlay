@@ -534,6 +534,7 @@ Quality requirement:
 
 - Compact mode must be opt-in until it matches normal mode reliability for the common path.
 - Compact embed/IFrame mode must respect YouTube embedded-player viewport constraints. Do not use the normal-mode 320x180 minimum for embed mode; prefer at least 480x270 for a 16:9 player with controls, or define a separate compact-mode minimum before shipping.
+- **Resolved (Phase 3, Stage 1):** compact mode uses a separate **480x270** minimum window size, distinct from the 320x180 normal minimum. The minimums and the global/profile mode precedence are owned by the pure `PlaybackModePolicy` (`Profile.Mode` ?? global `PlayerSettings.CompactMode`).
 
 ### 10.3 Mode C — PiPlay shell mode with YouTube IFrame API
 

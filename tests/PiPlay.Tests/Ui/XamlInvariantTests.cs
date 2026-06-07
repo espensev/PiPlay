@@ -88,6 +88,7 @@ public class XamlInvariantTests
             "PinAccentCyanSwatch", "PinAccentVioletSwatch", "PinAccentGreenSwatch", "PinAccentAmberSwatch",
             "FadeAccentCyanSwatch", "FadeAccentVioletSwatch", "FadeAccentGreenSwatch", "FadeAccentAmberSwatch",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
+            "CompactModeToggle",
         }},
     };
 
@@ -234,6 +235,7 @@ public class XamlInvariantTests
             "PinAccentCyanSwatch", "PinAccentVioletSwatch", "PinAccentGreenSwatch", "PinAccentAmberSwatch",
             "FadeAccentCyanSwatch", "FadeAccentVioletSwatch", "FadeAccentGreenSwatch", "FadeAccentAmberSwatch",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
+            "CompactModeToggle",
         })
         {
             Assert.False(string.IsNullOrWhiteSpace(byName[name].Attribute("ToolTip")?.Value),
