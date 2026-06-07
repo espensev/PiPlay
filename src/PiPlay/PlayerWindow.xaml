@@ -18,7 +18,7 @@
        dragging is handled explicitly on the chrome strip so there's no accidental maximize. -->
   <WindowChrome.WindowChrome>
     <WindowChrome CaptionHeight="0"
-                  ResizeBorderThickness="6"
+                  ResizeBorderThickness="10"
                   CornerRadius="0"
                   GlassFrameThickness="0"
                   UseAeroCaptionButtons="False" />

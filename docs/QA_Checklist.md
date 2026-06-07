@@ -33,7 +33,9 @@ Mark each: pass / issue (link) / skipped.
 
 ## 2. Window quality (Q-7)
 - [ ] Player drags smoothly from the chrome area; video controls still work.
-- [ ] Edge/corner resize feels native; normal page-mode player is usable at 320x180.
+- [ ] **Phase 3 — resize zones:** edge resize feels native on the Source Window and Popout Player: left/right/top/bottom resize cursors appear without pixel-perfect aiming, matching the 10 DIP target in `REQ-WINDOW-02`.
+- [ ] **Phase 3 — resize zones:** corner resize feels native on the Source Window and Popout Player: each corner gives diagonal resize over the first/last ~32 DIP along the edge band, and normal page-mode player remains usable at 320x180.
+- [ ] **Phase 3 — resize zones:** expanded resize zones do not swallow controls: Source caption buttons and Popout Fade/Pin/Close remain clickable outside the outer resize band.
 - [ ] Pin/topmost is obvious and independent for the player and the Source Window.
 - [ ] Player remembers size and position across restarts.
 - [ ] Player restores onto a visible monitor after a monitor is removed.
@@ -48,6 +50,15 @@ Mark each: pass / issue (link) / skipped.
 - [ ] Phase 2: Settings → Appearance fade delay Short / Normal / Long changes the controls-fade idle timing; Normal is the default 2.5 s behavior.
 - [ ] Phase 4: With whole-window opacity on, the player stays clickable — clicks do **not** pass through. **(Q-8)**
 - [ ] Phase 4: Opacity cannot drop below the 45% normal floor without an explicit unlock.
+
+## 3.5 Compact player (Phase 3)
+- [ ] Global Settings compact-player preference defaults off; when enabled, new popouts use compact mode.
+- [ ] Profile mode override works: Use global, Normal, and Compact each resolve correctly.
+- [ ] Compact mode opens a normal `/watch` video in an embedded player, keeps source paused, and returns with the expected timestamp/resume state.
+- [ ] Compact mode handles playlists and playlist-only URLs according to the compact-player design.
+- [ ] Compact mode minimum size is at least 480x270; saved smaller bounds clamp up rather than opening unusably small.
+- [ ] Compact mode fallback is clear for unavailable/restricted/embed-disabled videos and can reopen the same target in normal mode.
+- [ ] Compact mode keeps YouTube controls/branding visible; no click-through or transparent WebView2 behavior is introduced.
 
 ## 4. Recovery / errors (Q-6)
 - [ ] Missing WebView2 runtime: friendly message, no crash.

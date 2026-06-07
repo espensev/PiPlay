@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using PiPlay.Services;
 
 namespace PiPlay.Tests;
 
@@ -46,7 +47,8 @@ public class XamlInvariantTests
         Assert.Equal("0", chrome.Attribute("CornerRadius")?.Value);
         Assert.Equal("0", chrome.Attribute("GlassFrameThickness")?.Value);
         Assert.Equal("False", chrome.Attribute("UseAeroCaptionButtons")?.Value);
-        Assert.Equal("6", chrome.Attribute("ResizeBorderThickness")?.Value);
+        Assert.Equal(BorderlessResizeHitTestPolicy.ResizeBorderDip.ToString(),
+            chrome.Attribute("ResizeBorderThickness")?.Value);
         Assert.Equal(expectedCaptionHeight, chrome.Attribute("CaptionHeight")?.Value);
     }
 

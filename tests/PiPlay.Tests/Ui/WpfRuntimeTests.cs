@@ -1,12 +1,15 @@
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shell;
 using Microsoft.Web.WebView2.Wpf;
 using PiPlay;
 using PiPlay.Models;
+using PiPlay.Services;
 using PiPlay.Theme;
 
 namespace PiPlay.Tests;
@@ -134,6 +137,46 @@ public class WpfRuntimeTests : IDisposable
         Assert.False(w.AllowsTransparency);
         Assert.Equal(WindowStyle.None, w.WindowStyle);
         Assert.Equal(new CornerRadius(0), WindowChrome.GetWindowChrome(w)!.CornerRadius);
+    });
+
+    [Fact]
+    public void Expanded_resize_hook_returns_diagonal_corner_for_real_nchittest_message() => StaTestThread.Invoke(() =>
+    {
+        var w = new Window
+        {
+            Width = 240,
+            Height = 160,
+            Left = 100,
+            Top = 100,
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.CanResize,
+            AllowsTransparency = false,
+            Opacity = 0,
+            ShowActivated = false,
+            ShowInTaskbar = false,
+        };
+
+        WindowChrome.SetWindowChrome(w, new WindowChrome
+        {
+            CaptionHeight = 0,
+            ResizeBorderThickness = new Thickness(BorderlessResizeHitTestPolicy.ResizeBorderDip),
+            CornerRadius = new CornerRadius(0),
+            GlassFrameThickness = new Thickness(0),
+            UseAeroCaptionButtons = false,
+        });
+        BorderlessWindowHelper.EnableExpandedResizeZones(w);
+
+        var hwnd = new WindowInteropHelper(w).EnsureHandle();
+        w.Show();
+        w.UpdateLayout();
+        Assert.True(BorderlessWindowHelper.HasExpandedResizeSubclassForTests(hwnd));
+        var p = w.PointToScreen(new Point(20, 5)); // top band, inside the 32 DIP left corner length
+        var roundTrip = w.PointFromScreen(p);
+        Assert.InRange(roundTrip.X, 19.5, 20.5);
+        Assert.InRange(roundTrip.Y, 4.5, 5.5);
+        var result = SendMessage(hwnd, WM_NCHITTEST, IntPtr.Zero, MakeLParam((int)p.X, (int)p.Y));
+
+        Assert.Equal(BorderlessResizeHitTestPolicy.HTTOPLEFT, result.ToInt32());
     });
 
     [Fact]
@@ -357,6 +400,14 @@ public class WpfRuntimeTests : IDisposable
         }
         return rows;
     }
+
+    private const int WM_NCHITTEST = 0x0084;
+
+    private static IntPtr MakeLParam(int x, int y) =>
+        new(unchecked((x & 0xffff) | ((y & 0xffff) << 16)));
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
     // Layer 3 constructs real windows (never shown). Close any that remain on the shared STA
     // thread after each test so they don't accumulate on Application.Windows for the whole run.

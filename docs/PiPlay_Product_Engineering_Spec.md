@@ -1,11 +1,11 @@
 # PiPlay Product & Engineering Specification
 
-**Status:** Draft 0.8
+**Status:** Draft 0.10
 **Project:** PiPlay
 **Purpose:** Quality-first Windows desktop app for playing YouTube videos in a movable, resizable Video Popout window.
 **Primary platform:** Windows desktop
 **Primary user:** A power user who wants a reliable always-available YouTube video surface while working in other apps.
-**Last updated:** 2026-06-06
+**Last updated:** 2026-06-07
 
 ---
 
@@ -993,6 +993,11 @@ Required:
 - Native-feeling edge and corner resize.
 - Free resize by default.
 - Letterbox rather than crop video when aspect ratio differs.
+- **[REQ-WINDOW-02]** Phase 3 window-quality target: borderless windows use an invisible resize hit
+  area that is larger than the visible outline. The implementation target is a 10 DIP edge resize
+  zone for mouse/pen use and a 32 DIP corner length for diagonal resize. The corner length is
+  measured along the edge band; it is not a full 32 x 32 DIP square that steals clicks from
+  content. A visible outline, if drawn, should stay subtle (0-2 px).
 
 Future optional behavior:
 
@@ -1066,7 +1071,9 @@ Quality requirements:
 - Broken profile URLs must fail gracefully even in MVP.
 - **[REQ-PROFILE-01]** For fields that a profile is allowed to carry, a launched profile overrides the global default per field. Unset/null fields fall back to the global value.
 - **[REQ-PROFILE-02]** Profiles store both bounds and monitor identity. Restore to the saved monitor when present; otherwise clamp to the nearest visible work area using `WindowPlacementService`.
-- Compact-mode placement (global setting, profile setting, or both) remains an open decision; do not treat the generic precedence rule as approval to ship compact mode in MVP.
+- Compact-mode placement is resolved for Phase 3: global player default plus optional profile
+  override. MVP/profile precedence still does not imply compact mode is shipped until the Phase 3
+  compact-player sweep lands.
 
 ---
 
@@ -1221,6 +1228,9 @@ A build should not be called “release candidate” until the following pass.
 - Source Placeholder copy is understandable.
 - Icons share stroke weight, corner style, and active color behavior.
 - Popout remains usable at 320x180 in normal page mode; compact mode has its own minimum before release.
+- Borderless resize zones are easy to acquire: left/right/top/bottom edges expose the configured
+  edge resize border, corners expose diagonal resize over the configured corner length, and caption
+  or player controls remain clickable outside the outer resize band.
 - App remains crisp at 100%, 125%, 150%, and mixed-monitor DPI.
 
 #### Chrome acceptance (binary)
@@ -1359,10 +1369,15 @@ Phase 2 landing status:
 - Account-backed/live YouTube rows in `docs/QA_Checklist.md` remain the release-candidate
   manual gate for Auto playback, controls fade/customization in live playback, profile edit/delete
   through the running Source Window, and privacy sign-in/sign-out invariants.
-- Decide compact-mode placement before exposing compact mode broadly. If compact mode remains deferred to Phase 3, this is not a blocker for landing Phase 2 work.
+- Compact-mode placement is resolved for Phase 3 as global default plus optional profile override.
+  Implementation remains part of the compact-player sweep, not Phase 2 landing.
 
 ### Phase 3 — Compact player upgrade
 
+- First window-quality preflight: expand borderless resize zones per `REQ-WINDOW-02`
+  (`docs/superpowers/specs/2026-06-07-borderless-resize-zones-design.md`).
+- Resolve compact-mode placement as global player default plus optional profile override
+  (`docs/superpowers/specs/2026-06-07-compact-player-sweep-design.md`).
 - Add embed mode improvements.
 - Add local `player.html` wrapper.
 - Use YouTube IFrame API for compact mode.
@@ -1400,11 +1415,12 @@ The following are normative defaults unless superseded by a later ADR or require
 | REQ-PROFILE-02 | Profiles store both bounds and monitor identity; restore same monitor when present, otherwise clamp to visible work area. |
 | Section 6.1 Auto | Trigger is playback-start, `/watch`-only, once per video id, off by default. Shorts and embeds are excluded, and return-resume does not re-pop the same video. |
 | Section 6.2 / 6.3 customization | First slice is fixed swatches for Pin/Fade active colors plus controls-fade idle-delay presets. Defaults preserve current cyan and 2500 ms fade timing; no hex picker, profile override, opacity UI, click-through, or transparent WebView2. |
+| REQ-WINDOW-02 | Borderless resize targets use a 10 DIP invisible edge resize zone and a 32 DIP corner length for diagonal resize. A visual border can remain 0-2 px; no visible size grip is required. |
+| Compact placement | Compact mode is both a global player preference (`PlayerSettings.CompactMode`, off by default) and an optional per-profile override (`Profile.Mode`: `null` = global, `normal` = force normal, `compact` = force compact). Legacy/internal `embed` normalizes to `compact`. |
 
 ### 25.2 Open decisions
 
-1. Should compact mode be a profile setting, a global setting, or both?
-2. Should the Source Window be optional after launching a profile directly?
+1. Should the Source Window be optional after launching a profile directly?
 
 ---
 
@@ -1468,9 +1484,29 @@ File.Move(tempPath, FilePath, overwrite: true);
 
 ### 26.5 Borderless resize contract
 
-Prefer native hit testing for edge and corner resize in the Popout Player. `WindowChrome` may be sufficient; if it is not, use `WM_NCHITTEST`.
+Prefer native hit testing for edge and corner resize in the Popout Player and Source Window.
+`WindowChrome.ResizeBorderThickness` is acceptable for a uniform edge border, but it does not expose
+a separate corner length. If corner acquisition is still too small, use `WM_NCHITTEST` with these
+names and return values:
+
+| Area | Preferred implementation term | Win32 result |
+|---|---|---|
+| Left/right edge | left/right resize border, west/east resize zone | `HTLEFT`, `HTRIGHT` |
+| Top/bottom edge | top/bottom resize border, north/south resize zone | `HTTOP`, `HTBOTTOM` |
+| Corners | corner resize zones, diagonal resize zones, NW/NE/SW/SE resize corners | `HTTOPLEFT`, `HTTOPRIGHT`, `HTBOTTOMLEFT`, `HTBOTTOMRIGHT` |
+| Visible lower-right gripper, if ever added | size grip, size box, grow box | `HTSIZE` / `HTGROWBOX` |
 
 Do not implement resizing with only visible resize handles. Invisible edges/corners should work like a normal native window.
+
+Implementation target for `REQ-WINDOW-02`:
+
+```text
+Previous baseline:       6 DIP WindowChrome resize border on both primary windows
+Mouse/pen edge target:   10 DIP invisible resize zone
+Mouse/pen corner target: 32 DIP corner length along the edge band
+Visual outline:          0-2 px, optional/subtle
+Touch-first future:      use explicit 40 x 40 effective-pixel affordances only in a touch/posture pass
+```
 
 ### 26.6 Transparency implementation caution
 
@@ -1491,6 +1527,11 @@ These references support the current technical direction and should be rechecked
 - WebView2 local content and virtual host mapping: https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/working-with-local-content
 - YouTube embedded player parameters: https://developers.google.com/youtube/player_parameters
 - YouTube IFrame Player API reference: https://developers.google.com/youtube/iframe_api_reference
+- WPF `WindowChrome.ResizeBorderThickness`: https://learn.microsoft.com/en-us/dotnet/api/system.windows.shell.windowchrome.resizeborderthickness
+- Win32 `WM_NCHITTEST` resize hit-test results: https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-nchittest
+- Windows touch target guidance: https://learn.microsoft.com/en-us/windows/apps/develop/input/guidelines-for-targeting
+- Windows touch interactions and 40 x 40 epx target: https://learn.microsoft.com/en-us/windows/apps/develop/input/touch-interactions
+- Windows 11 rounded-corner/non-client border guidance: https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/ui/apply-rounded-corners
 
 ---
 
@@ -1505,3 +1546,5 @@ These references support the current technical direction and should be rechecked
 | 0.6 | 2026-06-06 | Folded current Phase 2 decisions into the spec: Auto playback-start behavior, profile edit/validation, privacy actions, Stable publish, and fixed-swatch Pin/Fade customization. Clarified that remaining Phase 2 work is manual release evidence plus the compact-mode placement decision only if compact mode is exposed before Phase 3. |
 | 0.7 | 2026-06-06 | Recorded Phase 2 landing evidence for Stable build `v0.3.0` build `9`; clarified that live/account-backed YouTube checks remain the release-candidate manual gate while compact-mode placement is deferred unless compact mode is exposed before Phase 3. |
 | 0.8 | 2026-06-07 | Recorded Stable build `v0.3.0` build `10` as the replacement deployed build from the final Phase 2 landing commit. |
+| 0.9 | 2026-06-07 | Added and implemented `REQ-WINDOW-02` for larger borderless resize zones: previous 6 DIP baseline, 10 DIP edge target, 32 DIP corner length, and Win32 hit-test naming. |
+| 0.10 | 2026-06-07 | Planned the Phase 3 compact-player sweep and resolved compact-mode placement as global default plus optional profile override. |

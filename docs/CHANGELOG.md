@@ -67,6 +67,10 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 - `Build-PiPlay.ps1` no longer rolls back `VERSION`/`BUILD_NUMBER` when a *post-publish* step fails after
   the artifact was already produced (which broke the monotonic build counter and orphaned the stamped
   folder); a pre-publish failure still rolls back and now also removes the partial publish folder.
+- Borderless Source Window and Popout Player resize targets are easier to acquire (REQ-WINDOW-02):
+  the invisible resize border is now 10 DIP instead of 6 DIP, with native hit testing that gives
+  each corner a 32 DIP diagonal resize length without adding a visible size grip or click-through
+  behavior.
 
 ### Removed
 - Deleted the outdated `Main app.txt` pre-spec brainstorm (superseded by the Draft 0.4 spec).
@@ -131,7 +135,8 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   smoke. Build 10 replaces the earlier build 9 Stable deploy and is built from the final Phase 2
   landing commit. See `docs/evidence/phase2-release-v0.3.0-b10.md`.
 - Account-backed/live YouTube rows in `docs/QA_Checklist.md` remain the release-candidate manual
-  gate; compact-mode placement stays deferred unless compact mode is exposed before Phase 3.
+  gate. Compact-mode placement is resolved for Phase 3 as global default plus optional profile
+  override, with implementation planned in the compact-player sweep.
 
 ### Tests & quality
 - **Layered regression suite** (`docs/Regression_Test_Suite_Design.md`), 221 tests in

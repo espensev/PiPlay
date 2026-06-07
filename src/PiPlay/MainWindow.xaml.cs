@@ -50,6 +50,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        BorderlessWindowHelper.EnableExpandedResizeZones(this);
 
         _settings = _settingsService.Load();
         // Assembly-qualified pack URI (not the short form): resolves against the PiPlay assembly

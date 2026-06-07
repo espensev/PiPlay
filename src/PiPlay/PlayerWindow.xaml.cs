@@ -54,6 +54,7 @@ public partial class PlayerWindow : Window
         int fadeIdleDelayMs = PlayerAppearancePolicy.DefaultFadeIdleDelayMs)
     {
         InitializeComponent();
+        BorderlessWindowHelper.EnableExpandedResizeZones(this);
 
         _environment = environment;
         _url = url;
