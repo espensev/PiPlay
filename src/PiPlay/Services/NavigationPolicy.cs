@@ -21,6 +21,13 @@ public enum NavigationSurface
 /// </summary>
 public static class NavigationPolicy
 {
+    /// <summary>
+    /// Virtual-host name for the local compact-player shell (spec 10.3), served from a WebView2
+    /// folder mapping. The single source of truth for the host: <see cref="WebViewEnvironmentService"/>
+    /// derives the shell origin/URL from it, and the allowlist permits it on the Popout Player only.
+    /// </summary>
+    public const string ShellHost = "piplay.local";
+
     // Google sign-in / account subdomains used during YouTube login. Matched across ANY
     // top-level domain so regional flows (e.g. accounts.google.no, consent.google.de) are not
     // bounced out to the system browser.
@@ -41,9 +48,14 @@ public static class NavigationPolicy
         var host = uri.Host.ToLowerInvariant();
 
         // YouTube and Google login are allowed on both surfaces: a sign-in redirect must never
-        // dead-end the player either. The surface is retained for logging/future policy splits.
-        _ = surface;
-        return IsYouTubeHost(host) || IsGoogleAuthHost(host);
+        // dead-end the player either.
+        if (IsYouTubeHost(host) || IsGoogleAuthHost(host)) return true;
+
+        // The local compact-player shell (spec 10.3) is allowed on the Popout Player only — it never
+        // loads on the Source Window. Exact host match (not a broad ".local") so nothing else local
+        // is permitted. The shell's nested youtube.com iframe is a frame navigation, not affected by
+        // this top-level allowlist.
+        return surface == NavigationSurface.Player && host == ShellHost;
     }
 
     public static bool IsYouTubeHost(string host) =>

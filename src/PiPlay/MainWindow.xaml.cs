@@ -649,7 +649,8 @@ public partial class MainWindow : Window
             // normal mode keeps the full watch page. Normal remains the default and the fallback.
             var mode = PlaybackModePolicy.ResolveEffectiveMode(
                 ResolveActiveProfileMode(target.VideoId), _settings.Player.CompactMode);
-            var popoutUrl = PlaybackModePolicy.BuildPopoutUrl(mode, target, seconds);
+            var popoutUrl = PlaybackModePolicy.BuildPopoutUrl(
+                mode, target, seconds, WebViewEnvironmentService.ShellPlayerUrl);
 
             // 3) Pause the source and show the placeholder (Q-1: no duplicate audio).
             await YouTubeDomBridge.PauseAsync(core);

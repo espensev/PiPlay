@@ -1,0 +1,111 @@
+using System.Text.Json;
+
+namespace PiPlay.Services;
+
+/// <summary>Kind of an inbound (shell -> host) message; <see cref="Unknown"/> for anything unrecognized.</summary>
+public enum ShellMessageKind
+{
+    Unknown,
+    Ready,
+    State,
+    Error,
+}
+
+/// <summary>A parsed inbound message from the compact shell (spec 10.3). Nullable/defaulted fields
+/// carry only what the <see cref="ShellMessageKind"/> defines; the rest stay at safe defaults.</summary>
+public sealed record InboundShellMessage(
+    ShellMessageKind Kind,
+    int CurrentTime = 0,
+    int PlayerState = -1,
+    int? Duration = null,
+    string? ErrorCode = null);
+
+/// <summary>
+/// The pure, versioned host&lt;-&gt;shell message contract for compact (PiPlay shell) mode
+/// (spec 10.3). The single source of truth both <see cref="PlayerShellBridge"/> (host) and
+/// <c>player-shell.js</c> (shell) follow. Minimal and local-only: the shell reports ready / state /
+/// error; the host commands play / pause / seek / requestState. No credentials, cookies, or tokens
+/// ever cross this channel. All parsing is best-effort (Q-3/Q-6): malformed input yields
+/// <see cref="ShellMessageKind.Unknown"/>, never an exception.
+/// </summary>
+public static class PlayerShellProtocol
+{
+    public const int Version = 1;
+
+    // Shell -> host message types.
+    public const string TypeReady = "ready";
+    public const string TypeState = "state";
+    public const string TypeError = "error";
+
+    // Host -> shell command types.
+    public const string TypePlay = "play";
+    public const string TypePause = "pause";
+    public const string TypeSeek = "seek";
+    public const string TypeRequestState = "requestState";
+
+    // Wire field names — the single source of truth for the JS<->host payload contract. Both this
+    // parser and player-shell.js use these exact names; PlayerShellAssetTests pins them in the JS.
+    public const string KeyVersion = "v";
+    public const string KeyType = "type";
+    public const string FieldCurrentTime = "currentTime";
+    public const string FieldPlayerState = "playerState";
+    public const string FieldDuration = "duration";
+    public const string FieldCode = "code";
+    public const string FieldSeconds = "seconds";
+
+    /// <summary>Parse one inbound JSON string from the shell. Never throws; unrecognized -> Unknown.</summary>
+    public static InboundShellMessage Parse(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new InboundShellMessage(ShellMessageKind.Unknown);
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return new InboundShellMessage(ShellMessageKind.Unknown);
+            if (!root.TryGetProperty(KeyType, out var typeEl) || typeEl.ValueKind != JsonValueKind.String)
+                return new InboundShellMessage(ShellMessageKind.Unknown);
+
+            return typeEl.GetString() switch
+            {
+                TypeReady => new InboundShellMessage(ShellMessageKind.Ready),
+                TypeState => new InboundShellMessage(
+                    ShellMessageKind.State,
+                    CurrentTime: ReadInt(root, FieldCurrentTime, 0),
+                    PlayerState: ReadInt(root, FieldPlayerState, -1),
+                    Duration: ReadNullableInt(root, FieldDuration)),
+                TypeError => new InboundShellMessage(ShellMessageKind.Error, ErrorCode: ReadString(root, FieldCode)),
+                _ => new InboundShellMessage(ShellMessageKind.Unknown),
+            };
+        }
+        catch (JsonException)
+        {
+            return new InboundShellMessage(ShellMessageKind.Unknown);
+        }
+    }
+
+    /// <summary>Host -> shell: resume playback.</summary>
+    public static string Play() => Command(TypePlay);
+
+    /// <summary>Host -> shell: pause playback.</summary>
+    public static string Pause() => Command(TypePause);
+
+    /// <summary>Host -> shell: request an immediate state message.</summary>
+    public static string RequestState() => Command(TypeRequestState);
+
+    /// <summary>Host -> shell: seek to <paramref name="seconds"/> (clamped to non-negative).</summary>
+    public static string Seek(int seconds) =>
+        $"{{\"{KeyVersion}\":{Version},\"{KeyType}\":\"{TypeSeek}\",\"{FieldSeconds}\":{Math.Max(0, seconds)}}}";
+
+    private static string Command(string type) => $"{{\"{KeyVersion}\":{Version},\"{KeyType}\":\"{type}\"}}";
+
+    private static int ReadInt(JsonElement root, string name, int fallback) =>
+        root.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.Number && el.TryGetInt32(out var v)
+            ? v : fallback;
+
+    private static int? ReadNullableInt(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.Number && el.TryGetInt32(out var v)
+            ? v : null;
+
+    private static string? ReadString(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.String ? el.GetString() : null;
+}

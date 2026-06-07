@@ -129,22 +129,35 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   pause/resume won't either) and **excludes Shorts/embeds**. Resolves the open "Auto trigger timing"
   decision in favour of playback-start. See `docs/superpowers/specs/2026-06-06-auto-popout-design.md`.
 
-### Added — Phase 3 (compact player, Stage 1)
-- **Compact player mode — settings, profile override, and direct-embed launch (spec 10.2).** A new
-  global **Settings → Playback → Compact player** preference (off by default) makes new popouts open
-  in YouTube's embedded player instead of the full watch page; **Normal page mode stays the default
-  and the fallback**. Saved profiles gain a per-profile **playback mode** override in the profile
-  editor — *Use global default*, *Normal page*, or *Compact player* — that wins over the global
-  default (REQ-PROFILE-01); the override is additionally scoped to that profile's own video so a
-  stale combo selection can't apply compact to an unrelated video. Mode resolution, the durable
-  `null`/`normal`/`compact`
-  vocabulary (with the legacy internal `embed` token folded to `compact`), and the separate
-  **480×270 compact minimum** (vs. 320×180 normal) live in a pure `PlaybackModePolicy` with full
-  unit coverage; the compact Popout Player clamps its launch size up to that minimum. This is the
-  conservative **Stage 1** of the compact-player sweep — the local `player.html` shell, the YouTube
-  IFrame-API messaging bridge, and the embed-disabled error→normal fallback are the next,
-  live-verified stages. Live compact playback, return/resume, and playlist behavior remain
-  release-candidate QA. See `docs/superpowers/specs/2026-06-07-compact-player-sweep-design.md`.
+### Added — Phase 3 (compact player)
+- **Compact player mode (spec 10.2–10.3).** A new global **Settings → Playback → Compact player**
+  preference (off by default) makes new popouts open in a clean compact player instead of the full
+  YouTube watch page; **Normal page mode stays the default and the fallback**. Saved profiles gain a
+  per-profile **playback mode** override in the profile editor — *Use global default*, *Normal page*,
+  or *Compact player* — that wins over the global default (REQ-PROFILE-01); the override is
+  additionally scoped to that profile's own video so a stale combo selection can't apply compact to
+  an unrelated video. Mode resolution, the durable `null`/`normal`/`compact` vocabulary (legacy
+  internal `embed` folded to `compact`), and the separate **480×270 compact minimum** (vs. 320×180
+  normal) live in a pure `PlaybackModePolicy`; the compact Popout Player clamps both its launch size
+  and a restored sub-minimum placement up to that floor.
+- Compact mode hosts a **local `player.html` shell** served from a WebView2 virtual host
+  (`https://piplay.local/`) that drives the official **YouTube IFrame Player API**, with a small,
+  versioned **host↔shell message bridge** (`PlayerShellBridge` / `PlayerShellProtocol`): the shell
+  reports ready / state / error and the host commands play / pause / seek / requestState. The shell
+  URL carries only non-sensitive target data (video id, playlist id, start) — no credentials — and
+  the bridge (not DOM scraping) is the source of truth for the compact return timestamp. The shell
+  keeps YouTube's controls and branding; no click-through, transparent WebView2, ad-blocking, or
+  media download is introduced (Q-5/Q-8). The local virtual host is allowlisted on the Popout Player
+  only.
+- **Verified locally (deterministic):** the mode/precedence/min-size policy, the mode→URL and
+  profile-override seams, the shell URL builder + host single-source-of-truth, the navigation
+  allowlist for the shell host, the host↔shell protocol, the shell-asset invariants (structure, no
+  third-party origins, no credential strings, build-copy), and that every window constructs.
+  **Release-candidate QA (live, not yet run):** a compact video actually playing through the IFrame
+  API, timestamp/state flowing over the bridge, playlists, restricted/embed-disabled handling, and
+  signed-in/out sessions. The embed-disabled→normal in-app fallback (Stage 4) is not yet built;
+  Normal page mode remains the fallback. See
+  `docs/superpowers/specs/2026-06-07-compact-player-sweep-design.md`.
 
 ### Validation — Phase 2 landing
 - Stable Phase 2 evidence captured for `v0.3.0` build `10`: deterministic tests,

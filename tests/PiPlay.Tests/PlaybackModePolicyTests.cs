@@ -62,21 +62,32 @@ public class PlaybackModePolicyTests
         Assert.True(PlaybackModePolicy.CompactMinHeight > PlaybackModePolicy.NormalMinHeight);
     }
 
-    // --- BuildPopoutUrl: the mode -> URL join (compact = embed, normal = watch) ---
+    // --- DOM-sync-timer selection: exactly one timestamp source per mode (spec 10.3) ---
+
+    [Theory]
+    [InlineData(PlaybackMode.Normal, true)]    // normal polls the YouTube page DOM
+    [InlineData(PlaybackMode.Compact, false)]  // compact reads it from the shell bridge instead
+    public void Only_normal_mode_uses_the_dom_sync_timer(PlaybackMode mode, bool expected)
+    {
+        Assert.Equal(expected, PlaybackModePolicy.UsesDomSyncTimer(mode));
+    }
+
+    // --- BuildPopoutUrl: the mode -> URL join (compact = local shell, normal = watch page) ---
 
     [Fact]
-    public void BuildPopoutUrl_uses_embed_for_compact_and_watch_for_normal()
+    public void BuildPopoutUrl_uses_the_shell_for_compact_and_watch_for_normal()
     {
         var target = new YouTubeTarget { VideoId = "dQw4w9WgXcQ" };
+        const string shellBase = "https://piplay.local/player.html";
 
-        var compact = PlaybackModePolicy.BuildPopoutUrl(PlaybackMode.Compact, target, 30);
-        var normal = PlaybackModePolicy.BuildPopoutUrl(PlaybackMode.Normal, target, 30);
+        var compact = PlaybackModePolicy.BuildPopoutUrl(PlaybackMode.Compact, target, 30, shellBase);
+        var normal = PlaybackModePolicy.BuildPopoutUrl(PlaybackMode.Normal, target, 30, shellBase);
 
-        Assert.Contains("/embed/dQw4w9WgXcQ", compact);
+        Assert.StartsWith(shellBase, compact);
+        Assert.Contains("v=dQw4w9WgXcQ", compact);
         Assert.Contains("/watch?v=dQw4w9WgXcQ", normal);
         Assert.NotEqual(compact, normal);            // an inverted/collapsed ternary would fail this
-        Assert.DoesNotContain("/embed/", normal);
-        Assert.DoesNotContain("/watch", compact);
+        Assert.DoesNotContain("piplay.local", normal);
     }
 
     // --- ResolveProfileOverride: apply a profile's mode only when the popout target matches it ---

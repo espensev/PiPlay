@@ -6,31 +6,44 @@
 prove direct embed behavior, add the local `player.html` shell, bridge the YouTube IFrame API, then
 finish release-grade QA. Normal page mode remains the default and fallback.
 
-**Result:** Stage 1 (Tasks 1-3) is implemented in the working tree and the deterministic gate is
-green (`dotnet test` = 280/280; non-mutating build gate clean). Stages 2-4 (Tasks 4-6, plus the live
-release proof in Task 7) are intentionally deferred and gated on live Stage-1 verification.
+**Result:** Stages 1-3 (Tasks 1-5) are implemented in the working tree and the deterministic gate is
+green. Stage 4 (Task 6 embed-disabled error->normal fallback) plus the live release proof in Task 7
+are intentionally deferred and gated on live verification.
 
 ## Implementation status
 
-This pass landed **Stage 1 — Policy and direct embed** end to end, deterministically:
+This sweep landed **Stages 1-3** end to end, deterministically. Compact mode is now **shell mode**:
 
-- `PlaybackModePolicy` owns the durable `null`/`normal`/`compact` vocabulary (legacy `embed` ->
-  `compact`), the `profile.Mode ?? global CompactMode` precedence, and the separate 480x270 compact
-  minimum. `SettingsService.Sanitize` normalizes stored profile modes on load.
-- Settings exposes a global **Compact player** preference (off by default); the profile editor adds a
-  **playback mode** override (Use global / Normal page / Compact player).
-- `MainWindow.StartVideoPopoutAsync` resolves the effective mode (profile override scoped to the
-  popout's own video, else global) and launches the Popout Player with `BuildEmbedUrl` in compact
-  mode; `PlayerWindow` applies the mode-specific minimum and clamps the launch size up.
+- **Stage 1 — Policy.** `PlaybackModePolicy` owns the durable `null`/`normal`/`compact` vocabulary
+  (legacy `embed` -> `compact`), the `profile.Mode ?? global CompactMode` precedence, the separate
+  480x270 compact minimum, the mode->URL join, and the profile-override video-id gate.
+  `SettingsService.Sanitize` normalizes stored profile modes on load. Settings exposes a global
+  **Compact player** preference (off by default); the profile editor adds a **playback mode**
+  override (Use global / Normal page / Compact player).
+- **Stage 2 — Local shell + virtual host.** `src/PiPlay/PlayerShell/player.html` + `player-shell.js`,
+  served from a WebView2 virtual host `https://piplay.local/` (mapped in `WebViewEnvironmentService`,
+  allowlisted on the Popout Player only via `NavigationPolicy`). `YouTubeUrlHelper.BuildShellUrl`
+  builds the shell URL carrying only video id / playlist id / start; the host name is single-sourced
+  in `NavigationPolicy.ShellHost`.
+- **Stage 3 — IFrame API bridge.** `player-shell.js` drives the official YouTube IFrame Player API
+  and exchanges versioned JSON messages with the host `PlayerShellBridge` over the
+  `PlayerShellProtocol` contract (shell: ready/state/error; host: play/pause/seek/requestState).
+  Compact return state comes from the bridge (IFrame API), while normal mode keeps `YouTubeDomBridge`.
 
-**Why stop at Stage 1:** the design stages precisely to avoid stacking an unverified JavaScript
-messaging layer (Stages 2-3: local `player.html` shell + YouTube IFrame-API bridge) on top of an
-unverified embed path. Stage 1 is the largest self-contained shippable unit — a working compact mode
-that reuses the existing Popout Player lifecycle and the `YouTubeDomBridge` against the embed page's
-`<video>`. Stages 2-3 are half a feature each (a shell without a bridge is incomplete), and their
-core contract is live YouTube IFrame-API behavior that this environment cannot verify. They, the
-embed-disabled error->normal fallback (Task 6), and the live release QA (Task 7) are the next gated
-pass. Live compact playback, return/resume, and playlist behavior remain release-candidate QA.
+The earlier Stage-1 direct-embed launch is superseded by the shell; `YouTubeUrlHelper.BuildEmbedUrl`
+is kept as a reserved direct-embed fallback tier (design unresolved decision #1).
+
+**Verified locally (deterministic):** policy/precedence/min-size, the mode->URL and profile-override
+seams, `BuildShellUrl` + the host single-source-of-truth, the shell-host navigation allowlist, the
+host<->shell protocol, the shell-asset invariants (structure, no third-party origins, no credential
+strings, build-copy), and that every window constructs. **Release-candidate QA (live, not run):** a
+compact video actually playing through the IFrame API, timestamp/state flowing over the bridge,
+playlists, restricted/embed-disabled handling, and signed-in/out sessions.
+
+**Why stop before Stage 4:** Task 6's robust embed-disabled detection needs live IFrame-API error
+behavior to design against, and the in-app error→normal fallback is a Stage-4 concern. Normal page
+mode remains the fallback today. Live compact playback/return/resume and playlist behavior remain
+release-candidate QA.
 
 ## Tasks
 
@@ -51,7 +64,7 @@ pass. Live compact playback, return/resume, and playlist behavior remain release
     selected value round-trip.
   - Commit: `feat(settings): expose compact player mode`
 
-- [x] **Task 3 - Direct embed compact launch.** *(Done: `StartVideoPopoutAsync` threads the resolved mode into `PlayerWindow` and builds the URL via the pure `PlaybackModePolicy.BuildPopoutUrl` (compact -> `BuildEmbedUrl`); `PlayerWindow` applies the mode-specific minimum, clamps the launch size up, and raises a restored sub-minimum saved placement up to the floor via `PlacementMath.EnsureMinSize`. Source pause/placeholder, single-player guard, Pin/Fade, placement, and the return lifecycle are preserved. Logic tests cover the mode->URL join, the profile-override video-id gate, and the placement clamp; WPF tests assert mode-specific minimums. Live video smoke remains a release-candidate check before proceeding to shell work.)*
+- [x] **Task 3 - Direct embed compact launch.** *(Done: `StartVideoPopoutAsync` threads the resolved mode into `PlayerWindow` and builds the URL via the pure `PlaybackModePolicy.BuildPopoutUrl` — compact routed to `BuildEmbedUrl` at Stage 1, now superseded by `BuildShellUrl` per the Implementation status above; `PlayerWindow` applies the mode-specific minimum, clamps the launch size up, and raises a restored sub-minimum saved placement up to the floor via `PlacementMath.EnsureMinSize`. Source pause/placeholder, single-player guard, Pin/Fade, placement, and the return lifecycle are preserved. Logic tests cover the mode->URL join, the profile-override video-id gate, and the placement clamp; WPF tests assert mode-specific minimums.)*
   - Thread effective mode from `MainWindow.StartVideoPopoutAsync` into `PlayerWindow`.
   - In compact mode, use `YouTubeUrlHelper.BuildEmbedUrl` for the initial stage.
   - Clamp compact player launch size to at least 480 x 270; normal mode keeps 320 x 180.
@@ -61,7 +74,7 @@ pass. Live compact playback, return/resume, and playlist behavior remain release
     video smoke before proceeding to shell work.
   - Commit: `feat(player): launch compact embed mode`
 
-- [ ] **Task 4 - Local shell assets and virtual-host mapping.** *(Deferred — Stage 2, gated on live Stage-1 verification.)*
+- [x] **Task 4 - Local shell assets and virtual-host mapping.** *(Done: `PlayerShell/player.html` + `player-shell.js`; `WebViewEnvironmentService` maps the `https://piplay.local/` virtual host (PlayerShell subfolder only) and exposes the shell origin/URL; `NavigationPolicy` allowlists the shell host on the Popout Player only; `BuildShellUrl` carries only video/playlist/start with `enablejsapi`+`origin` set in the shell. Static asset tests + the SSOT host test + nav-allowlist test cover it.)*
   - Add `src/PiPlay/PlayerShell/player.html` and `player-shell.js`.
   - Map local shell assets through `WebViewEnvironmentService` with a stable HTTPS host such as
     `https://piplay.local/`.
@@ -71,7 +84,7 @@ pass. Live compact playback, return/resume, and playlist behavior remain release
     or token-bearing strings in shell URLs/messages.
   - Commit: `feat(player): add local compact shell`
 
-- [ ] **Task 5 - Host/shell messaging bridge.** *(Deferred — Stage 3; its core contract is live YouTube IFrame-API behavior.)*
+- [x] **Task 5 - Host/shell messaging bridge.** *(Done: pure versioned `PlayerShellProtocol` (shell: ready/state/error; host: play/pause/seek/requestState, string-JSON transport) + host-side `PlayerShellBridge`; `player-shell.js` implements every protocol type. Compact return state comes from the bridge (IFrame API); normal keeps `YouTubeDomBridge`. Protocol + asset tests are deterministic; live compact return/resume smoke remains a release-candidate check.)*
   - Add a host-side `PlayerShellBridge` and shell message protocol.
   - Shell sends `ready`, periodic/current state, playback state changes, and errors.
   - Host sends `play`, `pause`, `seek`, and `requestState` commands.
@@ -80,7 +93,7 @@ pass. Live compact playback, return/resume, and playlist behavior remain release
   - Verification: pure protocol tests, WPF construction tests, and live compact return/resume smoke.
   - Commit: `feat(player): bridge compact shell playback state`
 
-- [ ] **Task 6 - Error/fallback behavior.** *(Deferred — Stage 4 fallback/error states; robust embed-disabled detection needs the Stage 3 IFrame API. Stage 1 leaves Normal page mode as the default and fallback.)*
+- [ ] **Task 6 - Error/fallback behavior.** *(Deferred — Stage 4 fallback/error states; robust embed-disabled detection needs the Stage 3 IFrame API. Stage 1 leaves Normal page mode as the default and fallback. A tuned shell Content-Security-Policy is folded in here too: it must be enumerated against the real IFrame-API requests in live QA before a restrictive CSP can ship without breaking playback.)*
   - Add compact in-app error state for embed-disabled, unavailable, failed shell load, or IFrame API
     timeout.
   - Provide a clear fallback action to reopen the same target in normal player mode.
@@ -115,9 +128,9 @@ pass. Live compact playback, return/resume, and playlist behavior remain release
 - Risk: highest risk is YouTube embed compliance, return timestamp drift, API-message race
   conditions, and profile/global precedence confusion. The plan isolates these into policy tests,
   protocol tests, WPF construction tests, and live YouTube QA before release.
-- Verified: Stage 1 (Tasks 1-3) deterministic gate green — `dotnet test PiPlay.sln --configuration
-  Debug` = 280/280 (Logic/Markup/Wpf lanes, 0 skipped) and `.\Build-PiPlay.ps1 -Stage Build
-  -NoVersionBump -NoBuildNumberBump` clean. Stages 2-4 (Tasks 4-6) and the live release proof
-  (Task 7) are deferred and gated on live Stage-1 verification (see Implementation status). Live
-  compact playback/return/resume, playlist behavior, and the embed-page DOM read are
-  release-candidate QA, not yet proven.
+- Verified: Stages 1-3 (Tasks 1-5) deterministic gate green — `dotnet test PiPlay.sln --configuration
+  Debug` = 325/325 (Logic/Markup/Wpf lanes, 0 skipped) and `.\Build-PiPlay.ps1 -Stage Build
+  -NoVersionBump -NoBuildNumberBump` clean. Stage 4 (Task 6 fallback) and the live release proof
+  (Task 7) are deferred and gated on live verification (see Implementation status). Live compact
+  playback/return/resume, playlist behavior, and the shell↔IFrame-API path are release-candidate QA,
+  not yet proven.

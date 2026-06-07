@@ -75,14 +75,24 @@ public static class PlaybackModePolicy
         mode == PlaybackMode.Compact ? CompactMinHeight : NormalMinHeight;
 
     /// <summary>
-    /// Build the popout navigation URL for the resolved mode (spec 10): compact uses the embedded
-    /// YouTube player (<see cref="YouTubeUrlHelper.BuildEmbedUrl"/>); normal uses the full watch
-    /// page (<see cref="YouTubeUrlHelper.BuildWatchUrl"/>). A pure join of mode + target so the
-    /// MainWindow popout path stays a thin caller and the mode-to-URL choice is unit-testable.
+    /// Whether the given mode reads the return timestamp by polling the YouTube page DOM
+    /// (<see cref="YouTubeDomBridge"/>). True for Normal page mode only; Compact mode reads it from
+    /// the shell bridge (IFrame API) instead, so exactly one source drives the timestamp (spec 10.3).
+    /// The Popout Player consults this to decide whether to run its DOM sync timer.
     /// </summary>
-    public static string BuildPopoutUrl(PlaybackMode mode, YouTubeTarget target, int? seconds = null) =>
+    public static bool UsesDomSyncTimer(PlaybackMode mode) => mode == PlaybackMode.Normal;
+
+    /// <summary>
+    /// Build the popout navigation URL for the resolved mode (spec 10): compact navigates to the
+    /// local PiPlay shell (<see cref="YouTubeUrlHelper.BuildShellUrl"/>, which hosts the YouTube
+    /// IFrame API player); normal uses the full watch page (<see cref="YouTubeUrlHelper.BuildWatchUrl"/>).
+    /// The shell base is injected (the host owns the virtual-host name) so this stays a pure,
+    /// unit-testable join of mode + target and the MainWindow popout path is a thin caller.
+    /// </summary>
+    public static string BuildPopoutUrl(
+        PlaybackMode mode, YouTubeTarget target, int? seconds, string compactShellBaseUrl) =>
         mode == PlaybackMode.Compact
-            ? YouTubeUrlHelper.BuildEmbedUrl(target, seconds)
+            ? YouTubeUrlHelper.BuildShellUrl(target, seconds, compactShellBaseUrl)
             : YouTubeUrlHelper.BuildWatchUrl(target, seconds);
 
     /// <summary>

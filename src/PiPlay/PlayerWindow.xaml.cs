@@ -37,6 +37,9 @@ public partial class PlayerWindow : Window
     private bool _capturedReturn;
     private bool _nudgedPlay;
 
+    // Compact (shell) mode only: the host side of the IFrame-API bridge (spec 10.3).
+    private PlayerShellBridge? _shellBridge;
+
     /// <summary>Raised once when the player has closed, carrying the state needed to return (spec 14).</summary>
     public event EventHandler<PlayerReturnState>? PlayerClosed;
 
@@ -120,6 +123,15 @@ public partial class PlayerWindow : Window
             core.NewWindowRequested += Core_NewWindowRequested;
             core.NavigationCompleted += Core_NavigationCompleted;
 
+            if (_mode == PlaybackMode.Compact)
+            {
+                // Compact mode hosts the local shell (spec 10.3): map its virtual host before
+                // navigating, then let the shell bridge (IFrame API state) drive the return timestamp.
+                WebViewEnvironmentService.MapShellVirtualHost(core);
+                _shellBridge = new PlayerShellBridge(core);
+                _shellBridge.StateReceived += ShellBridge_StateReceived;
+            }
+
             core.Navigate(_url);
             Log.Info($"Popout Player initialized (mode={_mode}).");
         }
@@ -156,7 +168,16 @@ public partial class PlayerWindow : Window
     private void Core_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
         _navCompleted = true;
-        if (!_syncTimer.IsEnabled) _syncTimer.Start();
+        // Normal mode polls the YouTube page DOM for the timestamp; compact mode reads it from the
+        // shell bridge (IFrame API). The mode-specific choice lives in PlaybackModePolicy so the
+        // "one source of truth for the timestamp" invariant is unit-testable (spec 10.3).
+        if (PlaybackModePolicy.UsesDomSyncTimer(_mode) && !_syncTimer.IsEnabled) _syncTimer.Start();
+    }
+
+    private void ShellBridge_StateReceived(object? sender, InboundShellMessage state)
+    {
+        // Compact mode's source of truth for the return timestamp is the IFrame API, not the DOM.
+        _returnState.LastKnownSeconds = state.CurrentTime;
     }
 
     private async void SyncTimer_Tick(object? sender, EventArgs e)
@@ -298,6 +319,7 @@ public partial class PlayerWindow : Window
 
     private void PlayerWindow_Closed(object? sender, EventArgs e)
     {
+        try { _shellBridge?.Dispose(); } catch { /* ignore */ }
         try { Player.Dispose(); } catch { /* ignore */ }
 
         PlayerClosed?.Invoke(this, _returnState);

@@ -89,4 +89,26 @@ public class NavigationPolicyTests
     {
         Assert.False(NavigationPolicy.IsAllowed(null, NavigationSurface.Source));
     }
+
+    // --- Compact shell virtual host (spec 10.3): allowed on the Popout Player only ---
+
+    [Fact]
+    public void Compact_shell_host_is_allowed_on_the_player_only()
+    {
+        var shell = U("https://piplay.local/player.html?v=abc&start=10");
+        // Without this the top-level shell navigation would be cancelled and opened externally.
+        Assert.True(NavigationPolicy.IsAllowed(shell, NavigationSurface.Player));
+        // The shell never loads on the Source Window.
+        Assert.False(NavigationPolicy.IsAllowed(shell, NavigationSurface.Source));
+    }
+
+    [Theory]
+    [InlineData("https://piplay.local.evil.test/")]   // look-alike registrable suffix
+    [InlineData("https://notpiplay.local/")]
+    [InlineData("https://other.local/")]              // a broad ".local" must NOT be allowed
+    public void Other_or_lookalike_local_hosts_are_never_allowed(string url)
+    {
+        Assert.False(NavigationPolicy.IsAllowed(U(url), NavigationSurface.Player));
+        Assert.False(NavigationPolicy.IsAllowed(U(url), NavigationSurface.Source));
+    }
 }
