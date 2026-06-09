@@ -358,6 +358,78 @@ public class WpfRuntimeTests : IDisposable
         Assert.True(w.Height >= PlaybackModePolicy.CompactMinHeight, $"Height {w.Height} below compact floor.");
     });
 
+    // --- Compact error bar + normal-page fallback (Phase 3, Stage 4: spec 10.3 / Q-6) ---
+
+    private static PlayerWindow NewCompactPlayer() =>
+        new(environment: null!, url: "https://piplay.local/player.html?v=dQw4w9WgXcQ",
+            topmost: false, placement: null, defaultWidth: 960, defaultHeight: 540,
+            fadeEnabled: true, mode: PlaybackMode.Compact,
+            fallbackTarget: new YouTubeTarget { VideoId = "dQw4w9WgXcQ" });
+
+    [Fact]
+    public void Compact_error_bar_is_collapsed_on_construction() => StaTestThread.Invoke(() =>
+    {
+        Assert.False(NewCompactPlayer().IsErrorBarVisibleForTests);
+    });
+
+    [Fact]
+    public void Shell_error_shows_the_bar_with_the_policy_message() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+        w.HandleShellErrorForTests(new InboundShellMessage(ShellMessageKind.Error, ErrorCode: "101"));
+
+        Assert.True(w.IsErrorBarVisibleForTests);
+        Assert.Equal(PlayerShellErrorPolicy.Describe("101"), w.ErrorTextForTests);
+    });
+
+    [Fact]
+    public void Shell_load_failure_shows_the_bar_with_the_load_message() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+        w.HandleShellLoadFailureForTests();
+
+        Assert.True(w.IsErrorBarVisibleForTests);
+        Assert.Equal(PlayerShellErrorPolicy.ShellLoadFailedMessage, w.ErrorTextForTests);
+    });
+
+    [Fact]
+    public void Playing_state_auto_dismisses_the_error_bar_but_others_do_not() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+        w.HandleShellErrorForTests(new InboundShellMessage(ShellMessageKind.Error, ErrorCode: "100"));
+
+        // Buffering does not prove recovery; the bar stays.
+        w.HandleShellStateForTests(new InboundShellMessage(ShellMessageKind.State, CurrentTime: 0, PlayerState: 3));
+        Assert.True(w.IsErrorBarVisibleForTests);
+
+        // A playing state does (e.g. a playlist auto-advanced past the dead entry).
+        w.HandleShellStateForTests(new InboundShellMessage(
+            ShellMessageKind.State, CurrentTime: 7, PlayerState: PlayerShellErrorPolicy.StatePlaying));
+        Assert.False(w.IsErrorBarVisibleForTests);
+    });
+
+    [Fact]
+    public void Shell_errors_are_ignored_in_normal_mode() => StaTestThread.Invoke(() =>
+    {
+        var w = NewPlayer();   // normal mode: no shell, so an error can't surface the compact bar
+        w.HandleShellErrorForTests(new InboundShellMessage(ShellMessageKind.Error, ErrorCode: "101"));
+        Assert.False(w.IsErrorBarVisibleForTests);
+    });
+
+    [Fact]
+    public void Fallback_without_a_live_webview_is_a_guarded_no_op() => StaTestThread.Invoke(() =>
+    {
+        // The window is never shown, so CoreWebView2 was never created: the fallback must refuse
+        // safely (no navigation target) and leave the error state and compact floor untouched.
+        var w = NewCompactPlayer();
+        w.HandleShellErrorForTests(new InboundShellMessage(ShellMessageKind.Error, ErrorCode: "150"));
+
+        var ex = Record.Exception(w.RequestFallbackForTests);
+        Assert.Null(ex);
+        Assert.True(w.IsErrorBarVisibleForTests);
+        Assert.Equal(PlaybackModePolicy.CompactMinWidth, w.MinWidth);
+    });
+
     [Fact]
     public void SettingsWindow_reflects_and_toggles_compact_mode() => StaTestThread.Invoke(() =>
     {

@@ -660,10 +660,12 @@ public partial class MainWindow : Window
             var env = App.Current.WebViewEnvironment.Environment
                       ?? await App.Current.WebViewEnvironment.EnsureCreatedAsync();
 
+            // The target doubles as the compact error bar's fallback handle (spec 10.3 / Q-6,
+            // Stage 4): a compact player that can't play rebuilds the normal watch URL from it.
             _player = new PlayerWindow(env, popoutUrl, _settings.Player.Topmost,
                 _settings.Player.Placement, _settings.Player.LastWidth, _settings.Player.LastHeight,
                 _settings.Player.FadeEnabled, _settings.Player.PinAccent, _settings.Player.FadeAccent,
-                _settings.Player.FadeIdleDelayMs, mode);
+                _settings.Player.FadeIdleDelayMs, mode, target);
             _player.PlayerClosed += Player_OnClosed;
             _player.Show();
 

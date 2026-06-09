@@ -80,6 +80,7 @@ public class XamlInvariantTests
         new object[] { "PlayerWindow.xaml", new[]
         {
             "ChromeStrip", "FadeToggle", "PinToggle", "CloseButton", "Player",
+            "ErrorBar", "ErrorText", "FallbackButton", "ErrorDismissButton",
         }},
         new object[] { "SettingsWindow.xaml", new[]
         {
@@ -146,6 +147,36 @@ public class XamlInvariantTests
             Assert.False(string.IsNullOrWhiteSpace(byName[name].Attribute("ToolTip")?.Value),
                 $"{name} is missing a ToolTip (UI-CHK-4).");
         }
+    }
+
+    // --- Compact error bar (spec 10.3 / Q-6, Stage 4) ---
+
+    [Fact]
+    public void Player_error_bar_is_collapsed_by_default_with_accessible_actions()
+    {
+        var byName = XamlTestFiles.Load("PlayerWindow.xaml").Descendants()
+            .Where(e => e.Attribute(XamlTestFiles.X + "Name") is not null)
+            .ToDictionary(e => e.Attribute(XamlTestFiles.X + "Name")!.Value);
+
+        // The bar must never show before an actual compact error.
+        Assert.Equal("Collapsed", byName["ErrorBar"].Attribute("Visibility")?.Value);
+
+        // Both actions need a tooltip (UI-CHK-4) and an automation name (accessibility).
+        foreach (var name in new[] { "FallbackButton", "ErrorDismissButton" })
+        {
+            Assert.False(string.IsNullOrWhiteSpace(byName[name].Attribute("ToolTip")?.Value),
+                $"{name} is missing a ToolTip (UI-CHK-4).");
+            Assert.False(string.IsNullOrWhiteSpace(
+                    byName[name].Attribute(XamlTestFiles.Pres + "AutomationProperties.Name")?.Value ??
+                    byName[name].Attribute("AutomationProperties.Name")?.Value),
+                $"{name} is missing an AutomationProperties.Name.");
+        }
+
+        // User-facing wording stays in the settled vocabulary: "normal page", never internal names.
+        var fallbackText = byName["FallbackButton"].Attribute("Content")?.Value ?? "";
+        Assert.Contains("normal page", fallbackText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("PlayerWindow", fallbackText);
+        Assert.DoesNotContain("embed", fallbackText, StringComparison.OrdinalIgnoreCase);
     }
 
     // --- Resource integrity: every {StaticResource} reference resolves to a defined key ---

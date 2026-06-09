@@ -23,9 +23,12 @@ public partial class PlayerWindow : Window
     private readonly CoreWebView2Environment _environment;
     private readonly string _url;
     private readonly PlacementData? _placement;
-    private readonly PlaybackMode _mode;
     private readonly DispatcherTimer _syncTimer;
     private readonly PlayerReturnState _returnState = new();
+
+    // Mutable: the compact fallback (spec 10.3 / Q-6) flips the window to normal-mode behavior in
+    // place, so the mode-dependent seams (timestamp source, minimum size) follow the live surface.
+    private PlaybackMode _mode;
 
     // Controls fade (spec 11, Phase 2): idle/hover state machine over the chrome strip only.
     private readonly DispatcherTimer _idleTimer;
@@ -37,8 +40,13 @@ public partial class PlayerWindow : Window
     private bool _capturedReturn;
     private bool _nudgedPlay;
 
-    // Compact (shell) mode only: the host side of the IFrame-API bridge (spec 10.3).
+    // Compact (shell) mode only: the host side of the IFrame-API bridge (spec 10.3), the target
+    // the error bar's fallback reopens in normal page mode (Stage 4 / Q-6), the one-shot "the
+    // IFrame API never came up" watchdog, and the one-way fallback latch.
     private PlayerShellBridge? _shellBridge;
+    private readonly YouTubeTarget? _fallbackTarget;
+    private readonly DispatcherTimer _shellReadyTimer;
+    private bool _fellBack;
 
     /// <summary>Raised once when the player has closed, carrying the state needed to return (spec 14).</summary>
     public event EventHandler<PlayerReturnState>? PlayerClosed;
@@ -56,7 +64,8 @@ public partial class PlayerWindow : Window
         string pinAccent = PlayerAppearancePolicy.DefaultAccent,
         string fadeAccent = PlayerAppearancePolicy.DefaultAccent,
         int fadeIdleDelayMs = PlayerAppearancePolicy.DefaultFadeIdleDelayMs,
-        PlaybackMode mode = PlaybackMode.Normal)
+        PlaybackMode mode = PlaybackMode.Normal,
+        YouTubeTarget? fallbackTarget = null)
     {
         InitializeComponent();
         BorderlessWindowHelper.EnableExpandedResizeZones(this);
@@ -64,6 +73,7 @@ public partial class PlayerWindow : Window
         _environment = environment;
         _url = url;
         _mode = mode;
+        _fallbackTarget = fallbackTarget;
 
         // Mode-specific minimum (spec 10.2 / 16.1): compact embed mode needs a larger floor than the
         // 320x180 normal minimum so the embedded player controls stay usable. MinWidth/MinHeight set
@@ -90,6 +100,12 @@ public partial class PlayerWindow : Window
 
         _syncTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _syncTimer.Tick += SyncTimer_Tick;
+
+        // Compact only: if the shell never sends ANY bridge message (ready/state/error) within the
+        // policy window, the IFrame API is dead (blocked script, offline) — surface the error bar
+        // (spec 10.3 / Q-6). Any inbound message stops it.
+        _shellReadyTimer = new DispatcherTimer { Interval = PlayerShellErrorPolicy.ReadyTimeout };
+        _shellReadyTimer.Tick += ShellReadyTimer_Tick;
 
         // Idle timer drives the fade-out; any mouse move restarts it (spec 22.1 fade row).
         _idleTimer = new DispatcherTimer();
@@ -129,10 +145,13 @@ public partial class PlayerWindow : Window
                 // navigating, then let the shell bridge (IFrame API state) drive the return timestamp.
                 WebViewEnvironmentService.MapShellVirtualHost(core);
                 _shellBridge = new PlayerShellBridge(core);
+                _shellBridge.Ready += ShellBridge_Ready;
                 _shellBridge.StateReceived += ShellBridge_StateReceived;
+                _shellBridge.ErrorReceived += ShellBridge_ErrorReceived;
             }
 
             core.Navigate(_url);
+            if (_mode == PlaybackMode.Compact) _shellReadyTimer.Start();
             Log.Info($"Popout Player initialized (mode={_mode}).");
         }
         catch (Exception ex)
@@ -168,17 +187,101 @@ public partial class PlayerWindow : Window
     private void Core_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
         _navCompleted = true;
+        // A compact shell that failed to load outright can never message the host — surface the
+        // error bar now instead of waiting out the watchdog (spec 10.3 / Q-6, Stage 4).
+        if (_mode == PlaybackMode.Compact && !e.IsSuccess)
+        {
+            _shellReadyTimer.Stop();
+            ShowShellError(PlayerShellErrorPolicy.ShellLoadFailedMessage);
+        }
         // Normal mode polls the YouTube page DOM for the timestamp; compact mode reads it from the
         // shell bridge (IFrame API). The mode-specific choice lives in PlaybackModePolicy so the
         // "one source of truth for the timestamp" invariant is unit-testable (spec 10.3).
         if (PlaybackModePolicy.UsesDomSyncTimer(_mode) && !_syncTimer.IsEnabled) _syncTimer.Start();
     }
 
+    // --- Compact shell bridge + error/fallback path (spec 10.3 / Q-6, Stage 4) ---
+
+    private void ShellBridge_Ready(object? sender, EventArgs e) => _shellReadyTimer.Stop();
+
     private void ShellBridge_StateReceived(object? sender, InboundShellMessage state)
     {
+        if (_mode != PlaybackMode.Compact) return;
+        _shellReadyTimer.Stop();
         // Compact mode's source of truth for the return timestamp is the IFrame API, not the DOM.
         _returnState.LastKnownSeconds = state.CurrentTime;
+        // A playing state proves recovery (e.g. a playlist auto-advanced past a dead entry) —
+        // clear a showing error so the bar can't outlive the problem it reported.
+        if (PlayerShellErrorPolicy.ShouldAutoDismiss(state.PlayerState)) HideShellError();
     }
+
+    private void ShellBridge_ErrorReceived(object? sender, InboundShellMessage message)
+    {
+        if (_mode != PlaybackMode.Compact) return;
+        _shellReadyTimer.Stop();
+        ShowShellError(PlayerShellErrorPolicy.Describe(message.ErrorCode));
+    }
+
+    private void ShellReadyTimer_Tick(object? sender, EventArgs e)
+    {
+        _shellReadyTimer.Stop();
+        if (_mode != PlaybackMode.Compact) return;
+        ShowShellError(PlayerShellErrorPolicy.ReadyTimeoutMessage);
+    }
+
+    private void ShowShellError(string message)
+    {
+        ErrorText.Text = message;
+        ErrorBar.Visibility = Visibility.Visible;
+        // Redacted target only (spec 17): never the full query string.
+        Log.Info($"Compact player error shown (\"{message}\") for {Log.RedactUrl(_url)}; " +
+                 "normal-page fallback offered.");
+    }
+
+    private void HideShellError()
+    {
+        if (ErrorBar.Visibility == Visibility.Collapsed) return;
+        ErrorBar.Visibility = Visibility.Collapsed;
+    }
+
+    private void FallbackButton_Click(object sender, RoutedEventArgs e) => FallBackToNormalPage();
+
+    private void ErrorDismissButton_Click(object sender, RoutedEventArgs e) => HideShellError();
+
+    /// <summary>
+    /// The error bar's fallback action (Q-6): re-navigate this same window to the normal watch
+    /// page for the same target at the best-known timestamp. In-place — closing instead would fire
+    /// the return lifecycle (source resume / auto re-popout). From here the window IS a
+    /// normal-mode player: the DOM sync timer becomes the one timestamp source, the shell bridge
+    /// is disposed, and the minimum relaxes to the normal floor. One-way by design; saved mode
+    /// preferences are untouched.
+    /// </summary>
+    private void FallBackToNormalPage()
+    {
+        if (_fellBack || _fallbackTarget is null || Player.CoreWebView2 is null) return;
+        _fellBack = true;
+
+        _shellReadyTimer.Stop();
+        try { _shellBridge?.Dispose(); } catch { /* ignore */ }
+        _shellBridge = null;
+
+        _mode = PlaybackMode.Normal;
+        MinWidth = PlaybackModePolicy.MinWidthFor(PlaybackMode.Normal);
+        MinHeight = PlaybackModePolicy.MinHeightFor(PlaybackMode.Normal);
+        HideShellError();
+
+        var url = YouTubeUrlHelper.BuildWatchUrl(_fallbackTarget, _returnState.LastKnownSeconds);
+        Log.Info($"Compact fallback: reopening in normal page mode: {Log.RedactUrl(url)}");
+        Player.CoreWebView2.Navigate(url);
+    }
+
+    // Test seams (WPF lane): drive the error/fallback path without a live WebView2 or shell.
+    internal void HandleShellStateForTests(InboundShellMessage state) => ShellBridge_StateReceived(this, state);
+    internal void HandleShellErrorForTests(InboundShellMessage message) => ShellBridge_ErrorReceived(this, message);
+    internal void HandleShellLoadFailureForTests() => ShowShellError(PlayerShellErrorPolicy.ShellLoadFailedMessage);
+    internal void RequestFallbackForTests() => FallBackToNormalPage();
+    internal bool IsErrorBarVisibleForTests => ErrorBar.Visibility == Visibility.Visible;
+    internal string ErrorTextForTests => ErrorText.Text;
 
     private async void SyncTimer_Tick(object? sender, EventArgs e)
     {
@@ -312,6 +415,7 @@ public partial class PlayerWindow : Window
 
         _syncTimer.Stop();
         _idleTimer.Stop();
+        _shellReadyTimer.Stop();
         _returnState.Topmost = Topmost;
         _returnState.FadeEnabled = _fadeEnabled;
         _returnState.Placement = WindowPlacementService.TryCapture(this);

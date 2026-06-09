@@ -27,6 +27,7 @@
   <Grid>
     <Grid.RowDefinitions>
       <RowDefinition Height="32" />
+      <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
@@ -53,6 +54,33 @@
       </Grid>
     </Border>
 
-    <wv2:WebView2 x:Name="Player" Grid.Row="1" />
+    <!-- Compact error bar (spec 10.3 / Q-6, Stage 4): shown when the compact shell reports an
+         IFrame API error, fails to load, or times out. A separate row, not an overlay — WPF can't
+         render over the WebView2 HwndHost (airspace), and the bar leaves YouTube's own in-player
+         error message visible (Q-5). Collapsed in normal mode and whenever there is no error. -->
+    <Border x:Name="ErrorBar" Grid.Row="1" Background="{StaticResource SurfaceRaised}"
+            Padding="10,6" Visibility="Collapsed">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <TextBlock x:Name="ErrorText" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap"
+                   FontSize="12" Foreground="{StaticResource TextPrimary}" />
+
+        <Button x:Name="FallbackButton" Grid.Column="1" Style="{StaticResource AccentButton}"
+                Margin="10,0,0,0" Content="Open normal page" Click="FallbackButton_Click"
+                ToolTip="Reopen this video as the normal YouTube page"
+                AutomationProperties.Name="Open normal page" />
+        <Button x:Name="ErrorDismissButton" Grid.Column="2" Style="{StaticResource CloseIconButton}"
+                Width="30" Height="30" Margin="6,0,0,0" Content="&#xE711;"
+                Click="ErrorDismissButton_Click" ToolTip="Dismiss this message"
+                AutomationProperties.Name="Dismiss player error" />
+      </Grid>
+    </Border>
+
+    <wv2:WebView2 x:Name="Player" Grid.Row="2" />
   </Grid>
 </Window>

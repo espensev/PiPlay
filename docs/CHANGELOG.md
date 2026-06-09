@@ -149,14 +149,30 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   keeps YouTube's controls and branding; no click-through, transparent WebView2, ad-blocking, or
   media download is introduced (Q-5/Q-8). The local virtual host is allowlisted on the Popout Player
   only.
+- **Compact error states + normal-page fallback (Stage 4, Q-6).** A compact popout that can't
+  play — embed-disabled (IFrame API codes 101/150), unavailable (100), an invalid reference (2), a
+  playback error (5), a failed shell load, or an IFrame API that never responds (watchdog
+  timeout) — now shows a native error bar with a code-specific message and an **Open normal page**
+  action that reopens the same video in normal page mode at the best-known timestamp, in the same
+  window. The bar dismisses itself if playback recovers (e.g. a playlist auto-advances past a dead
+  entry). The error→message map, the auto-dismiss rule, and the watchdog timeout live in a pure
+  `PlayerShellErrorPolicy`; logs carry redacted targets only. See
+  `docs/superpowers/specs/2026-06-10-compact-stage4-fallback-design.md`.
 - **Verified locally (deterministic):** the mode/precedence/min-size policy, the mode→URL and
   profile-override seams, the shell URL builder + host single-source-of-truth, the navigation
   allowlist for the shell host, the host↔shell protocol, the shell-asset invariants (structure, no
-  third-party origins, no credential strings, build-copy), and that every window constructs.
-  **Release-candidate QA (live, not yet run):** a compact video actually playing through the IFrame
-  API, timestamp/state flowing over the bridge, playlists, restricted/embed-disabled handling, and
-  signed-in/out sessions. The embed-disabled→normal in-app fallback (Stage 4) is not yet built;
-  Normal page mode remains the fallback. See
+  third-party origins, no credential strings, build-copy), the error/fallback policy and error-bar
+  lifecycle, and that every window constructs. **Live-verified (2026-06-07 smoke, no account):**
+  the core compact path — the shell loading from the virtual host, the IFrame API playing a public
+  video, and the bridge-sourced timestamp surviving return/resume. **Live-verified (2026-06-10
+  smoke):** the Stage-4 error→fallback path — a valid-shape nonexistent video id surfaced IFrame
+  API error 150, the error bar rendered with the embed-disabled message, and the **Open normal
+  page** action reopened the same window on the real watch page with the bar hidden and only
+  redacted URLs logged. **Release-candidate QA (live, not yet run):** playlists,
+  restricted/embed-disabled handling on real videos, signed-in/account-backed playback, the tuned
+  shell CSP (deferred until the IFrame API's real requests are enumerated live), and the Stage-4
+  paths not yet seen live (watchdog timeout, auto-dismiss on playlist recovery, timestamp-carrying
+  fallback after real playback). See
   `docs/superpowers/specs/2026-06-07-compact-player-sweep-design.md`.
 
 ### Validation — Phase 2 landing
