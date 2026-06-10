@@ -98,6 +98,18 @@ mitigations, recorded as a deliberate, personal-use deviation:
    idle-detection comes from the same idle source as the controls fade so there is **one idleness
    definition**). Settings: `player.idleWindowOpacity` (existing) + new
    `player.constantWindowOpacity`, both default 1.0, both sanitized to 0.1–1.0.
+   **Consequences of the one-idleness rule (settled at Task 3, 2026-06-10):** (a) idle opacity
+   engages only while the controls fade is enabled — with the popout's Fade toggle off there is no
+   idle source, so the idle slider silently has no effect (record in spec §7.3 notes at Task 6);
+   (b) because WPF never receives mouse events over the WebView2 child, idleness is supplemented
+   by a 250 ms cursor-activity probe that runs for as long as an idle dip is configured
+   (idle level &lt; active level): it records the last cursor move over the window, the idle tick
+   treats movement within the idle delay as activity (prevents idle onset while scrubbing over
+   the video — no strobing), and movement while opacity-idle restores immediately (spec 7.3
+   "hover restores"). The probe never runs at the 1.0/1.0 defaults, so default-look fade behavior
+   is byte-identical to Phase 2. Side effect while the feature is on, accepted: sustained movement
+   over the video also keeps the chrome strip up — closer to spec 6.2 "mouse movement always
+   restores" than the Phase 2 behavior.
    **Explicit unlock (settled):** Settings UI sliders stop at 45%; values 10–45% are honored only
    when hand-edited into `settings.json` — the manual edit *is* the explicit unlock for now. A UI
    unlock can come later without a model change.
@@ -105,6 +117,13 @@ mitigations, recorded as a deliberate, personal-use deviation:
    = DWMWCP_ROUND)` on the Popout Player — composited by DWM so it costs nothing, clips the
    WebView2 child correctly, and no-ops gracefully on Windows 10. WPF `CornerRadius` clipping
    cannot clip an HwndHost (airspace again).
+   **When corners engage (settled at Task 3, 2026-06-10):** rounding tracks the CONFIGURED
+   floating look — any opacity level below 1.0 — not the momentary alpha, so hover-restores don't
+   square the corners and the all-defaults window stays byte-identical to Stage 4 (acceptance
+   criterion 1). **Task 5 carry-over:** the overlay look must add itself as a second input to the
+   gate (`opacity configured OR overlay look on`), otherwise overlay-on at 100% opacity — a
+   first-class look per criterion 2 — would stay square. `WindowOpacityApplier.SetRoundedCorners`
+   already supports this; only PlayerWindow's gate computation needs the extra term.
 7. **Dragging in the overlay look: CSS `app-region: drag` (spike-gated).** WebView2's non-client
    region support (`CoreWebView2Settings.IsNonClientRegionSupportEnabled` + CSS `app-region: drag`)
    lets a shell-defined region initiate native window drag. Runtime/SDK support must be verified

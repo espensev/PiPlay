@@ -33,7 +33,8 @@ until the final smoke. If S-1 fails, Stages 2's opacity work gates on a
   - Verification: screenshots + worklog record per spike; no production code merged from spikes.
   - Commit: `chore(spike): record layered-alpha / app-region / DWM-rounding spike results`
 
-- [ ] **Task 2 — WindowOpacityPolicy + settings model.**
+- [x] **Task 2 — WindowOpacityPolicy + settings model.** *(done 2026-06-10, commit e523652;
+  Effective clamps idle to the constant level — recorded in the design §5.)*
   - Pure `WindowOpacityPolicy`: effective opacity (idle vs constant), 0.45 UI floor vs 0.10 file
     floor, clamp rules, animation duration (reuse `FadePolicy.FadeDurationMs`), one-idleness-source
     rule documented in XML docs.
@@ -42,7 +43,11 @@ until the final smoke. If S-1 fails, Stages 2's opacity work gates on a
   - Verification: logic tests (policy table, clamps, floor/unlock) + settings sanitization tests.
   - Commit: `feat(player): window opacity policy + settings model`
 
-- [ ] **Task 3 — Apply opacity in PlayerWindow + Settings UI.**
+- [x] **Task 3 — Apply opacity in PlayerWindow + Settings UI.** *(done 2026-06-10:
+  WindowOpacityApplier with the force-bit WM_STYLECHANGING guard; idle shares the controls-fade
+  timer + a 250 ms activity probe for the WebView2 area (no strobing, live-verified
+  dipsBelow217=0); sliders + live preview; rounded corners track the configured feature — Task 5
+  must add the overlay-look term to the gate, see design §6.)*
   - Layered-alpha application behind a `*ForTests`-seamed applier (Wpf lane asserts policy output,
     not live HWND alpha); idle hook shares the controls-fade idle timer; `WS_EX_TRANSPARENT` never
     set (assert in tests via the style mask seam).

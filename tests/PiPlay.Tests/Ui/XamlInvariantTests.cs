@@ -89,6 +89,7 @@ public class XamlInvariantTests
             "PinAccentCyanSwatch", "PinAccentVioletSwatch", "PinAccentGreenSwatch", "PinAccentAmberSwatch",
             "FadeAccentCyanSwatch", "FadeAccentVioletSwatch", "FadeAccentGreenSwatch", "FadeAccentAmberSwatch",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
+            "ActiveOpacitySlider", "ActiveOpacityValueText", "IdleOpacitySlider", "IdleOpacityValueText",
             "CompactModeToggle",
         }},
     };
@@ -266,6 +267,7 @@ public class XamlInvariantTests
             "PinAccentCyanSwatch", "PinAccentVioletSwatch", "PinAccentGreenSwatch", "PinAccentAmberSwatch",
             "FadeAccentCyanSwatch", "FadeAccentVioletSwatch", "FadeAccentGreenSwatch", "FadeAccentAmberSwatch",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
+            "ActiveOpacitySlider", "IdleOpacitySlider",
             "CompactModeToggle",
         })
         {

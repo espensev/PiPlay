@@ -36,6 +36,18 @@ public partial class PlayerWindow : Window
     private bool _isDragging;
     private bool _controlsVisible = true;
 
+    // Whole-window opacity (spec 7.3, Phase 4): two persisted levels applied as layered alpha by
+    // WindowOpacityApplier. Idle ONSET shares _idleTimer with the controls fade (one idleness
+    // definition); the hover-restore poll exists because WPF receives no mouse events over the
+    // WebView2 child HWND (Stage 0 spike finding), so restoring on movement over the video needs
+    // a cursor probe. The poll runs only while the window is opacity-idle-faded.
+    private double _constantWindowOpacity;
+    private double _idleWindowOpacity;
+    private bool _windowOpacityIdle;
+    private int _probeCursorX, _probeCursorY;        // last cursor position the activity probe saw
+    private long _lastInWindowCursorMoveMs = -1;     // Environment.TickCount64 of the last in-window move
+    private readonly DispatcherTimer _opacityHoverPoll;
+
     private bool _navCompleted;
     private bool _capturedReturn;
     private bool _nudgedPlay;
@@ -65,7 +77,9 @@ public partial class PlayerWindow : Window
         string fadeAccent = PlayerAppearancePolicy.DefaultAccent,
         int fadeIdleDelayMs = PlayerAppearancePolicy.DefaultFadeIdleDelayMs,
         PlaybackMode mode = PlaybackMode.Normal,
-        YouTubeTarget? fallbackTarget = null)
+        YouTubeTarget? fallbackTarget = null,
+        double constantWindowOpacity = WindowOpacityPolicy.Default,
+        double idleWindowOpacity = WindowOpacityPolicy.Default)
     {
         InitializeComponent();
         BorderlessWindowHelper.EnableExpandedResizeZones(this);
@@ -114,11 +128,17 @@ public partial class PlayerWindow : Window
         MouseMove += (_, _) => OnUserActivity();
         MouseEnter += (_, _) => OnUserActivity();
 
+        _constantWindowOpacity = WindowOpacityPolicy.Normalize(constantWindowOpacity);
+        _idleWindowOpacity = WindowOpacityPolicy.Normalize(idleWindowOpacity);
+        _opacityHoverPoll = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        _opacityHoverPoll.Tick += OpacityHoverPoll_Tick;
+
         Loaded += (_, _) => ApplyFadeState();
         Loaded += async (_, _) => await InitializePlayerAsync();
         SourceInitialized += (_, _) =>
         {
             if (_placement is not null) WindowPlacementService.Restore(this, _placement);
+            ApplyWindowOpacityToHwnd(animate: false);   // appear at the configured level, no flash
         };
         Closing += PlayerWindow_Closing;
         Closed += PlayerWindow_Closed;
@@ -353,11 +373,13 @@ public partial class PlayerWindow : Window
         {
             _idleTimer.Stop();
             ShowControls(); // disabling fade restores the MVP "always visible" behavior immediately
+            ExitWindowOpacityIdle(); // no idle source while fade is off, so no idle opacity either
         }
     }
 
     private void OnUserActivity()
     {
+        ExitWindowOpacityIdle();
         if (!_fadeEnabled) return;
         ShowControls();
         RestartIdleTimer();
@@ -372,15 +394,101 @@ public partial class PlayerWindow : Window
     private void IdleTimer_Tick(object? sender, EventArgs e)
     {
         _idleTimer.Stop();
+        // Activity WPF couldn't see: the probe watches the WebView2 area (no WPF mouse events
+        // there — Stage 0 spike finding). Recent in-window movement means not idle — re-arm.
+        // This feeds the ONE idleness definition, holding up both the strip and the window
+        // opacity. The probe only runs while idle opacity is configured, so default-look fade
+        // behavior is untouched.
+        if (_opacityHoverPoll.IsEnabled && _lastInWindowCursorMoveMs >= 0 &&
+            Environment.TickCount64 - _lastInWindowCursorMoveMs < _idleTimer.Interval.TotalMilliseconds)
+        {
+            RestartIdleTimer();
+            return;
+        }
         if (FadePolicy.ShouldHide(_fadeEnabled, ChromeStrip.IsMouseOver, _isDragging, idleElapsed: true))
         {
             HideControls();
+            // Window opacity idles on the SAME tick with the SAME inputs (one idleness definition,
+            // design 2026-06-10 §5).
+            EnterWindowOpacityIdle();
         }
         else if (_fadeEnabled)
         {
             // Something is still holding controls up (pointer over the strip / mid-drag); re-arm.
             RestartIdleTimer();
         }
+    }
+
+    // --- Whole-window opacity (spec 7.3, Phase 4) ---
+
+    internal (double Constant, double Idle) WindowOpacityLevelsForTests => (_constantWindowOpacity, _idleWindowOpacity);
+    internal bool IsWindowOpacityIdleForTests => _windowOpacityIdle;
+    internal bool IsOpacityHoverPollRunningForTests => _opacityHoverPoll.IsEnabled;
+    internal void EnterWindowOpacityIdleForTests() => EnterWindowOpacityIdle();
+    internal void OnUserActivityForTests() => OnUserActivity();
+
+    /// <summary>Live re-apply seam, called by MainWindow for settings changes and the dialog's
+    /// live preview (mirrors <see cref="ApplyAppearance"/>).</summary>
+    internal void ApplyWindowOpacity(double constantOpacity, double idleOpacity)
+    {
+        _constantWindowOpacity = WindowOpacityPolicy.Normalize(constantOpacity);
+        _idleWindowOpacity = WindowOpacityPolicy.Normalize(idleOpacity);
+        ApplyWindowOpacityToHwnd(animate: true);
+    }
+
+    private void ApplyWindowOpacityToHwnd(bool animate)
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;   // SourceInitialized applies the initial state
+
+        var active = WindowOpacityPolicy.Effective(isIdle: false, _constantWindowOpacity, _idleWindowOpacity);
+        var idle = WindowOpacityPolicy.Effective(isIdle: true, _constantWindowOpacity, _idleWindowOpacity);
+        // Rounded corners belong to the floating translucent look (spike S-3). They track the
+        // CONFIGURED feature, not the momentary alpha, so hover-restores don't square the corners;
+        // with both levels at 1.0 the window stays byte-identical to the pre-Phase-4 popout.
+        WindowOpacityApplier.SetRoundedCorners(hwnd, rounded: active < WindowOpacityPolicy.Max || idle < WindowOpacityPolicy.Max);
+        WindowOpacityApplier.Apply(hwnd, _windowOpacityIdle ? idle : active, animate);
+
+        // The activity probe runs for as long as an idle dip is configured (it both prevents
+        // idle onset during movement over the video and restores after onset). Off at defaults.
+        var pollWanted = idle < active;
+        if (pollWanted && !_opacityHoverPoll.IsEnabled) _opacityHoverPoll.Start();
+        else if (!pollWanted) _opacityHoverPoll.Stop();
+    }
+
+    private void EnterWindowOpacityIdle()
+    {
+        if (_windowOpacityIdle) return;
+        _windowOpacityIdle = true;
+        ApplyWindowOpacityToHwnd(animate: true);
+    }
+
+    private void ExitWindowOpacityIdle()
+    {
+        if (!_windowOpacityIdle) return;
+        _windowOpacityIdle = false;
+        ApplyWindowOpacityToHwnd(animate: true);
+    }
+
+    /// <summary>
+    /// Activity sensor for the area WPF can't see (the WebView2 child swallows all mouse input):
+    /// records the last cursor MOVE over this window so idle onset is prevented during sustained
+    /// movement over the video, and restores immediately when movement happens while opacity-idle
+    /// — spec 7.3 "hover restores full opacity". A cursor parked on the video still goes (and
+    /// stays) idle.
+    /// </summary>
+    private void OpacityHoverPoll_Tick(object? sender, EventArgs e)
+    {
+        if (!WindowOpacityApplier.TryGetCursorPos(out var x, out var y)) return;
+        var moved = x != _probeCursorX || y != _probeCursorY;
+        _probeCursorX = x;
+        _probeCursorY = y;
+        if (!moved || PresentationSource.FromVisual(this) is null) return;
+
+        var p = PointFromScreen(new Point(x, y));
+        if (p.X < 0 || p.Y < 0 || p.X > ActualWidth || p.Y > ActualHeight) return;
+        _lastInWindowCursorMoveMs = Environment.TickCount64;
+        if (_windowOpacityIdle) OnUserActivity();
     }
 
     private void ShowControls()
@@ -416,6 +524,7 @@ public partial class PlayerWindow : Window
         _syncTimer.Stop();
         _idleTimer.Stop();
         _shellReadyTimer.Stop();
+        _opacityHoverPoll.Stop();
         _returnState.Topmost = Topmost;
         _returnState.FadeEnabled = _fadeEnabled;
         _returnState.Placement = WindowPlacementService.TryCapture(this);

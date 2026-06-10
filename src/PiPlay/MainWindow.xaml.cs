@@ -478,13 +478,22 @@ public partial class MainWindow : Window
             pinAccent: _settings.Player.PinAccent,
             fadeAccent: _settings.Player.FadeAccent,
             fadeIdleDelayMs: _settings.Player.FadeIdleDelayMs,
-            compactMode: _settings.Player.CompactMode)
+            compactMode: _settings.Player.CompactMode,
+            constantWindowOpacity: _settings.Player.ConstantWindowOpacity,
+            idleWindowOpacity: _settings.Player.IdleWindowOpacity)
         {
             Owner = this,
             Topmost = Topmost,
         };
+        // Live preview (spec 7.3 / plan Task 3): slider moves apply to the open popout immediately.
+        dialog.OpacityPreviewChanged += (constant, idle) => _player?.ApplyWindowOpacity(constant, idle);
 
-        if (dialog.ShowDialog() != true) return;
+        if (dialog.ShowDialog() != true)
+        {
+            // Dismissed without applying: undo any live preview back to the persisted levels.
+            _player?.ApplyWindowOpacity(_settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity);
+            return;
+        }
 
         if (dialog.RequestedAction == PrivacyAction.ResetAppState)
         {
@@ -494,7 +503,8 @@ public partial class MainWindow : Window
 
         if (dialog.AppearanceChanged)
         {
-            ApplyPlayerPreferences(dialog.PinAccent, dialog.FadeAccent, dialog.FadeIdleDelayMs, dialog.CompactMode);
+            ApplyPlayerPreferences(dialog.PinAccent, dialog.FadeAccent, dialog.FadeIdleDelayMs, dialog.CompactMode,
+                dialog.ConstantWindowOpacity, dialog.IdleWindowOpacity);
         }
 
         switch (dialog.RequestedAction)
@@ -532,20 +542,25 @@ public partial class MainWindow : Window
         ApplyAuto(false);
         ApplySourceAppearance();
         _player?.ApplyAppearance(_settings.Player.PinAccent, _settings.Player.FadeAccent, _settings.Player.FadeIdleDelayMs);
+        _player?.ApplyWindowOpacity(_settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity);
         UpdateAutoDetector();   // Auto is off after reset → stop the detector
         LoadProfilesIntoCombo();
     }
 
-    private void ApplyPlayerPreferences(string pinAccent, string fadeAccent, int fadeIdleDelayMs, bool compactMode)
+    private void ApplyPlayerPreferences(string pinAccent, string fadeAccent, int fadeIdleDelayMs, bool compactMode,
+        double constantWindowOpacity, double idleWindowOpacity)
     {
         _settings.Player.PinAccent = PlayerAppearancePolicy.NormalizeAccent(pinAccent);
         _settings.Player.FadeAccent = PlayerAppearancePolicy.NormalizeAccent(fadeAccent);
         _settings.Player.FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
         // Global compact-mode default takes effect on the NEXT popout; an open player keeps its mode.
         _settings.Player.CompactMode = compactMode;
+        _settings.Player.ConstantWindowOpacity = WindowOpacityPolicy.Normalize(constantWindowOpacity);
+        _settings.Player.IdleWindowOpacity = WindowOpacityPolicy.Normalize(idleWindowOpacity);
 
         ApplySourceAppearance();
         _player?.ApplyAppearance(_settings.Player.PinAccent, _settings.Player.FadeAccent, _settings.Player.FadeIdleDelayMs);
+        _player?.ApplyWindowOpacity(_settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity);
         _settingsService.Save(_settings);
     }
 
@@ -665,7 +680,8 @@ public partial class MainWindow : Window
             _player = new PlayerWindow(env, popoutUrl, _settings.Player.Topmost,
                 _settings.Player.Placement, _settings.Player.LastWidth, _settings.Player.LastHeight,
                 _settings.Player.FadeEnabled, _settings.Player.PinAccent, _settings.Player.FadeAccent,
-                _settings.Player.FadeIdleDelayMs, mode, target);
+                _settings.Player.FadeIdleDelayMs, mode, target,
+                _settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity);
             _player.PlayerClosed += Player_OnClosed;
             _player.Show();
 

@@ -449,6 +449,177 @@ public class WpfRuntimeTests : IDisposable
         Assert.True(w.AppearanceChanged);   // any persisted player preference change is flagged
     });
 
+    // --- Whole-window opacity (spec 7.3, Phase 4) ---
+
+    [Fact]
+    public void SettingsWindow_reflects_and_updates_window_opacity() => StaTestThread.Invoke(() =>
+    {
+        var w = new SettingsWindow(isBrowserReady: true, constantWindowOpacity: 0.8, idleWindowOpacity: 0.6);
+
+        Assert.Equal(0.8, w.ConstantWindowOpacity);
+        Assert.Equal(0.6, w.IdleWindowOpacity);
+        Assert.Equal(80, ((Slider)w.FindName("ActiveOpacitySlider")!).Value);
+        Assert.Equal(60, ((Slider)w.FindName("IdleOpacitySlider")!).Value);
+        Assert.False(w.AppearanceChanged);   // seeding the sliders must not count as a user change
+
+        (double Constant, double Idle)? preview = null;
+        w.OpacityPreviewChanged += (c, i) => preview = (c, i);
+        ((Slider)w.FindName("IdleOpacitySlider")!).Value = 45;
+
+        Assert.True(w.AppearanceChanged);
+        Assert.Equal(0.45, w.IdleWindowOpacity);
+        Assert.Equal((0.8, 0.45), preview);
+    });
+
+    [Fact]
+    public void SettingsWindow_preserves_hand_edited_sub_floor_opacity_until_the_slider_moves() => StaTestThread.Invoke(() =>
+    {
+        // Spec 7.3 explicit unlock: a hand-edited 0.25 displays clamped at the 45% slider floor
+        // but must survive an unrelated settings change untouched.
+        var w = new SettingsWindow(isBrowserReady: true, constantWindowOpacity: 0.25, idleWindowOpacity: 1.0);
+
+        Assert.Equal(45, ((Slider)w.FindName("ActiveOpacitySlider")!).Value);
+        Assert.Equal(0.25, w.ConstantWindowOpacity);
+
+        ((Slider)w.FindName("IdleOpacitySlider")!).Value = 70;   // user touches only the idle slider
+        Assert.Equal(0.25, w.ConstantWindowOpacity);             // the unlock survives
+        Assert.Equal(0.7, w.IdleWindowOpacity);
+
+        ((Slider)w.FindName("ActiveOpacitySlider")!).Value = 50; // moving THE slider replaces it
+        Assert.Equal(0.5, w.ConstantWindowOpacity);
+    });
+
+    [Fact]
+    public void PlayerWindow_records_normalized_window_opacity_levels() => StaTestThread.Invoke(() =>
+    {
+        var w = new PlayerWindow(environment: null!, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            topmost: false, placement: null, defaultWidth: 960, defaultHeight: 540, fadeEnabled: true,
+            constantWindowOpacity: 0.8, idleWindowOpacity: 5.0);
+
+        Assert.Equal((0.8, 1.0), w.WindowOpacityLevelsForTests);   // junk idle reset by the policy
+
+        w.ApplyWindowOpacity(0.6, 0.45);
+        Assert.Equal((0.6, 0.45), w.WindowOpacityLevelsForTests);
+    });
+
+    [Fact]
+    public void PlayerWindow_opacity_idle_state_is_safe_without_an_hwnd() => StaTestThread.Invoke(() =>
+    {
+        // Never shown: entering/leaving the opacity idle state must not start the hover poll or
+        // touch native state (the SourceInitialized hook owns the first real application).
+        var w = NewPlayer();
+        var ex = Record.Exception(() =>
+        {
+            w.EnterWindowOpacityIdleForTests();
+            Assert.True(w.IsWindowOpacityIdleForTests);
+            Assert.False(w.IsOpacityHoverPollRunningForTests);
+        });
+        Assert.Null(ex);
+    });
+
+    [Fact]
+    public void Window_opacity_applier_engages_a_real_hwnd_and_disengages_cleanly() => StaTestThread.Invoke(() =>
+    {
+        // Real HWND (the BorderlessWindowHelper test recipe): the guard subclass must hold the
+        // layered bit against WPF's HwndTarget strip, and 1.0 must restore the pristine exstyle.
+        var w = new Window
+        {
+            Width = 240, Height = 160, Left = 100, Top = 100,
+            WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResize,
+            AllowsTransparency = false, Opacity = 0, ShowActivated = false, ShowInTaskbar = false,
+        };
+        var hwnd = new WindowInteropHelper(w).EnsureHandle();
+
+        // Acceptance criterion 1: feature-off calls on a pristine window are a strict no-op —
+        // no tracking state, no subclass-driven exstyle change (Null target proves never tracked).
+        var pristine = GetWindowLongPtrW(hwnd, -20).ToInt64();
+        WindowOpacityApplier.SetRoundedCorners(hwnd, rounded: false);
+        WindowOpacityApplier.Apply(hwnd, 1.0, animate: false);
+        Assert.Null(WindowOpacityApplier.TargetAlphaForTests(hwnd));
+        Assert.False(WindowOpacityApplier.IsRoundedForTests(hwnd));
+        Assert.Equal(pristine, GetWindowLongPtrW(hwnd, -20).ToInt64());
+
+        // Engage BEFORE Show: production order (the popout's SourceInitialized runs inside Show),
+        // so the bit + alpha must survive WPF's show-time style application.
+        WindowOpacityApplier.Apply(hwnd, 0.6, animate: false);
+        w.Show();
+        Assert.True(WindowOpacityApplier.IsEngagedForTests(hwnd));
+        Assert.Equal((byte)153, WindowOpacityApplier.TargetAlphaForTests(hwnd));
+        Assert.Equal((byte)153, WindowOpacityApplier.CurrentAlphaForTests(hwnd));
+        var ex = GetWindowLongPtrW(hwnd, -20).ToInt64();
+        Assert.True((ex & 0x00080000) != 0, $"WS_EX_LAYERED missing from live exstyle 0x{ex:X} after Show.");
+        Assert.True((ex & 0x00000020) == 0, $"WS_EX_TRANSPARENT set on live exstyle 0x{ex:X} (ADR-0006).");
+        Assert.False(WindowOpacityApplier.LastExStyleWriteCarriedTransparentBitForTests(hwnd));
+
+        // Spike finding 2: a wholesale exstyle rewrite that drops the bit (what WPF does during
+        // move/size/topmost) must be defeated by the WM_STYLECHANGING forcing, not healed later.
+        SetWindowLongPtrW(hwnd, -20, new IntPtr(ex & ~0x00080000));
+        var afterHostileWrite = GetWindowLongPtrW(hwnd, -20).ToInt64();
+        Assert.True((afterHostileWrite & 0x00080000) != 0,
+            $"Guard failed to force WS_EX_LAYERED through a hostile rewrite: 0x{afterHostileWrite:X}.");
+        w.Topmost = true;   // production-shaped stressor on the same path
+        var afterTopmost = GetWindowLongPtrW(hwnd, -20).ToInt64();
+        Assert.True((afterTopmost & 0x00080000) != 0, $"Topmost toggle dropped the bit: 0x{afterTopmost:X}.");
+
+        WindowOpacityApplier.SetRoundedCorners(hwnd, rounded: true);
+        Assert.True(WindowOpacityApplier.IsRoundedForTests(hwnd));
+
+        WindowOpacityApplier.Apply(hwnd, 1.0, animate: false);
+        Assert.False(WindowOpacityApplier.IsEngagedForTests(hwnd));
+        var restored = GetWindowLongPtrW(hwnd, -20).ToInt64();
+        Assert.True((restored & 0x00080000) == 0, $"WS_EX_LAYERED still set after disengage: 0x{restored:X}.");
+
+        // Re-engage after a disengage (the constant=1.0 + idle<1.0 cycle hits this every round trip).
+        WindowOpacityApplier.Apply(hwnd, 0.45, animate: false);
+        Assert.True(WindowOpacityApplier.IsEngagedForTests(hwnd));
+        Assert.Equal((byte)115, WindowOpacityApplier.CurrentAlphaForTests(hwnd));
+        var reengaged = GetWindowLongPtrW(hwnd, -20).ToInt64();
+        Assert.True((reengaged & 0x00080000) != 0, $"Re-engage failed to land the bit: 0x{reengaged:X}.");
+    });
+
+    [Fact]
+    public void PlayerWindow_applies_active_and_idle_levels_through_the_applier() => StaTestThread.Invoke(() =>
+    {
+        // EnsureHandle fires SourceInitialized without Show: Loaded never runs, so WebView2 and
+        // the network stay untouched, but the initial opacity application is real.
+        var w = new PlayerWindow(environment: null!, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            topmost: false, placement: null, defaultWidth: 960, defaultHeight: 540, fadeEnabled: true,
+            constantWindowOpacity: 0.8, idleWindowOpacity: 0.6);
+        var hwnd = new WindowInteropHelper(w).EnsureHandle();
+
+        // SourceInitialized applied the ACTIVE level (the "appear at the configured level" hook).
+        Assert.True(WindowOpacityApplier.IsEngagedForTests(hwnd));
+        Assert.Equal(WindowOpacityPolicy.ToAlphaByte(0.8), WindowOpacityApplier.TargetAlphaForTests(hwnd));
+
+        // Idle onset applies the idle level and arms the hover-restore poll (idle < active).
+        w.EnterWindowOpacityIdleForTests();
+        Assert.Equal(WindowOpacityPolicy.ToAlphaByte(0.6), WindowOpacityApplier.TargetAlphaForTests(hwnd));
+        Assert.True(w.IsOpacityHoverPollRunningForTests);
+
+        // Settings change while idle keeps applying the IDLE level (the live-preview path).
+        w.ApplyWindowOpacity(0.7, 0.5);
+        Assert.Equal(WindowOpacityPolicy.ToAlphaByte(0.5), WindowOpacityApplier.TargetAlphaForTests(hwnd));
+
+        // Activity restores the active level; the probe keeps running while an idle dip is
+        // configured (it must PREVENT the next idle onset during movement over the video).
+        w.OnUserActivityForTests();
+        Assert.False(w.IsWindowOpacityIdleForTests);
+        Assert.Equal(WindowOpacityPolicy.ToAlphaByte(0.7), WindowOpacityApplier.TargetAlphaForTests(hwnd));
+        Assert.True(w.IsOpacityHoverPollRunningForTests);
+
+        // Turning the feature off stops the probe (defaults never run it).
+        w.ApplyWindowOpacity(1.0, 1.0);
+        Assert.False(w.IsOpacityHoverPollRunningForTests);
+
+        w.Close();
+    });
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr GetWindowLongPtrW(IntPtr hwnd, int index);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr SetWindowLongPtrW(IntPtr hwnd, int index, IntPtr newValue);
+
     [Fact]
     public void Profile_mode_picker_round_trips_the_durable_token() => StaTestThread.Invoke(() =>
     {
