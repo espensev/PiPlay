@@ -33,6 +33,13 @@ public sealed class PlayerSettings
 {
     public PlacementData? Placement { get; set; }
     public bool Topmost { get; set; } = true;
+
+    /// <summary>
+    /// Global default playback mode for new popouts (spec 10.2, Phase 3). <c>false</c> = Normal page
+    /// mode (the default and fallback); <c>true</c> = Compact embedded mode. A per-profile
+    /// <see cref="Profile.Mode"/> overrides this per launch (REQ-PROFILE-01). Off by default; a
+    /// missing value deserializes to false, so every existing settings.json keeps Normal mode.
+    /// </summary>
     public bool CompactMode { get; set; }
 
     /// <summary>

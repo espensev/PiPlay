@@ -122,4 +122,4 @@ foreach ($win in $wins) {
     Capture $wh (Join-Path $OutDir "3-window$n.png") "final:$($win.Current.Name)"; $n++
 }
 Write-Output "PID|$($p.Id)"
-Write-Output "DONE|app left running — Stop-Process -Id $($p.Id) to close"
+Write-Output "DONE|app left running - Stop-Process -Id $($p.Id) to close"

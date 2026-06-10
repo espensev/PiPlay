@@ -10,9 +10,9 @@ this phase.
 contains the fixed swatch palette, persisted Pin/Fade accents, fade-delay presets, Settings UI, and
 focused regression coverage.
 
-**Phase 2 landing note:** This slice closes the Pin/Fade customization code path. The remaining
-Phase 2 work is release evidence from the manual QA checklist plus the compact-mode placement
-decision only if compact mode is exposed before Phase 3; no extra CI gate is needed for this slice.
+**Phase 2 landing note:** This slice closes the Pin/Fade customization code path. Phase 2 release
+evidence was recorded separately; compact-mode placement was later resolved for Phase 3 in
+`docs/superpowers/specs/2026-06-07-compact-player-sweep-design.md`.
 
 ## Tasks
 

@@ -156,6 +156,47 @@ public class YouTubeUrlHelperTests
             YouTubeUrlHelper.BuildEmbedUrl(t, 30));
     }
 
+    // --- Compact shell URL (spec 10.3): only non-sensitive target params on the shell base ---
+
+    [Fact]
+    public void Builds_shell_url_with_only_nonsensitive_target_params()
+    {
+        var t = new PiPlay.Models.YouTubeTarget { VideoId = "dQw4w9WgXcQ", PlaylistId = "PLabc" };
+        Assert.Equal(
+            "https://piplay.local/player.html?v=dQw4w9WgXcQ&list=PLabc&start=42",
+            YouTubeUrlHelper.BuildShellUrl(t, 42, "https://piplay.local/player.html"));
+    }
+
+    [Fact]
+    public void Shell_url_omits_zero_start_and_absent_playlist()
+    {
+        var t = new PiPlay.Models.YouTubeTarget { VideoId = "dQw4w9WgXcQ" };
+        Assert.Equal(
+            "https://piplay.local/player.html?v=dQw4w9WgXcQ",
+            YouTubeUrlHelper.BuildShellUrl(t, 0, "https://piplay.local/player.html"));
+    }
+
+    [Fact]
+    public void Shell_url_with_no_target_is_the_bare_base()
+    {
+        Assert.Equal(
+            "https://piplay.local/player.html",
+            YouTubeUrlHelper.BuildShellUrl(new PiPlay.Models.YouTubeTarget(), null, "https://piplay.local/player.html"));
+    }
+
+    [Fact]
+    public void Shell_url_host_is_the_single_source_of_truth_allowlisted_on_the_player()
+    {
+        // The host in the navigated shell URL must equal the allowlist's ShellHost (drift = a blank
+        // player), and the allowlist must permit it on the Popout Player only.
+        var t = new PiPlay.Models.YouTubeTarget { VideoId = "dQw4w9WgXcQ" };
+        var url = YouTubeUrlHelper.BuildShellUrl(t, null, WebViewEnvironmentService.ShellPlayerUrl);
+
+        Assert.Equal(NavigationPolicy.ShellHost, new Uri(url).Host);
+        Assert.True(NavigationPolicy.IsAllowed(new Uri(WebViewEnvironmentService.ShellPlayerUrl), NavigationSurface.Player));
+        Assert.False(NavigationPolicy.IsAllowed(new Uri(WebViewEnvironmentService.ShellPlayerUrl), NavigationSurface.Source));
+    }
+
     [Theory]
     [InlineData("https://www.youtube.com/watch?v=dQw4w9WgXcQ", true)]
     [InlineData("https://m.youtube.com/watch?v=dQw4w9WgXcQ&t=30s", true)]

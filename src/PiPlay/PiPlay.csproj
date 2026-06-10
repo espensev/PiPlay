@@ -77,4 +77,17 @@
     <Resource Include="Assets\piplay.ico" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Compact-player shell assets (spec 10.3): copied beside the app so WebView2 can map the
+         PlayerShell folder to the https://piplay.local/ virtual host at runtime. These files are
+         already default-included as None, so we Update (not Include) to set the copy behavior and
+         avoid a duplicate-item build error. -->
+    <None Update="PlayerShell\player.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="PlayerShell\player-shell.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

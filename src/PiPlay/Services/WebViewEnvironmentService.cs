@@ -14,6 +14,34 @@ public sealed class WebViewEnvironmentService
 
     public CoreWebView2Environment? Environment => _environment;
 
+    // --- Compact-player shell hosting (spec 10.3) ---
+
+    /// <summary>Virtual-host name for the local compact shell. SSOT is <see cref="NavigationPolicy.ShellHost"/>
+    /// so the navigated URL, the folder mapping, and the navigation allowlist can't drift.</summary>
+    public static string ShellHost => NavigationPolicy.ShellHost;
+
+    /// <summary>The shell's stable HTTPS origin (used for the IFrame API <c>origin</c> param).</summary>
+    public static string ShellOrigin => "https://" + ShellHost;
+
+    /// <summary>The compact shell page URL the Popout Player navigates to in compact mode.</summary>
+    public static string ShellPlayerUrl => ShellOrigin + "/player.html";
+
+    /// <summary>On-disk folder holding the shell assets (player.html, player-shell.js), copied beside
+    /// the app at build (a dedicated subfolder — never the app dir itself, which would expose binaries).</summary>
+    public static string ShellFolder => Path.Combine(AppContext.BaseDirectory, "PlayerShell");
+
+    /// <summary>
+    /// Map the compact shell folder to <see cref="ShellHost"/> on the given WebView so the Popout
+    /// Player can navigate to <see cref="ShellPlayerUrl"/> with a stable HTTPS origin (spec 10.3,
+    /// 15.1). Called once per compact Popout Player, before navigating. Uses <c>DenyCors</c> for
+    /// least privilege (Microsoft's "minimal cross-origin access necessary" guidance): the shell
+    /// loads player-shell.js same-origin and frames YouTube via frame-src — neither needs
+    /// cross-origin CORS access to the piplay.local resources, so that reach stays denied.
+    /// </summary>
+    public static void MapShellVirtualHost(CoreWebView2 core) =>
+        core.SetVirtualHostNameToFolderMapping(
+            ShellHost, ShellFolder, CoreWebView2HostResourceAccessKind.DenyCors);
+
     /// <summary>
     /// Create (once) the shared environment. Throws
     /// <see cref="WebView2RuntimeNotFoundException"/> if the Evergreen runtime is missing;

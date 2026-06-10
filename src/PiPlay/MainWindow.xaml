@@ -17,7 +17,7 @@
        a transparent WPF window is incompatible with the HwndHost WebView2 (airspace). -->
   <WindowChrome.WindowChrome>
     <WindowChrome CaptionHeight="42"
-                  ResizeBorderThickness="6"
+                  ResizeBorderThickness="10"
                   CornerRadius="0"
                   GlassFrameThickness="0"
                   UseAeroCaptionButtons="False" />

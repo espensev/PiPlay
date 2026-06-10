@@ -1,12 +1,15 @@
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shell;
 using Microsoft.Web.WebView2.Wpf;
 using PiPlay;
 using PiPlay.Models;
+using PiPlay.Services;
 using PiPlay.Theme;
 
 namespace PiPlay.Tests;
@@ -134,6 +137,46 @@ public class WpfRuntimeTests : IDisposable
         Assert.False(w.AllowsTransparency);
         Assert.Equal(WindowStyle.None, w.WindowStyle);
         Assert.Equal(new CornerRadius(0), WindowChrome.GetWindowChrome(w)!.CornerRadius);
+    });
+
+    [Fact]
+    public void Expanded_resize_hook_returns_diagonal_corner_for_real_nchittest_message() => StaTestThread.Invoke(() =>
+    {
+        var w = new Window
+        {
+            Width = 240,
+            Height = 160,
+            Left = 100,
+            Top = 100,
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.CanResize,
+            AllowsTransparency = false,
+            Opacity = 0,
+            ShowActivated = false,
+            ShowInTaskbar = false,
+        };
+
+        WindowChrome.SetWindowChrome(w, new WindowChrome
+        {
+            CaptionHeight = 0,
+            ResizeBorderThickness = new Thickness(BorderlessResizeHitTestPolicy.ResizeBorderDip),
+            CornerRadius = new CornerRadius(0),
+            GlassFrameThickness = new Thickness(0),
+            UseAeroCaptionButtons = false,
+        });
+        BorderlessWindowHelper.EnableExpandedResizeZones(w);
+
+        var hwnd = new WindowInteropHelper(w).EnsureHandle();
+        w.Show();
+        w.UpdateLayout();
+        Assert.True(BorderlessWindowHelper.HasExpandedResizeSubclassForTests(hwnd));
+        var p = w.PointToScreen(new Point(20, 5)); // top band, inside the 32 DIP left corner length
+        var roundTrip = w.PointFromScreen(p);
+        Assert.InRange(roundTrip.X, 19.5, 20.5);
+        Assert.InRange(roundTrip.Y, 4.5, 5.5);
+        var result = SendMessage(hwnd, WM_NCHITTEST, IntPtr.Zero, MakeLParam((int)p.X, (int)p.Y));
+
+        Assert.Equal(BorderlessResizeHitTestPolicy.HTTOPLEFT, result.ToInt32());
     });
 
     [Fact]
@@ -284,6 +327,72 @@ public class WpfRuntimeTests : IDisposable
         Assert.NotNull(url.Template.FindName("PART_ContentHost", url));
     });
 
+    // --- Compact player mode (Phase 3, Stage 1): mode-specific minimums + settings/profile UI ---
+
+    [Fact]
+    public void PlayerWindow_uses_normal_minimum_size_by_default() => StaTestThread.Invoke(() =>
+    {
+        var w = NewPlayer();   // no mode argument -> PlaybackMode.Normal
+        Assert.Equal(PlaybackModePolicy.NormalMinWidth, w.MinWidth);
+        Assert.Equal(PlaybackModePolicy.NormalMinHeight, w.MinHeight);
+    });
+
+    [Fact]
+    public void PlayerWindow_uses_compact_minimum_and_clamps_launch_size_up() => StaTestThread.Invoke(() =>
+    {
+        // Launch below the compact floor: MinWidth/MinHeight must be the compact minimum and the
+        // resolved launch size must clamp up to it (spec 10.2: no 320x180 for embed mode).
+        var w = new PlayerWindow(
+            environment: null!,
+            url: "https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1",
+            topmost: false,
+            placement: null,
+            defaultWidth: 320,
+            defaultHeight: 180,
+            fadeEnabled: true,
+            mode: PlaybackMode.Compact);
+
+        Assert.Equal(PlaybackModePolicy.CompactMinWidth, w.MinWidth);
+        Assert.Equal(PlaybackModePolicy.CompactMinHeight, w.MinHeight);
+        Assert.True(w.Width >= PlaybackModePolicy.CompactMinWidth, $"Width {w.Width} below compact floor.");
+        Assert.True(w.Height >= PlaybackModePolicy.CompactMinHeight, $"Height {w.Height} below compact floor.");
+    });
+
+    [Fact]
+    public void SettingsWindow_reflects_and_toggles_compact_mode() => StaTestThread.Invoke(() =>
+    {
+        var on = new SettingsWindow(isBrowserReady: true, compactMode: true);
+        Assert.True(on.CompactMode);
+        Assert.True(((ToggleButton)on.FindName("CompactModeToggle")!).IsChecked);
+
+        var w = new SettingsWindow(isBrowserReady: true, compactMode: false);
+        Assert.False(w.CompactMode);
+        var toggle = (ToggleButton)w.FindName("CompactModeToggle")!;
+        Assert.False(toggle.IsChecked);   // strictly off, not merely "not true" (rejects null too)
+
+        // Simulate a user toggle: the checked state flips, then the Click handler reads it.
+        toggle.IsChecked = true;
+        toggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        Assert.True(w.CompactMode);
+        Assert.True(w.AppearanceChanged);   // any persisted player preference change is flagged
+    });
+
+    [Fact]
+    public void Profile_mode_picker_round_trips_the_durable_token() => StaTestThread.Invoke(() =>
+    {
+        Assert.Equal("compact", Prompt.BuildModePicker("compact").SelectedMode());
+        Assert.Equal("normal", Prompt.BuildModePicker("normal").SelectedMode());
+        Assert.Null(Prompt.BuildModePicker(null).SelectedMode());
+        Assert.Equal("compact", Prompt.BuildModePicker("embed").SelectedMode());   // legacy alias
+        Assert.Null(Prompt.BuildModePicker("bogus").SelectedMode());               // unknown -> global
+
+        // Changing the selection is reflected by the getter (covers the editor round-trip).
+        var (element, selectedMode) = Prompt.BuildModePicker(null);
+        var combo = (ComboBox)element;
+        combo.SelectedIndex = 2;   // "Compact player"
+        Assert.Equal("compact", selectedMode());
+    });
+
     // --- Dark theme is actually wired at runtime (rebuts the stale "renders light" reports) ---
 
     [Fact]
@@ -357,6 +466,14 @@ public class WpfRuntimeTests : IDisposable
         }
         return rows;
     }
+
+    private const int WM_NCHITTEST = 0x0084;
+
+    private static IntPtr MakeLParam(int x, int y) =>
+        new(unchecked((x & 0xffff) | ((y & 0xffff) << 16)));
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
     // Layer 3 constructs real windows (never shown). Close any that remain on the shared STA
     // thread after each test so they don't accumulate on Application.Windows for the whole run.

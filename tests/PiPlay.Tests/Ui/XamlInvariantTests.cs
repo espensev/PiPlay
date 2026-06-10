@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using PiPlay.Services;
 
 namespace PiPlay.Tests;
 
@@ -46,7 +47,8 @@ public class XamlInvariantTests
         Assert.Equal("0", chrome.Attribute("CornerRadius")?.Value);
         Assert.Equal("0", chrome.Attribute("GlassFrameThickness")?.Value);
         Assert.Equal("False", chrome.Attribute("UseAeroCaptionButtons")?.Value);
-        Assert.Equal("6", chrome.Attribute("ResizeBorderThickness")?.Value);
+        Assert.Equal(BorderlessResizeHitTestPolicy.ResizeBorderDip.ToString(),
+            chrome.Attribute("ResizeBorderThickness")?.Value);
         Assert.Equal(expectedCaptionHeight, chrome.Attribute("CaptionHeight")?.Value);
     }
 
@@ -86,6 +88,7 @@ public class XamlInvariantTests
             "PinAccentCyanSwatch", "PinAccentVioletSwatch", "PinAccentGreenSwatch", "PinAccentAmberSwatch",
             "FadeAccentCyanSwatch", "FadeAccentVioletSwatch", "FadeAccentGreenSwatch", "FadeAccentAmberSwatch",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
+            "CompactModeToggle",
         }},
     };
 
@@ -232,6 +235,7 @@ public class XamlInvariantTests
             "PinAccentCyanSwatch", "PinAccentVioletSwatch", "PinAccentGreenSwatch", "PinAccentAmberSwatch",
             "FadeAccentCyanSwatch", "FadeAccentVioletSwatch", "FadeAccentGreenSwatch", "FadeAccentAmberSwatch",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
+            "CompactModeToggle",
         })
         {
             Assert.False(string.IsNullOrWhiteSpace(byName[name].Attribute("ToolTip")?.Value),

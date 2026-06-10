@@ -10,7 +10,13 @@ public sealed class Profile
     public string Name { get; set; } = "";
     public string Url { get; set; } = "";
 
-    /// <summary>null = default (normal page mode). "embed" reserved for compact mode (Phase 3).</summary>
+    /// <summary>
+    /// Per-profile playback mode override (spec 10, Phase 3). <c>null</c> = use the global
+    /// <see cref="PlayerSettings.CompactMode"/> default; <c>"normal"</c> forces Normal page mode;
+    /// <c>"compact"</c> forces Compact embedded mode. The legacy/internal <c>"embed"</c> token is
+    /// accepted as a <c>"compact"</c> alias and normalized on load (see
+    /// <see cref="Services.PlaybackModePolicy"/> / <see cref="Services.SettingsService"/>).
+    /// </summary>
     public string? Mode { get; set; }
 
     public bool? Topmost { get; set; }

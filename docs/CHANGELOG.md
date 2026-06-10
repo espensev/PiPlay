@@ -67,6 +67,10 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 - `Build-PiPlay.ps1` no longer rolls back `VERSION`/`BUILD_NUMBER` when a *post-publish* step fails after
   the artifact was already produced (which broke the monotonic build counter and orphaned the stamped
   folder); a pre-publish failure still rolls back and now also removes the partial publish folder.
+- Borderless Source Window and Popout Player resize targets are easier to acquire (REQ-WINDOW-02):
+  the invisible resize border is now 10 DIP instead of 6 DIP, with native hit testing that gives
+  each corner a 32 DIP diagonal resize length without adding a visible size grip or click-through
+  behavior.
 
 ### Removed
 - Deleted the outdated `Main app.txt` pre-spec brainstorm (superseded by the Draft 0.4 spec).
@@ -125,13 +129,44 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   pause/resume won't either) and **excludes Shorts/embeds**. Resolves the open "Auto trigger timing"
   decision in favour of playback-start. See `docs/superpowers/specs/2026-06-06-auto-popout-design.md`.
 
+### Added — Phase 3 (compact player)
+- **Compact player mode (spec 10.2–10.3).** A new global **Settings → Playback → Compact player**
+  preference (off by default) makes new popouts open in a clean compact player instead of the full
+  YouTube watch page; **Normal page mode stays the default and the fallback**. Saved profiles gain a
+  per-profile **playback mode** override in the profile editor — *Use global default*, *Normal page*,
+  or *Compact player* — that wins over the global default (REQ-PROFILE-01); the override is
+  additionally scoped to that profile's own video so a stale combo selection can't apply compact to
+  an unrelated video. Mode resolution, the durable `null`/`normal`/`compact` vocabulary (legacy
+  internal `embed` folded to `compact`), and the separate **480×270 compact minimum** (vs. 320×180
+  normal) live in a pure `PlaybackModePolicy`; the compact Popout Player clamps both its launch size
+  and a restored sub-minimum placement up to that floor.
+- Compact mode hosts a **local `player.html` shell** served from a WebView2 virtual host
+  (`https://piplay.local/`) that drives the official **YouTube IFrame Player API**, with a small,
+  versioned **host↔shell message bridge** (`PlayerShellBridge` / `PlayerShellProtocol`): the shell
+  reports ready / state / error and the host commands play / pause / seek / requestState. The shell
+  URL carries only non-sensitive target data (video id, playlist id, start) — no credentials — and
+  the bridge (not DOM scraping) is the source of truth for the compact return timestamp. The shell
+  keeps YouTube's controls and branding; no click-through, transparent WebView2, ad-blocking, or
+  media download is introduced (Q-5/Q-8). The local virtual host is allowlisted on the Popout Player
+  only.
+- **Verified locally (deterministic):** the mode/precedence/min-size policy, the mode→URL and
+  profile-override seams, the shell URL builder + host single-source-of-truth, the navigation
+  allowlist for the shell host, the host↔shell protocol, the shell-asset invariants (structure, no
+  third-party origins, no credential strings, build-copy), and that every window constructs.
+  **Release-candidate QA (live, not yet run):** a compact video actually playing through the IFrame
+  API, timestamp/state flowing over the bridge, playlists, restricted/embed-disabled handling, and
+  signed-in/out sessions. The embed-disabled→normal in-app fallback (Stage 4) is not yet built;
+  Normal page mode remains the fallback. See
+  `docs/superpowers/specs/2026-06-07-compact-player-sweep-design.md`.
+
 ### Validation — Phase 2 landing
 - Stable Phase 2 evidence captured for `v0.3.0` build `10`: deterministic tests,
   non-mutating build gate, Stable publish/deploy, metadata validation, and deployed Stable UI
   smoke. Build 10 replaces the earlier build 9 Stable deploy and is built from the final Phase 2
   landing commit. See `docs/evidence/phase2-release-v0.3.0-b10.md`.
 - Account-backed/live YouTube rows in `docs/QA_Checklist.md` remain the release-candidate manual
-  gate; compact-mode placement stays deferred unless compact mode is exposed before Phase 3.
+  gate. Compact-mode placement is resolved for Phase 3 as global default plus optional profile
+  override, with implementation planned in the compact-player sweep.
 
 ### Tests & quality
 - **Layered regression suite** (`docs/Regression_Test_Suite_Design.md`), 221 tests in

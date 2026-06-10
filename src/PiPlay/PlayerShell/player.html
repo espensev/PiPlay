@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<!--
+  PiPlay compact-player shell (spec 10.3). Served from the WebView2 virtual host
+  https://piplay.local/ so the YouTube IFrame API has a stable HTTPS origin. Hosts only the
+  embedded YouTube player; all C#<->JS messaging lives in player-shell.js using the PlayerShell
+  protocol. No PiPlay chrome, no removal of YouTube controls/branding, no third-party scripts
+  beyond the official YouTube IFrame API.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!--
+    Security boundary for this shell: it is served from a local WebView2 virtual host
+    (https://piplay.local/, DenyCors), allowlisted on the Popout Player only, and loads no
+    third-party code beyond the official YouTube IFrame API. A tuned Content-Security-Policy is a
+    deliberate live-QA follow-up (Stage 4): the IFrame API fetches widget/script resources from
+    several YouTube/ytimg/gstatic origins that must be enumerated against the real requests before a
+    restrictive CSP can ship without breaking playback.
+  -->
+  <title>PiPlay compact player</title>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
+    #player { width: 100%; height: 100%; border: 0; }
+  </style>
+</head>
+<body>
+  <div id="player"></div>
+  <!-- Local shell logic first, so onYouTubeIframeAPIReady is defined before the API loads. -->
+  <script src="player-shell.js"></script>
+  <!-- Official YouTube IFrame Player API. -->
+  <script src="https://www.youtube.com/iframe_api"></script>
+</body>
+</html>

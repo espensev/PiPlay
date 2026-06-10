@@ -23,6 +23,7 @@ public partial class PlayerWindow : Window
     private readonly CoreWebView2Environment _environment;
     private readonly string _url;
     private readonly PlacementData? _placement;
+    private readonly PlaybackMode _mode;
     private readonly DispatcherTimer _syncTimer;
     private readonly PlayerReturnState _returnState = new();
 
@@ -35,6 +36,9 @@ public partial class PlayerWindow : Window
     private bool _navCompleted;
     private bool _capturedReturn;
     private bool _nudgedPlay;
+
+    // Compact (shell) mode only: the host side of the IFrame-API bridge (spec 10.3).
+    private PlayerShellBridge? _shellBridge;
 
     /// <summary>Raised once when the player has closed, carrying the state needed to return (spec 14).</summary>
     public event EventHandler<PlayerReturnState>? PlayerClosed;
@@ -51,13 +55,27 @@ public partial class PlayerWindow : Window
         bool fadeEnabled,
         string pinAccent = PlayerAppearancePolicy.DefaultAccent,
         string fadeAccent = PlayerAppearancePolicy.DefaultAccent,
-        int fadeIdleDelayMs = PlayerAppearancePolicy.DefaultFadeIdleDelayMs)
+        int fadeIdleDelayMs = PlayerAppearancePolicy.DefaultFadeIdleDelayMs,
+        PlaybackMode mode = PlaybackMode.Normal)
     {
         InitializeComponent();
+        BorderlessWindowHelper.EnableExpandedResizeZones(this);
 
         _environment = environment;
         _url = url;
-        _placement = placement;
+        _mode = mode;
+
+        // Mode-specific minimum (spec 10.2 / 16.1): compact embed mode needs a larger floor than the
+        // 320x180 normal minimum so the embedded player controls stay usable. MinWidth/MinHeight set
+        // the floor and clamp the launch size up (the Math.Max below). A saved sub-minimum placement
+        // is raised to the same floor via PlacementMath.EnsureMinSize (the saved bounds are physical
+        // pixels; EnsureMinSize converts the DIP minimum with the saved DPI scale), so a window
+        // restored across modes never opens below the mode minimum.
+        var minWidth = PlaybackModePolicy.MinWidthFor(mode);
+        var minHeight = PlaybackModePolicy.MinHeightFor(mode);
+        MinWidth = minWidth;
+        MinHeight = minHeight;
+        _placement = placement is null ? null : PlacementMath.EnsureMinSize(placement, minWidth, minHeight);
 
         Width = Math.Max(MinWidth, defaultWidth);
         Height = Math.Max(MinHeight, defaultHeight);
@@ -105,8 +123,17 @@ public partial class PlayerWindow : Window
             core.NewWindowRequested += Core_NewWindowRequested;
             core.NavigationCompleted += Core_NavigationCompleted;
 
+            if (_mode == PlaybackMode.Compact)
+            {
+                // Compact mode hosts the local shell (spec 10.3): map its virtual host before
+                // navigating, then let the shell bridge (IFrame API state) drive the return timestamp.
+                WebViewEnvironmentService.MapShellVirtualHost(core);
+                _shellBridge = new PlayerShellBridge(core);
+                _shellBridge.StateReceived += ShellBridge_StateReceived;
+            }
+
             core.Navigate(_url);
-            Log.Info("Popout Player initialized.");
+            Log.Info($"Popout Player initialized (mode={_mode}).");
         }
         catch (Exception ex)
         {
@@ -141,7 +168,16 @@ public partial class PlayerWindow : Window
     private void Core_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
         _navCompleted = true;
-        if (!_syncTimer.IsEnabled) _syncTimer.Start();
+        // Normal mode polls the YouTube page DOM for the timestamp; compact mode reads it from the
+        // shell bridge (IFrame API). The mode-specific choice lives in PlaybackModePolicy so the
+        // "one source of truth for the timestamp" invariant is unit-testable (spec 10.3).
+        if (PlaybackModePolicy.UsesDomSyncTimer(_mode) && !_syncTimer.IsEnabled) _syncTimer.Start();
+    }
+
+    private void ShellBridge_StateReceived(object? sender, InboundShellMessage state)
+    {
+        // Compact mode's source of truth for the return timestamp is the IFrame API, not the DOM.
+        _returnState.LastKnownSeconds = state.CurrentTime;
     }
 
     private async void SyncTimer_Tick(object? sender, EventArgs e)
@@ -283,6 +319,7 @@ public partial class PlayerWindow : Window
 
     private void PlayerWindow_Closed(object? sender, EventArgs e)
     {
+        try { _shellBridge?.Dispose(); } catch { /* ignore */ }
         try { Player.Dispose(); } catch { /* ignore */ }
 
         PlayerClosed?.Invoke(this, _returnState);

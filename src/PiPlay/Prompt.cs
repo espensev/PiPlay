@@ -81,6 +81,36 @@ internal static class Prompt
         return win;
     }
 
+    /// <summary>
+    /// Build the profile playback-mode picker (spec 10, Phase 3 / spec 17 edit path): a dark combo
+    /// offering "Use global default", "Normal page", and "Compact player". Internal and returns a
+    /// getter so a WPF test can round-trip the selection without showing the modal editor. The
+    /// getter yields the durable <see cref="Models.Profile.Mode"/> token (null / "normal" /
+    /// "compact"); an unknown incoming value is normalized to "use global".
+    /// </summary>
+    internal static (FrameworkElement Element, Func<string?> SelectedMode) BuildModePicker(string? current)
+    {
+        var normalized = PlaybackModePolicy.NormalizeProfileMode(current);
+
+        ComboBoxItem Item(string text, string? mode) => new() { Content = text, Tag = mode };
+        var useGlobal = Item("Use global default", null);
+        var normal = Item("Normal page", PlaybackModePolicy.ProfileModeNormal);
+        var compact = Item("Compact player", PlaybackModePolicy.ProfileModeCompact);
+
+        var combo = new ComboBox { Style = Style("DarkComboBox"), Margin = new Thickness(0, 0, 0, 12) };
+        combo.Items.Add(useGlobal);
+        combo.Items.Add(normal);
+        combo.Items.Add(compact);
+        combo.SelectedItem = normalized switch
+        {
+            PlaybackModePolicy.ProfileModeNormal => normal,
+            PlaybackModePolicy.ProfileModeCompact => compact,
+            _ => useGlobal,
+        };
+
+        return (combo, () => (combo.SelectedItem as ComboBoxItem)?.Tag as string);
+    }
+
     /// <summary>Themed text-input dialog (used for naming a profile). Returns null if cancelled.</summary>
     public static string? AskText(Window owner, string title, string message, string initial = "")
     {
@@ -121,9 +151,12 @@ internal static class Prompt
     /// a themed error and keeps the dialog open instead of closing — so a broken edit fails
     /// gracefully and is never saved. Returns the trimmed <c>(Name, Url)</c>, or null on cancel.
     /// Name-collision policy is the caller's (ProfileService.Update + the overwrite prompt); this
-    /// dialog only validates the URL format, so it stays settings-agnostic.
+    /// dialog only validates the URL format, so it stays settings-agnostic. The playback-mode
+    /// override (spec 10, Phase 3) is carried through as the durable token (null / "normal" /
+    /// "compact"); normalization/precedence live in <see cref="PlaybackModePolicy"/>.
     /// </summary>
-    public static (string Name, string Url)? EditProfile(Window owner, string name, string url)
+    public static (string Name, string Url, string? Mode)? EditProfile(
+        Window owner, string name, string url, string? mode)
     {
         var win = BuildShell(owner, "Edit profile", out var body);
 
@@ -142,8 +175,17 @@ internal static class Prompt
             Foreground = Brush("TextSecondary"),
             Margin = new Thickness(0, 0, 0, 4),
         });
-        var urlBox = new TextBox { Text = url, Style = Style("DarkTextBox"), Margin = new Thickness(0, 0, 0, 8) };
+        var urlBox = new TextBox { Text = url, Style = Style("DarkTextBox"), Margin = new Thickness(0, 0, 0, 12) };
         body.Children.Add(urlBox);
+
+        body.Children.Add(new TextBlock
+        {
+            Text = "Playback mode",
+            Foreground = Brush("TextSecondary"),
+            Margin = new Thickness(0, 0, 0, 4),
+        });
+        var (modePicker, selectedMode) = BuildModePicker(mode);
+        body.Children.Add(modePicker);
 
         var error = new TextBlock
         {
@@ -161,7 +203,7 @@ internal static class Prompt
         buttons.Children.Add(cancel);
         body.Children.Add(buttons);
 
-        (string Name, string Url)? result = null;
+        (string Name, string Url, string? Mode)? result = null;
         ok.Click += (_, _) =>
         {
             var trimmedName = nameBox.Text.Trim();
@@ -180,7 +222,7 @@ internal static class Prompt
                 return;   // keep the dialog open; nothing is saved
             }
 
-            result = (trimmedName, urlBox.Text.Trim());
+            result = (trimmedName, urlBox.Text.Trim(), selectedMode());
             win.DialogResult = true;
         };
         nameBox.Loaded += (_, _) => { nameBox.Focus(); nameBox.SelectAll(); };

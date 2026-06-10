@@ -1,20 +1,26 @@
 # PiPlay - Spec gaps and ownership boundaries
 
-**Status:** Working notes after Draft 0.8 Phase 2 stable replacement. Resolved items have been folded into `PiPlay_Product_Engineering_Spec.md`; keep this file for the remaining open decisions and ownership boundaries.
+**Status:** Working notes after Draft 0.10 compact-player sweep planning. Resolved items have been folded into `PiPlay_Product_Engineering_Spec.md`; keep this file for the remaining open decisions, ready implementation items, and ownership boundaries.
 
 ## Remaining open product decisions
 
 | Item | Phase pressure | Current issue | Needed decision |
 |---|---|---|---|
-| Compact-mode placement | Phase 2 only if compact mode is exposed before Phase 3 | Profile precedence is defined, but compact mode itself is not approved for broad exposure and its setting surface remains undecided. | Decide whether compact mode is global only, profile override, or both before broad exposure. |
 | Source Window after direct profile launch | Future/profile polish | Profiles can be launch targets, but the app has not decided whether direct launch can run without a visible Source Window. | Decide whether Source Window remains required, can start minimized/hidden, or becomes optional. |
+
+## Recent implementation items
+
+| Item | Ready status | Notes |
+|---|---|---|
+| Borderless resize zones | Implemented in working tree | Previous implementation was `WindowChrome.ResizeBorderThickness="6"` on both primary windows. `REQ-WINDOW-02` now uses 10 DIP edge resize zones plus 32 DIP corner length via native hit testing, without adding a visible size grip or touch-first 40 x 40 target. Design: `docs/superpowers/specs/2026-06-07-borderless-resize-zones-design.md`; plan: `docs/superpowers/plans/2026-06-07-borderless-resize-zones.md`. Manual DPI resize QA remains a release-candidate check. |
+| Compact player sweep | Stages 1–3 implemented in working tree | Compact mode is implemented as **shell mode**: mode policy (`PlaybackModePolicy` — durable `null`/`normal`/`compact` vocabulary, global/profile precedence, 480×270 minimum, mode→URL join, profile-override video-id gate), global/profile placement UI, the local `player.html` shell served from the `https://piplay.local/` WebView2 virtual host (allowlisted on the Popout Player only), and the YouTube IFrame-API host↔shell bridge (`PlayerShellBridge`/`PlayerShellProtocol`). Verified deterministically (logic/markup/WPF + protocol/asset tests); **live** compact playback, return/resume, playlists, and restricted/embed-disabled handling remain release-candidate QA. **Stage 4 deferred:** the in-app embed-disabled error→normal fallback (Task 6) — Normal page mode remains the fallback meanwhile. The earlier Stage-1 direct embed is superseded; `BuildEmbedUrl` is kept as a reserved fallback tier. Design: `docs/superpowers/specs/2026-06-07-compact-player-sweep-design.md`; plan: `docs/superpowers/plans/2026-06-07-compact-player-sweep.md`. |
 
 ## Phase 2 landing status
 
 | Item | Scope | CI impact |
 |---|---|---|
 | Release evidence | Phase 2 Stable build `v0.3.0` build `10` has automated release evidence in `docs/evidence/phase2-release-v0.3.0-b10.md`: deterministic tests, build gate, Stable publish/deploy, metadata validation, deployed UI smoke, and a UI Automation title check. Build 10 replaces the earlier build 9 Stable deploy and is built from the final Phase 2 landing commit. Account-backed/live YouTube rows in `docs/QA_Checklist.md` remain the release-candidate manual gate, not an implementation blocker. | No new CI gate needed; current deterministic tests cover schema, policy, XAML resources, and WPF construction seams. |
-| Compact-mode placement | Decide global/profile/both only before exposing compact mode broadly. | No CI change until compact mode implementation starts. |
+| Compact-mode placement | Resolved for Phase 3: global default plus optional profile override. | CI change starts with compact implementation. |
 
 ## Resolved in the spec cleanup
 
@@ -39,6 +45,7 @@
 | Stable publish + channel/data isolation | A stable, runnable copy deploys to `E:\Dev_test_implemenations\PiPlay` via `scripts\Publish-Stable.ps1`. The release channel is baked into the binary (`PiPlayChannel`); a Stable copy uses portable data beside the exe, its own single-instance identity, and a `PiPlay — Stable …` title, while the Default channel is unchanged. Recorded in `adr/0007-stable-channel-and-portable-data.md`. |
 | Auto trigger timing | **Playback-start**, `/watch`-only, **once per video** (id-keyed). `Auto` detects a watch video playing on the Source Window and reuses `StartVideoPopoutAsync`; an id de-dup blocks the return-resume re-pop loop, and Shorts/embeds are excluded. Off by default. Recorded in `docs/superpowers/specs/2026-06-06-auto-popout-design.md`. |
 | Popout control customization first slice | Fixed swatches for Pin and Fade active colors plus controls-fade idle-delay presets. No hex picker, profile override, whole-window opacity UI, click-through, or transparent WebView2 behavior. Recorded in `docs/superpowers/specs/2026-06-06-player-customization-design.md`. |
+| Compact-mode placement | Global player default (`PlayerSettings.CompactMode`, off by default) plus optional profile override (`Profile.Mode`: null/global, `normal`, `compact`; legacy `embed` normalizes to `compact`). Recorded in `docs/superpowers/specs/2026-06-07-compact-player-sweep-design.md`. |
 
 ## Documentation ownership
 

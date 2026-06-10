@@ -77,7 +77,27 @@ public static class YouTubeUrlHelper
         return "https://www.youtube.com/";
     }
 
-    /// <summary>Build a compact embed URL (Phase 3 compact mode, spec 10.2). Not used by the MVP default path.</summary>
+    /// <summary>
+    /// Build the local compact-shell URL (spec 10.3): the shell base (a WebView2 virtual host such
+    /// as <c>https://piplay.local/player.html</c>) plus only the non-sensitive playback target —
+    /// video id, playlist id, and start seconds. No credentials, cookies, or tokens. The shell
+    /// reads these query params and drives the YouTube IFrame API player. The base is injected so
+    /// this helper stays WebView-agnostic (the host owns the virtual-host name).
+    /// </summary>
+    public static string BuildShellUrl(YouTubeTarget target, int? seconds, string shellPlayerBaseUrl)
+    {
+        var s = seconds ?? target.StartSeconds ?? 0;
+        var query = new List<string>();
+        if (!string.IsNullOrEmpty(target.VideoId)) query.Add("v=" + Uri.EscapeDataString(target.VideoId));
+        if (!string.IsNullOrEmpty(target.PlaylistId)) query.Add("list=" + Uri.EscapeDataString(target.PlaylistId));
+        if (s > 0) query.Add("start=" + s);
+        return query.Count == 0 ? shellPlayerBaseUrl : shellPlayerBaseUrl + "?" + string.Join("&", query);
+    }
+
+    /// <summary>
+    /// Build a direct compact embed URL (spec 10.2). Reserved for a future direct-embed fallback
+    /// tier; the active compact path uses the local shell (<see cref="BuildShellUrl"/>) + IFrame API.
+    /// </summary>
     public static string BuildEmbedUrl(YouTubeTarget target, int? seconds = null)
     {
         var s = seconds ?? target.StartSeconds ?? 0;
