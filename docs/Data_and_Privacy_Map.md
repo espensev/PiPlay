@@ -1,6 +1,6 @@
 # PiPlay — Data & privacy map
 
-**Status:** Draft 0.5. Consolidates spec sections 12.6, 17, 18, and 19. Lists everything PiPlay writes to disk, where, and how to clear it.
+**Status:** Beta candidate. Lists everything PiPlay writes to disk, where it is stored, and how to clear it.
 
 PiPlay stores everything under one root. The normal (Default channel) app uses:
 
@@ -8,9 +8,8 @@ PiPlay stores everything under one root. The normal (Default channel) app uses:
 %LOCALAPPDATA%\PiPlay\
 ```
 
-A **Stable** (portable) channel — e.g. a copy deployed to `E:\Dev_test_implemenations\PiPlay` — keeps the
-same layout **beside the exe** instead, so its session and settings are self-contained and isolated from the
-dev profile:
+A **Stable** (portable) channel keeps the same layout **beside the exe** instead,
+so its session and settings are self-contained and isolated from the dev profile:
 
 ```
 <exe folder>\PiPlayData\

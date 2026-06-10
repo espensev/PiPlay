@@ -2,9 +2,9 @@
 
 All notable changes to PiPlay are recorded here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/); draft numbering is used until 1.0.
 
-## [Unreleased]
+## [0.4.0-beta] - 2026-06-10
 
-### Added — Phase 1 (MVP) implemented
+### Added
 - Initial WPF application (`src/PiPlay`, `net10.0-windows`): Source Window + borderless
   Popout Player, dark visual identity from the spec color tokens, app icon and
   PerMonitor V2 DPI manifest wired in.
@@ -73,13 +73,12 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   behavior.
 
 ### Removed
-- Deleted the outdated `Main app.txt` pre-spec brainstorm (superseded by the Draft 0.4 spec).
+- Deleted the outdated `Main app.txt` pre-spec brainstorm (superseded by the product spec).
 - Deleted the duplicate reference icon at `docs/piplay.ico`; the app/taskbar icon reference copy
   remains under `docs/files (2)/piplay.ico`, and the shipped app uses `src/PiPlay/Assets/piplay.ico`.
 - Deleted the unlinked generated brand-lockup HTML snippet; the product spec owns the canonical
   brand asset roles.
 
-### Added — Phase 2 (convenience)
 - **Popout Player controls fade** (spec 11): the chrome strip (Fade, Pin, Close) fades
   out after ~2.5 s idle and reappears on mouse movement, satisfying the §22.1 fade test
   row. A new in-popout **Fade toggle** turns the behavior on/off live; the choice is
@@ -93,7 +92,6 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   `PlayerSettings` and are sanitized on load. This does not add whole-window opacity,
   click-through, profile overrides, or transparent WebView2 behavior.
 
-### Added — Phase 2 (privacy)
 - **Reset app state** (REQ-PRIVACY-01) and **Clear browser data** (REQ-PRIVACY-02) as separate,
   confirmed actions in a new themed **Settings** window (gear in the Source Window title bar).
   Reset atomically rewrites `settings.json` to defaults (settings, profiles, placement) and
@@ -104,7 +102,6 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   tested copy cannot drift. The flow is hardened against double-clicks, stale browser readiness,
   failed clears, and modal-owner issues (result-based, work runs after the modal closes).
 
-### Added — Phase 2 (profiles)
 - **Edit and delete saved profiles** from the Source Window (spec 17). Two new toolbar buttons next
   to the profiles dropdown act on the selected profile: **Edit** opens a themed Name + URL editor
   with **inline ("proactive") URL validation** — a broken URL or empty name is flagged in place and
@@ -113,11 +110,10 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   to overwrite (the same prompt the Save action uses) instead of silently creating clutter. The
   buttons are disabled until a profile is selected.
 
-### Added — Phase 2 (release)
 - **Stable channel + differentiable stable publish.** A release channel is baked into the binary
   (`PiPlayChannel`, default `Default`, read at runtime by `AppChannel`). `scripts\Publish-Stable.ps1`
   builds the **Stable** channel, validates the publish metadata, and deploys a runnable copy to
-  `E:\Dev_test_implemenations\PiPlay` (configurable via `-DeployRoot`), replacing binaries but preserving
+  a configurable deploy root (`-DeployRoot`), replacing binaries but preserving
   the runtime data folder across redeploys. A Stable copy keeps its **data beside the exe** (`PiPlayData`,
   isolated from the dev profile), gets its **own single-instance identity** (so dev + stable run together,
   each single-instance), and shows **"PiPlay — Stable vX.Y.Z (bN)"** in the title bar/taskbar. The Default
@@ -175,7 +171,28 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   fallback after real playback). See
   `docs/superpowers/specs/2026-06-07-compact-player-sweep-design.md`.
 
-### Validation — Phase 2 landing
+### Added — Phase 4 (window quality + floating look)
+- **Expanded borderless resize zones (REQ-WINDOW-02, Q-7).** Both borderless windows answer
+  `WM_NCHITTEST` through a pure `BorderlessResizeHitTestPolicy`: a 10-DIP edge band plus 32-DIP
+  corner runs make diagonal resize easy to acquire on the thin chrome. Resize bands yield to
+  enabled chrome buttons (the popout's Close/Pin/Fade sit flush with the edge), and the hit test
+  guards window teardown.
+- **Whole-window opacity (spec 7.3).** Two Settings → Appearance sliders — *Active* and *When
+  idle* — apply layered-window alpha to the whole popout (45% UI floor, live preview on the open
+  popout, DWM-rounded corners while the translucent look is on). Idle shares the controls-fade
+  idle timer (one idleness definition); an activity probe covers the WebView2 area WPF can't see,
+  is occlusion-aware, and restores opacity on movement over the video. With both sliders at 100%
+  the window stays byte-identical to the previous popout. Clicks never pass through at any
+  opacity (Q-8 / ADR-0006); `WS_EX_TRANSPARENT` is never set, and tests assert it.
+- **Auto-hiding top bar (spec 7.2, selectable, default off).** With controls fade on, the chrome
+  strip height-collapses once fully faded so the video fills the window; hovering the top edge
+  reveals it. Turning the behavior off (live or from Settings) restores the strip immediately.
+- **Shell request channel (protocol v2).** The compact shell can request exactly the window
+  actions the chrome strip already offers — `close` / `pinToggle` / `fullscreenToggle` — through
+  a closed allowlist enforced on both sides (off-allowlist actions degrade to `Unknown`). This is
+  the substrate for the upcoming in-shell overlay controls; nothing in the shell calls it yet.
+
+### Validation
 - Stable Phase 2 evidence captured for `v0.3.0` build `10`: deterministic tests,
   non-mutating build gate, Stable publish/deploy, metadata validation, and deployed Stable UI
   smoke. Build 10 replaces the earlier build 9 Stable deploy and is built from the final Phase 2
@@ -214,4 +231,4 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ---
 
-_First shareable builds now ship from `bin\publish` via `Build-PiPlay.ps1 -Stage Release`. Promote `[Unreleased]` to a dated version section when cutting a tagged release._
+_Shareable beta builds ship from `bin\publish` via `Build-PiPlay.ps1 -Stage Release`._
