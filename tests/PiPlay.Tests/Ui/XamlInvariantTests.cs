@@ -160,6 +160,40 @@ public class XamlInvariantTests
         }
     }
 
+    // --- Accessible names for icon-only / templated controls (REQ-UI-02, overhaul Task 7) ---
+
+    [Theory]
+    [MemberData(nameof(RequiredAccessibleNames))]
+    public void Icon_controls_have_accessible_names(string file, string[] names)
+    {
+        var byName = XamlTestFiles.Load(file).Descendants()
+            .Where(e => e.Attribute(XamlTestFiles.X + "Name") is not null)
+            .GroupBy(e => e.Attribute(XamlTestFiles.X + "Name")!.Value)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        foreach (var name in names)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(byName[name].Attribute("AutomationProperties.Name")?.Value),
+                $"{name} in {file} is missing AutomationProperties.Name (REQ-UI-02).");
+        }
+    }
+
+    public static IEnumerable<object[]> RequiredAccessibleNames() => new[]
+    {
+        // MaximizeButton's name is deliberately state-neutral ("Maximize or restore"): its glyph
+        // flips in code on StateChanged. PopOutButton's static name is its launch-state action;
+        // the Task 6 show-popout state change must update it in the same code path as the label.
+        new object[] { "MainWindow.xaml", new[]
+        {
+            "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton",
+            "BackButton", "ReloadButton", "HomeButton", "UrlBox", "ProfilesCombo",
+            "SaveProfileButton", "EditProfileButton", "DeleteProfileButton",
+            "PinToggle", "AutoToggle", "PopOutButton",
+        }},
+        new object[] { "PlayerWindow.xaml", new[] { "FadeToggle", "PinToggle", "CloseButton" } },
+        new object[] { "SettingsWindow.xaml", new[] { "CloseButton" } },
+    };
+
     [Fact]
     public void Caption_and_toolbar_controls_have_tooltips()
     {

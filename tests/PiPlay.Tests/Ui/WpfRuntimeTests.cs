@@ -293,8 +293,14 @@ public class WpfRuntimeTests : IDisposable
         var border = Assert.IsType<Border>(win.Content);
         var dock = Assert.IsType<DockPanel>(border.Child);
         var bar = Assert.IsType<Grid>(dock.Children[0]);
-        Assert.Contains(bar.Children.OfType<Button>(),
+        var close = Assert.Single(bar.Children.OfType<Button>(),
             b => ReferenceEquals(b.Style, Application.Current.Resources["CloseIconButton"]));
+
+        // Code-built and icon-only: the markup a11y sweep can't see it, so pin the UIA name here
+        // (REQ-UI-02, overhaul Task 7).
+        Assert.False(string.IsNullOrWhiteSpace(
+            System.Windows.Automation.AutomationProperties.GetName(close)),
+            "Prompt close button is missing an automation name.");
     });
 
     [Fact]

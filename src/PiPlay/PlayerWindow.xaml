@@ -47,11 +47,14 @@
 
         <StackPanel Grid.Column="1" Orientation="Horizontal">
           <ToggleButton x:Name="FadeToggle" Style="{StaticResource PinToggle}" Width="30" Height="30"
-                        Content="&#xE7B3;" Click="FadeToggle_Click" ToolTip="Fade controls when idle" />
+                        Content="&#xE7B3;" Click="FadeToggle_Click" ToolTip="Fade controls when idle"
+                        AutomationProperties.Name="Fade controls when idle" />
           <ToggleButton x:Name="PinToggle" Style="{StaticResource PinToggle}" Width="30" Height="30"
-                        Content="&#xE840;" Click="PinToggle_Click" ToolTip="Pin on top" />
+                        Content="&#xE840;" Click="PinToggle_Click" ToolTip="Pin on top"
+                        AutomationProperties.Name="Pin popout on top" />
           <Button x:Name="CloseButton" Style="{StaticResource CloseIconButton}" Width="30" Height="30"
-                  Content="&#xE8BB;" Click="CloseButton_Click" ToolTip="Close popout (return video)" />
+                  Content="&#xE8BB;" Click="CloseButton_Click" ToolTip="Close popout (return video)"
+                  AutomationProperties.Name="Close popout" />
         </StackPanel>
       </Grid>
     </Border>
