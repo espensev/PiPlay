@@ -46,7 +46,8 @@ public partial class PlayerWindow : Window
     // WindowOpacityApplier. Idle ONSET shares _idleTimer with the controls fade (one idleness
     // definition); the hover-restore poll exists because WPF receives no mouse events over the
     // WebView2 child HWND (Stage 0 spike finding), so restoring on movement over the video needs
-    // a cursor probe. The poll runs only while the window is opacity-idle-faded.
+    // a cursor probe. The poll runs while anything needs it (idle dip configured, or strip
+    // auto-hide armed) — see UpdateActivityProbe; off at defaults.
     private double _constantWindowOpacity;
     private double _idleWindowOpacity;
     private bool _windowOpacityIdle;
@@ -263,7 +264,10 @@ public partial class PlayerWindow : Window
         switch (message.Action)
         {
             case PlayerShellProtocol.ActionClose:
-                Close();
+                // Deferred: Close() disposes the WebView2 in PlayerWindow_Closed, and this handler
+                // runs inside CoreWebView2.WebMessageReceived — disposing the control inside its
+                // own event callback is a documented WebView2 reentrancy hazard.
+                Dispatcher.BeginInvoke(Close);
                 break;
             case PlayerShellProtocol.ActionPinToggle:
                 PinToggle.IsChecked = PinToggle.IsChecked != true;
@@ -323,7 +327,11 @@ public partial class PlayerWindow : Window
         MinHeight = PlaybackModePolicy.MinHeightFor(PlaybackMode.Normal);
         HideShellError();
 
-        var url = YouTubeUrlHelper.BuildWatchUrl(_fallbackTarget, _returnState.LastKnownSeconds);
+        // A zero timestamp here means the shell never actually played (the usual fallback cause,
+        // e.g. embedding disabled), so treat it as unknown and let BuildWatchUrl fall through to
+        // the target's launch StartSeconds rather than restarting the video at 0:00.
+        var seconds = _returnState.LastKnownSeconds is > 0 ? _returnState.LastKnownSeconds : null;
+        var url = YouTubeUrlHelper.BuildWatchUrl(_fallbackTarget, seconds);
         Log.Info($"Compact fallback: reopening in normal page mode: {Log.RedactUrl(url)}");
         Player.CoreWebView2.Navigate(url);
     }
@@ -475,12 +483,14 @@ public partial class PlayerWindow : Window
     internal void OnUserActivityForTests() => OnUserActivity();
 
     /// <summary>Live re-apply seam, called by MainWindow for settings changes and the dialog's
-    /// live preview (mirrors <see cref="ApplyAppearance"/>).</summary>
-    internal void ApplyWindowOpacity(double constantOpacity, double idleOpacity)
+    /// live preview (mirrors <see cref="ApplyAppearance"/>). The preview passes
+    /// <paramref name="animate"/> = false: a slider drag fires per tick, and restarting the fade
+    /// animation on every tick would stair-step — the drag itself is the animation.</summary>
+    internal void ApplyWindowOpacity(double constantOpacity, double idleOpacity, bool animate = true)
     {
         _constantWindowOpacity = WindowOpacityPolicy.Normalize(constantOpacity);
         _idleWindowOpacity = WindowOpacityPolicy.Normalize(idleOpacity);
-        ApplyWindowOpacityToHwnd(animate: true);
+        ApplyWindowOpacityToHwnd(animate);
     }
 
     private void ApplyWindowOpacityToHwnd(bool animate)
@@ -545,6 +555,10 @@ public partial class PlayerWindow : Window
 
         var p = PointFromScreen(new Point(x, y));
         if (p.X < 0 || p.Y < 0 || p.X > ActualWidth || p.Y > ActualHeight) return;
+        // Inside our rectangle is not enough: an unpinned popout can sit BEHIND another app, and
+        // movement over that app must not count as activity (the idle fade would never engage).
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero || !WindowOpacityApplier.IsPointOverWindow(hwnd, x, y)) return;
         _lastInWindowCursorMoveMs = Environment.TickCount64;
 
         // Top-edge band reveals a collapsed strip (spec 7.2: hover restores full chrome).

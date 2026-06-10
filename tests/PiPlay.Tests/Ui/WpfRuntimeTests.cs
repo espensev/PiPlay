@@ -6,6 +6,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shell;
+using System.Windows.Threading;
 using Microsoft.Web.WebView2.Wpf;
 using PiPlay;
 using PiPlay.Models;
@@ -639,6 +640,10 @@ public class WpfRuntimeTests : IDisposable
         w.PlayerClosed += (_, _) => closed = true;
 
         w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionClose));
+        // Close is deferred out of the WebMessageReceived callback (WebView2 reentrancy guard);
+        // a Background-priority nested invoke drains the queued Normal-priority Close first.
+        Assert.False(closed);
+        w.Dispatcher.Invoke(static () => { }, DispatcherPriority.Background);
 
         Assert.True(closed);
     });

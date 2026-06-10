@@ -151,6 +151,37 @@ public class XamlInvariantTests
         }
     }
 
+    // --- Strip auto-hide layout (spec 7.2, Phase 4 Task 4) ---
+
+    [Fact]
+    public void Player_strip_row_is_auto_sized_so_a_collapsed_strip_returns_its_height()
+    {
+        var doc = XamlTestFiles.Load("PlayerWindow.xaml");
+
+        // The collapse works by Visibility on the strip element; a fixed RowDefinition would keep
+        // a dead 32-DIP band above the video. The row must be Auto and the strip carries the height.
+        var firstRow = doc.Descendants(XamlTestFiles.Pres + "RowDefinition").First();
+        Assert.Equal("Auto", firstRow.Attribute("Height")?.Value);
+
+        var strip = doc.Descendants()
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "ChromeStrip");
+        Assert.Equal("32", strip.Attribute("Height")?.Value);
+    }
+
+    // --- Opacity sliders pin the policy floor (spec 7.3, Phase 4) ---
+
+    [Theory]
+    [InlineData("ActiveOpacitySlider")]
+    [InlineData("IdleOpacitySlider")]
+    public void Opacity_slider_minimum_matches_the_policy_ui_floor(string name)
+    {
+        var slider = XamlTestFiles.Load("SettingsWindow.xaml").Descendants()
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == name);
+
+        Assert.Equal((WindowOpacityPolicy.UiFloor * 100).ToString(), slider.Attribute("Minimum")?.Value);
+        Assert.Equal((WindowOpacityPolicy.Max * 100).ToString(), slider.Attribute("Maximum")?.Value);
+    }
+
     // --- Compact error bar (spec 10.3 / Q-6, Stage 4) ---
 
     [Fact]

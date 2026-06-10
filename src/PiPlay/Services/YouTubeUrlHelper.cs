@@ -11,6 +11,7 @@ namespace PiPlay.Services;
 public static class YouTubeUrlHelper
 {
     private static readonly Regex VideoIdRegex = new(@"^[A-Za-z0-9_-]{11}$", RegexOptions.Compiled);
+    private static readonly Regex PlaylistIdRegex = new(@"^[A-Za-z0-9_-]{2,128}$", RegexOptions.Compiled);
     private static readonly Regex HmsRegex = new(@"^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>Try to parse any supported YouTube URL (or a bare 11-char video id).</summary>
@@ -175,6 +176,9 @@ public static class YouTubeUrlHelper
     private static void ApplyList(YouTubeTarget target, string list)
     {
         if (string.IsNullOrEmpty(list)) return;
+        // Charset-validate like VideoId: the id is re-interpolated into built URLs, so a decoded
+        // query value carrying '&'/'=' must never round-trip into them (spec 17: degrade, not mangle).
+        if (!PlaylistIdRegex.IsMatch(list)) return;
         if (list.StartsWith("RD", StringComparison.OrdinalIgnoreCase))
         {
             if (target.VideoId is not null)

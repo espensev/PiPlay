@@ -487,7 +487,9 @@ public partial class MainWindow : Window
             Topmost = Topmost,
         };
         // Live preview (spec 7.3 / plan Task 3): slider moves apply to the open popout immediately.
-        dialog.OpacityPreviewChanged += (constant, idle) => _player?.ApplyWindowOpacity(constant, idle);
+        // animate:false — the event fires per drag tick; restarting the 150ms fade each tick would
+        // stair-step and churn animation timers. The drag itself is the animation.
+        dialog.OpacityPreviewChanged += (constant, idle) => _player?.ApplyWindowOpacity(constant, idle, animate: false);
 
         if (dialog.ShowDialog() != true)
         {
@@ -680,7 +682,10 @@ public partial class MainWindow : Window
                       ?? await App.Current.WebViewEnvironment.EnsureCreatedAsync();
 
             // The target doubles as the compact error bar's fallback handle (spec 10.3 / Q-6,
-            // Stage 4): a compact player that can't play rebuilds the normal watch URL from it.
+            // Stage 4): a compact player that can't play rebuilds the normal watch URL from it,
+            // so carry the live timestamp onto it — a shell that errors before ever playing has
+            // no shell-reported seconds, and the fallback must not restart the video at 0:00.
+            target.StartSeconds = seconds ?? target.StartSeconds;
             _player = new PlayerWindow(env, popoutUrl, _settings.Player.Topmost,
                 _settings.Player.Placement, _settings.Player.LastWidth, _settings.Player.LastHeight,
                 _settings.Player.FadeEnabled, _settings.Player.PinAccent, _settings.Player.FadeAccent,

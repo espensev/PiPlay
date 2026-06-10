@@ -124,6 +124,15 @@ public static class WindowOpacityApplier
         return false;
     }
 
+    /// <summary>Whether the window visibly under the screen point belongs to <paramref name="hwnd"/>
+    /// (itself or a child, e.g. the WebView2). False when another window covers it, so the activity
+    /// probe doesn't count movement over an occluding app as in-window activity.</summary>
+    internal static bool IsPointOverWindow(IntPtr hwnd, int x, int y)
+    {
+        var under = WindowFromPoint(new POINT { X = x, Y = y });
+        return under != IntPtr.Zero && GetAncestor(under, GA_ROOT) == hwnd;
+    }
+
     // Test seams (WPF lane): assert policy output and style hygiene without reading live HWND alpha.
     internal static bool IsEngagedForTests(IntPtr hwnd) => States.TryGetValue(hwnd, out var s) && s.ForceLayeredBit;
     internal static byte? TargetAlphaForTests(IntPtr hwnd) => States.TryGetValue(hwnd, out var s) ? s.TargetAlpha : null;
@@ -231,6 +240,14 @@ public static class WindowOpacityApplier
 
     [DllImport("user32.dll")]
     private static extern bool GetCursorPos(out POINT point);
+
+    private const uint GA_ROOT = 2;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr WindowFromPoint(POINT point);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
