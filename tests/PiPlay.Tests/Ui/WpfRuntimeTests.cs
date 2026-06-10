@@ -722,6 +722,105 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal(WindowState.Normal, w.WindowState);
     });
 
+    // --- Expand / restore affordance (overhaul Task 4) ---
+
+    private const string GlyphMaximize = "";
+    private const string GlyphRestore = "";
+
+    private static void ClickExpand(PlayerWindow w) =>
+        ((Button)w.FindName("ExpandButton")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+
+    [Fact]
+    public void Expand_button_toggles_maximized_in_normal_mode_and_keeps_the_affordance_honest() =>
+        StaTestThread.Invoke(() =>
+        {
+            // Normal mode deliberately: the native button must serve BOTH playback modes.
+            var w = NewPlayer();
+            Assert.Equal(GlyphMaximize, w.ExpandGlyphForTests);
+            Assert.Equal("Expand popout", w.ExpandToolTipForTests);
+
+            ClickExpand(w);
+            Assert.Equal(WindowState.Maximized, w.WindowState);
+            Assert.Equal(GlyphRestore, w.ExpandGlyphForTests);
+            Assert.Equal("Restore popout", w.ExpandToolTipForTests);
+
+            ClickExpand(w);
+            Assert.Equal(WindowState.Normal, w.WindowState);
+            Assert.Equal(GlyphMaximize, w.ExpandGlyphForTests);
+            Assert.Equal("Expand popout", w.ExpandToolTipForTests);
+        });
+
+    [Fact]
+    public void Shell_fullscreen_request_updates_the_expand_affordance() => StaTestThread.Invoke(() =>
+    {
+        // The shell request and the native button are ONE path; the glyph follows either caller.
+        var w = NewCompactPlayer();
+        w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionFullscreenToggle));
+        Assert.Equal(GlyphRestore, w.ExpandGlyphForTests);
+    });
+
+    [Fact]
+    public void Fullscreen_element_expands_compact_and_exit_restores() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+
+        w.ApplyFullScreenElementStateForTests(contains: true);
+        Assert.Equal(WindowState.Maximized, w.WindowState);
+        Assert.Equal(GlyphRestore, w.ExpandGlyphForTests);
+
+        w.ApplyFullScreenElementStateForTests(contains: false);
+        Assert.Equal(WindowState.Normal, w.WindowState);
+        Assert.Equal(GlyphMaximize, w.ExpandGlyphForTests);
+    });
+
+    [Fact]
+    public void Fullscreen_element_is_ignored_in_normal_mode() => StaTestThread.Invoke(() =>
+    {
+        // The gate is the LIVE mode (Popout Standard / Fullview Faded must not gain a new
+        // fullscreen invariant) — same gate the compact→normal fallback relies on.
+        var w = NewPlayer();
+        w.ApplyFullScreenElementStateForTests(contains: true);
+        Assert.Equal(WindowState.Normal, w.WindowState);
+    });
+
+    [Fact]
+    public void Fullscreen_element_exit_keeps_a_user_expanded_window() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+        ClickExpand(w);   // the user's own posture, not the element's
+        Assert.Equal(WindowState.Maximized, w.WindowState);
+
+        w.ApplyFullScreenElementStateForTests(contains: true);
+        w.ApplyFullScreenElementStateForTests(contains: false);
+        Assert.Equal(WindowState.Maximized, w.WindowState);
+    });
+
+    [Fact]
+    public void Escape_restores_an_expanded_popout_and_is_inert_otherwise() => StaTestThread.Invoke(() =>
+    {
+        var w = NewPlayer();
+        Assert.False(w.HandleEscapeForTests());
+
+        ClickExpand(w);
+        Assert.True(w.HandleEscapeForTests());
+        Assert.Equal(WindowState.Normal, w.WindowState);
+        Assert.Equal(GlyphMaximize, w.ExpandGlyphForTests);
+    });
+
+    [Fact]
+    public void Popout_never_launches_expanded_even_from_a_maximized_capture() => StaTestThread.Invoke(() =>
+    {
+        // Pre-fix settings files can carry Maximized=true; the ctor normalizes it away.
+        var w = new PlayerWindow(environment: null!, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            topmost: false,
+            placement: new PlacementData { X = 20, Y = 20, Width = 900, Height = 560, Maximized = true },
+            defaultWidth: 960, defaultHeight: 540, fadeEnabled: true);
+
+        Assert.NotNull(w.LaunchPlacementForTests);
+        Assert.False(w.LaunchPlacementForTests!.Maximized);
+        Assert.Equal(900, w.LaunchPlacementForTests.Width);   // bounds survive the normalization
+    });
+
     // --- In-place retarget + video-aware return state (overhaul Task 3) ---
 
     [Fact]

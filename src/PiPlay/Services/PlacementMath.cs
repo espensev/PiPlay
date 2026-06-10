@@ -58,4 +58,26 @@ public static class PlacementMath
             DpiScale = data.DpiScale,
         };
     }
+
+    /// <summary>
+    /// Normalize a captured placement for use as the NEXT launch state (overhaul Task 4): closing
+    /// an expanded popout must not make the next popout LAUNCH expanded — expansion is a per-session
+    /// viewing posture, not a saved layout. Only the flag is dropped; the captured bounds are
+    /// already the prior NORMAL rectangle (Win32 rcNormalPosition), so the next popout opens there.
+    /// </summary>
+    public static PlacementData? ForNextLaunch(PlacementData? data)
+    {
+        if (data is null) return null;
+        return new PlacementData
+        {
+            X = data.X,
+            Y = data.Y,
+            Width = data.Width,
+            Height = data.Height,
+            Maximized = false,
+            MonitorDeviceName = data.MonitorDeviceName,
+            MonitorWorkArea = data.MonitorWorkArea,
+            DpiScale = data.DpiScale,
+        };
+    }
 }

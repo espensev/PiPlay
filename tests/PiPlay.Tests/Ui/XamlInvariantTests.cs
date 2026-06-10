@@ -108,7 +108,7 @@ public class XamlInvariantTests
         }},
         new object[] { "PlayerWindow.xaml", new[]
         {
-            "ChromeStrip", "FadeToggle", "PinToggle", "CloseButton", "Player",
+            "ChromeStrip", "FadeToggle", "PinToggle", "ExpandButton", "CloseButton", "Player",
             "ErrorBar", "ErrorText", "FallbackButton", "ErrorDismissButton",
         }},
         new object[] { "SettingsWindow.xaml", new[]
@@ -184,6 +184,8 @@ public class XamlInvariantTests
         // MaximizeButton's name is deliberately state-neutral ("Maximize or restore"): its glyph
         // flips in code on StateChanged. PopOutButton's static name is its launch-state action;
         // the Task 6 show-popout state change must update it in the same code path as the label.
+        // PlayerWindow's ExpandButton follows the MaximizeButton precedent (state-neutral name,
+        // glyph/tooltip flip in code).
         new object[] { "MainWindow.xaml", new[]
         {
             "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton",
@@ -191,7 +193,7 @@ public class XamlInvariantTests
             "SaveProfileButton", "EditProfileButton", "DeleteProfileButton",
             "PinToggle", "AutoToggle", "PopOutButton",
         }},
-        new object[] { "PlayerWindow.xaml", new[] { "FadeToggle", "PinToggle", "CloseButton" } },
+        new object[] { "PlayerWindow.xaml", new[] { "FadeToggle", "PinToggle", "ExpandButton", "CloseButton" } },
         new object[] { "SettingsWindow.xaml", new[] { "CloseButton" } },
     };
 

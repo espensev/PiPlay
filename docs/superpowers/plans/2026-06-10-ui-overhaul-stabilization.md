@@ -17,8 +17,11 @@ routes are recorded as rule-outs so they are not re-litigated during implementat
 inset band was live-verified by an HWND-rect probe (10 px left/right/bottom) AND owner-verified by
 manual drag resize. Task 2 was live-diagnosed (wheel focus-routing — click into the page, then
 scroll works, even at 86% opacity; layered opacity ruled out) and the fix deferred by owner
-decision. Task 4's maximize semantics were decided (keep current full-monitor maximize). Remaining:
-Tasks 3, 4 (affordance + reversibility), 5, 8-10 (theme pass), 11, 12.
+decision. Task 4's maximize semantics were decided (keep current full-monitor maximize) and its
+affordance + reversibility landed 2026-06-10 (`feat(popout): add reliable expand path`, 461/461).
+Task 3's implementation landed 2026-06-10 (`fix(compact): keep recommendations in piplay and return
+the current video`, 452/452); its spec re-verification is recorded at the Task 3 entry. Remaining:
+Tasks 5, 8-10 (theme pass), 11, 12.
 
 ## Tasks
 
@@ -119,7 +122,13 @@ Tasks 3, 4 (affordance + reversibility), 5, 8-10 (theme pass), 11, 12.
   - Commit: `fix(compact): keep allowed recommendations in piplay` (+ follow-up commit
     `fix(player): return current video and timestamp on close` if landed separately)
 
-- [ ] **Task 4 - Provide one reliable expand/fullview path (native strip affordance + gated event).**
+- [x] **Task 4 - Provide one reliable expand/fullview path (native strip affordance + gated event).**
+  *(Landed `feat(popout): add reliable expand path`: native `ExpandButton` on the ChromeStrip
+  (state-neutral UIA name, glyph/tooltip flip), shell `fullscreenToggle` rerouted through the same
+  `ToggleExpandedState`, `ContainsFullScreenElementChanged` honored gated on live compact mode with
+  a caused-by-element latch, Esc restore (WPF-focus-only residual documented), and
+  `PlacementMath.ForNextLaunch` normalization on BOTH capture and launch so a popout never relaunches
+  expanded. Drag while expanded deliberately inert. 461/461 tests at commit.)*
   - Primary route (settled): a native WPF expand/restore button on the existing `ChromeStrip`,
     calling the same host handler `fullscreenToggle` already reaches. No protocol change is needed —
     the `fullscreenToggle` channel (protocol consts, dual allowlists, bridge event, host handler,
