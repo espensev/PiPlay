@@ -1,6 +1,6 @@
 # PiPlay Product & Engineering Specification
 
-**Status:** Draft 0.8
+**Status:** Beta candidate
 **Project:** PiPlay
 **Purpose:** Quality-first Windows desktop app for playing YouTube videos in a movable, resizable Video Popout window.
 **Primary platform:** Windows desktop
@@ -1505,3 +1505,4 @@ These references support the current technical direction and should be rechecked
 | 0.6 | 2026-06-06 | Folded current Phase 2 decisions into the spec: Auto playback-start behavior, profile edit/validation, privacy actions, Stable publish, and fixed-swatch Pin/Fade customization. Clarified that remaining Phase 2 work is manual release evidence plus the compact-mode placement decision only if compact mode is exposed before Phase 3. |
 | 0.7 | 2026-06-06 | Recorded Phase 2 landing evidence for Stable build `v0.3.0` build `9`; clarified that live/account-backed YouTube checks remain the release-candidate manual gate while compact-mode placement is deferred unless compact mode is exposed before Phase 3. |
 | 0.8 | 2026-06-07 | Recorded Stable build `v0.3.0` build `10` as the replacement deployed build from the final Phase 2 landing commit. |
+| Beta candidate | 2026-06-10 | Cleaned release-facing copy for beta publication without changing requirements. |

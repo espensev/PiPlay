@@ -103,7 +103,7 @@
 
       <ToggleButton x:Name="AutoToggle" Grid.Column="4" Style="{StaticResource PinToggle}"
                     Margin="6,0" Content="&#xE768;" Click="AutoToggle_Click"
-                    ToolTip="Auto: pop out videos when they start playing" />
+                    ToolTip="Automatically pop out videos when playback starts" />
 
       <Button x:Name="PopOutButton" Grid.Column="5" Style="{StaticResource AccentButton}"
               Margin="6,9,10,9" Click="PopOutButton_Click" IsEnabled="False">
@@ -126,7 +126,7 @@
                      Foreground="{StaticResource AccentCyan}" HorizontalAlignment="Center" />
           <TextBlock Text="Playing in Video Popout" FontSize="18" Margin="0,14,0,0"
                      Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" />
-          <TextBlock Text="Close the popout window to bring the video back here."
+          <TextBlock Text="Close the popout to bring playback back here."
                      FontSize="12" Margin="0,6,0,0"
                      Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" />
         </StackPanel>

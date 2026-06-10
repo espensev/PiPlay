@@ -1,15 +1,17 @@
-# PiPlay - Documentation
+# PiPlay — Documentation
 
-PiPlay is a quality-first Windows desktop utility for watching YouTube in a movable, resizable **Video Popout** window - browser picture-in-picture behavior, but driven by PiPlay's own native window so move, resize, pin, fade, and monitor-restore behave like a real desktop tool.
+PiPlay is a Windows desktop utility for watching YouTube in a movable, resizable
+**Video Popout** window. It gives browser-style picture-in-picture behavior a
+native PiPlay window, so move, resize, pin, fade, and monitor restore behave like
+a real desktop tool.
 
-**Status:** Draft 0.8 / Phase 2 landed | **Platform:** Windows | **Stack:** WPF on .NET 10 | Microsoft Edge WebView2 (Evergreen)
+**Status:** Beta candidate | **Platform:** Windows | **Stack:** WPF on .NET 10 | Microsoft Edge WebView2 Evergreen Runtime
 
 ## Documents
 
 | Doc | What it covers |
 |---|---|
 | [PiPlay_Product_Engineering_Spec.md](PiPlay_Product_Engineering_Spec.md) | The product & engineering spec - the source of truth. |
-| [AGENTS.md](AGENTS.md) | Orientation for AI agents / Claude Code working in this repo. |
 | [Feature_Workflow.md](Feature_Workflow.md) | How to add features, write change notes, run gates, and open PRs. |
 | [CHANGELOG.md](CHANGELOG.md) | Product/app release notes. |
 | [SPEC_GAPS_AND_OWNERSHIP.md](SPEC_GAPS_AND_OWNERSHIP.md) | Missing/unclear spec items and ownership boundaries to resolve. |
@@ -58,8 +60,9 @@ Stable publish (a differentiable, runnable copy deployed for side-by-side test u
 
 ```powershell
 # Test-gate, build the Stable channel, validate metadata, and deploy a runnable copy to
-# E:\Dev_test_implemenations\PiPlay (override with -DeployRoot). Keeps the semantic version and
-# bumps BUILD_NUMBER; pass -Version patch|minor|major to bump the version.
+# Deploy a side-by-side Stable copy (override the location with -DeployRoot).
+# Keeps the semantic version and bumps BUILD_NUMBER; pass -Version patch|minor|major
+# to bump the version.
 .\scripts\Publish-Stable.ps1
 ```
 

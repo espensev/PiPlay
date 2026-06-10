@@ -16,13 +16,13 @@ public static class PrivacyService
     // --- Reset app state (REQ-PRIVACY-01) — keeps the YouTube session ---
     public const string ResetActionLabel = "Reset app state";
     public const string ResetDescription =
-        "Clears PiPlay's settings, saved profiles, and window placement. You'll stay signed in to YouTube.";
+        "Clears PiPlay settings, saved profiles, and window placement. You'll stay signed in to YouTube.";
     public const string ResetConfirmTitle = "Reset app state?";
     public const string ResetConfirmBody =
-        "This clears PiPlay's settings, saved profiles, and window placement.\n\nYou'll stay signed in to YouTube.";
+        "This clears PiPlay settings, saved profiles, and window placement.\n\nYou'll stay signed in to YouTube.";
     public const string ResetConfirmButton = "Reset app state";
     public const string ResetDoneTitle = "App state reset";
-    public const string ResetDoneBody = "PiPlay's settings were reset. You're still signed in to YouTube.";
+    public const string ResetDoneBody = "PiPlay settings were reset. You're still signed in to YouTube.";
 
     // --- Clear browser data (REQ-PRIVACY-02) — separate, confirmed, signs the user out ---
     public const string ClearActionLabel = "Clear browser data";

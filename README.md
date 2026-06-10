@@ -1,18 +1,15 @@
 # PiPlay
 
 PiPlay is a Windows desktop utility for watching YouTube in a movable,
-resizable **Video Popout** window. The Phase 1 MVP (single Source Window,
-the full Video Popout loop, Pin, profiles, atomic settings, dark shell, and
-WebView2 runtime recovery) is implemented and verified; further work is
-driven by the product and engineering docs.
+resizable **Video Popout** window. The beta includes the complete popout
+loop, Pin, Auto popout, profile management, privacy controls, a dark native
+shell, and WebView2 runtime recovery.
 
 ## Start here
 
 - [Documentation index](docs/README.md)
 - [Product & engineering spec](docs/PiPlay_Product_Engineering_Spec.md)
-- [Working rules & terminology (AGENTS.md)](docs/AGENTS.md)
 - [Feature workflow](docs/Feature_Workflow.md)
-- [Spec gaps and ownership notes](docs/SPEC_GAPS_AND_OWNERSHIP.md)
 - [Architecture decisions](docs/adr/README.md)
 - [Manual QA checklist](docs/QA_Checklist.md)
 - [YouTube usage & compliance](docs/YouTube_Compliance.md)
@@ -24,7 +21,7 @@ driven by the product and engineering docs.
 - WPF on .NET 10
 - Microsoft Edge WebView2 Evergreen Runtime
 
-See [docs/README.md](docs/README.md) for build/run commands and release notes. A differentiable **stable**
-copy (own data folder, own single-instance identity, "PiPlay — Stable" title) can be built and deployed with
-`scripts\Publish-Stable.ps1` — see the [Feature workflow](docs/Feature_Workflow.md).
-──────────────────────────────────────────────────────────────────────
+See [docs/README.md](docs/README.md) for build/run commands and release notes. A
+differentiable **Stable** copy (isolated data folder, single-instance identity,
+and "PiPlay — Stable" title) can be built and deployed with
+`scripts\Publish-Stable.ps1`; see the [Feature workflow](docs/Feature_Workflow.md).
