@@ -88,7 +88,7 @@ public class SettingsServiceTests : IDisposable
     public void Sanitize_repairs_out_of_range_values()
     {
         File.WriteAllText(_path,
-            "{\"schemaVersion\":0,\"lastUrl\":\"\",\"player\":{\"pinAccent\":\"hotpink\",\"fadeAccent\":\"\",\"fadeIdleDelayMs\":777,\"idleWindowOpacity\":5.0,\"lastWidth\":10,\"lastHeight\":10}}");
+            "{\"schemaVersion\":0,\"lastUrl\":\"\",\"player\":{\"pinAccent\":\"hotpink\",\"fadeAccent\":\"\",\"fadeIdleDelayMs\":777,\"idleWindowOpacity\":5.0,\"constantWindowOpacity\":-0.5,\"lastWidth\":10,\"lastHeight\":10}}");
         var svc = new SettingsService(_path);
 
         var settings = svc.Load();
@@ -99,8 +99,57 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal("cyan", settings.Player.FadeAccent);
         Assert.Equal(2500, settings.Player.FadeIdleDelayMs);
         Assert.Equal(1.0, settings.Player.IdleWindowOpacity);
+        Assert.Equal(1.0, settings.Player.ConstantWindowOpacity);
         Assert.Equal(960, settings.Player.LastWidth);
         Assert.Equal(540, settings.Player.LastHeight);
+    }
+
+    [Fact]
+    public void Window_opacity_defaults_are_opaque_and_roundtrip()
+    {
+        var svc = new SettingsService(_path);
+        var defaults = svc.Load();
+        // Missing properties deserialize to 1.0, so every existing settings.json keeps today's look.
+        Assert.Equal(1.0, defaults.Player.IdleWindowOpacity);
+        Assert.Equal(1.0, defaults.Player.ConstantWindowOpacity);
+
+        var s = new AppSettings();
+        s.Player.IdleWindowOpacity = 0.62;
+        s.Player.ConstantWindowOpacity = 0.85;
+        svc.Save(s);
+        var loaded = svc.Load();
+        Assert.Equal(0.62, loaded.Player.IdleWindowOpacity);
+        Assert.Equal(0.85, loaded.Player.ConstantWindowOpacity);
+    }
+
+    [Fact]
+    public void Settings_file_without_opacity_keys_loads_as_opaque()
+    {
+        // The migration wire shape: every pre-Phase-4 settings.json has a player object but no
+        // opacity keys. Deserialization (not just the C# initializer) must yield 1.0 for both.
+        File.WriteAllText(_path, "{\"schemaVersion\":2,\"player\":{\"pinAccent\":\"cyan\",\"compactMode\":true}}");
+        var svc = new SettingsService(_path);
+
+        var loaded = svc.Load();
+
+        Assert.Equal(1.0, loaded.Player.IdleWindowOpacity);
+        Assert.Equal(1.0, loaded.Player.ConstantWindowOpacity);
+        Assert.True(loaded.Player.CompactMode);   // proves the player object actually deserialized
+    }
+
+    [Fact]
+    public void Hand_edited_opacity_below_the_ui_floor_is_honored()
+    {
+        // Spec 7.3 explicit unlock: the Settings sliders stop at 0.45, but a hand-edited
+        // settings.json may go down to the 0.10 file floor and Sanitize must NOT repair it.
+        File.WriteAllText(_path,
+            "{\"player\":{\"idleWindowOpacity\":0.25,\"constantWindowOpacity\":0.10}}");
+        var svc = new SettingsService(_path);
+
+        var loaded = svc.Load();
+
+        Assert.Equal(0.25, loaded.Player.IdleWindowOpacity);
+        Assert.Equal(0.10, loaded.Player.ConstantWindowOpacity);
     }
 
     [Fact]
@@ -134,6 +183,20 @@ public class SettingsServiceTests : IDisposable
         s.Player.CompactMode = true;
         svc.Save(s);
         Assert.True(svc.Load().Player.CompactMode);
+    }
+
+    [Fact]
+    public void Strip_auto_hide_default_is_off_and_roundtrips()
+    {
+        var svc = new SettingsService(_path);
+        // Off by default AND for a missing property, so every pre-Phase-4 settings.json keeps
+        // the always-reserved strip row (spec 7.2 / acceptance criterion 1).
+        Assert.False(svc.Load().Player.StripAutoHide);
+
+        var s = new AppSettings();
+        s.Player.StripAutoHide = true;
+        svc.Save(s);
+        Assert.True(svc.Load().Player.StripAutoHide);
     }
 
     [Fact]

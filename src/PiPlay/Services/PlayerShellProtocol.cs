@@ -9,6 +9,7 @@ public enum ShellMessageKind
     Ready,
     State,
     Error,
+    Request,
 }
 
 /// <summary>A parsed inbound message from the compact shell (spec 10.3). Nullable/defaulted fields
@@ -18,7 +19,8 @@ public sealed record InboundShellMessage(
     int CurrentTime = 0,
     int PlayerState = -1,
     int? Duration = null,
-    string? ErrorCode = null);
+    string? ErrorCode = null,
+    string? Action = null);
 
 /// <summary>
 /// The pure, versioned host&lt;-&gt;shell message contract for compact (PiPlay shell) mode
@@ -30,12 +32,13 @@ public sealed record InboundShellMessage(
 /// </summary>
 public static class PlayerShellProtocol
 {
-    public const int Version = 1;
+    public const int Version = 2;
 
     // Shell -> host message types.
     public const string TypeReady = "ready";
     public const string TypeState = "state";
     public const string TypeError = "error";
+    public const string TypeRequest = "request";
 
     // Host -> shell command types.
     public const string TypePlay = "play";
@@ -52,6 +55,15 @@ public static class PlayerShellProtocol
     public const string FieldDuration = "duration";
     public const string FieldCode = "code";
     public const string FieldSeconds = "seconds";
+    public const string FieldAction = "action";
+
+    // Allowlisted shell -> host window actions (Phase 4, design 2026-06-10 §2): the shell may
+    // REQUEST these; the host validates against this closed set and maps each to the existing
+    // native handler. Anything else parses to Unknown — never an exception, never a new
+    // capability. Both sides allowlist (player-shell.js mirrors this set).
+    public const string ActionClose = "close";
+    public const string ActionPinToggle = "pinToggle";
+    public const string ActionFullscreenToggle = "fullscreenToggle";
 
     /// <summary>Parse one inbound JSON string from the shell. Never throws; unrecognized -> Unknown.</summary>
     public static InboundShellMessage Parse(string? json)
@@ -74,6 +86,7 @@ public static class PlayerShellProtocol
                     PlayerState: ReadInt(root, FieldPlayerState, -1),
                     Duration: ReadNullableInt(root, FieldDuration)),
                 TypeError => new InboundShellMessage(ShellMessageKind.Error, ErrorCode: ReadString(root, FieldCode)),
+                TypeRequest => ParseRequest(root),
                 _ => new InboundShellMessage(ShellMessageKind.Unknown),
             };
         }
@@ -97,6 +110,16 @@ public static class PlayerShellProtocol
         $"{{\"{KeyVersion}\":{Version},\"{KeyType}\":\"{TypeSeek}\",\"{FieldSeconds}\":{Math.Max(0, seconds)}}}";
 
     private static string Command(string type) => $"{{\"{KeyVersion}\":{Version},\"{KeyType}\":\"{type}\"}}";
+
+    /// <summary>A request is only a request when its action is on the allowlist; anything else
+    /// degrades to Unknown so an injected or future action can never reach a host handler.</summary>
+    private static InboundShellMessage ParseRequest(JsonElement root)
+    {
+        var action = ReadString(root, FieldAction);
+        return action is ActionClose or ActionPinToggle or ActionFullscreenToggle
+            ? new InboundShellMessage(ShellMessageKind.Request, Action: action)
+            : new InboundShellMessage(ShellMessageKind.Unknown);
+    }
 
     private static int ReadInt(JsonElement root, string name, int fallback) =>
         root.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.Number && el.TryGetInt32(out var v)

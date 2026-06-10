@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media;
 
 namespace PiPlay.Services;
 
@@ -113,19 +114,38 @@ public static class BorderlessWindowHelper
     private static int? HitTestResizeZone(Window window, IntPtr lParam)
     {
         if (!IsResizable(window)) return null;
+        // Teardown: a WM_NCHITTEST can arrive after the HwndSource is disconnected but before
+        // WM_NCDESTROY removes the subclass — PointFromScreen would throw across the native frame.
+        if (PresentationSource.FromVisual(window) is null) return null;
 
         var screen = new Point(GetSignedX(lParam), GetSignedY(lParam));
         var point = window.PointFromScreen(screen);
         var width = ActualOrConfigured(window.ActualWidth, window.Width);
         var height = ActualOrConfigured(window.ActualHeight, window.Height);
 
-        return BorderlessResizeHitTestPolicy.HitTest(
+        var hit = BorderlessResizeHitTestPolicy.HitTest(
             width,
             height,
             point.X,
             point.Y,
             isResizable: true,
             isNormalWindowState: window.WindowState == WindowState.Normal);
+        if (hit is null) return null;
+
+        // The edge bands overlap chrome buttons that sit flush with the window edge (the popout's
+        // Close/Pin/Fade). An enabled button under the cursor wins — same precedence native
+        // caption buttons get over the resize border.
+        return IsOverInteractiveControl(window, point) ? null : hit;
+    }
+
+    private static bool IsOverInteractiveControl(Window window, Point point)
+    {
+        var hit = VisualTreeHelper.HitTest(window, point)?.VisualHit;
+        for (var d = hit; d is not null; d = VisualTreeHelper.GetParent(d))
+        {
+            if (d is System.Windows.Controls.Primitives.ButtonBase { IsEnabled: true }) return true;
+        }
+        return false;
     }
 
     private static bool IsResizable(Window window) =>

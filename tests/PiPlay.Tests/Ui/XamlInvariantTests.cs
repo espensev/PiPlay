@@ -80,6 +80,7 @@ public class XamlInvariantTests
         new object[] { "PlayerWindow.xaml", new[]
         {
             "ChromeStrip", "FadeToggle", "PinToggle", "CloseButton", "Player",
+            "ErrorBar", "ErrorText", "FallbackButton", "ErrorDismissButton",
         }},
         new object[] { "SettingsWindow.xaml", new[]
         {
@@ -88,6 +89,8 @@ public class XamlInvariantTests
             "PinAccentCyanSwatch", "PinAccentVioletSwatch", "PinAccentGreenSwatch", "PinAccentAmberSwatch",
             "FadeAccentCyanSwatch", "FadeAccentVioletSwatch", "FadeAccentGreenSwatch", "FadeAccentAmberSwatch",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
+            "ActiveOpacitySlider", "ActiveOpacityValueText", "IdleOpacitySlider", "IdleOpacityValueText",
+            "StripAutoHideToggle",
             "CompactModeToggle",
         }},
     };
@@ -146,6 +149,67 @@ public class XamlInvariantTests
             Assert.False(string.IsNullOrWhiteSpace(byName[name].Attribute("ToolTip")?.Value),
                 $"{name} is missing a ToolTip (UI-CHK-4).");
         }
+    }
+
+    // --- Strip auto-hide layout (spec 7.2, Phase 4 Task 4) ---
+
+    [Fact]
+    public void Player_strip_row_is_auto_sized_so_a_collapsed_strip_returns_its_height()
+    {
+        var doc = XamlTestFiles.Load("PlayerWindow.xaml");
+
+        // The collapse works by Visibility on the strip element; a fixed RowDefinition would keep
+        // a dead 32-DIP band above the video. The row must be Auto and the strip carries the height.
+        var firstRow = doc.Descendants(XamlTestFiles.Pres + "RowDefinition").First();
+        Assert.Equal("Auto", firstRow.Attribute("Height")?.Value);
+
+        var strip = doc.Descendants()
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "ChromeStrip");
+        Assert.Equal("32", strip.Attribute("Height")?.Value);
+    }
+
+    // --- Opacity sliders pin the policy floor (spec 7.3, Phase 4) ---
+
+    [Theory]
+    [InlineData("ActiveOpacitySlider")]
+    [InlineData("IdleOpacitySlider")]
+    public void Opacity_slider_minimum_matches_the_policy_ui_floor(string name)
+    {
+        var slider = XamlTestFiles.Load("SettingsWindow.xaml").Descendants()
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == name);
+
+        Assert.Equal((WindowOpacityPolicy.UiFloor * 100).ToString(), slider.Attribute("Minimum")?.Value);
+        Assert.Equal((WindowOpacityPolicy.Max * 100).ToString(), slider.Attribute("Maximum")?.Value);
+    }
+
+    // --- Compact error bar (spec 10.3 / Q-6, Stage 4) ---
+
+    [Fact]
+    public void Player_error_bar_is_collapsed_by_default_with_accessible_actions()
+    {
+        var byName = XamlTestFiles.Load("PlayerWindow.xaml").Descendants()
+            .Where(e => e.Attribute(XamlTestFiles.X + "Name") is not null)
+            .ToDictionary(e => e.Attribute(XamlTestFiles.X + "Name")!.Value);
+
+        // The bar must never show before an actual compact error.
+        Assert.Equal("Collapsed", byName["ErrorBar"].Attribute("Visibility")?.Value);
+
+        // Both actions need a tooltip (UI-CHK-4) and an automation name (accessibility).
+        foreach (var name in new[] { "FallbackButton", "ErrorDismissButton" })
+        {
+            Assert.False(string.IsNullOrWhiteSpace(byName[name].Attribute("ToolTip")?.Value),
+                $"{name} is missing a ToolTip (UI-CHK-4).");
+            Assert.False(string.IsNullOrWhiteSpace(
+                    byName[name].Attribute(XamlTestFiles.Pres + "AutomationProperties.Name")?.Value ??
+                    byName[name].Attribute("AutomationProperties.Name")?.Value),
+                $"{name} is missing an AutomationProperties.Name.");
+        }
+
+        // User-facing wording stays in the settled vocabulary: "normal page", never internal names.
+        var fallbackText = byName["FallbackButton"].Attribute("Content")?.Value ?? "";
+        Assert.Contains("normal page", fallbackText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("PlayerWindow", fallbackText);
+        Assert.DoesNotContain("embed", fallbackText, StringComparison.OrdinalIgnoreCase);
     }
 
     // --- Resource integrity: every {StaticResource} reference resolves to a defined key ---
@@ -235,6 +299,8 @@ public class XamlInvariantTests
             "PinAccentCyanSwatch", "PinAccentVioletSwatch", "PinAccentGreenSwatch", "PinAccentAmberSwatch",
             "FadeAccentCyanSwatch", "FadeAccentVioletSwatch", "FadeAccentGreenSwatch", "FadeAccentAmberSwatch",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
+            "ActiveOpacitySlider", "IdleOpacitySlider",
+            "StripAutoHideToggle",
             "CompactModeToggle",
         })
         {

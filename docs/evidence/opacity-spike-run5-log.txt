@@ -1,0 +1,10 @@
+﻿2026-06-10 11:37:52.014 [INFO] SPIKE S-3 applied: DWMWA_WINDOW_CORNER_PREFERENCE=ROUND hr=0x00000000.
+2026-06-10 11:37:52.015 [INFO] SPIKE WM_STYLECHANGING guard installed=True.
+2026-06-10 11:37:52.016 [INFO] SPIKE attached to popout HWND; S-1 stages at T+15/40/60s; 1s reassert heartbeat on.
+2026-06-10 11:37:52.018 [INFO] Video Popout started at t=0s, wasPlaying=True, mode=Compact.
+2026-06-10 11:37:52.034 [INFO] SPIKE S-2 enabled: IsNonClientRegionSupportEnabled=true, runtime=149.0.4022.62.
+2026-06-10 11:37:52.035 [INFO] Popout Player initialized (mode=Compact).
+2026-06-10 11:38:07.007 [INFO] SPIKE S-1 stage A (60%) SetWindowLongPtr: prev=0x40108 err=0 exstyleNow=0xC0108 layeredLanded=True.
+2026-06-10 11:38:07.009 [INFO] SPIKE S-1 stage A (60%) applied: alpha=153 ok=True err=0 exstyle=0xC0108 layered=True transparentBit=False.
+2026-06-10 11:38:32.005 [INFO] SPIKE S-1 stage B (45%) applied: alpha=115 ok=True err=0 exstyle=0xC0108 layered=True transparentBit=False.
+2026-06-10 11:38:52.004 [INFO] SPIKE S-1 stage C (restore 100%) applied: alpha=255 ok=True err=0 exstyle=0xC0108 layered=True transparentBit=False.

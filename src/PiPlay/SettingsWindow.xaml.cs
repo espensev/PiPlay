@@ -26,13 +26,27 @@ public partial class SettingsWindow : Window
     internal string FadeAccent { get; private set; }
     internal int FadeIdleDelayMs { get; private set; }
     internal bool CompactMode { get; private set; }
+    internal double ConstantWindowOpacity { get; private set; }
+    internal double IdleWindowOpacity { get; private set; }
+    internal bool StripAutoHide { get; private set; }
+
+    /// <summary>Raised on every opacity slider move so MainWindow can live-preview the levels on
+    /// the open popout (spec 7.3 / plan Task 3). Args: (constant, idle).</summary>
+    internal event Action<double, double>? OpacityPreviewChanged;
+
+    // True from construction until the ctor has seeded the sliders: Slider coerces Value to its
+    // Minimum during InitializeComponent, which fires ValueChanged before our values are in.
+    private bool _seedingOpacitySliders = true;
 
     public SettingsWindow(
         bool isBrowserReady,
         string? pinAccent = PlayerAppearancePolicy.DefaultAccent,
         string? fadeAccent = PlayerAppearancePolicy.DefaultAccent,
         int fadeIdleDelayMs = PlayerAppearancePolicy.DefaultFadeIdleDelayMs,
-        bool compactMode = false)
+        bool compactMode = false,
+        double constantWindowOpacity = WindowOpacityPolicy.Default,
+        double idleWindowOpacity = WindowOpacityPolicy.Default,
+        bool stripAutoHide = false)
     {
         InitializeComponent();
 
@@ -41,6 +55,17 @@ public partial class SettingsWindow : Window
         FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
         CompactMode = compactMode;
         CompactModeToggle.IsChecked = compactMode;
+        StripAutoHide = stripAutoHide;
+        StripAutoHideToggle.IsChecked = stripAutoHide;
+
+        // A hand-edited sub-floor level (the spec 7.3 explicit unlock) is preserved exactly until
+        // the user moves that slider: the DISPLAY clamps to the 45% floor, the stored value doesn't.
+        ConstantWindowOpacity = WindowOpacityPolicy.Normalize(constantWindowOpacity);
+        IdleWindowOpacity = WindowOpacityPolicy.Normalize(idleWindowOpacity);
+        ActiveOpacitySlider.Value = DisplayPercent(ConstantWindowOpacity);
+        IdleOpacitySlider.Value = DisplayPercent(IdleWindowOpacity);
+        _seedingOpacitySliders = false;
+        UpdateOpacityValueTexts();
         ApplyAppearanceSelections();
 
         ResetDescriptionText.Text = PrivacyService.ResetDescription;
@@ -103,6 +128,33 @@ public partial class SettingsWindow : Window
     {
         CompactMode = CompactModeToggle.IsChecked == true;
         AppearanceChanged = true;
+    }
+
+    private void StripAutoHideToggle_Click(object sender, RoutedEventArgs e)
+    {
+        StripAutoHide = StripAutoHideToggle.IsChecked == true;
+        AppearanceChanged = true;
+    }
+
+    private static double DisplayPercent(double level) =>
+        Math.Round(Math.Max(level, WindowOpacityPolicy.UiFloor) * 100.0);
+
+    private void OpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_seedingOpacitySliders) return;
+        var slider = (Slider)sender;
+        var level = Math.Round(slider.Value) / 100.0;
+        if (ReferenceEquals(slider, ActiveOpacitySlider)) ConstantWindowOpacity = level;
+        else IdleWindowOpacity = level;
+        AppearanceChanged = true;
+        UpdateOpacityValueTexts();
+        OpacityPreviewChanged?.Invoke(ConstantWindowOpacity, IdleWindowOpacity);
+    }
+
+    private void UpdateOpacityValueTexts()
+    {
+        ActiveOpacityValueText.Text = $"{Math.Round(ActiveOpacitySlider.Value)}%";
+        IdleOpacityValueText.Text = $"{Math.Round(IdleOpacitySlider.Value)}%";
     }
 
     private void ResetAppStateButton_Click(object sender, RoutedEventArgs e)

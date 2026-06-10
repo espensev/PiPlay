@@ -46,11 +46,23 @@ by the return timestamp (`lastKnownSeconds=19`, the full video length — source
 `PlayerShellBridge.StateReceived` because compact disables the DOM sync timer), which also survived
 the return/resume round-trip (auto re-popout at `t=19s`). See the session worklog for the evidence.
 
-**Release-candidate QA (still live, not run):** signed-in/account-backed playback, playlists,
-restricted/embed-disabled handling plus the Task 6 in-app fallback (Stage 4), explicit host->shell
-commands (play/pause/seek) under real use, Pin/Fade in compact, manual DPI resize, and CSP tuning.
+**Live smoke (2026-06-10, Stage 4 fallback):** the error→fallback path is live-verified via a
+Stage-4 variant of the `run-piplay` driver. With compact forced on against the valid-shape
+nonexistent id `00000000000`, the IFrame API reported **error 150** (not 100 — YouTube answered the
+nonexistent id with the embed-disabled code, which is why the per-code messages are best-effort and
+the generic path matters); the native error bar rendered in its own row above the player surface
+("This video doesn't allow embedded playback." + accent **Open normal page** + dismiss); and
+invoking the fallback navigated the same window to the real `youtube.com/watch` page in normal mode
+with the bar hidden. Both log lines stayed redacted (no video id in either URL). See the 2026-06-10
+session worklog for the evidence and what the trigger could not exercise.
 
-**Why stop before Stage 4:** Task 6's robust embed-disabled detection needs live IFrame-API error
+**Release-candidate QA (still live, not run):** signed-in/account-backed playback, playlists,
+restricted/embed-disabled handling on real videos (the Stage-4 trigger used a nonexistent id),
+explicit host->shell commands (play/pause/seek) under real use, Pin/Fade in compact, manual DPI
+resize, CSP tuning, and the Stage-4 paths not yet seen live: the watchdog ready-timeout, auto-dismiss
+on playlist recovery, and the timestamp-carrying fallback after real playback.
+
+**Why Stages 1-3 stopped before Stage 4 (historical — Stage 4 landed 2026-06-10):** Task 6's robust embed-disabled detection needs live IFrame-API error
 behavior to design against, and the in-app error→normal fallback is a Stage-4 concern. Normal page
 mode remains the fallback today. Live compact playback/return/resume and playlist behavior remain
 release-candidate QA.
@@ -103,7 +115,16 @@ release-candidate QA.
   - Verification: pure protocol tests, WPF construction tests, and live compact return/resume smoke.
   - Commit: `feat(player): bridge compact shell playback state`
 
-- [ ] **Task 6 - Error/fallback behavior.** *(Deferred — Stage 4 fallback/error states; robust embed-disabled detection needs the Stage 3 IFrame API. Stage 1 leaves Normal page mode as the default and fallback. A tuned shell Content-Security-Policy is folded in here too: it must be enumerated against the real IFrame-API requests in live QA before a restrictive CSP can ship without breaking playback.)*
+- [x] **Task 6 - Error/fallback behavior.** *(Done 2026-06-10 except the CSP — see
+  `docs/superpowers/specs/2026-06-10-compact-stage4-fallback-design.md`. A native error bar in the
+  Popout Player covers shell-reported IFrame API errors (2/5/100/101/150 via the existing `error`
+  protocol message), a failed shell load, and a "the IFrame API never responded" watchdog timeout;
+  its **Open normal page** action re-navigates the same window to the watch URL at the best-known
+  timestamp and flips the window to normal-mode behavior (DOM sync timer, bridge disposed, normal
+  minimum). The bar auto-dismisses if playback recovers (playlist advance). Decisions live in the
+  pure `PlayerShellErrorPolicy`; logs carry redacted targets only. The tuned shell
+  Content-Security-Policy remains deferred to live QA: it must be enumerated against the real
+  IFrame-API requests before a restrictive CSP can ship without breaking playback.)*
   - Add compact in-app error state for embed-disabled, unavailable, failed shell load, or IFrame API
     timeout.
   - Provide a clear fallback action to reopen the same target in normal player mode.

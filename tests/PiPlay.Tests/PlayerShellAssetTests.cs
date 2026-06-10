@@ -73,6 +73,7 @@ public class PlayerShellAssetTests
         foreach (var type in new[]
         {
             PlayerShellProtocol.TypeReady, PlayerShellProtocol.TypeState, PlayerShellProtocol.TypeError,
+            PlayerShellProtocol.TypeRequest,
             PlayerShellProtocol.TypePlay, PlayerShellProtocol.TypePause, PlayerShellProtocol.TypeSeek,
             PlayerShellProtocol.TypeRequestState,
         })
@@ -84,17 +85,46 @@ public class PlayerShellAssetTests
     [Fact]
     public void Shell_js_uses_every_consumed_payload_field_name()
     {
-        // The five fields the host actually CONSUMES (a one-sided rename here silently reads 0/null
+        // The fields the host actually CONSUMES (a one-sided rename here silently reads 0/null
         // over the bridge). Driven from the C# constants so the field names have one source of truth.
         var js = Read("player-shell.js");
         foreach (var field in new[]
         {
             PlayerShellProtocol.FieldCurrentTime, PlayerShellProtocol.FieldPlayerState,
             PlayerShellProtocol.FieldDuration, PlayerShellProtocol.FieldCode, PlayerShellProtocol.FieldSeconds,
+            PlayerShellProtocol.FieldAction,
         })
         {
             Assert.Contains(field, js);   // catches field-level drift between the JS and the C# protocol
         }
+    }
+
+    [Fact]
+    public void Shell_js_allowlists_exactly_the_protocol_request_actions()
+    {
+        // Both sides allowlist the request channel (design 2026-06-10 §2): the JS set must equal
+        // the C# closed set, or one side could widen the channel unilaterally.
+        var js = Read("player-shell.js");
+        var declaration = Regex.Match(js, @"REQUEST_ACTIONS\s*=\s*\[([^\]]*)\]");
+        Assert.True(declaration.Success, "player-shell.js no longer declares REQUEST_ACTIONS.");
+
+        var jsActions = Regex.Matches(declaration.Groups[1].Value, "\"([^\"]+)\"")
+            .Select(m => m.Groups[1].Value).ToArray();
+        Assert.Equal(new[]
+        {
+            PlayerShellProtocol.ActionClose, PlayerShellProtocol.ActionPinToggle,
+            PlayerShellProtocol.ActionFullscreenToggle,
+        }, jsActions);
+    }
+
+    [Fact]
+    public void Shell_js_protocol_version_matches_the_csharp_contract()
+    {
+        // The version is declared on both sides; a one-sided bump is exactly the drift this
+        // suite exists to catch (spec 10.3 versioned-contract rule).
+        var declaration = Regex.Match(Read("player-shell.js"), @"PROTOCOL_VERSION\s*=\s*(\d+)");
+        Assert.True(declaration.Success, "player-shell.js no longer declares PROTOCOL_VERSION.");
+        Assert.Equal(PlayerShellProtocol.Version, int.Parse(declaration.Groups[1].Value));
     }
 
     [Fact]

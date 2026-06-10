@@ -39,6 +39,20 @@ public class YouTubeUrlHelperTests
         Assert.Null(t.VideoId);
     }
 
+    [Theory]
+    [InlineData("x%26t%3D9999")]   // decoded '&'/'=' must never re-enter a built URL
+    [InlineData("PL%20abc")]       // embedded space
+    [InlineData("a")]              // too short to be a real list id
+    public void Malformed_playlist_id_is_dropped_but_the_video_survives(string list)
+    {
+        Assert.True(YouTubeUrlHelper.TryParse(
+            $"https://www.youtube.com/watch?v=dQw4w9WgXcQ&list={list}", out var t));
+        Assert.Equal("dQw4w9WgXcQ", t.VideoId);
+        Assert.Null(t.PlaylistId);
+        Assert.DoesNotContain("%", YouTubeUrlHelper.BuildWatchUrl(t));
+        Assert.DoesNotContain("list", YouTubeUrlHelper.BuildWatchUrl(t));
+    }
+
     [Fact]
     public void Mix_radio_list_falls_back_to_current_video_with_note()
     {

@@ -25,6 +25,10 @@ public sealed class PlayerShellBridge : IDisposable
     /// <summary>Raised when the shell reports a player error (embed-disabled, unavailable, etc.).</summary>
     public event EventHandler<InboundShellMessage>? ErrorReceived;
 
+    /// <summary>Raised for an allowlisted shell window-action request (Phase 4: close / pinToggle /
+    /// fullscreenToggle). Non-allowlisted actions never get here — they parse to Unknown.</summary>
+    public event EventHandler<InboundShellMessage>? RequestReceived;
+
     public PlayerShellBridge(CoreWebView2 core)
     {
         _core = core;
@@ -61,6 +65,10 @@ public sealed class PlayerShellBridge : IDisposable
             case ShellMessageKind.Error:
                 Log.Info($"Compact shell reported a player error (code={message.ErrorCode ?? "unknown"}).");
                 ErrorReceived?.Invoke(this, message);
+                break;
+            case ShellMessageKind.Request:
+                Log.Info($"Compact shell requested a window action ({message.Action}).");
+                RequestReceived?.Invoke(this, message);
                 break;
         }
     }

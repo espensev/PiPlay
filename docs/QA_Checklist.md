@@ -58,6 +58,7 @@ Mark each: pass / issue (link) / skipped.
 - [ ] Compact mode handles playlists and playlist-only URLs according to the compact-player design.
 - [ ] Compact mode minimum size is at least 480x270; saved smaller bounds clamp up rather than opening unusably small.
 - [ ] Compact mode fallback is clear for unavailable/restricted/embed-disabled videos and can reopen the same target in normal mode.
+- [ ] Compact error bar also appears on a failed shell load and on an IFrame API that never responds (watchdog timeout); it auto-dismisses if playback recovers (e.g. playlist advance), and the fallback lands at the best-known timestamp.
 - [ ] Compact mode keeps YouTube controls/branding visible; no click-through or transparent WebView2 behavior is introduced.
 
 ## 4. Recovery / errors (Q-6)

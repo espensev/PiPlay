@@ -166,7 +166,8 @@ public sealed class SettingsService
         s.Player.PinAccent = PlayerAppearancePolicy.NormalizeAccent(s.Player.PinAccent);
         s.Player.FadeAccent = PlayerAppearancePolicy.NormalizeAccent(s.Player.FadeAccent);
         s.Player.FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(s.Player.FadeIdleDelayMs);
-        if (s.Player.IdleWindowOpacity is < 0.1 or > 1.0) s.Player.IdleWindowOpacity = 1.0;
+        s.Player.IdleWindowOpacity = WindowOpacityPolicy.Normalize(s.Player.IdleWindowOpacity);
+        s.Player.ConstantWindowOpacity = WindowOpacityPolicy.Normalize(s.Player.ConstantWindowOpacity);
         if (s.Player.LastWidth < 320) s.Player.LastWidth = 960;
         if (s.Player.LastHeight < 180) s.Player.LastHeight = 540;
         if (s.SchemaVersion <= 0) s.SchemaVersion = AppSettings.CurrentSchemaVersion;
