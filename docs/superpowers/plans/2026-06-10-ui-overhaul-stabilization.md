@@ -21,8 +21,9 @@ decision. Task 4's maximize semantics were decided (keep current full-monitor ma
 affordance + reversibility landed 2026-06-10 (`feat(popout): add reliable expand path`, 461/461).
 Task 3's implementation landed 2026-06-10 (`fix(compact): keep recommendations in piplay and return
 the current video`, 452/452); its spec re-verification is recorded at the Task 3 entry. Task 5
-landed 2026-06-10 (`refactor(settings): make settings scrollable and sectioned`, 468/468).
-Remaining: Tasks 8-10 (theme pass), 11, 12.
+landed 2026-06-10 (`refactor(settings): make settings scrollable and sectioned`, 468/468). Task 11
+landed 2026-06-10 (`docs(ui): refresh overhaul qa evidence`). Remaining: Tasks 8-10 (theme pass),
+12 (final gate + self-review for this pass).
 
 ## Tasks
 
@@ -269,7 +270,16 @@ Remaining: Tasks 8-10 (theme pass), 11, 12.
     after replacement, and manual captures for Pin/Fade/accent consistency.
   - Commit: `feat(settings): add theme and accent controls`
 
-- [ ] **Task 11 - Refresh QA docs and discovery evidence.**
+- [x] **Task 11 - Refresh QA docs and discovery evidence.**
+  *(Landed `docs(ui): refresh overhaul qa evidence`: Phase-3 resize rows amended to pointer-over-
+  surface; new §2.1 dual-capture behavior table (click-then-scroll, band contract, expand/restore,
+  restore reachability, never-relaunch-expanded, reveal-then-resize beat); compact Task 3/4 rows;
+  Settings short-display + new-popouts-copy rows; UI-CHK-7 accessible names; theme-preset row
+  parked pending Tasks 8-10. CHANGELOG `[Unreleased]` opened; SPEC_GAPS Stage-4 claim corrected to
+  shipped; ui-state-notes State 03 renamed `Source Expanded Player` + post-fix addendum (fresh
+  captures deferred to the manual QA pass). Wording sweep clean: remaining "fullscreen" hits are
+  YouTube's own button, the W3C fullscreen-element API, protocol identifiers, or preserved pre-fix
+  capture notes. theme-system-overhaul-evaluation.md untouched — no theme decisions changed.)*
   - `docs/QA_Checklist.md`: AMEND the existing Phase-3 resize rows to require resize with the pointer
     OVER the player surface (the actual reported bug) rather than adding duplicate rows; add rows for
     scroll, compact recommendation navigation, compact expand/fullview (including
