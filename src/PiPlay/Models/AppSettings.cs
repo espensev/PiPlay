@@ -66,6 +66,15 @@ public sealed class PlayerSettings
     /// sanitization rules as <see cref="IdleWindowOpacity"/>.
     /// </summary>
     public double ConstantWindowOpacity { get; set; } = 1.0;
+
+    /// <summary>
+    /// Auto-hide the Popout Player's chrome strip (spec 7.2, Phase 4): an idle-faded strip also
+    /// height-collapses so the video fills the window; hovering the top edge reveals it. Shares
+    /// the controls-fade idle source, so it only engages while <see cref="FadeEnabled"/> is on.
+    /// Off by default; a missing value deserializes to false, so existing settings.json files
+    /// keep the always-reserved strip row.
+    /// </summary>
+    public bool StripAutoHide { get; set; }
     public int LastWidth { get; set; } = 960;
     public int LastHeight { get; set; } = 540;
 }

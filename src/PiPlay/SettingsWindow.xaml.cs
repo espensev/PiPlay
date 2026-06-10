@@ -28,6 +28,7 @@ public partial class SettingsWindow : Window
     internal bool CompactMode { get; private set; }
     internal double ConstantWindowOpacity { get; private set; }
     internal double IdleWindowOpacity { get; private set; }
+    internal bool StripAutoHide { get; private set; }
 
     /// <summary>Raised on every opacity slider move so MainWindow can live-preview the levels on
     /// the open popout (spec 7.3 / plan Task 3). Args: (constant, idle).</summary>
@@ -44,7 +45,8 @@ public partial class SettingsWindow : Window
         int fadeIdleDelayMs = PlayerAppearancePolicy.DefaultFadeIdleDelayMs,
         bool compactMode = false,
         double constantWindowOpacity = WindowOpacityPolicy.Default,
-        double idleWindowOpacity = WindowOpacityPolicy.Default)
+        double idleWindowOpacity = WindowOpacityPolicy.Default,
+        bool stripAutoHide = false)
     {
         InitializeComponent();
 
@@ -53,6 +55,8 @@ public partial class SettingsWindow : Window
         FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
         CompactMode = compactMode;
         CompactModeToggle.IsChecked = compactMode;
+        StripAutoHide = stripAutoHide;
+        StripAutoHideToggle.IsChecked = stripAutoHide;
 
         // A hand-edited sub-floor level (the spec 7.3 explicit unlock) is preserved exactly until
         // the user moves that slider: the DISPLAY clamps to the 45% floor, the stored value doesn't.
@@ -123,6 +127,12 @@ public partial class SettingsWindow : Window
     private void CompactModeToggle_Click(object sender, RoutedEventArgs e)
     {
         CompactMode = CompactModeToggle.IsChecked == true;
+        AppearanceChanged = true;
+    }
+
+    private void StripAutoHideToggle_Click(object sender, RoutedEventArgs e)
+    {
+        StripAutoHide = StripAutoHideToggle.IsChecked == true;
         AppearanceChanged = true;
     }
 

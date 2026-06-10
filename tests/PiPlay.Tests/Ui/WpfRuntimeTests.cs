@@ -620,6 +620,166 @@ public class WpfRuntimeTests : IDisposable
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr SetWindowLongPtrW(IntPtr hwnd, int index, IntPtr newValue);
 
+    // --- Shell request channel + strip auto-hide (spec 7.2 / 10.3, Phase 4 Task 4) ---
+
+    private static PlayerWindow NewCompactAutoHidePlayer() =>
+        new(environment: null!, url: "https://piplay.local/player.html?v=dQw4w9WgXcQ",
+            topmost: false, placement: null, defaultWidth: 960, defaultHeight: 540,
+            fadeEnabled: true, mode: PlaybackMode.Compact,
+            fallbackTarget: new YouTubeTarget { VideoId = "dQw4w9WgXcQ" }, stripAutoHide: true);
+
+    private static InboundShellMessage Request(string action) =>
+        new(ShellMessageKind.Request, Action: action);
+
+    [Fact]
+    public void Shell_close_request_closes_the_player() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+        var closed = false;
+        w.PlayerClosed += (_, _) => closed = true;
+
+        w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionClose));
+
+        Assert.True(closed);
+    });
+
+    [Fact]
+    public void Shell_pin_request_toggles_topmost_and_the_strip_toggle() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+        Assert.False(w.Topmost);
+
+        w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionPinToggle));
+        Assert.True(w.Topmost);
+        Assert.True(((ToggleButton)w.FindName("PinToggle")!).IsChecked);   // native toggle stays in sync
+
+        w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionPinToggle));
+        Assert.False(w.Topmost);
+        Assert.False(((ToggleButton)w.FindName("PinToggle")!).IsChecked);
+    });
+
+    [Fact]
+    public void Shell_fullscreen_request_toggles_maximized() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+        Assert.Equal(WindowState.Normal, w.WindowState);
+
+        w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionFullscreenToggle));
+        Assert.Equal(WindowState.Maximized, w.WindowState);
+
+        w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionFullscreenToggle));
+        Assert.Equal(WindowState.Normal, w.WindowState);
+    });
+
+    [Fact]
+    public void Shell_requests_are_ignored_in_normal_mode() => StaTestThread.Invoke(() =>
+    {
+        // The shell only exists in compact mode; after the fallback flips the window to normal
+        // mode, a late request must be inert (the bridge is disposed, but the guard is belt-and-braces).
+        var w = NewPlayer();
+        w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionPinToggle));
+        Assert.False(w.Topmost);
+    });
+
+    [Fact]
+    public void Strip_auto_hide_collapses_after_the_fade_and_activity_restores_it() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactAutoHidePlayer();
+        Assert.True(w.StripAutoHideForTests);
+        Assert.False(w.IsChromeStripCollapsedForTests);   // visible on construction
+
+        w.HideControlsForTests();
+        w.CompleteHideFadeForTests();   // the fade's Completed callback (clocks don't tick headless)
+        Assert.True(w.IsChromeStripCollapsedForTests);
+        Assert.False(w.IsChromeStripHitTestVisibleForTests);   // Q-8: hidden strip swallows no clicks
+
+        w.OnUserActivityForTests();   // any reveal path must restore the layout row immediately
+        Assert.False(w.IsChromeStripCollapsedForTests);
+        Assert.True(w.IsChromeStripHitTestVisibleForTests);
+    });
+
+    [Fact]
+    public void Strip_does_not_collapse_when_auto_hide_is_off() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();   // fade on, auto-hide off: Stage 4 behavior byte-for-byte
+        w.HideControlsForTests();
+        w.CompleteHideFadeForTests();
+
+        Assert.False(w.IsChromeStripCollapsedForTests);        // faded, but the row is still reserved
+        Assert.False(w.IsChromeStripHitTestVisibleForTests);
+    });
+
+    [Fact]
+    public void Reveal_mid_fade_keeps_the_strip_interactive_and_uncollapsed() => StaTestThread.Invoke(() =>
+    {
+        // Activity lands between the hide decision and the fade's completion: the late completion
+        // callback must not knock down a strip the user just got back.
+        var w = NewCompactAutoHidePlayer();
+        w.HideControlsForTests();
+        w.OnUserActivityForTests();
+        w.CompleteHideFadeForTests();   // the stale callback fires after the reveal
+
+        Assert.False(w.IsChromeStripCollapsedForTests);
+        Assert.True(w.IsChromeStripHitTestVisibleForTests);
+    });
+
+    [Fact]
+    public void Turning_auto_hide_off_restores_a_collapsed_strip() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactAutoHidePlayer();
+        w.HideControlsForTests();
+        w.CompleteHideFadeForTests();
+        Assert.True(w.IsChromeStripCollapsedForTests);   // precondition: collapsed
+
+        // The settings path (MainWindow live re-apply) turns the behavior off mid-collapse.
+        w.ApplyAppearance("cyan", "cyan", 2500, stripAutoHide: false);
+
+        Assert.False(w.StripAutoHideForTests);
+        Assert.False(w.IsChromeStripCollapsedForTests);
+    });
+
+    [Fact]
+    public void Auto_hide_arms_the_activity_probe_and_fade_off_disarms_it() => StaTestThread.Invoke(() =>
+    {
+        // At 1.0/1.0 opacity defaults the probe used to never run; the auto-hiding strip needs it
+        // for the top-edge reveal (WPF sees no mouse over the WebView2 child). Fade off removes
+        // the only idleness source, so the probe must stop with it.
+        var w = NewCompactAutoHidePlayer();
+        _ = new WindowInteropHelper(w).EnsureHandle();   // SourceInitialized applies opacity + probe
+        Assert.True(w.IsOpacityHoverPollRunningForTests);
+
+        var fade = (ToggleButton)w.FindName("FadeToggle")!;
+        fade.IsChecked = false;
+        fade.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        Assert.False(w.IsOpacityHoverPollRunningForTests);
+        Assert.False(w.IsChromeStripCollapsedForTests);   // fade off pins the strip visible
+
+        fade.IsChecked = true;
+        fade.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        Assert.True(w.IsOpacityHoverPollRunningForTests);
+
+        w.Close();
+    });
+
+    [Fact]
+    public void SettingsWindow_reflects_and_toggles_strip_auto_hide() => StaTestThread.Invoke(() =>
+    {
+        var on = new SettingsWindow(isBrowserReady: true, stripAutoHide: true);
+        Assert.True(on.StripAutoHide);
+        Assert.True(((ToggleButton)on.FindName("StripAutoHideToggle")!).IsChecked);
+
+        var w = new SettingsWindow(isBrowserReady: true, stripAutoHide: false);
+        Assert.False(w.StripAutoHide);
+        var toggle = (ToggleButton)w.FindName("StripAutoHideToggle")!;
+        Assert.False(toggle.IsChecked);
+        Assert.False(w.AppearanceChanged);   // seeding must not count as a user change
+
+        toggle.IsChecked = true;
+        toggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        Assert.True(w.StripAutoHide);
+        Assert.True(w.AppearanceChanged);
+    });
+
     [Fact]
     public void Profile_mode_picker_round_trips_the_durable_token() => StaTestThread.Invoke(() =>
     {

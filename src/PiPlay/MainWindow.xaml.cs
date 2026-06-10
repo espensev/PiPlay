@@ -480,7 +480,8 @@ public partial class MainWindow : Window
             fadeIdleDelayMs: _settings.Player.FadeIdleDelayMs,
             compactMode: _settings.Player.CompactMode,
             constantWindowOpacity: _settings.Player.ConstantWindowOpacity,
-            idleWindowOpacity: _settings.Player.IdleWindowOpacity)
+            idleWindowOpacity: _settings.Player.IdleWindowOpacity,
+            stripAutoHide: _settings.Player.StripAutoHide)
         {
             Owner = this,
             Topmost = Topmost,
@@ -504,7 +505,7 @@ public partial class MainWindow : Window
         if (dialog.AppearanceChanged)
         {
             ApplyPlayerPreferences(dialog.PinAccent, dialog.FadeAccent, dialog.FadeIdleDelayMs, dialog.CompactMode,
-                dialog.ConstantWindowOpacity, dialog.IdleWindowOpacity);
+                dialog.ConstantWindowOpacity, dialog.IdleWindowOpacity, dialog.StripAutoHide);
         }
 
         switch (dialog.RequestedAction)
@@ -541,14 +542,15 @@ public partial class MainWindow : Window
         ApplyTopmost(false);
         ApplyAuto(false);
         ApplySourceAppearance();
-        _player?.ApplyAppearance(_settings.Player.PinAccent, _settings.Player.FadeAccent, _settings.Player.FadeIdleDelayMs);
+        _player?.ApplyAppearance(_settings.Player.PinAccent, _settings.Player.FadeAccent,
+            _settings.Player.FadeIdleDelayMs, _settings.Player.StripAutoHide);
         _player?.ApplyWindowOpacity(_settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity);
         UpdateAutoDetector();   // Auto is off after reset → stop the detector
         LoadProfilesIntoCombo();
     }
 
     private void ApplyPlayerPreferences(string pinAccent, string fadeAccent, int fadeIdleDelayMs, bool compactMode,
-        double constantWindowOpacity, double idleWindowOpacity)
+        double constantWindowOpacity, double idleWindowOpacity, bool stripAutoHide)
     {
         _settings.Player.PinAccent = PlayerAppearancePolicy.NormalizeAccent(pinAccent);
         _settings.Player.FadeAccent = PlayerAppearancePolicy.NormalizeAccent(fadeAccent);
@@ -557,9 +559,11 @@ public partial class MainWindow : Window
         _settings.Player.CompactMode = compactMode;
         _settings.Player.ConstantWindowOpacity = WindowOpacityPolicy.Normalize(constantWindowOpacity);
         _settings.Player.IdleWindowOpacity = WindowOpacityPolicy.Normalize(idleWindowOpacity);
+        _settings.Player.StripAutoHide = stripAutoHide;
 
         ApplySourceAppearance();
-        _player?.ApplyAppearance(_settings.Player.PinAccent, _settings.Player.FadeAccent, _settings.Player.FadeIdleDelayMs);
+        _player?.ApplyAppearance(_settings.Player.PinAccent, _settings.Player.FadeAccent,
+            _settings.Player.FadeIdleDelayMs, _settings.Player.StripAutoHide);
         _player?.ApplyWindowOpacity(_settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity);
         _settingsService.Save(_settings);
     }
@@ -681,7 +685,8 @@ public partial class MainWindow : Window
                 _settings.Player.Placement, _settings.Player.LastWidth, _settings.Player.LastHeight,
                 _settings.Player.FadeEnabled, _settings.Player.PinAccent, _settings.Player.FadeAccent,
                 _settings.Player.FadeIdleDelayMs, mode, target,
-                _settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity);
+                _settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity,
+                _settings.Player.StripAutoHide);
             _player.PlayerClosed += Player_OnClosed;
             _player.Show();
 

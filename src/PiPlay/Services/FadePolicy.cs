@@ -15,6 +15,13 @@ public static class FadePolicy
     public const int FadeDurationMs = 150;
 
     /// <summary>
+    /// Height of the top-edge hover band, in DIPs, that reveals a height-collapsed chrome strip
+    /// (Phase 4 strip auto-hide). Half the strip height: generous enough to hit at speed, small
+    /// enough that normal interaction with the video never reveals by accident.
+    /// </summary>
+    public const int TopEdgeRevealBandDip = 16;
+
+    /// <summary>
     /// Whether the chrome strip should be hidden right now.
     /// Hiding requires fade to be enabled AND nothing keeping the controls up:
     /// the pointer is away, no drag is in progress, and the idle delay has elapsed.

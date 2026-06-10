@@ -186,6 +186,20 @@ public class SettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public void Strip_auto_hide_default_is_off_and_roundtrips()
+    {
+        var svc = new SettingsService(_path);
+        // Off by default AND for a missing property, so every pre-Phase-4 settings.json keeps
+        // the always-reserved strip row (spec 7.2 / acceptance criterion 1).
+        Assert.False(svc.Load().Player.StripAutoHide);
+
+        var s = new AppSettings();
+        s.Player.StripAutoHide = true;
+        svc.Save(s);
+        Assert.True(svc.Load().Player.StripAutoHide);
+    }
+
+    [Fact]
     public void Reset_recreates_the_file_with_defaults()
     {
         var svc = new SettingsService(_path);

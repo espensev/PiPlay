@@ -76,6 +76,32 @@ public class PlayerShellProtocolTests
         Assert.Null(error.ErrorCode);
     }
 
+    // --- Request kind (Phase 4): allowlisted shell -> host window actions ---
+
+    [Theory]
+    [InlineData("close")]
+    [InlineData("pinToggle")]
+    [InlineData("fullscreenToggle")]
+    public void Parses_allowlisted_request_actions(string action)
+    {
+        var msg = PlayerShellProtocol.Parse($"{{\"v\":2,\"type\":\"request\",\"action\":\"{action}\"}}");
+        Assert.Equal(ShellMessageKind.Request, msg.Kind);
+        Assert.Equal(action, msg.Action);
+    }
+
+    [Theory]
+    [InlineData("{\"v\":2,\"type\":\"request\"}")]                           // no action at all
+    [InlineData("{\"v\":2,\"type\":\"request\",\"action\":\"minimize\"}")]   // off-allowlist action
+    [InlineData("{\"v\":2,\"type\":\"request\",\"action\":\"Close\"}")]      // exact tokens only (case)
+    [InlineData("{\"v\":2,\"type\":\"request\",\"action\":42}")]             // wrong-typed action
+    [InlineData("{\"v\":2,\"type\":\"request\",\"action\":\"\"}")]           // empty action
+    public void Off_allowlist_requests_degrade_to_unknown(string json)
+    {
+        // The closed set is the security property (design 2026-06-10 §2): an injected or future
+        // action must die at the parse layer, before any host handler can see it.
+        Assert.Equal(ShellMessageKind.Unknown, PlayerShellProtocol.Parse(json).Kind);
+    }
+
     // --- Outbound (host -> shell) command shapes ---
 
     [Theory]

@@ -36,6 +36,12 @@ public partial class PlayerWindow : Window
     private bool _isDragging;
     private bool _controlsVisible = true;
 
+    // Strip auto-hide (spec 7.2 chrome fade, Phase 4): when on, an idle-hidden strip also
+    // height-collapses so the video fills the window; the top-edge hover band (via the activity
+    // probe — WPF sees no mouse over the WebView2 child) reveals it. Same idle source as the
+    // fade, so fade-off means no auto-hide either.
+    private bool _stripAutoHide;
+
     // Whole-window opacity (spec 7.3, Phase 4): two persisted levels applied as layered alpha by
     // WindowOpacityApplier. Idle ONSET shares _idleTimer with the controls fade (one idleness
     // definition); the hover-restore poll exists because WPF receives no mouse events over the
@@ -79,7 +85,8 @@ public partial class PlayerWindow : Window
         PlaybackMode mode = PlaybackMode.Normal,
         YouTubeTarget? fallbackTarget = null,
         double constantWindowOpacity = WindowOpacityPolicy.Default,
-        double idleWindowOpacity = WindowOpacityPolicy.Default)
+        double idleWindowOpacity = WindowOpacityPolicy.Default,
+        bool stripAutoHide = false)
     {
         InitializeComponent();
         BorderlessWindowHelper.EnableExpandedResizeZones(this);
@@ -121,17 +128,18 @@ public partial class PlayerWindow : Window
         _shellReadyTimer = new DispatcherTimer { Interval = PlayerShellErrorPolicy.ReadyTimeout };
         _shellReadyTimer.Tick += ShellReadyTimer_Tick;
 
-        // Idle timer drives the fade-out; any mouse move restarts it (spec 22.1 fade row).
-        _idleTimer = new DispatcherTimer();
-        _idleTimer.Tick += IdleTimer_Tick;
-        ApplyAppearance(pinAccent, fadeAccent, fadeIdleDelayMs);
-        MouseMove += (_, _) => OnUserActivity();
-        MouseEnter += (_, _) => OnUserActivity();
-
         _constantWindowOpacity = WindowOpacityPolicy.Normalize(constantWindowOpacity);
         _idleWindowOpacity = WindowOpacityPolicy.Normalize(idleWindowOpacity);
         _opacityHoverPoll = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _opacityHoverPoll.Tick += OpacityHoverPoll_Tick;
+
+        // Idle timer drives the fade-out; any mouse move restarts it (spec 22.1 fade row).
+        // Both timers exist before ApplyAppearance, which touches the interval AND the probe.
+        _idleTimer = new DispatcherTimer();
+        _idleTimer.Tick += IdleTimer_Tick;
+        ApplyAppearance(pinAccent, fadeAccent, fadeIdleDelayMs, stripAutoHide);
+        MouseMove += (_, _) => OnUserActivity();
+        MouseEnter += (_, _) => OnUserActivity();
 
         Loaded += (_, _) => ApplyFadeState();
         Loaded += async (_, _) => await InitializePlayerAsync();
@@ -168,6 +176,7 @@ public partial class PlayerWindow : Window
                 _shellBridge.Ready += ShellBridge_Ready;
                 _shellBridge.StateReceived += ShellBridge_StateReceived;
                 _shellBridge.ErrorReceived += ShellBridge_ErrorReceived;
+                _shellBridge.RequestReceived += ShellBridge_RequestReceived;
             }
 
             core.Navigate(_url);
@@ -242,6 +251,30 @@ public partial class PlayerWindow : Window
         ShowShellError(PlayerShellErrorPolicy.Describe(message.ErrorCode));
     }
 
+    /// <summary>
+    /// Map an allowlisted shell window-action request (design 2026-06-10 §2) onto the EXISTING
+    /// native handlers — the shell can ask for exactly what the chrome strip already does, never
+    /// more. Off-allowlist actions were already dropped at the parse layer (they arrive as
+    /// Unknown, which the bridge never surfaces), so this switch is the second of two gates.
+    /// </summary>
+    private void ShellBridge_RequestReceived(object? sender, InboundShellMessage message)
+    {
+        if (_mode != PlaybackMode.Compact) return;
+        switch (message.Action)
+        {
+            case PlayerShellProtocol.ActionClose:
+                Close();
+                break;
+            case PlayerShellProtocol.ActionPinToggle:
+                PinToggle.IsChecked = PinToggle.IsChecked != true;
+                Topmost = PinToggle.IsChecked == true;
+                break;
+            case PlayerShellProtocol.ActionFullscreenToggle:
+                WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+                break;
+        }
+    }
+
     private void ShellReadyTimer_Tick(object? sender, EventArgs e)
     {
         _shellReadyTimer.Stop();
@@ -300,8 +333,16 @@ public partial class PlayerWindow : Window
     internal void HandleShellErrorForTests(InboundShellMessage message) => ShellBridge_ErrorReceived(this, message);
     internal void HandleShellLoadFailureForTests() => ShowShellError(PlayerShellErrorPolicy.ShellLoadFailedMessage);
     internal void RequestFallbackForTests() => FallBackToNormalPage();
+    internal void HandleShellRequestForTests(InboundShellMessage message) => ShellBridge_RequestReceived(this, message);
     internal bool IsErrorBarVisibleForTests => ErrorBar.Visibility == Visibility.Visible;
     internal string ErrorTextForTests => ErrorText.Text;
+
+    // Strip auto-hide seams (Wpf lane): drive the collapse/reveal state machine headlessly.
+    internal bool StripAutoHideForTests => _stripAutoHide;
+    internal bool IsChromeStripCollapsedForTests => ChromeStrip.Visibility == Visibility.Collapsed;
+    internal bool IsChromeStripHitTestVisibleForTests => ChromeStrip.IsHitTestVisible;
+    internal void HideControlsForTests() => HideControls();
+    internal void CompleteHideFadeForTests() => OnHideFadeCompleted();
 
     private async void SyncTimer_Tick(object? sender, EventArgs e)
     {
@@ -348,12 +389,17 @@ public partial class PlayerWindow : Window
         ApplyFadeState();
     }
 
-    internal void ApplyAppearance(string? pinAccent, string? fadeAccent, int fadeIdleDelayMs)
+    internal void ApplyAppearance(string? pinAccent, string? fadeAccent, int fadeIdleDelayMs, bool stripAutoHide = false)
     {
         ToggleAccent.SetCheckedBrush(PinToggle, ResolveAccentBrush(pinAccent));
         ToggleAccent.SetCheckedBrush(FadeToggle, ResolveAccentBrush(fadeAccent));
         _idleTimer.Interval = TimeSpan.FromMilliseconds(
             PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs));
+
+        var autoHideTurnedOff = _stripAutoHide && !stripAutoHide;
+        _stripAutoHide = stripAutoHide;
+        if (autoHideTurnedOff && ChromeStrip.Visibility != Visibility.Visible) ShowControls();
+        UpdateActivityProbe();
 
         if (_fadeEnabled && _idleTimer.IsEnabled) RestartIdleTimer();
     }
@@ -375,6 +421,7 @@ public partial class PlayerWindow : Window
             ShowControls(); // disabling fade restores the MVP "always visible" behavior immediately
             ExitWindowOpacityIdle(); // no idle source while fade is off, so no idle opacity either
         }
+        UpdateActivityProbe();   // the fade state is a probe input (strip auto-hide gates on it)
     }
 
     private void OnUserActivity()
@@ -448,12 +495,23 @@ public partial class PlayerWindow : Window
         // with both levels at 1.0 the window stays byte-identical to the pre-Phase-4 popout.
         WindowOpacityApplier.SetRoundedCorners(hwnd, rounded: active < WindowOpacityPolicy.Max || idle < WindowOpacityPolicy.Max);
         WindowOpacityApplier.Apply(hwnd, _windowOpacityIdle ? idle : active, animate);
+        UpdateActivityProbe();
+    }
 
-        // The activity probe runs for as long as an idle dip is configured (it both prevents
-        // idle onset during movement over the video and restores after onset). Off at defaults.
-        var pollWanted = idle < active;
-        if (pollWanted && !_opacityHoverPoll.IsEnabled) _opacityHoverPoll.Start();
-        else if (!pollWanted) _opacityHoverPoll.Stop();
+    /// <summary>
+    /// The activity probe covers the WebView2 area WPF can't see. It runs for as long as
+    /// something needs it: an idle opacity dip (prevent onset during movement, restore after) or
+    /// the auto-hiding strip (top-edge reveal). Off at defaults, so default-look behavior never
+    /// pays for it.
+    /// </summary>
+    private void UpdateActivityProbe()
+    {
+        var active = WindowOpacityPolicy.Effective(isIdle: false, _constantWindowOpacity, _idleWindowOpacity);
+        var idle = WindowOpacityPolicy.Effective(isIdle: true, _constantWindowOpacity, _idleWindowOpacity);
+        var wanted = (idle < active || (_stripAutoHide && _fadeEnabled)) &&
+                     new System.Windows.Interop.WindowInteropHelper(this).Handle != IntPtr.Zero;
+        if (wanted && !_opacityHoverPoll.IsEnabled) _opacityHoverPoll.Start();
+        else if (!wanted) _opacityHoverPoll.Stop();
     }
 
     private void EnterWindowOpacityIdle()
@@ -488,11 +546,28 @@ public partial class PlayerWindow : Window
         var p = PointFromScreen(new Point(x, y));
         if (p.X < 0 || p.Y < 0 || p.X > ActualWidth || p.Y > ActualHeight) return;
         _lastInWindowCursorMoveMs = Environment.TickCount64;
-        if (_windowOpacityIdle) OnUserActivity();
+
+        // Top-edge band reveals a collapsed strip (spec 7.2: hover restores full chrome).
+        if (_stripAutoHide && p.Y <= FadePolicy.TopEdgeRevealBandDip && ChromeStrip.Visibility != Visibility.Visible)
+        {
+            OnUserActivity();
+            return;
+        }
+
+        // Movement elsewhere over the video restores window opacity (spec 7.3) and re-arms
+        // idleness WITHOUT popping the strip up — the strip reveals only via its own hover paths.
+        if (_windowOpacityIdle)
+        {
+            ExitWindowOpacityIdle();
+            RestartIdleTimer();
+        }
     }
 
     private void ShowControls()
     {
+        // Un-collapse first (strip auto-hide): the reveal must restore the layout row before the
+        // opacity fade-in has anything to fade in.
+        if (ChromeStrip.Visibility != Visibility.Visible) ChromeStrip.Visibility = Visibility.Visible;
         if (_controlsVisible && ChromeStrip.IsHitTestVisible) return;
         _controlsVisible = true;
         ChromeStrip.IsHitTestVisible = true;
@@ -504,7 +579,18 @@ public partial class PlayerWindow : Window
         if (!_controlsVisible) return;
         _controlsVisible = false;
         // Drop hit-testing only once fully faded so a hidden strip can't swallow clicks (Q-8).
-        AnimateStripOpacity(0.0, onCompleted: () => { if (!_controlsVisible) ChromeStrip.IsHitTestVisible = false; });
+        AnimateStripOpacity(0.0, onCompleted: OnHideFadeCompleted);
+    }
+
+    /// <summary>Runs when the hide fade finishes (and from the test seam: animation clocks only
+    /// tick once a window has rendered, so the Wpf lane drives this directly).</summary>
+    private void OnHideFadeCompleted()
+    {
+        if (_controlsVisible) return;   // re-shown mid-fade: leave it interactive
+        ChromeStrip.IsHitTestVisible = false;
+        // Strip auto-hide (Phase 4): once fully faded, also height-collapse so the video fills
+        // the window; the top-edge hover band or any reveal path restores the row.
+        if (_stripAutoHide) ChromeStrip.Visibility = Visibility.Collapsed;
     }
 
     private void AnimateStripOpacity(double to, Action? onCompleted = null)
