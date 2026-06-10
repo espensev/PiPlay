@@ -75,7 +75,7 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 ### Removed
 - Deleted the outdated `Main app.txt` pre-spec brainstorm (superseded by the product spec).
 - Deleted the duplicate reference icon at `docs/piplay.ico`; the app/taskbar icon reference copy
-  remains under `docs/files (2)/piplay.ico`, and the shipped app uses `src/PiPlay/Assets/piplay.ico`.
+  remains under `docs/assets/app-icon/piplay.ico`, and the shipped app uses `src/PiPlay/Assets/piplay.ico`.
 - Deleted the unlinked generated brand-lockup HTML snippet; the product spec owns the canonical
   brand asset roles.
 

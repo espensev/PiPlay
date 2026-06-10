@@ -35,11 +35,11 @@
 | Playlist fallback | Required cases: `watch?v=X&list=PL...`, `playlist?list=PL...`, and mix/restricted fallback to current video with non-blocking note. |
 | Reset / browser data | `Reset app state` and `Clear browser data` are separate actions. |
 | Profile state model | Profile > global per field; unset falls back to global; store both bounds and monitor identity. |
-| Icon and brand asset source | `docs/files (2)/` = app/taskbar/Video Popout icon family; `docs/files/` = monogram logo/favicon family. |
+| Icon and brand asset source | `docs/assets/app-icon/` = app/taskbar/Video Popout icon family; `docs/assets/monogram-logo/` = monogram logo/favicon family. |
 | Visual-identity verifiability (Draft 0.5) | Visual identity is now ID-backed: REQ-UI-01 (dark-theme completeness for all popup-bearing controls + tooltips) and REQ-UI-02 (icon-font contract, no `.notdef` glyphs), with a binary Chrome acceptance table (section 22.2) and a Definition of Done (section 22.5). Resolves the chrome deviations found in `Chrome_UI_Spec_Review.md`. |
 | Privacy actions scope (Draft 0.5) | `Reset app state` / `Clear browser data` (REQ-PRIVACY-01/02) are **Phase 2**, consistent across sections 19, 23, and 24 and the QA checklist. Previously contradictory (normative + QA-tested but absent from MVP scope). |
 | Source Window nav controls (Draft 0.5) | MVP minimal set fixed at Back, Reload, Home + URL/search field; Forward optional (section 5.5). |
-| App icon canonical path | The shipped app references `src/PiPlay/Assets/piplay.ico` (self-contained source tree); `docs/files (2)/piplay.ico` remains the reference copy. The duplicate root `docs/piplay.ico` has been removed. |
+| App icon canonical path | The shipped app references `src/PiPlay/Assets/piplay.ico` (self-contained source tree); `docs/assets/app-icon/piplay.ico` remains the reference copy. The duplicate root `docs/piplay.ico` has been removed. |
 | Generated brand lockup snippet | The unlinked `docs/piplay_brand_lockup_and_usage.html` snippet was removed; canonical brand asset roles live in `PiPlay_Product_Engineering_Spec.md`. |
 | `AGENTS.md` / `CHANGELOG.md` location | Decision: keep canonical copies under `docs/` intentionally; `AGENTS.md` already documents the path-prefix rule if moved to root. No duplicates to maintain. |
 | Stable publish + channel/data isolation | A stable, runnable copy deploys to `E:\Dev_test_implemenations\PiPlay` via `scripts\Publish-Stable.ps1`. The release channel is baked into the binary (`PiPlayChannel`); a Stable copy uses portable data beside the exe, its own single-instance identity, and a `PiPlay — Stable …` title, while the Default channel is unchanged. Recorded in `adr/0007-stable-channel-and-portable-data.md`. |
@@ -76,4 +76,4 @@
 
 | Candidate | Reason | Recommendation |
 |---|---|---|
-| `docs/files/` and `docs/files (2)/` | Two active icon families with unclear folder names. | Cosmetic only. Keep both roles; optionally rename to canonical paths such as `assets/app-icon/` and `assets/logo-monogram/`. |
+| `docs/assets/app-icon/` and `docs/assets/monogram-logo/` | Active icon families now live under purpose-named asset folders. | Resolved as docs/asset housekeeping; keep both roles separate. |

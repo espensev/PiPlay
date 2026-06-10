@@ -179,9 +179,9 @@ YouTube red should remain YouTube-owned. PiPlay action accents should use cyan/p
 - Use `TextPrimary` for inactive icons, `AccentCyan`/`AccentPurple` for active or brand actions.
   Customized Pin/Fade active icons may use `AccentCyan`, `AccentViolet`, `AccentGreen`, or
   `AccentAmber`.
-- App/taskbar icon family: the cyan play/out-arrow assets under `docs/files (2)/` (`piplay.ico`, `piplay.svg`, `piplay-glyph.svg`, `piplay-small.svg`, `piplay-256.png`). These are the Windows app icon and Video Popout action identity.
-- Logo/favicon family: the `P` monogram assets under `docs/files/` (`piplay-monogram.svg`, variants, and `piplay-favicon.ico`). These are the product logo, docs/marketing mark, and favicon family.
-- The shipped app references `src/PiPlay/Assets/piplay.ico`; `docs/files (2)/piplay.ico` is the reference copy for the app/taskbar icon family.
+- App/taskbar icon family: the cyan play/out-arrow assets under `docs/assets/app-icon/` (`piplay.ico`, `piplay.svg`, `piplay-glyph.svg`, `piplay-small.svg`, `piplay-256.png`). These are the Windows app icon and Video Popout action identity.
+- Logo/favicon family: the `P` monogram assets under `docs/assets/monogram-logo/` (`piplay-monogram.svg`, variants, and `piplay-favicon.ico`). These are the product logo, docs/marketing mark, and favicon family.
+- The shipped app references `src/PiPlay/Assets/piplay.ico`; `docs/assets/app-icon/piplay.ico` is the reference copy for the app/taskbar icon family.
 - Menu icons, title-bar icons, and placeholder icons should feel compatible with the app/taskbar family.
 
 #### Icon rendering
