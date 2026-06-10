@@ -11,14 +11,14 @@ manual code verification). Diagnoses for Tasks 1-4 are now settled against sourc
 routes are recorded as rule-outs so they are not re-litigated during implementation. See the spec's
 "Review addendum" for the evidence trail.
 
-**Result:** In progress (2026-06-10, branch `claude/condescending-ptolemy-dee3cf`). Tasks 1, 6, and
-7 landed; `dotnet test PiPlay.sln --configuration Debug` = 425/425 and
+**Result:** In progress (2026-06-10, merged to `main` through `e11756a`). Tasks 1, 3, 6, and
+7 landed; `dotnet test PiPlay.sln --configuration Debug --no-restore` = 452/452 and
 `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` clean (0 warnings). Task 1's
 inset band was live-verified by an HWND-rect probe (10 px left/right/bottom) AND owner-verified by
 manual drag resize. Task 2 was live-diagnosed (wheel focus-routing — click into the page, then
 scroll works, even at 86% opacity; layered opacity ruled out) and the fix deferred by owner
 decision. Task 4's maximize semantics were decided (keep current full-monitor maximize). Remaining:
-Tasks 3, 4 (affordance + reversibility), 5, 8-10 (theme pass), 11, 12.
+Tasks 4 (affordance + reversibility), 5, 8-10 (theme pass), 11, 12.
 
 ## Tasks
 
@@ -88,7 +88,10 @@ Tasks 3, 4 (affordance + reversibility), 5, 8-10 (theme pass), 11, 12.
     plus manual wheel/touchpad/scrollbar checks in both captures.
   - Commit: `fix(popout): allow scrolling in normal page player`
 
-- [ ] **Task 3 - Keep compact navigation inside PiPlay and make return state video-aware (both modes).**
+- [x] **Task 3 - Keep compact navigation inside PiPlay and make return state video-aware (both modes).**
+  *(Landed `fix(compact): keep recommendations in piplay and return the current video`; merged into
+  `main` in `e11756a`; deterministic suite now includes the compact navigation, shell video-id, and
+  return-policy coverage.)*
   - New-window policy (reframed): WebView2's `NewWindowRequested` carries no window-open disposition,
     so "explicit external intent" is NOT distinguishable from a left-click. Use the URL-shape proxy,
     mirroring `MainWindow.Core_NewWindowRequested`: a parsed YouTube watch target with a `VideoId`
@@ -320,6 +323,6 @@ Tasks 3, 4 (affordance + reversibility), 5, 8-10 (theme pass), 11, 12.
     `[JsonExtensionData]`) and resource drift; Task 10's swatch replacement is a known test-rewrite.
   - Manual QA remains required for real YouTube scroll, expand behavior, and mixed-display resize.
 - Verified:
-  - Pending. Fill with final `dotnet test PiPlay.sln --configuration Debug` count,
-    `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` result, and manual QA
-    evidence paths.
+  - Current merged checkpoint: `dotnet test PiPlay.sln --configuration Debug --no-restore` = 452/452,
+    and `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` succeeded with 0 warnings.
+    Fill this again after Tasks 4, 5, 8-12 and add manual QA evidence paths.
