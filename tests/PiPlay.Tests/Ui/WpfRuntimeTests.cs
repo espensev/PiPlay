@@ -496,6 +496,29 @@ public class WpfRuntimeTests : IDisposable
         Assert.True(w.AppearanceChanged);   // any persisted player preference change is flagged
     });
 
+    // --- Settings is bounded + scrollable (overhaul Task 5) ---
+
+    [Fact]
+    public void SettingsWindow_height_is_bounded_by_the_work_area() => StaTestThread.Invoke(() =>
+    {
+        var w = new SettingsWindow(isBrowserReady: true);
+
+        // SizeToContent alone left MaxHeight unbounded and the dialog clipped short displays.
+        Assert.True(double.IsFinite(w.MaxHeight), "Settings MaxHeight must be bounded.");
+        Assert.True(w.MaxHeight <= SystemParameters.WorkArea.Height,
+            $"MaxHeight {w.MaxHeight} exceeds the work area {SystemParameters.WorkArea.Height}.");
+        Assert.True(w.MaxHeight >= 420, "The usability floor must hold even on tiny work areas.");
+        Assert.IsType<ScrollViewer>(w.FindName("SettingsScroll"));
+    });
+
+    [Fact]
+    public void SettingsWindow_states_that_compact_applies_to_new_popouts() => StaTestThread.Invoke(() =>
+    {
+        // Spec acceptance: "Settings copy states that Compact player applies to new popouts only."
+        var hint = (TextBlock)new SettingsWindow(isBrowserReady: true).FindName("CompactModeHintText")!;
+        Assert.Contains("new Popout Players", hint.Text);
+    });
+
     // --- Whole-window opacity (spec 7.3, Phase 4) ---
 
     [Fact]

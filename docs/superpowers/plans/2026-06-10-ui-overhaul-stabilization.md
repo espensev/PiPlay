@@ -20,8 +20,9 @@ scroll works, even at 86% opacity; layered opacity ruled out) and the fix deferr
 decision. Task 4's maximize semantics were decided (keep current full-monitor maximize) and its
 affordance + reversibility landed 2026-06-10 (`feat(popout): add reliable expand path`, 461/461).
 Task 3's implementation landed 2026-06-10 (`fix(compact): keep recommendations in piplay and return
-the current video`, 452/452); its spec re-verification is recorded at the Task 3 entry. Remaining:
-Tasks 5, 8-10 (theme pass), 11, 12.
+the current video`, 452/452); its spec re-verification is recorded at the Task 3 entry. Task 5
+landed 2026-06-10 (`refactor(settings): make settings scrollable and sectioned`, 468/468).
+Remaining: Tasks 8-10 (theme pass), 11, 12.
 
 ## Tasks
 
@@ -153,7 +154,12 @@ Tasks 5, 8-10 (theme pass), 11, 12.
     persistence normalization tests, and manual compact + normal expand/restore.
   - Commit: `feat(popout): add reliable expand path`
 
-- [ ] **Task 5 - Make Settings scrollable and sectioned.**
+- [x] **Task 5 - Make Settings scrollable and sectioned.**
+  *(Landed `refactor(settings): make settings scrollable and sectioned`: fixed title bar +
+  `SettingsScroll` ScrollViewer, work-area-derived `MaxHeight` (420 floor), sections
+  Privacy/Appearance/Playback/Advanced with fade delay + opacity + auto-hide under Advanced,
+  compact copy states "new Popout Players only", every `x:Name` and the opacity live-preview path
+  preserved, 5.6 stays deferred. 468/468 tests at commit.)*
   - Update `SettingsWindow.xaml` from a tall fixed dialog (`SizeToContent="Height"`, no scrolling) to
     a bounded layout: `MaxHeight` (work-area-derived) + `ScrollViewer` so it fits shorter displays.
   - Organize sections as Privacy, Appearance, Playback, and Advanced.

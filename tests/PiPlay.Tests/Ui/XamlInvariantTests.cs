@@ -113,6 +113,8 @@ public class XamlInvariantTests
         }},
         new object[] { "SettingsWindow.xaml", new[]
         {
+            "SettingsScroll",
+            "PrivacySectionHeader", "AppearanceSectionHeader", "PlaybackSectionHeader", "AdvancedSectionHeader",
             "ResetAppStateButton", "ResetDescriptionText",
             "ClearBrowserDataButton", "ClearDescriptionText", "CloseButton",
             "PinAccentCyanSwatch", "PinAccentVioletSwatch", "PinAccentGreenSwatch", "PinAccentAmberSwatch",
@@ -120,9 +122,56 @@ public class XamlInvariantTests
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
             "ActiveOpacitySlider", "ActiveOpacityValueText", "IdleOpacitySlider", "IdleOpacityValueText",
             "StripAutoHideToggle",
-            "CompactModeToggle",
+            "CompactModeToggle", "CompactModeHintText",
         }},
     };
+
+    // --- Settings is scrollable and sectioned (overhaul Task 5) ---
+
+    [Fact]
+    public void Settings_sections_live_inside_the_scroll_viewer_in_order()
+    {
+        var doc = XamlTestFiles.Load("SettingsWindow.xaml");
+        var scroll = doc.Descendants(XamlTestFiles.Pres + "ScrollViewer")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "SettingsScroll");
+
+        // Every section header scrolls; the order is the spec's Privacy/Appearance/Playback/Advanced.
+        var headers = scroll.Descendants()
+            .Select(e => e.Attribute(XamlTestFiles.X + "Name")?.Value)
+            .Where(n => n is not null && n.EndsWith("SectionHeader"))
+            .ToArray();
+        Assert.Equal(new[]
+        {
+            "PrivacySectionHeader", "AppearanceSectionHeader", "PlaybackSectionHeader", "AdvancedSectionHeader",
+        }, headers);
+
+        // The title bar must NOT scroll away (CloseButton stays reachable at any content height).
+        Assert.DoesNotContain(scroll.Descendants(),
+            e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "CloseButton");
+    }
+
+    [Theory]
+    [InlineData("CompactModeToggle", "PlaybackSectionHeader", "AdvancedSectionHeader")]   // Playback owns compact
+    [InlineData("FadeDelayShortPreset", "AdvancedSectionHeader", null)]                   // Advanced owns fade delay
+    [InlineData("ActiveOpacitySlider", "AdvancedSectionHeader", null)]                    // Advanced owns opacity
+    [InlineData("StripAutoHideToggle", "AdvancedSectionHeader", null)]                    // Advanced owns auto-hide
+    public void Settings_controls_sit_under_their_section(string control, string after, string? before)
+    {
+        // Document order stands in for section membership: the sections share one StackPanel, so
+        // "after its own header (and before the next)" is the structural invariant.
+        var ordered = XamlTestFiles.Load("SettingsWindow.xaml").Descendants()
+            .Select(e => e.Attribute(XamlTestFiles.X + "Name")?.Value)
+            .Where(n => n is not null)
+            .ToList();
+
+        Assert.True(ordered.IndexOf(control) > ordered.IndexOf(after),
+            $"{control} must follow {after}.");
+        if (before is not null)
+        {
+            Assert.True(ordered.IndexOf(control) < ordered.IndexOf(before),
+                $"{control} must precede {before}.");
+        }
+    }
 
     // --- Glyph icon-font fallback (REQ-UI-02: no .notdef boxes) + tooltips (UI-CHK-4) ---
 

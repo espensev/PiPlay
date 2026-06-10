@@ -50,6 +50,12 @@ public partial class SettingsWindow : Window
     {
         InitializeComponent();
 
+        // Bounded height (overhaul Task 5): SizeToContent grows with the section list and used to
+        // clip on shorter displays. Clamp to the primary work area (less a margin so the border
+        // never touches the taskbar); SettingsScroll takes over past the clamp. The floor keeps
+        // the dialog usable if a misreported work area ever comes back tiny.
+        MaxHeight = Math.Max(420, SystemParameters.WorkArea.Height - 48);
+
         PinAccent = PlayerAppearancePolicy.NormalizeAccent(pinAccent);
         FadeAccent = PlayerAppearancePolicy.NormalizeAccent(fadeAccent);
         FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
