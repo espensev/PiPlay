@@ -14,16 +14,17 @@ routes are recorded as rule-outs so they are not re-litigated during implementat
 **Result:** In progress (2026-06-10, branch `claude/condescending-ptolemy-dee3cf`). Tasks 1, 6, and
 7 landed; `dotnet test PiPlay.sln --configuration Debug` = 425/425 and
 `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` clean (0 warnings). Task 1's
-inset band was live-verified by an HWND-rect probe on a real popout (left/right/bottom delta exactly
-10 px at 100% DPI; top delta 32 = chrome strip row) and Task 6's "Show popout" state + placeholder
-by screenshot; manual drag-resize from each edge/corner and the Task 2 scroll diagnostics still need
-a live interactive session. Tasks 2-4 carry settled diagnoses, rule-outs, and protocols below.
+inset band was live-verified by an HWND-rect probe (10 px left/right/bottom) AND owner-verified by
+manual drag resize. Task 2 was live-diagnosed (wheel focus-routing — click into the page, then
+scroll works, even at 86% opacity; layered opacity ruled out) and the fix deferred by owner
+decision. Task 4's maximize semantics were decided (keep current full-monitor maximize). Remaining:
+Tasks 3, 4 (affordance + reversibility), 5, 8-10 (theme pass), 11, 12.
 
 ## Tasks
 
 - [x] **Task 1 - Repair edge and corner resize over WebView2 (Popout Player AND Source Window).**
   *(Landed `fix(popout): restore edge resize over player surface`; live HWND probe confirmed the
-  band geometry; manual drag QA from each edge/corner remains for the Task 12 pass.)*
+  band geometry; manual drag resize owner-verified 2026-06-10 — "resizing works".)*
   - Diagnosis (settled): both resize mechanisms — the `BorderlessWindowHelper` subclass and
     `WindowChrome.ResizeBorderThickness` — act on top-level `WM_NCHITTEST`, which Windows never sends
     for points over the WebView2 child HWND chain (owned cross-process by msedgewebview2.exe). The
@@ -50,7 +51,16 @@ a live interactive session. Tasks 2-4 carry settled diagnoses, rule-outs, and pr
     verify both captures, one fix).
   - Commit: `fix(popout): restore edge resize over player surface`
 
-- [ ] **Task 2 - Restore normal-page Popout Player scroll (diagnose first, then fix one owner).**
+- [x] **Task 2 - Normal-page Popout Player scroll: DIAGNOSED 2026-06-10; fix deferred by owner decision.**
+  - Live result (owner-verified): wheel scroll requires the popout WebView to have focus — click
+    into the page once and scroll works, INCLUDING at 86% opacity with the layered window engaged;
+    100%/100% also works. Owner: wheel focus-routing (ranked candidate 2). WS_EX_LAYERED opacity is
+    NOT the owner — ruled out live.
+  - Decision: leave as-is for now; click-into-page-then-scroll is the documented current behavior.
+    No code change this pass. Task 11 adds a QA row stating it.
+  - Future fix candidate when picked up: focus the popout WebView after `NavigationCompleted`
+    (possibly also on activity-probe entry), fade/opacity-state-agnostic as required below.
+  - Original ranked owners / rule-outs / diagnostic protocol kept below for the record:
   - Candidate owners, ranked (settled by code review): (1) **WS_EX_LAYERED whole-window opacity** —
     the only popout-vs-source input-path delta in code; engaged at the user's 85%/78% in every
     observed failure; the Stage 0 spike never wheel-tested over the WebView child. (2) **Wheel
@@ -123,9 +133,9 @@ a live interactive session. Tasks 2-4 carry settled diagnoses, rule-outs, and pr
     Standard/Fullview-Faded divergence that is out of bounds. (Today the YT button "does nothing"
     because the unhandled fullscreen element fills only the WebView bounds, which the player already
     fills, and `fs` defaults to 1 in the IFrame playerVars.)
-  - Decide and record the maximize semantics: `PlayerWindow` lacks `EnableProperMaximize`, so
-    Maximized covers the FULL monitor including the taskbar — currently an accident. Settle it as the
-    deliberate fullview behavior for a video window (or add the work-area hook; pick one in the spec).
+  - Maximize semantics DECIDED 2026-06-10 (owner): keep the current behavior — `WindowState.Maximized`
+    full-monitor cover, no work-area hook on `PlayerWindow`. Now deliberate, no longer an accident;
+    record only, no geometry change.
   - Reversibility requirements: the restore affordance must stay reachable in maximized state (verify
     the top-edge reveal geometry under strip auto-hide while maximized; consider Esc as exit); and
     closing while maximized must NOT persist Maximized as the next popout's launch state (normalize

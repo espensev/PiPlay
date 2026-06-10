@@ -136,10 +136,11 @@ The implementation split is adjusted in six places:
     "0-2 px outline" wording. Fallback if QA rejects the frame: in-process layered band child HWNDs
     synthesizing `WM_NCLBUTTONDOWN` on the parent. Cross-process child-HWND subclassing is
     infeasible and struck from the option space.
-12. Scroll fix is diagnosis-gated. Ranked owners: WS_EX_LAYERED whole-window opacity (the only
-    popout-vs-source input delta; engaged in every observed failure), wheel focus-routing, page
-    state. The resize hook and WPF overlays are recorded rule-outs. Any fix must be
-    fade/opacity-state-agnostic.
+12. Scroll fix is diagnosis-gated. RESOLVED 2026-06-10 by live owner A/B: the owner is wheel
+    focus-routing — after clicking into the page once, scroll works even at 86% opacity with the
+    layered window engaged, so WS_EX_LAYERED is ruled out. Fix deferred by owner decision;
+    click-into-page-then-scroll is the documented current behavior (QA row in Task 11). Any future
+    fix (e.g. focusing the WebView after NavigationCompleted) must be fade/opacity-state-agnostic.
 13. Return state becomes video-aware in both modes: the shell reports `videoId` in state messages
     (additive protocol field), normal mode captures the canonical/current URL, `PlayerReturnState`
     carries video identity, `ReturnPolicy` decides navigate-vs-seek, and the Auto de-dup key updates
@@ -147,8 +148,9 @@ The implementation split is adjusted in six places:
 14. Expand/fullview affordance is a native ChromeStrip button driving the existing host
     `fullscreenToggle` handler (the protocol channel is already complete end-to-end; only a caller
     is missing). `ContainsFullScreenElementChanged` handling, if added, is gated on the live compact
-    mode. Maximize semantics, restore reachability, and no-persistence of the expanded state are
-    explicit decisions with tests.
+    mode. Maximize semantics DECIDED 2026-06-10: keep the current full-monitor maximize (no
+    work-area hook on PlayerWindow) — now deliberate. Restore reachability and no-persistence of
+    the expanded state remain explicit decisions with tests.
 15. Settings schema is round-trip-protected: `[JsonExtensionData]` on `AppSettings`/`PlayerSettings`
     so an older binary cannot silently delete the theme block on save; `ThemeSettings.AccentColor`
     seeds from the legacy `PinAccent` at migration.
@@ -278,12 +280,9 @@ dotnet test PiPlay.sln --configuration Debug
 - How should PiPlay save profiles created from YouTube mix/radio URLs: original URL, normalized current
   video, or a warning with user choice?
 - Should Source Expanded Player ever hide PiPlay chrome, or remain a YouTube-in-WebView expanded state?
-- If Task 2's diagnosis confirms WS_EX_LAYERED opacity as the scroll owner: force full opacity while
-  the pointer is over the window (changes the translucent-while-active look), or document the
-  limitation? Decide on evidence, before code.
-- Task 4 maximize semantics: keep full-monitor cover (PlayerWindow has no work-area maximize hook —
-  currently accidental) as the deliberate fullview for a video window, or add the
-  `EnableProperMaximize` hook for work-area maximize?
+- When the deferred scroll fix is picked up: focus the popout WebView automatically (after
+  `NavigationCompleted` / on activity), or keep click-to-focus? (Owner ruled out the layered-opacity
+  theory live on 2026-06-10; current click-then-scroll behavior is accepted and documented.)
 
 ## Review addendum - plan-vs-code findings (2026-06-10)
 
