@@ -5,8 +5,10 @@ overlay controls in compact mode (selectable, default off), DWM-rounded corners,
 chrome strip, and whole-window opacity with separate idle + constant settings. Design and settled
 decisions in `docs/superpowers/specs/2026-06-10-popout-overlay-and-opacity-design.md`.
 
-**Implementation status (2026-06-10):** planned only. Nothing implemented. Stacked after the
-compact Stage 4 branch (`feat/compact-player-stage4`), which is itself stacked on PR #13.
+**Implementation status (2026-06-10):** Stage 0 spikes complete — all three pass (evidence:
+`docs/superpowers/worklog/2026-06-10-popout-overlay-opacity-spikes.md`); Tasks 3/5 unblocked, the
+`WebView2CompositionControl` fallback tier is not needed. Tasks 2-6 not yet implemented. Stacked
+after the compact Stage 4 branch (`feat/compact-player-stage4`), which is itself stacked on PR #13.
 
 **Risk staging (same discipline as the compact sweep):** the three live unknowns are isolated in
 Stage 0 spikes *before* any dependent code is written. Everything after Stage 0 is deterministic
@@ -15,7 +17,10 @@ until the final smoke. If S-1 fails, Stages 2's opacity work gates on a
 
 ## Tasks
 
-- [ ] **Stage 0 / Task 1 — Spikes (live, throwaway code, evidence in worklog).**
+- [x] **Stage 0 / Task 1 — Spikes (live, throwaway code, evidence in worklog).** *(done 2026-06-10:
+  S-1 pass — needs the force-bit `WM_STYLECHANGING` subclass, WPF strips `WS_EX_LAYERED` otherwise;
+  S-2 pass on runtime 149.0.4022.62 / SDK 1.0.3967.48; S-3 pass incl. combined with alpha. See the
+  spike worklog for the Task 3 carry-overs.)*
   - **S-1 (gates Stage 2):** `WS_EX_LAYERED` + `SetLayeredWindowAttributes(LWA_ALPHA)` on the live
     Popout Player while a video plays — verify rendering (not black/glitched), input at 60%/45%
     alpha, drag/resize, CPU/GPU sanity. The product spec explicitly mandates this test before
