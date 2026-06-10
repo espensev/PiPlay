@@ -1,6 +1,6 @@
 # PiPlay Product & Engineering Specification
 
-**Status:** Draft 0.10
+**Status:** Draft 0.11 (beta candidate)
 **Project:** PiPlay
 **Purpose:** Quality-first Windows desktop app for playing YouTube videos in a movable, resizable Video Popout window.
 **Primary platform:** Windows desktop
@@ -1549,3 +1549,4 @@ These references support the current technical direction and should be rechecked
 | 0.8 | 2026-06-07 | Recorded Stable build `v0.3.0` build `10` as the replacement deployed build from the final Phase 2 landing commit. |
 | 0.9 | 2026-06-07 | Added and implemented `REQ-WINDOW-02` for larger borderless resize zones: previous 6 DIP baseline, 10 DIP edge target, 32 DIP corner length, and Win32 hit-test naming. |
 | 0.10 | 2026-06-07 | Planned the Phase 3 compact-player sweep and resolved compact-mode placement as global default plus optional profile override. |
+| 0.11 | 2026-06-10 | Beta candidate cut (v0.4.0-beta): release-facing copy cleaned for beta publication without changing requirements. Phase 4 §7.2/§7.3 resolution notes and the overlay compliance record remain tracked on the 2026-06-10 overlay/opacity plan (Task 6). |

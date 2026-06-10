@@ -1,6 +1,6 @@
 # PiPlay — YouTube usage & compliance
 
-**Status:** Draft 0.4. Review before every public release. This is an engineering policy statement, not legal advice.
+**Status:** Beta candidate. Review before every public release. This is an engineering policy statement, not legal advice.
 
 PiPlay is an independent, unaffiliated desktop client. It is not endorsed by or connected to YouTube or Google. It displays `youtube.com` inside Microsoft Edge WebView2 and adds native window behavior (move, resize, pin, fade) on top. The goal is to make normal YouTube playback behave like a desktop tool — not to alter, replace, or extract from YouTube.
 

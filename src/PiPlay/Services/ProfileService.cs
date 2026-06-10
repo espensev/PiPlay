@@ -83,7 +83,7 @@ public static class ProfileService
         if (string.IsNullOrWhiteSpace(url))
             return (false, "Enter a YouTube URL.");
         if (!YouTubeUrlHelper.TryParse(url, out _))
-            return (false, "That doesn't look like a supported YouTube video or playlist URL.");
+            return (false, "Enter a supported YouTube video or playlist URL.");
         return (true, null);
     }
 }
