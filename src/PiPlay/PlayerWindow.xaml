@@ -83,6 +83,23 @@
       </Grid>
     </Border>
 
-    <wv2:WebView2 x:Name="Player" Grid.Row="2" />
+    <!-- Resize inset band (REQ-WINDOW-02, overhaul Task 1): the WebView2 child HWND swallows
+         WM_NCHITTEST, so the top-level window must own the edge pixels for the resize subclass to
+         see them. Left/right/bottom margin == BorderlessResizeHitTestPolicy.ResizeBorderDip (the
+         top band is the WPF ChromeStrip). Maximized goes full-bleed: resize zones are inert there
+         and the band would only letterbox the video. XamlInvariantTests pins both values. -->
+    <wv2:WebView2 x:Name="Player" Grid.Row="2">
+      <wv2:WebView2.Style>
+        <Style TargetType="{x:Type wv2:WebView2}">
+          <Setter Property="Margin" Value="10,0,10,10" />
+          <Style.Triggers>
+            <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}"
+                         Value="Maximized">
+              <Setter Property="Margin" Value="0" />
+            </DataTrigger>
+          </Style.Triggers>
+        </Style>
+      </wv2:WebView2.Style>
+    </wv2:WebView2>
   </Grid>
 </Window>

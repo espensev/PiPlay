@@ -52,6 +52,34 @@ public class XamlInvariantTests
         Assert.Equal(expectedCaptionHeight, chrome.Attribute("CaptionHeight")?.Value);
     }
 
+    // --- WebView2 resize inset band (REQ-WINDOW-02, overhaul Task 1) ---
+
+    [Theory]
+    [InlineData("MainWindow.xaml", "Browser")]
+    [InlineData("PlayerWindow.xaml", "Player")]
+    public void WebView_margin_gives_the_window_the_resize_band(string file, string name)
+    {
+        var webview = XamlTestFiles.Load(file).Descendants()
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == name);
+
+        // The WebView2 child HWND swallows WM_NCHITTEST, so left/right/bottom resize only works
+        // where the top-level window owns the pixels: the band must equal the policy's resize DIP.
+        var d = BorderlessResizeHitTestPolicy.ResizeBorderDip;
+        var margins = webview.Descendants(XamlTestFiles.Pres + "Setter")
+            .Where(s => s.Attribute("Property")?.Value == "Margin")
+            .Select(s => s.Attribute("Value")?.Value)
+            .ToList();
+        Assert.Contains($"{d},0,{d},{d}", margins);   // normal state: band on left/right/bottom
+        Assert.Contains("0", margins);                // maximized: full-bleed (zones inert there)
+
+        // A direct Margin attribute would silently override the style setters.
+        Assert.Null(webview.Attribute("Margin"));
+
+        var trigger = webview.Descendants(XamlTestFiles.Pres + "DataTrigger").Single();
+        Assert.Equal("Maximized", trigger.Attribute("Value")?.Value);
+        Assert.Contains("WindowState", trigger.Attribute("Binding")?.Value ?? "");
+    }
+
     // --- Required named controls (code-behind FindName / generated fields depend on these) ---
 
     [Theory]
