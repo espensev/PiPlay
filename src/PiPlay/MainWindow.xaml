@@ -111,13 +111,17 @@
                     ToolTip="Automatically pop out videos when playback starts"
                     AutomationProperties.Name="Auto popout" />
 
+      <!-- Single-player action (ADR-0005): while a popout is open this shows/focuses it instead of
+           implying a second popout. UpdatePopoutActionState flips label, tooltip, and UIA name
+           together; the inner TextBlocks are named so code toggles .Text without losing the icon. -->
       <Button x:Name="PopOutButton" Grid.Column="5" Style="{StaticResource AccentButton}"
               Margin="6,9,10,9" Click="PopOutButton_Click" IsEnabled="False"
-              AutomationProperties.Name="Pop out video">
+              ToolTip="Pop out the current video" AutomationProperties.Name="Pop out video">
         <StackPanel Orientation="Horizontal">
-          <TextBlock Text="&#xE8A7;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14"
+          <TextBlock x:Name="PopOutButtonIcon" Text="&#xE8A7;"
+                     FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14"
                      VerticalAlignment="Center" Margin="0,0,8,0" />
-          <TextBlock Text="Pop out video" VerticalAlignment="Center" />
+          <TextBlock x:Name="PopOutButtonText" Text="Pop out video" VerticalAlignment="Center" />
         </StackPanel>
       </Button>
     </Grid>
@@ -153,6 +157,12 @@
           <TextBlock Text="Close the popout to bring playback back here."
                      FontSize="12" Margin="0,6,0,0"
                      Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" />
+          <!-- Non-blocking fallback note (Q-6): e.g. the mix/radio "popped out the current video
+               only" reason, previously log-only. Lives on the SOURCE side by design - the popout
+               ErrorBar is compact-error semantics and must not diverge the popout captures. -->
+          <TextBlock x:Name="PlaceholderNoteText" FontSize="12" Margin="0,14,0,0" MaxWidth="420"
+                     TextWrapping="Wrap" TextAlignment="Center" Visibility="Collapsed"
+                     Foreground="{StaticResource AccentAmber}" HorizontalAlignment="Center" />
         </StackPanel>
       </Border>
 

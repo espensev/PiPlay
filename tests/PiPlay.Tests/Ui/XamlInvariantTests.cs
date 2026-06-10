@@ -100,10 +100,11 @@ public class XamlInvariantTests
         new object[] { "MainWindow.xaml", new[]
         {
             "Browser", "UrlBox", "ProfilesCombo", "PinToggle", "AutoToggle", "TitleText", "PinnedHint", "PopOutButton",
+            "PopOutButtonIcon", "PopOutButtonText",
             "BackButton", "ReloadButton", "HomeButton", "SaveProfileButton",
             "EditProfileButton", "DeleteProfileButton",
             "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton",
-            "SourcePlaceholder", "RuntimeErrorPanel", "RuntimeErrorText",
+            "SourcePlaceholder", "PlaceholderNoteText", "RuntimeErrorPanel", "RuntimeErrorText",
         }},
         new object[] { "PlayerWindow.xaml", new[]
         {

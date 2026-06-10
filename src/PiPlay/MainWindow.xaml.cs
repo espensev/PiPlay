@@ -640,7 +640,7 @@ public partial class MainWindow : Window
     {
         // Guards (spec 13.4): browser ready, no popout in flight, single player (ADR-0005).
         if (!_browserReady || _popoutInProgress) return;
-        if (_player is not null) { _player.Activate(); return; }
+        if (_player is not null) { ActivateExistingPlayer(); return; }
 
         _popoutInProgress = true;
         PopOutButton.IsEnabled = false;
@@ -673,9 +673,11 @@ public partial class MainWindow : Window
             var popoutUrl = PlaybackModePolicy.BuildPopoutUrl(
                 mode, target, seconds, WebViewEnvironmentService.ShellPlayerUrl);
 
-            // 3) Pause the source and show the placeholder (Q-1: no duplicate audio).
+            // 3) Pause the source and show the placeholder (Q-1: no duplicate audio). A non-null
+            // FallbackReason (mix/radio drop) rides along as the placeholder note (Q-6) — it was
+            // previously log-only, invisible to the user.
             await YouTubeDomBridge.PauseAsync(core);
-            ShowSourcePlaceholder(true);
+            ShowSourcePlaceholder(true, target.FallbackReason);
 
             // 4) Create the single Popout Player on the shared environment, in the resolved mode.
             var env = App.Current.WebViewEnvironment.Environment
@@ -712,7 +714,38 @@ public partial class MainWindow : Window
         {
             _popoutInProgress = false;
             PopOutButton.IsEnabled = true;
+            UpdatePopoutActionState();   // covers both outcomes: player created or rolled back
         }
+    }
+
+    /// <summary>
+    /// Show/focus the existing popout (ADR-0005 activate-existing rule). RestoreWindow first:
+    /// Activate() alone does not un-minimize, and restoring (not forcing Normal) keeps a
+    /// maximized popout maximized.
+    /// </summary>
+    private void ActivateExistingPlayer()
+    {
+        if (_player is null) return;
+        if (_player.WindowState == WindowState.Minimized)
+            System.Windows.SystemCommands.RestoreWindow(_player);
+        _player.Activate();
+    }
+
+    /// <summary>
+    /// Reflect the single-player lifecycle on the primary action (Q-6): while a popout is open the
+    /// button shows/focuses it instead of implying a second popout will open. Label, tooltip, and
+    /// UIA name flip together so the accessible name never lies (REQ-UI-02).
+    /// </summary>
+    private void UpdatePopoutActionState() => ApplyPopoutActionState(_player is not null);
+
+    internal void ApplyPopoutActionState(bool hasPlayer)
+    {
+        var label = hasPlayer ? "Show popout" : "Pop out video";
+        PopOutButtonText.Text = label;
+        System.Windows.Automation.AutomationProperties.SetName(PopOutButton, label);
+        PopOutButton.ToolTip = hasPlayer
+            ? "Bring the open Video Popout to the front"
+            : "Pop out the current video";
     }
 
     /// <summary>
@@ -743,11 +776,17 @@ public partial class MainWindow : Window
         return YouTubeUrlHelper.TryParse(core.Source, out var fromSource) ? fromSource : null;
     }
 
-    private void ShowSourcePlaceholder(bool visible)
+    internal void ShowSourcePlaceholder(bool visible, string? note = null)
     {
         // Tier-1 placeholder (spec 13.3): hide the source WebView, show the WPF black panel.
         Browser.Visibility = visible ? Visibility.Hidden : Visibility.Visible;
         SourcePlaceholder.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+
+        // Optional non-blocking note (Q-6), e.g. the mix/radio fallback reason. Cleared with the
+        // placeholder so a stale note can't survive into the next popout.
+        PlaceholderNoteText.Text = note ?? string.Empty;
+        PlaceholderNoteText.Visibility =
+            visible && !string.IsNullOrEmpty(note) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private async void Player_OnClosed(object? sender, PlayerReturnState state)
@@ -755,6 +794,7 @@ public partial class MainWindow : Window
         try
         {
             _player = null;
+            UpdatePopoutActionState();
 
             // Persist Popout Player window state.
             _settings.Player.Topmost = state.Topmost;

@@ -315,6 +315,46 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void Popout_action_state_flips_label_tooltip_and_uia_name_together() => StaTestThread.Invoke(() =>
+    {
+        // Q-6 / REQ-UI-02 (overhaul Task 6): while a popout is open the primary action must say
+        // show/focus, and the accessible name must flip in the same code path as the label.
+        var w = new MainWindow();
+        var btn = (Button)w.FindName("PopOutButton")!;
+        var label = (TextBlock)w.FindName("PopOutButtonText")!;
+
+        w.ApplyPopoutActionState(hasPlayer: true);
+        Assert.Equal("Show popout", label.Text);
+        Assert.Equal("Show popout", System.Windows.Automation.AutomationProperties.GetName(btn));
+        Assert.Contains("front", (string)btn.ToolTip);
+
+        w.ApplyPopoutActionState(hasPlayer: false);
+        Assert.Equal("Pop out video", label.Text);
+        Assert.Equal("Pop out video", System.Windows.Automation.AutomationProperties.GetName(btn));
+        Assert.Contains("Pop out", (string)btn.ToolTip);
+    });
+
+    [Fact]
+    public void Source_placeholder_surfaces_and_clears_the_fallback_note() => StaTestThread.Invoke(() =>
+    {
+        // The mix/radio FallbackReason was log-only; it now rides the placeholder (Q-6) and must
+        // be cleared with it so a stale note can't survive into the next popout.
+        var w = new MainWindow();
+        var note = (TextBlock)w.FindName("PlaceholderNoteText")!;
+
+        w.ShowSourcePlaceholder(true, "Mix/radio playlists aren't supported in Video Popout - popped out the current video.");
+        Assert.Equal(Visibility.Visible, note.Visibility);
+        Assert.Contains("Mix/radio", note.Text);
+
+        w.ShowSourcePlaceholder(true);   // no reason this time
+        Assert.Equal(Visibility.Collapsed, note.Visibility);
+        Assert.Equal(string.Empty, note.Text);
+
+        w.ShowSourcePlaceholder(false);
+        Assert.Equal(Visibility.Collapsed, note.Visibility);
+    });
+
+    [Fact]
     public void Auto_toggle_reflects_loaded_setting_and_is_off_by_default() => StaTestThread.Invoke(() =>
     {
         // No settings file in the temp data root => AutoPopout defaults off => the toggle is unchecked.
