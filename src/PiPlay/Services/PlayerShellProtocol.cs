@@ -20,7 +20,8 @@ public sealed record InboundShellMessage(
     int PlayerState = -1,
     int? Duration = null,
     string? ErrorCode = null,
-    string? Action = null);
+    string? Action = null,
+    string? VideoId = null);
 
 /// <summary>
 /// The pure, versioned host&lt;-&gt;shell message contract for compact (PiPlay shell) mode
@@ -32,7 +33,10 @@ public sealed record InboundShellMessage(
 /// </summary>
 public static class PlayerShellProtocol
 {
-    public const int Version = 2;
+    // v3: state messages additionally carry the current videoId (overhaul Task 3 — the shell can
+    // move off its launch video via playlist auto-advance or in-iframe clicks, and the host needs
+    // the CURRENT video for return). Additive and parse-compatible; v2 senders simply yield null.
+    public const int Version = 3;
 
     // Shell -> host message types.
     public const string TypeReady = "ready";
@@ -56,6 +60,7 @@ public static class PlayerShellProtocol
     public const string FieldCode = "code";
     public const string FieldSeconds = "seconds";
     public const string FieldAction = "action";
+    public const string FieldVideoId = "videoId";
 
     // Allowlisted shell -> host window actions (Phase 4, design 2026-06-10 §2): the shell may
     // REQUEST these; the host validates against this closed set and maps each to the existing
@@ -84,7 +89,8 @@ public static class PlayerShellProtocol
                     ShellMessageKind.State,
                     CurrentTime: ReadInt(root, FieldCurrentTime, 0),
                     PlayerState: ReadInt(root, FieldPlayerState, -1),
-                    Duration: ReadNullableInt(root, FieldDuration)),
+                    Duration: ReadNullableInt(root, FieldDuration),
+                    VideoId: ReadString(root, FieldVideoId)),
                 TypeError => new InboundShellMessage(ShellMessageKind.Error, ErrorCode: ReadString(root, FieldCode)),
                 TypeRequest => ParseRequest(root),
                 _ => new InboundShellMessage(ShellMessageKind.Unknown),

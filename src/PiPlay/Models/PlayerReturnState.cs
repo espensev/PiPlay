@@ -10,6 +10,14 @@ public sealed class PlayerReturnState
     /// <summary>Last known player timestamp. Nullable; 0 is valid and distinct from unknown.</summary>
     public int? LastKnownSeconds { get; set; }
 
+    /// <summary>
+    /// The video the player was LAST on (overhaul Task 3). The popout can move off its launch
+    /// video — compact recommendations/playlist auto-advance, normal-page SPA navigation — and the
+    /// source must return to where the user actually is, not blind-seek the original video to a
+    /// foreign timestamp. Null = unknown; the source then keeps the pre-Task-3 seek behavior.
+    /// </summary>
+    public string? VideoId { get; set; }
+
     public bool Topmost { get; set; }
 
     /// <summary>Whether controls fade was enabled when the player closed (persisted for next popout).</summary>

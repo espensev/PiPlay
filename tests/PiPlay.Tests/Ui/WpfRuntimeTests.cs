@@ -722,6 +722,69 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal(WindowState.Normal, w.WindowState);
     });
 
+    // --- In-place retarget + video-aware return state (overhaul Task 3) ---
+
+    [Fact]
+    public void Compact_player_carries_its_launch_video_in_the_return_state() => StaTestThread.Invoke(() =>
+    {
+        Assert.Equal("dQw4w9WgXcQ", NewCompactPlayer().ReturnVideoIdForTests);
+    });
+
+    [Fact]
+    public void Shell_state_updates_the_return_video_and_timestamp() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+        w.HandleShellStateForTests(new InboundShellMessage(
+            ShellMessageKind.State, CurrentTime: 42, PlayerState: 1, VideoId: "autoAdvVid1"));
+
+        Assert.Equal("autoAdvVid1", w.ReturnVideoIdForTests);   // playlist auto-advance tracked
+        Assert.Equal(42, w.ReturnSecondsForTests);
+
+        // A state message WITHOUT a videoId (pre-v3 shape) keeps the last-known id.
+        w.HandleShellStateForTests(new InboundShellMessage(ShellMessageKind.State, CurrentTime: 50));
+        Assert.Equal("autoAdvVid1", w.ReturnVideoIdForTests);
+        Assert.Equal(50, w.ReturnSecondsForTests);
+    });
+
+    [Fact]
+    public void Compact_retarget_rebuilds_the_shell_url_and_resets_launch_state() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+        w.HandleShellStateForTests(new InboundShellMessage(ShellMessageKind.State, CurrentTime: 42, PlayerState: 1));
+
+        Assert.True(w.TryRetargetForNewWindow("https://www.youtube.com/watch?v=recVideo001&t=30s"));
+
+        Assert.Contains("piplay.local/player.html", w.CurrentUrlForTests);   // same mode: shell rebuild
+        Assert.Contains("v=recVideo001", w.CurrentUrlForTests);
+        Assert.Contains("start=30", w.CurrentUrlForTests);
+        Assert.Equal("recVideo001", w.ReturnVideoIdForTests);
+        Assert.Equal("recVideo001", w.CurrentFallbackVideoIdForTests);   // error-bar fallback follows
+        Assert.Null(w.ReturnSecondsForTests);   // unknown until the NEW shell reports
+    });
+
+    [Fact]
+    public void Normal_retarget_navigates_to_the_watch_url() => StaTestThread.Invoke(() =>
+    {
+        var w = NewPlayer();
+        Assert.True(w.TryRetargetForNewWindow("https://www.youtube.com/watch?v=recVideo001"));
+
+        Assert.StartsWith("https://www.youtube.com/watch?v=recVideo001", w.CurrentUrlForTests);
+        Assert.Equal("recVideo001", w.ReturnVideoIdForTests);
+    });
+
+    [Fact]
+    public void Non_playable_new_window_targets_are_not_retargeted() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+        var urlBefore = w.CurrentUrlForTests;
+
+        Assert.False(w.TryRetargetForNewWindow("https://www.youtube.com/@SomeChannel"));
+        Assert.False(w.TryRetargetForNewWindow("https://example.com/watch?v=dQw4w9WgXcQ"));
+
+        Assert.Equal(urlBefore, w.CurrentUrlForTests);
+        Assert.Equal("dQw4w9WgXcQ", w.ReturnVideoIdForTests);   // launch state untouched
+    });
+
     [Fact]
     public void Shell_requests_are_ignored_in_normal_mode() => StaTestThread.Invoke(() =>
     {

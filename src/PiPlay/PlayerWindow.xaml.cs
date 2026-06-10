@@ -21,7 +21,6 @@ namespace PiPlay;
 public partial class PlayerWindow : Window
 {
     private readonly CoreWebView2Environment _environment;
-    private readonly string _url;
     private readonly PlacementData? _placement;
     private readonly DispatcherTimer _syncTimer;
     private readonly PlayerReturnState _returnState = new();
@@ -59,13 +58,17 @@ public partial class PlayerWindow : Window
     private bool _capturedReturn;
     private bool _nudgedPlay;
 
-    // Compact (shell) mode only: the host side of the IFrame-API bridge (spec 10.3), the target
-    // the error bar's fallback reopens in normal page mode (Stage 4 / Q-6), the one-shot "the
-    // IFrame API never came up" watchdog, and the one-way fallback latch.
+    // Compact (shell) mode only: the host side of the IFrame-API bridge (spec 10.3), the one-shot
+    // "the IFrame API never came up" watchdog, and the one-way fallback latch.
     private PlayerShellBridge? _shellBridge;
-    private readonly YouTubeTarget? _fallbackTarget;
     private readonly DispatcherTimer _shellReadyTimer;
     private bool _fellBack;
+
+    // Mutable navigation state (overhaul Task 3): an in-place retarget (recommendation click via
+    // NewWindowRequested) moves the player off its launch video, so the current URL and the target
+    // the error bar's fallback reopens (Stage 4 / Q-6) must follow the LIVE video, not the launch one.
+    private string _currentUrl;
+    private YouTubeTarget? _currentTarget;
 
     /// <summary>Raised once when the player has closed, carrying the state needed to return (spec 14).</summary>
     public event EventHandler<PlayerReturnState>? PlayerClosed;
@@ -93,9 +96,10 @@ public partial class PlayerWindow : Window
         BorderlessWindowHelper.EnableExpandedResizeZones(this);
 
         _environment = environment;
-        _url = url;
+        _currentUrl = url;
         _mode = mode;
-        _fallbackTarget = fallbackTarget;
+        _currentTarget = fallbackTarget;
+        _returnState.VideoId = fallbackTarget?.VideoId;   // the launch video until navigation says otherwise
 
         // Mode-specific minimum (spec 10.2 / 16.1): compact embed mode needs a larger floor than the
         // 320x180 normal minimum so the embedded player controls stay usable. MinWidth/MinHeight set
@@ -167,6 +171,7 @@ public partial class PlayerWindow : Window
             core.NavigationStarting += Core_NavigationStarting;
             core.NewWindowRequested += Core_NewWindowRequested;
             core.NavigationCompleted += Core_NavigationCompleted;
+            core.SourceChanged += Core_SourceChanged;
 
             if (_mode == PlaybackMode.Compact)
             {
@@ -180,7 +185,7 @@ public partial class PlayerWindow : Window
                 _shellBridge.RequestReceived += ShellBridge_RequestReceived;
             }
 
-            core.Navigate(_url);
+            core.Navigate(_currentUrl);
             if (_mode == PlaybackMode.Compact) _shellReadyTimer.Start();
             Log.Info($"Popout Player initialized (mode={_mode}).");
         }
@@ -209,9 +214,63 @@ public partial class PlayerWindow : Window
 
     private void Core_NewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
     {
-        // Never replace the player with an external page; open it in the system browser.
+        // URL-shape proxy (overhaul Task 3): WebView2 exposes no window-open disposition, so a
+        // left-click on a recommendation and an explicit "open in new window" look identical. A
+        // playable YouTube target stays in THIS player (ADR-0005: never a second window); anything
+        // else opens in the system browser.
         e.Handled = true;
-        OpenExternal(e.Uri);
+        if (!TryRetargetForNewWindow(e.Uri)) OpenExternal(e.Uri);
+    }
+
+    /// <summary>Internal for the WPF test lane (CoreWebView2 event args cannot be constructed).</summary>
+    internal bool TryRetargetForNewWindow(string uri)
+    {
+        if (PopoutNavigationPolicy.DecideNewWindow(uri, out var target) != PopoutNewWindowAction.RetargetInPlace)
+            return false;
+        RetargetTo(target!);
+        return true;
+    }
+
+    /// <summary>
+    /// Move this player to a new target in place, in its CURRENT mode (compact shell rebuild or
+    /// normal watch URL). All launch-time state that the navigation invalidates follows: the
+    /// fallback target (the error bar must reopen the NEW video), the return video id, the
+    /// timestamp (unknown until the new page/shell reports), the one-shot play nudge, and the
+    /// compact ready-watchdog (a dead NEW shell must still surface the error bar).
+    /// </summary>
+    private void RetargetTo(YouTubeTarget target)
+    {
+        _currentTarget = target;
+        _returnState.VideoId = target.VideoId;
+        _returnState.LastKnownSeconds = null;
+        _nudgedPlay = false;
+        _currentUrl = PlaybackModePolicy.BuildPopoutUrl(
+            _mode, target, target.StartSeconds, WebViewEnvironmentService.ShellPlayerUrl);
+
+        if (_mode == PlaybackMode.Compact)
+        {
+            HideShellError();
+            // Re-arm the watchdog. A final state message from the dying old shell can stop it in
+            // the brief window before the navigation commits — accepted residual: the failed-load
+            // path in Core_NavigationCompleted still covers a shell that never comes up at all.
+            _shellReadyTimer.Stop();
+            _shellReadyTimer.Start();
+        }
+
+        Log.Info($"Popout retarget ({_mode}): {Log.RedactUrl(_currentUrl)}");
+        Player.CoreWebView2?.Navigate(_currentUrl);
+    }
+
+    /// <summary>
+    /// Track the CURRENT video for return (REQ-RETURN-01): YouTube SPA navigations and
+    /// autoplay-advance never raise NavigationStarting, but Source follows them. The compact
+    /// shell's piplay.local URL fails the YouTube host check, so this is naturally
+    /// normal-page-only — compact tracking comes from shell state messages instead.
+    /// </summary>
+    private void Core_SourceChanged(object? sender, CoreWebView2SourceChangedEventArgs e)
+    {
+        if (YouTubeUrlHelper.TryParse(Player.CoreWebView2?.Source, out var t) && t.VideoId is not null)
+            _returnState.VideoId = t.VideoId;
     }
 
     private void Core_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
@@ -240,6 +299,9 @@ public partial class PlayerWindow : Window
         _shellReadyTimer.Stop();
         // Compact mode's source of truth for the return timestamp is the IFrame API, not the DOM.
         _returnState.LastKnownSeconds = state.CurrentTime;
+        // Protocol v3: the shell reports the CURRENT video (playlist auto-advance and in-iframe
+        // clicks are invisible to the host). Absent/empty keeps the last-known id.
+        if (!string.IsNullOrEmpty(state.VideoId)) _returnState.VideoId = state.VideoId;
         // A playing state proves recovery (e.g. a playlist auto-advanced past a dead entry) —
         // clear a showing error so the bar can't outlive the problem it reported.
         if (PlayerShellErrorPolicy.ShouldAutoDismiss(state.PlayerState)) HideShellError();
@@ -291,7 +353,7 @@ public partial class PlayerWindow : Window
         ErrorText.Text = message;
         ErrorBar.Visibility = Visibility.Visible;
         // Redacted target only (spec 17): never the full query string.
-        Log.Info($"Compact player error shown (\"{message}\") for {Log.RedactUrl(_url)}; " +
+        Log.Info($"Compact player error shown (\"{message}\") for {Log.RedactUrl(_currentUrl)}; " +
                  "normal-page fallback offered.");
     }
 
@@ -315,7 +377,7 @@ public partial class PlayerWindow : Window
     /// </summary>
     private void FallBackToNormalPage()
     {
-        if (_fellBack || _fallbackTarget is null || Player.CoreWebView2 is null) return;
+        if (_fellBack || _currentTarget is null || Player.CoreWebView2 is null) return;
         _fellBack = true;
 
         _shellReadyTimer.Stop();
@@ -331,9 +393,9 @@ public partial class PlayerWindow : Window
         // e.g. embedding disabled), so treat it as unknown and let BuildWatchUrl fall through to
         // the target's launch StartSeconds rather than restarting the video at 0:00.
         var seconds = _returnState.LastKnownSeconds is > 0 ? _returnState.LastKnownSeconds : null;
-        var url = YouTubeUrlHelper.BuildWatchUrl(_fallbackTarget, seconds);
-        Log.Info($"Compact fallback: reopening in normal page mode: {Log.RedactUrl(url)}");
-        Player.CoreWebView2.Navigate(url);
+        _currentUrl = YouTubeUrlHelper.BuildWatchUrl(_currentTarget, seconds);
+        Log.Info($"Compact fallback: reopening in normal page mode: {Log.RedactUrl(_currentUrl)}");
+        Player.CoreWebView2.Navigate(_currentUrl);
     }
 
     // Test seams (WPF lane): drive the error/fallback path without a live WebView2 or shell.
@@ -344,6 +406,12 @@ public partial class PlayerWindow : Window
     internal void HandleShellRequestForTests(InboundShellMessage message) => ShellBridge_RequestReceived(this, message);
     internal bool IsErrorBarVisibleForTests => ErrorBar.Visibility == Visibility.Visible;
     internal string ErrorTextForTests => ErrorText.Text;
+
+    // Retarget / return-state seams (overhaul Task 3, WPF lane).
+    internal string CurrentUrlForTests => _currentUrl;
+    internal string? CurrentFallbackVideoIdForTests => _currentTarget?.VideoId;
+    internal string? ReturnVideoIdForTests => _returnState.VideoId;
+    internal int? ReturnSecondsForTests => _returnState.LastKnownSeconds;
 
     // Strip auto-hide seams (Wpf lane): drive the collapse/reveal state machine headlessly.
     internal bool StripAutoHideForTests => _stripAutoHide;

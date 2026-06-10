@@ -11,6 +11,9 @@ public enum ReturnAction
     Seek,
     /// <summary>Seek to the last-known timestamp and resume.</summary>
     SeekAndPlay,
+    /// <summary>The popout ended on a DIFFERENT video: navigate the source to it (timestamp rides
+    /// the watch URL; YouTube's own watch-page playback behavior applies).</summary>
+    Navigate,
 }
 
 /// <summary>
@@ -25,5 +28,22 @@ public static class ReturnPolicy
         if (lastKnownSeconds is not null)
             return sourceWasPlaying ? ReturnAction.SeekAndPlay : ReturnAction.Seek;
         return sourceWasPlaying ? ReturnAction.Play : ReturnAction.None;
+    }
+
+    /// <summary>
+    /// Video-aware overload (overhaul Task 3): when the player reports it ended on a DIFFERENT
+    /// video than the one popped out, the source must NAVIGATE there — seeking the original video
+    /// to the new video's timestamp is the corruption this fixes. Either id unknown (null/empty)
+    /// falls back to the timestamp-only decision above, preserving pre-Task-3 behavior.
+    /// </summary>
+    public static ReturnAction Decide(
+        int? lastKnownSeconds, bool sourceWasPlaying, string? returnedVideoId, string? sourceVideoIdAtPopout)
+    {
+        if (!string.IsNullOrEmpty(returnedVideoId) && !string.IsNullOrEmpty(sourceVideoIdAtPopout) &&
+            !string.Equals(returnedVideoId, sourceVideoIdAtPopout, StringComparison.Ordinal))
+        {
+            return ReturnAction.Navigate;
+        }
+        return Decide(lastKnownSeconds, sourceWasPlaying);
     }
 }

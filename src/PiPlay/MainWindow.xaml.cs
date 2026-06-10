@@ -34,6 +34,9 @@ public partial class MainWindow : Window
     private bool _popoutInProgress;
     private PlayerWindow? _player;
     private bool _sourceWasPlayingAtPopout;
+    // The video the source was on when the popout launched (overhaul Task 3): compared against the
+    // popout's returned video id to decide navigate-vs-seek on close (REQ-RETURN-01).
+    private string? _popoutSourceVideoId;
 
     // Auto (spec §6.1): source-side playback detector + the de-dup key that blocks the return-resume
     // re-pop loop. The timer only runs while Auto is on and the browser is ready.
@@ -664,6 +667,7 @@ public partial class MainWindow : Window
             // Auto de-dup: remember this video so the return-resume play edge (and an in-source
             // pause/resume) isn't read as a fresh play that should re-pop it (spec §6.1).
             _autoLastHandledVideoId = target.VideoId;
+            _popoutSourceVideoId = target.VideoId;
 
             // 2b) Resolve the effective playback mode (spec 10): a matching profile override wins,
             // otherwise the global compact default. Compact mode uses the embedded YouTube player;
@@ -815,8 +819,18 @@ public partial class MainWindow : Window
             {
                 // REQ-RETURN-01: resume only if the source was playing when popout started;
                 // 0 is a valid timestamp distinct from unknown. Decision lives in ReturnPolicy.
-                switch (ReturnPolicy.Decide(state.LastKnownSeconds, _sourceWasPlayingAtPopout))
+                switch (ReturnPolicy.Decide(state.LastKnownSeconds, _sourceWasPlayingAtPopout,
+                            state.VideoId, _popoutSourceVideoId))
                 {
+                    case ReturnAction.Navigate:
+                        // The popout ended on a DIFFERENT video (recommendation click, playlist
+                        // auto-advance, SPA navigation): bring the source to where the user
+                        // actually is. The timestamp rides the watch URL; Auto's de-dup key
+                        // updates FIRST so the returned video is not instantly re-popped.
+                        _autoLastHandledVideoId = state.VideoId;
+                        NavigateInternal(YouTubeUrlHelper.BuildWatchUrl(
+                            new YouTubeTarget { VideoId = state.VideoId }, state.LastKnownSeconds));
+                        break;
                     case ReturnAction.SeekAndPlay:
                         await YouTubeDomBridge.SeekAndPlayAsync(core, state.LastKnownSeconds!.Value);
                         break;

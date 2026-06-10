@@ -33,6 +33,18 @@ public class PlayerShellProtocolTests
         Assert.Equal(0, msg.CurrentTime);
         Assert.Equal(-1, msg.PlayerState);   // YT "unstarted"
         Assert.Null(msg.Duration);           // live/unknown duration stays null
+        Assert.Null(msg.VideoId);            // pre-v3 senders never carry it (overhaul Task 3)
+    }
+
+    [Fact]
+    public void Parses_state_video_id_when_present()
+    {
+        // Protocol v3 (overhaul Task 3): the shell reports the CURRENT video so playlist
+        // auto-advance and in-iframe clicks survive into the return state.
+        var msg = PlayerShellProtocol.Parse(
+            "{\"v\":3,\"type\":\"state\",\"currentTime\":42,\"playerState\":1,\"videoId\":\"dQw4w9WgXcQ\"}");
+        Assert.Equal(ShellMessageKind.State, msg.Kind);
+        Assert.Equal("dQw4w9WgXcQ", msg.VideoId);
     }
 
     [Fact]
