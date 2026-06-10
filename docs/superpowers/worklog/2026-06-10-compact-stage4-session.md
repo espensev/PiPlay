@@ -97,6 +97,10 @@ tail → settings restored). Deterministic trigger: the **valid-shape nonexisten
 - The **auto-dismiss on recovery** — needs a playlist that recovers past a dead entry.
 - **Real** embed-disabled/restricted videos (this was a synthetic id) and account-backed playback.
 
+**User follow-up (same day):** the user re-ran the app with a real video address and confirmed
+compact playback rendered and "looked good" — an informal real-video datapoint on top of the
+synthetic-id smoke. The formal account-backed release QA (Task 7) still stands.
+
 ## Held for the user
 
 The Stage 4 PR (outward-facing; stacked on PR #13, whose scope is frozen). Branch is committed and
