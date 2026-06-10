@@ -89,7 +89,11 @@ mitigations, recorded as a deliberate, personal-use deviation:
    live-verified before any UI is built (spike S-1). If it fails: fallback is the
    `WebView2CompositionControl` tier (bigger, separate design) and the opacity feature gates on it.
 5. **Two opacities, one pure policy.** `WindowOpacityPolicy` (house pure-seam pattern):
-   `Effective(bool isIdle, double constant, double idle)` → idle ? idle : constant; clamping; the
+   `Effective(bool isIdle, double constant, double idle)` → idle ? min(idle, constant) : constant
+   — the idle level is capped at the constant level, never above it (settled at Task 2,
+   2026-06-10: §7.3 reads the idle fade as a step *down* with "hover restores full opacity", so a
+   constant hand-tuned to 0.8 with idle left at its 1.0 default must not brighten on idle);
+   out-of-range values reset to 1.0; the
    45% UI floor vs the 10% file floor; and the animation rule (reuse `FadePolicy.FadeDurationMs`;
    idle-detection comes from the same idle source as the controls fade so there is **one idleness
    definition**). Settings: `player.idleWindowOpacity` (existing) + new
