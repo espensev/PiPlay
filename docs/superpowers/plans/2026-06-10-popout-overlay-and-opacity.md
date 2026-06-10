@@ -59,7 +59,8 @@ until the final smoke. If S-1 fails, Stages 2's opacity work gates on a
 
 - [x] **Task 4 — Protocol `request` kind + native strip auto-hide.** *(done 2026-06-10, commit
   431d443; protocol v2, non-allowlisted actions degrade to Unknown on both sides; gates green
-  412/412 + 0W/0E; promoted as stable-channel testing build v0.3.0-b11.)*
+  412/412 + 0W/0E; stable testing build v0.3.0-b12 deployed via Publish-Stable.ps1 — b11 was
+  built but never deployed, superseded.)*
   - `PlayerShellProtocol`: outbound `request` kind, allowlisted actions `close` / `pinToggle` /
     `fullscreenToggle`; version bump; drift-guard extension. `PlayerShellBridge.RequestReceived`.
   - Chrome strip auto-hide (height-collapse on idle, top-edge hover reveal) as a selectable
