@@ -1,7 +1,7 @@
 # PiPlay UI Overhaul Address Outline
 
 Status: draft outline for converting the discovery findings into implementation tickets  
-Source material: `ui-overhaul-discovery/ui-state-notes.md` and `ui-overhaul-discovery/theme-system-overhaul-evaluation.md`  
+Source material: `ui-state-notes.md` and `theme-system-overhaul-evaluation.md` in this directory  
 Recommended timing: after the current functional bug pass, before the theme/settings refactor begins
 
 ## 1. Guiding rules

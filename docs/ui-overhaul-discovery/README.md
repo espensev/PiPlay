@@ -9,6 +9,7 @@ Contents:
 
 - `ui-state-notes.md` - captured UI states, code-surface mapping, live behavior notes, and change candidates.
 - `theme-system-overhaul-evaluation.md` - evaluation of the proposed theme/settings overhaul against current code.
+- `address-outline.md` - draft outline converting the discovery findings into prioritized implementation ticket batches.
 - `screenshots/` - evidence images referenced by the state notes.
 
 Use this directory for discovery material that informs the refactor. Once decisions are settled, copy
