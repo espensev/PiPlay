@@ -11,12 +11,19 @@ manual code verification). Diagnoses for Tasks 1-4 are now settled against sourc
 routes are recorded as rule-outs so they are not re-litigated during implementation. See the spec's
 "Review addendum" for the evidence trail.
 
-**Result:** Pending. Fill in after implementation with the final verification commands, passing test
-count, manual QA evidence, and any deferred decisions.
+**Result:** In progress (2026-06-10, branch `claude/condescending-ptolemy-dee3cf`). Tasks 1, 6, and
+7 landed; `dotnet test PiPlay.sln --configuration Debug` = 425/425 and
+`.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` clean (0 warnings). Task 1's
+inset band was live-verified by an HWND-rect probe on a real popout (left/right/bottom delta exactly
+10 px at 100% DPI; top delta 32 = chrome strip row) and Task 6's "Show popout" state + placeholder
+by screenshot; manual drag-resize from each edge/corner and the Task 2 scroll diagnostics still need
+a live interactive session. Tasks 2-4 carry settled diagnoses, rule-outs, and protocols below.
 
 ## Tasks
 
-- [ ] **Task 1 - Repair edge and corner resize over WebView2 (Popout Player AND Source Window).**
+- [x] **Task 1 - Repair edge and corner resize over WebView2 (Popout Player AND Source Window).**
+  *(Landed `fix(popout): restore edge resize over player surface`; live HWND probe confirmed the
+  band geometry; manual drag QA from each edge/corner remains for the Task 12 pass.)*
   - Diagnosis (settled): both resize mechanisms — the `BorderlessWindowHelper` subclass and
     `WindowChrome.ResizeBorderThickness` — act on top-level `WM_NCHITTEST`, which Windows never sends
     for points over the WebView2 child HWND chain (owned cross-process by msedgewebview2.exe). The
@@ -145,7 +152,9 @@ count, manual QA evidence, and any deferred decisions.
     `WpfRuntimeTests` for construction at constrained height and existing settings behavior.
   - Commit: `refactor(settings): make settings scrollable and sectioned`
 
-- [ ] **Task 6 - Clarify source actions and fallback messages.**
+- [x] **Task 6 - Clarify source actions and fallback messages.**
+  *(Landed `fix(source): clarify popout action states`; "Show popout" state live-verified by
+  screenshot with an open popout.)*
   - Add an `UpdatePopoutActionState()` seam in `MainWindow` keyed off `_player`, called from
     `StartVideoPopoutAsync` (after create) and `Player_OnClosed`, with an internal hook for
     `WpfRuntimeTests`. While `_player != null` the primary action reads as show/focus
@@ -169,7 +178,8 @@ count, manual QA evidence, and any deferred decisions.
     for target/fallback policy, and manual Source Home/Source Watch checks.
   - Commit: `fix(source): clarify popout action states`
 
-- [ ] **Task 7 - Add missing accessible names.**
+- [x] **Task 7 - Add missing accessible names.**
+  *(Landed `fix(a11y): name icon controls`; XamlInvariantTests sweep + Prompt runtime assert.)*
   - Add explicit `AutomationProperties.Name` values for icon-only or templated controls in
     `MainWindow.xaml`, `PlayerWindow.xaml`, and `SettingsWindow.xaml`.
   - Inventory (verified): MainWindow — Settings/Minimize/Maximize/Close, Back/Reload/Home, UrlBox
