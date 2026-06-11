@@ -22,8 +22,10 @@ affordance + reversibility landed 2026-06-10 (`feat(popout): add reliable expand
 Task 3's implementation landed 2026-06-10 (`fix(compact): keep recommendations in piplay and return
 the current video`, 452/452); its spec re-verification is recorded at the Task 3 entry. Task 5
 landed 2026-06-10 (`refactor(settings): make settings scrollable and sectioned`, 468/468). Task 11
-landed 2026-06-10 (`docs(ui): refresh overhaul qa evidence`). Remaining: Tasks 8-10 (theme pass),
-12 (final gate + self-review for this pass).
+landed 2026-06-10 (`docs(ui): refresh overhaul qa evidence`). Task 12 (this pass) closed
+2026-06-11: review-driven hardening landed (`fix(player): harden return paths and expand latch
+after review`), final gate **472/472** + build **0W/0E** — see Self-review "Verified". Remaining:
+Tasks 8-10 (theme pass) only.
 
 ## Tasks
 
@@ -310,7 +312,10 @@ landed 2026-06-10 (`docs(ui): refresh overhaul qa evidence`). Remaining: Tasks 8
     protocol identifiers (`ActionFullscreenToggle`, `fullscreenToggle`) and compact-mode QA rows.
   - Commit: `docs(ui): refresh overhaul qa evidence`
 
-- [ ] **Task 12 - Run full gate and self-review.**
+- [x] **Task 12 - Run full gate and self-review (stabilization pass; theme Tasks 8-10 excluded).**
+  *(Landed `chore(ui): record overhaul stabilization verification`. Gate and review evidence in
+  the Self-review "Verified" section below. Tasks 8-10 are the deliberate later theme pass and get
+  their own gate when they land.)*
   - Run `dotnet test PiPlay.sln --configuration Debug`.
   - Run `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump`.
   - Landing note: prefer a single PR containing this spec; if the work splits across PRs, every
@@ -355,7 +360,23 @@ landed 2026-06-10 (`docs(ui): refresh overhaul qa evidence`). Remaining: Tasks 8
   - Settings/theme migration risk is concentrated in schema compatibility (mitigated by
     `[JsonExtensionData]`) and resource drift; Task 10's swatch replacement is a known test-rewrite.
   - Manual QA remains required for real YouTube scroll, expand behavior, and mixed-display resize.
-- Verified:
-  - Pending. Fill with final `dotnet test PiPlay.sln --configuration Debug` count,
-    `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` result, and manual QA
-    evidence paths.
+- Verified (stabilization pass, 2026-06-11):
+  - Gates: `dotnet test PiPlay.sln --configuration Debug` = **472/472, 0 skipped**;
+    `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` = **0 warnings, 0 errors**.
+  - Focused review: two adversarial passes (spec-vs-code over the Task 3 commit; bug hunt over the
+    Task 4/5 commits). Findings: ONE real defect (OS un-maximize left the fullscreen-element latch
+    stale — fixed, StateChanged now syncs it) plus two hardening items on Task 3 (explicit shell-id
+    charset gate; source-side return tests for the Auto de-dup + queued navigate URL) — all landed
+    in `fix(player): harden return paths and expand latch after review`. Settings measure
+    semantics (SizeToContent + MaxHeight + star-row ScrollViewer), placement persistence loop,
+    x:Name survival, and the opacity live-preview path were each explicitly verified FINE.
+  - Live smoke (dev channel beside the user's Stable copy): popout `ExpandButton` exposes UIA name
+    "Expand or restore popout"; invoke → `WindowVisualState=Maximized`, full-bleed video across the
+    5120x2160 monitor (inset band correctly dropped); invoke → `Normal` restored. The Settings
+    dialog opened height-bounded at the work-area clamp (~917 DIP on this display). Captures under
+    `%TEMP%\piplay_run\`; fresh per-state screenshots remain the owner QA pass
+    (`docs/QA_Checklist.md` §2.1 dual-capture table + §3.5 compact rows).
+  - Deferred, deliberate: Tasks 8-10 (theme foundation) are the next pass; Task 2 scroll fix
+    deferred by owner decision (click-then-scroll documented); outline item 5.6 discoverability
+    recorded deferral; retarget→fallback→return end-to-end and account-backed playback rows are
+    live QA (headless fallback requires a live CoreWebView2).
