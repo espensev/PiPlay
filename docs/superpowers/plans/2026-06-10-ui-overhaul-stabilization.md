@@ -93,7 +93,18 @@ landed 2026-06-10 (`docs(ui): refresh overhaul qa evidence`). Remaining: Tasks 8
     plus manual wheel/touchpad/scrollbar checks in both captures.
   - Commit: `fix(popout): allow scrolling in normal page player`
 
-- [ ] **Task 3 - Keep compact navigation inside PiPlay and make return state video-aware (both modes).**
+- [x] **Task 3 - Keep compact navigation inside PiPlay and make return state video-aware (both modes).**
+  *(Landed `fix(compact): keep recommendations in piplay and return the current video` (452/452);
+  adversarially re-verified against this spec 2026-06-11 — every bullet satisfied: TryParse-with-
+  VideoId gate, in-place retarget with full launch-state follow-up, protocol v3 additive videoId,
+  navigate-vs-seek with the Auto de-dup key armed first, SourceChanged tracking naturally compact-
+  excluded. Review hardening landed same day: explicit `IsVideoId` charset gate where the
+  shell-reported id enters the host (the downstream re-parse + allowlist already caught hostile
+  values; the gate makes it explicit), and the source-side return decision extracted to
+  `ApplyReturnActionAsync` with headless tests proving Navigate queues the returned video's watch
+  URL and arms the de-dup key. Accepted residual (documented at the code): a final state message
+  from a dying shell can race a retarget in a narrow window. Retarget→fallback→return end-to-end
+  is a live QA row, not headless-testable (fallback requires a live CoreWebView2).)*
   - New-window policy (reframed): WebView2's `NewWindowRequested` carries no window-open disposition,
     so "explicit external intent" is NOT distinguishable from a left-click. Use the URL-shape proxy,
     mirroring `MainWindow.Core_NewWindowRequested`: a parsed YouTube watch target with a `VideoId`

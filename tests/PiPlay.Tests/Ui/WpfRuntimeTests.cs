@@ -819,6 +819,24 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void Os_restore_clears_the_fullscreen_element_latch() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+        w.ApplyFullScreenElementStateForTests(contains: true);
+        Assert.True(w.IsMaximizedForFullScreenElementForTests);
+
+        // The OS path our toggles never see (Win+Down, aero snap): the state changes, then
+        // StateChanged runs the sync — the expansion the latch described no longer exists.
+        w.WindowState = WindowState.Normal;
+        w.HandleWindowStateChangedForTests();
+        Assert.False(w.IsMaximizedForFullScreenElementForTests);
+
+        // The element's later exit must not disturb the state the user chose via the OS.
+        w.ApplyFullScreenElementStateForTests(contains: false);
+        Assert.Equal(WindowState.Normal, w.WindowState);
+    });
+
+    [Fact]
     public void Escape_restores_an_expanded_popout_and_is_inert_otherwise() => StaTestThread.Invoke(() =>
     {
         var w = NewPlayer();
@@ -869,6 +887,19 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void Hostile_shell_video_ids_never_become_the_return_target() => StaTestThread.Invoke(() =>
+    {
+        // The shell string later becomes a SOURCE navigation target on close — the id charset is
+        // gated at this trust boundary, not just by the downstream re-parse/allowlist.
+        var w = NewCompactPlayer();
+        w.HandleShellStateForTests(new InboundShellMessage(
+            ShellMessageKind.State, CurrentTime: 5, PlayerState: 1, VideoId: "abc&evil=1//"));
+
+        Assert.Equal("dQw4w9WgXcQ", w.ReturnVideoIdForTests);   // launch id kept
+        Assert.Equal(5, w.ReturnSecondsForTests);               // the timestamp itself still lands
+    });
+
+    [Fact]
     public void Compact_retarget_rebuilds_the_shell_url_and_resets_launch_state() => StaTestThread.Invoke(() =>
     {
         var w = NewCompactPlayer();
@@ -905,6 +936,37 @@ public class WpfRuntimeTests : IDisposable
 
         Assert.Equal(urlBefore, w.CurrentUrlForTests);
         Assert.Equal("dQw4w9WgXcQ", w.ReturnVideoIdForTests);   // launch state untouched
+    });
+
+    // --- Video-aware return on the SOURCE side (overhaul Task 3) ---
+
+    [Fact]
+    public void Return_to_a_different_video_navigates_and_arms_the_auto_dedup_key() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        w.SeedPopoutReturnForTests(sourceVideoId: "AAAAAAAAAAA");
+
+        w.ApplyReturnActionAsync(new PlayerReturnState { VideoId = "BBBBBBBBBBB", LastKnownSeconds = 42 })
+            .GetAwaiter().GetResult();   // Navigate completes synchronously (no core to script)
+
+        // The browser never initializes in the test lane, so the navigation queues — the queued
+        // URL IS the assertion: the source heads to the RETURNED video at its timestamp.
+        Assert.Equal("https://www.youtube.com/watch?v=BBBBBBBBBBB&t=42s", w.PendingUrlForTests);
+        // De-dup key armed before navigating: Auto must not instantly re-pop the returned video.
+        Assert.Equal("BBBBBBBBBBB", w.AutoLastHandledVideoIdForTests);
+    });
+
+    [Fact]
+    public void Return_on_the_same_video_seeks_rather_than_navigates() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        w.SeedPopoutReturnForTests(sourceVideoId: "AAAAAAAAAAA");
+
+        w.ApplyReturnActionAsync(new PlayerReturnState { VideoId = "AAAAAAAAAAA", LastKnownSeconds = 42 })
+            .GetAwaiter().GetResult();
+
+        Assert.Null(w.PendingUrlForTests);               // the seek path scripts a live core instead
+        Assert.Null(w.AutoLastHandledVideoIdForTests);   // de-dup key untouched on a plain return
     });
 
     [Fact]

@@ -164,7 +164,7 @@ public partial class PlayerWindow : Window
         // OS-driven state changes (Win+Up/Down, aero snap) must keep the affordance honest too —
         // the direct calls in ToggleExpandedState cover the test lane, where unshown windows
         // never receive StateChanged.
-        StateChanged += (_, _) => UpdateExpandAffordance();
+        StateChanged += (_, _) => HandleWindowStateChanged();
         SourceInitialized += (_, _) =>
         {
             if (_placement is not null) WindowPlacementService.Restore(this, _placement);
@@ -327,8 +327,12 @@ public partial class PlayerWindow : Window
         // Compact mode's source of truth for the return timestamp is the IFrame API, not the DOM.
         _returnState.LastKnownSeconds = state.CurrentTime;
         // Protocol v3: the shell reports the CURRENT video (playlist auto-advance and in-iframe
-        // clicks are invisible to the host). Absent/empty keeps the last-known id.
-        if (!string.IsNullOrEmpty(state.VideoId)) _returnState.VideoId = state.VideoId;
+        // clicks are invisible to the host). The id charset is validated HERE, at the trust
+        // boundary — this string later becomes a SOURCE navigation target on close, and while the
+        // downstream re-parse + allowlist would also catch a hostile value, the gate belongs where
+        // the untrusted string enters (review hardening 2026-06-10). Absent/invalid keeps the
+        // last-known id.
+        if (YouTubeUrlHelper.IsVideoId(state.VideoId)) _returnState.VideoId = state.VideoId;
         // A playing state proves recovery (e.g. a playlist auto-advanced past a dead entry) —
         // clear a showing error so the bar can't outlive the problem it reported.
         if (PlayerShellErrorPolicy.ShouldAutoDismiss(state.PlayerState)) HideShellError();
@@ -508,6 +512,18 @@ public partial class PlayerWindow : Window
         UpdateExpandAffordance();
     }
 
+    /// <summary>
+    /// Runs on every StateChanged: any exit from Maximized — ours, or an OS path our toggles never
+    /// see (Win+Down, aero snap) — invalidates the element-caused latch, because the expansion it
+    /// described no longer exists. Without this, a stale latch survives an OS restore and the
+    /// state machine lies until the next element event (review finding 2026-06-10).
+    /// </summary>
+    private void HandleWindowStateChanged()
+    {
+        if (WindowState != WindowState.Maximized) _maximizedForFullScreenElement = false;
+        UpdateExpandAffordance();
+    }
+
     /// <summary>Keep glyph and tooltip truthful in both states; the UIA name stays state-neutral
     /// ("Expand or restore popout", XamlInvariantTests pins it).</summary>
     private void UpdateExpandAffordance()
@@ -561,9 +577,12 @@ public partial class PlayerWindow : Window
     }
 
     // Expand/restore seams (WPF lane): KeyEventArgs needs a PresentationSource and fullscreen
-    // element events need a live CoreWebView2, neither of which exists for an unshown window.
+    // element events need a live CoreWebView2, neither of which exists for an unshown window —
+    // and unshown windows receive no StateChanged, so the OS path is driven directly.
     internal void ApplyFullScreenElementStateForTests(bool contains) => ApplyFullScreenElementState(contains);
     internal bool HandleEscapeForTests() => TryRestoreFromEscape();
+    internal void HandleWindowStateChangedForTests() => HandleWindowStateChanged();
+    internal bool IsMaximizedForFullScreenElementForTests => _maximizedForFullScreenElement;
     internal string ExpandGlyphForTests => (string)ExpandButton.Content;
     internal string ExpandToolTipForTests => (string)ExpandButton.ToolTip;
 
