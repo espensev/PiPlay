@@ -9,7 +9,7 @@
         WindowStyle="None"
         ResizeMode="CanResize"
         AllowsTransparency="False"
-        Background="{StaticResource AppBackground}"
+        Background="{DynamicResource AppBackground}"
         UseLayoutRounding="False"
         SnapsToDevicePixels="True">
 
@@ -31,7 +31,7 @@
     </Grid.RowDefinitions>
 
     <!-- Title bar -->
-    <Grid Grid.Row="0" Background="{StaticResource SurfaceBase}">
+    <Grid Grid.Row="0" Background="{DynamicResource SurfaceBase}">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
@@ -40,9 +40,9 @@
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0">
         <Image Source="Assets/piplay.ico" Width="20" Height="20" Margin="0,0,10,0" />
         <TextBlock x:Name="TitleText" Text="PiPlay" FontSize="14" FontWeight="SemiBold"
-                   Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center" />
+                   Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
         <TextBlock x:Name="PinnedHint" Text="• Pinned" FontSize="12" Margin="10,0,0,0"
-                   Foreground="{StaticResource AccentCyan}" VerticalAlignment="Center"
+                   Foreground="{DynamicResource AccentPrimary}" VerticalAlignment="Center"
                    Visibility="Collapsed" />
       </StackPanel>
 
@@ -61,7 +61,7 @@
     </Grid>
 
     <!-- Toolbar: navigation + URL/search + profiles + Pin + Pop out -->
-    <Grid Grid.Row="1" Background="{StaticResource AppBackground}"
+    <Grid Grid.Row="1" Background="{DynamicResource AppBackground}"
           WindowChrome.IsHitTestVisibleInChrome="True">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="Auto" />   <!-- nav -->
@@ -151,12 +151,12 @@
       <Border x:Name="SourcePlaceholder" Background="Black" Visibility="Collapsed">
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
           <TextBlock Text="&#xE8A7;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="40"
-                     Foreground="{StaticResource AccentCyan}" HorizontalAlignment="Center" />
+                     Foreground="{DynamicResource AccentPrimary}" HorizontalAlignment="Center" />
           <TextBlock Text="Playing in Video Popout" FontSize="18" Margin="0,14,0,0"
-                     Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" />
+                     Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" />
           <TextBlock Text="Close the popout to bring playback back here."
                      FontSize="12" Margin="0,6,0,0"
-                     Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" />
+                     Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
           <!-- Non-blocking fallback note (Q-6): e.g. the mix/radio "popped out the current video
                only" reason, previously log-only. Lives on the SOURCE side by design - the popout
                ErrorBar is compact-error semantics and must not diverge the popout captures. -->
@@ -167,12 +167,12 @@
       </Border>
 
       <!-- WebView2 runtime-missing / init-failure recovery panel (spec 15.4, Q-6). -->
-      <Border x:Name="RuntimeErrorPanel" Background="{StaticResource AppBackground}" Visibility="Collapsed">
+      <Border x:Name="RuntimeErrorPanel" Background="{DynamicResource AppBackground}" Visibility="Collapsed">
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
           <TextBlock Text="WebView2 Runtime is required" FontSize="20" FontWeight="SemiBold"
-                     Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" />
+                     Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" />
           <TextBlock x:Name="RuntimeErrorText" TextWrapping="Wrap" TextAlignment="Center"
-                     FontSize="13" Margin="0,12,0,0" Foreground="{StaticResource TextSecondary}"
+                     FontSize="13" Margin="0,12,0,0" Foreground="{DynamicResource TextSecondary}"
                      Text="PiPlay needs the Microsoft Edge WebView2 Evergreen Runtime to display YouTube. Install it, then reopen PiPlay." />
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0">
             <Button Content="Get WebView2 Runtime" Style="{StaticResource AccentButton}"

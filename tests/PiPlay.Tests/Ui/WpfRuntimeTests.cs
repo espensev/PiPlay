@@ -69,6 +69,83 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void ThemeResourceApplier_applies_palette_and_radii_from_the_preset() => StaTestThread.Invoke(() =>
+    {
+        var res = new ResourceDictionary();
+        ThemeResourceApplier.Apply(res, new ThemeSettings { ThemeId = "soft-glass" }, new PlayerSettings());
+
+        // Every palette brush key lands as a frozen brush matching the preset palette, with its
+        // companion Color token in step.
+        var palette = ThemeCatalog.PresetFor("soft-glass").Palette;
+        string[] hexes =
+        [
+            palette.AppBackground, palette.SurfaceBase, palette.SurfaceRaised, palette.SurfaceHover,
+            palette.BorderSubtle, palette.BorderStrong, palette.TextPrimary, palette.TextSecondary,
+            palette.Danger,
+        ];
+        for (var i = 0; i < ThemeResourceApplier.PaletteBrushKeys.Length; i++)
+        {
+            var key = ThemeResourceApplier.PaletteBrushKeys[i];
+            var brush = Assert.IsType<SolidColorBrush>(res[key]);
+            Assert.True(brush.IsFrozen, $"{key} brush not frozen.");
+            Assert.Equal(ThemeColors.ParseColor(hexes[i]), brush.Color);
+            Assert.Equal(brush.Color, (Color)res[key + "Color"]);
+        }
+
+        // Radius tokens follow the preset's ThemeRadii; the title bar rounds only its top corners;
+        // the compatibility aliases ride Input/Button.
+        Assert.Equal(new CornerRadius(16), res["RadiusPopoutFrame"]);
+        Assert.Equal(new CornerRadius(10, 10, 0, 0), res["RadiusTitleBar"]);
+        Assert.Equal(new CornerRadius(10), res["RadiusButton"]);
+        Assert.Equal(res["RadiusInput"], res["ControlCornerRadius"]);
+        Assert.Equal(res["RadiusButton"], res["ButtonCornerRadius"]);
+
+        // The corner-style override swaps radii but never the palette.
+        var overridden = new ResourceDictionary();
+        ThemeResourceApplier.Apply(overridden,
+            new ThemeSettings { ThemeId = "soft-glass", CornerStyle = "square" }, new PlayerSettings());
+        Assert.Equal(new CornerRadius(0), overridden["RadiusButton"]);
+        Assert.Equal(ThemeColors.ParseColor(palette.AppBackground),
+            ((SolidColorBrush)overridden["AppBackground"]).Color);
+
+        // An unknown theme id falls back to sharp-dark values end to end.
+        var fallback = new ResourceDictionary();
+        ThemeResourceApplier.Apply(fallback, new ThemeSettings { ThemeId = "no-such-theme" }, new PlayerSettings());
+        Assert.Equal(ThemeColors.ParseColor(ThemeCatalog.PresetFor("sharp-dark").Palette.AppBackground),
+            ((SolidColorBrush)fallback["AppBackground"]).Color);
+        Assert.Equal(new CornerRadius(ThemeCatalog.PresetFor("sharp-dark").Radii.Button), fallback["RadiusButton"]);
+    });
+
+    [Fact]
+    public void Theme_restyle_reaches_dynamic_surface_and_radius_consumers() => StaTestThread.Invoke(() =>
+    {
+        // The PR #18 replace-not-mutate mechanism, applied verbatim to the new tokens: a DarkButton
+        // resolves {DynamicResource SurfaceRaised} (fill) and {DynamicResource RadiusButton}
+        // (template corner), so REPLACING those app entries restyles consumers at realize time.
+        var originalSurface = Application.Current.Resources["SurfaceRaised"];
+        var originalRadius = Application.Current.Resources["RadiusButton"];
+        try
+        {
+            var sentinel = Color.FromRgb(0x12, 0x34, 0x56);
+            var brush = new SolidColorBrush(sentinel);
+            brush.Freeze();
+            Application.Current.Resources["SurfaceRaised"] = brush;
+            Application.Current.Resources["RadiusButton"] = new CornerRadius(13);
+
+            var btn = new Button { Style = (Style)Application.Current.FindResource("DarkButton") };
+            btn.Measure(new Size(200, 40));   // realize: style + template resolve the replaced entries
+            Assert.Equal(sentinel, ((SolidColorBrush)btn.Background).Color);
+            var bd = (Border)btn.Template.FindName("bd", btn);
+            Assert.Equal(new CornerRadius(13), bd.CornerRadius);
+        }
+        finally
+        {
+            Application.Current.Resources["SurfaceRaised"] = originalSurface;   // never pollute the shared app
+            Application.Current.Resources["RadiusButton"] = originalRadius;
+        }
+    });
+
+    [Fact]
     public void Accent_recolor_reaches_a_dynamic_resource_consumer() => StaTestThread.Invoke(() =>
     {
         // The AccentButton fill resolves {DynamicResource AccentPrimary}. REPLACING the App resource
@@ -163,6 +240,72 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal(ThemeCatalog.DefaultAccentColor, w.AccentColor);
         Assert.True(((ToggleButton)w.FindName("AccentChipCyan")!).IsChecked);
         Assert.False(((ToggleButton)w.FindName("AccentChipViolet")!).IsChecked);
+    });
+
+    [Fact]
+    public void SettingsWindow_reflects_and_updates_corner_style() => StaTestThread.Invoke(() =>
+    {
+        // The ctor seeds the persisted override and checks its chip; an unknown value lands on
+        // "theme" (the preset-owned default).
+        var w = new SettingsWindow(isBrowserReady: true, cornerStyle: "round");
+        Assert.Equal("round", w.CornerStyle);
+        Assert.True(((ToggleButton)w.FindName("CornerStyleRoundChip")!).IsChecked);
+        Assert.Equal("theme", new SettingsWindow(isBrowserReady: true, cornerStyle: "bogus").CornerStyle);
+
+        // Clicking a chip retargets the override, flags the change, and re-checks only that chip.
+        ((ToggleButton)w.FindName("CornerStyleSquareChip")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        Assert.True(w.AppearanceChanged);
+        Assert.Equal("square", w.CornerStyle);
+        Assert.True(((ToggleButton)w.FindName("CornerStyleSquareChip")!).IsChecked);
+        Assert.False(((ToggleButton)w.FindName("CornerStyleRoundChip")!).IsChecked);
+    });
+
+    [Fact]
+    public void SettingsWindow_preset_click_adopts_the_preset_defaults() => StaTestThread.Invoke(() =>
+    {
+        // Review doc §2.1: an EXPLICIT preset selection applies the preset's behavior defaults —
+        // fade delay, strip auto-hide, opacity levels — and returns corners to the theme.
+        // Controls touched afterwards become overrides (they fire their own handlers). The
+        // accent here is the sharp-dark DEFAULT, so the §3.3 rule adopts the new default too.
+        var w = new SettingsWindow(isBrowserReady: true, themeId: "sharp-dark",
+            accentColor: ThemeCatalog.DefaultAccentColor,
+            fadeIdleDelayMs: 1500, constantWindowOpacity: 1.0, idleWindowOpacity: 1.0,
+            stripAutoHide: true, cornerStyle: "square");
+
+        ((ToggleButton)w.FindName("ThemeSoftGlassPreset")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+
+        var preset = ThemeCatalog.PresetFor("soft-glass");
+        Assert.Equal("soft-glass", w.ThemeId);
+        Assert.Equal(preset.DefaultAccentColor, w.AccentColor);
+        Assert.Equal(ThemeCatalog.DefaultCornerStyle, w.CornerStyle);
+        Assert.True(((ToggleButton)w.FindName("CornerStyleThemeChip")!).IsChecked);
+        Assert.Equal(ThemeCatalog.FadeDelayMillisecondsForPreset(preset.DefaultFadeDelayPreset), w.FadeIdleDelayMs);
+        Assert.Equal(preset.DefaultStripAutoHide, w.StripAutoHide);
+        Assert.Equal(preset.DefaultStripAutoHide, ((ToggleButton)w.FindName("StripAutoHideToggle")!).IsChecked);
+        Assert.Equal(preset.DefaultActiveWindowOpacity, w.ConstantWindowOpacity);
+        Assert.Equal(preset.DefaultIdleWindowOpacity, w.IdleWindowOpacity);
+        Assert.True(w.AppearanceChanged);
+    });
+
+    [Fact]
+    public void SettingsWindow_preset_click_preserves_a_custom_accent() => StaTestThread.Invoke(() =>
+    {
+        // End-pass review §3.3: a deliberately chosen accent survives theme switches; only a
+        // user still on the previous theme's default adopts the new theme's default.
+        var w = new SettingsWindow(isBrowserReady: true, themeId: "sharp-dark", accentColor: "#FFC857");
+
+        ((ToggleButton)w.FindName("ThemeSoftGlassPreset")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+
+        Assert.Equal("soft-glass", w.ThemeId);
+        Assert.Equal("#FFC857", w.AccentColor);   // amber preserved, not reset to violet
+        Assert.True(((ToggleButton)w.FindName("AccentChipAmber")!).IsChecked);
+
+        // Selecting the previous default first puts the user back on rails: the next theme
+        // switch adopts that theme's default accent.
+        ((ToggleButton)w.FindName("AccentChipViolet")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        ((ToggleButton)w.FindName("ThemeSharpDarkPreset")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        Assert.Equal(ThemeCatalog.DefaultAccentColor, w.AccentColor);
+        Assert.True(((ToggleButton)w.FindName("AccentChipCyan")!).IsChecked);
     });
 
     // --- Resolved DependencyProperty invariants (runtime counterpart to Layer 1) ---
@@ -273,6 +416,7 @@ public class WpfRuntimeTests : IDisposable
                 ActiveWindowOpacity = 0.6,
                 IdleWindowOpacity = 0.4,
                 StripAutoHide = false,
+                CornerStyle = "round",
             },
         });
 
@@ -283,6 +427,7 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal(0.6, prefs.ActiveWindowOpacity);
         Assert.Equal(0.4, prefs.IdleWindowOpacity);
         Assert.False(prefs.StripAutoHide);
+        Assert.Equal("round", prefs.CornerStyle);
     });
 
     [Fact]
@@ -696,10 +841,10 @@ public class WpfRuntimeTests : IDisposable
         // Acceptance criterion 1: feature-off calls on a pristine window are a strict no-op —
         // no tracking state, no subclass-driven exstyle change (Null target proves never tracked).
         var pristine = GetWindowLongPtrW(hwnd, -20).ToInt64();
-        WindowOpacityApplier.SetRoundedCorners(hwnd, rounded: false);
+        WindowOpacityApplier.SetCornerMode(hwnd, DwmCornerMode.Default);
         WindowOpacityApplier.Apply(hwnd, 1.0, animate: false);
         Assert.Null(WindowOpacityApplier.TargetAlphaForTests(hwnd));
-        Assert.False(WindowOpacityApplier.IsRoundedForTests(hwnd));
+        Assert.Equal(DwmCornerMode.Default, WindowOpacityApplier.CornerModeForTests(hwnd));
         Assert.Equal(pristine, GetWindowLongPtrW(hwnd, -20).ToInt64());
 
         // Engage BEFORE Show: production order (the popout's SourceInitialized runs inside Show),
@@ -724,8 +869,19 @@ public class WpfRuntimeTests : IDisposable
         var afterTopmost = GetWindowLongPtrW(hwnd, -20).ToInt64();
         Assert.True((afterTopmost & 0x00080000) != 0, $"Topmost toggle dropped the bit: 0x{afterTopmost:X}.");
 
-        WindowOpacityApplier.SetRoundedCorners(hwnd, rounded: true);
-        Assert.True(WindowOpacityApplier.IsRoundedForTests(hwnd));
+        WindowOpacityApplier.SetCornerMode(hwnd, DwmCornerMode.Round);
+        Assert.Equal(DwmCornerMode.Round, WindowOpacityApplier.CornerModeForTests(hwnd));
+        // Mode is theme/user data: every non-default mode (incl. an explicit Square override on a
+        // previously-rounded window) lands and is tracked.
+        WindowOpacityApplier.SetCornerMode(hwnd, DwmCornerMode.Square);
+        Assert.Equal(DwmCornerMode.Square, WindowOpacityApplier.CornerModeForTests(hwnd));
+        WindowOpacityApplier.SetCornerMode(hwnd, DwmCornerMode.SmallRound);
+        Assert.Equal(DwmCornerMode.SmallRound, WindowOpacityApplier.CornerModeForTests(hwnd));
+        // The reset transition is a real user path (corner style back to Theme on sharp-dark /
+        // theme switched off soft-glass): Default on a MODIFIED window must land DWMWCP_DEFAULT,
+        // not early-return — only the never-touched pristine case skips the write.
+        WindowOpacityApplier.SetCornerMode(hwnd, DwmCornerMode.Default);
+        Assert.Equal(DwmCornerMode.Default, WindowOpacityApplier.CornerModeForTests(hwnd));
 
         WindowOpacityApplier.Apply(hwnd, 1.0, animate: false);
         Assert.False(WindowOpacityApplier.IsEngagedForTests(hwnd));
@@ -775,6 +931,71 @@ public class WpfRuntimeTests : IDisposable
         Assert.False(w.IsOpacityHoverPollRunningForTests);
 
         w.Close();
+    });
+
+    [Fact]
+    public void PlayerWindow_applies_the_theme_corner_mode_to_its_hwnd() => StaTestThread.Invoke(() =>
+    {
+        // End-to-end corner wiring (the opacity test's recipe): EnsureHandle fires
+        // SourceInitialized without Show, so the initial DWM corner application is real.
+        var w = new PlayerWindow(environment: null!, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            topmost: false, placement: null, defaultWidth: 960, defaultHeight: 540, fadeEnabled: true,
+            dwmCornerMode: DwmCornerMode.Round);
+        var hwnd = new WindowInteropHelper(w).EnsureHandle();
+        Assert.Equal(DwmCornerMode.Round, WindowOpacityApplier.CornerModeForTests(hwnd));
+
+        // The live re-apply seam (MainWindow's ApplyOpenPlayerAppearance path on settings change).
+        w.ApplyCornerMode(DwmCornerMode.Square);
+        Assert.Equal(DwmCornerMode.Square, WindowOpacityApplier.CornerModeForTests(hwnd));
+
+        w.Close();
+    });
+
+    [Fact]
+    public void MainWindow_applies_the_theme_corner_mode_at_source_initialized() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        w.ReplaceSettingsForTests(new AppSettings { Theme = new ThemeSettings { CornerStyle = "round" } });
+        var hwnd = new WindowInteropHelper(w).EnsureHandle();
+        Assert.Equal(DwmCornerMode.Round, WindowOpacityApplier.CornerModeForTests(hwnd));
+        w.Close();
+    });
+
+    [Fact]
+    public void SettingsWindow_wears_the_pending_corner_style_on_its_own_hwnd() => StaTestThread.Invoke(() =>
+    {
+        // The dialog itself is the instant feedback surface for the corner-style row.
+        var w = new SettingsWindow(isBrowserReady: true, cornerStyle: "round");
+        var hwnd = new WindowInteropHelper(w).EnsureHandle();
+        Assert.Equal(DwmCornerMode.Round, WindowOpacityApplier.CornerModeForTests(hwnd));
+
+        ((ToggleButton)w.FindName("CornerStyleSquareChip")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        Assert.Equal(DwmCornerMode.Square, WindowOpacityApplier.CornerModeForTests(hwnd));
+
+        w.Close();
+    });
+
+    [Fact]
+    public void Prompt_dialogs_wear_the_current_theme_corner_mode() => StaTestThread.Invoke(() =>
+    {
+        // Prompts are built outside the settings flow, so they read the applier's last-applied
+        // mode — without this they would be the only differently-shaped dialog under a
+        // round/square theme (adversarial review finding).
+        var res = new ResourceDictionary();
+        ThemeResourceApplier.Apply(res, new ThemeSettings { ThemeId = "soft-glass" }, new PlayerSettings());
+        try
+        {
+            Assert.Equal(DwmCornerMode.Round, ThemeResourceApplier.CurrentDwmCorners);
+            var shell = Prompt.BuildShell(owner: null, "Test", out _);
+            var hwnd = new WindowInteropHelper(shell).EnsureHandle();
+            Assert.Equal(DwmCornerMode.Round, WindowOpacityApplier.CornerModeForTests(hwnd));
+            shell.Close();
+        }
+        finally
+        {
+            // Restore the static for the rest of the suite (sharp-dark default = Default).
+            ThemeResourceApplier.Apply(new ResourceDictionary(), new ThemeSettings(), new PlayerSettings());
+        }
     });
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -1219,12 +1440,15 @@ public class WpfRuntimeTests : IDisposable
             ((TextBox)w.FindName("UrlBox")!).Style);
 
         // The app-wide implicit ToolTip style exists and is dark (Background = SurfaceRaised).
+        // The style references the THEMED brush via DynamicResource (so a theme change restyles
+        // open tooltips), so resolve it through a realized ToolTip rather than casting the
+        // Setter.Value (which is now a DynamicResourceExtension, not a brush).
         var toolTipStyle = Application.Current.TryFindResource(typeof(ToolTip)) as Style;
         Assert.NotNull(toolTipStyle);
-        var bg = toolTipStyle!.Setters.OfType<Setter>()
-            .First(s => s.Property == Control.BackgroundProperty).Value as SolidColorBrush;
+        var tip = new ToolTip { Style = toolTipStyle };
         var surfaceRaised = (SolidColorBrush)Application.Current.FindResource("SurfaceRaised");
-        Assert.Equal(surfaceRaised.Color, bg!.Color);
+        var bg = Assert.IsType<SolidColorBrush>(tip.Background);
+        Assert.Equal(surfaceRaised.Color, bg.Color);
     });
 
     // --- DPI characterization: URL text is not clipped to a band at 150% DPI ---

@@ -69,6 +69,9 @@ public partial class MainWindow : Window
             MaximizeButton.Content = WindowState == WindowState.Maximized ? GlyphRestore : GlyphMaximize;
         SourceInitialized += (_, _) =>
         {
+            // Theme-driven native corner shape (review doc §8.7): explicit theme/override data,
+            // never an opacity side effect. Default mode leaves the window DWM-pristine.
+            ApplyOwnCornerMode();
             if (_placementRestored) return;
             WindowPlacementService.Restore(this, _settings.MainWindow.Placement);
             _placementRestored = true;
@@ -483,7 +486,8 @@ public partial class MainWindow : Window
             compactMode: _settings.Player.CompactMode,
             constantWindowOpacity: EffectiveActiveWindowOpacity,
             idleWindowOpacity: EffectiveIdleWindowOpacity,
-            stripAutoHide: EffectiveStripAutoHide)
+            stripAutoHide: EffectiveStripAutoHide,
+            cornerStyle: EffectiveCornerStyle)
         {
             Owner = this,
             Topmost = Topmost,
@@ -509,7 +513,7 @@ public partial class MainWindow : Window
         if (dialog.AppearanceChanged)
         {
             ApplyPlayerPreferences(dialog.ThemeId, dialog.AccentColor, dialog.FadeIdleDelayMs, dialog.CompactMode,
-                dialog.ConstantWindowOpacity, dialog.IdleWindowOpacity, dialog.StripAutoHide);
+                dialog.ConstantWindowOpacity, dialog.IdleWindowOpacity, dialog.StripAutoHide, dialog.CornerStyle);
         }
 
         switch (dialog.RequestedAction)
@@ -547,13 +551,15 @@ public partial class MainWindow : Window
         ApplyAuto(false);
         ThemeResourceApplier.Apply(Application.Current.Resources, _settings.Theme, _settings.Player);
         ApplySourceAppearance();
+        ApplyOwnCornerMode();
         ApplyOpenPlayerAppearance();
         UpdateAutoDetector();   // Auto is off after reset → stop the detector
         LoadProfilesIntoCombo();
     }
 
     private void ApplyPlayerPreferences(string themeId, string accentColor, int fadeIdleDelayMs, bool compactMode,
-        double constantWindowOpacity, double idleWindowOpacity, bool stripAutoHide)
+        double constantWindowOpacity, double idleWindowOpacity, bool stripAutoHide,
+        string cornerStyle = ThemeCatalog.DefaultCornerStyle)
     {
         // Theme accent is the single source of truth for Pin/Fade color now (overhaul Task 10). The
         // legacy Player.PinAccent/FadeAccent stay at their persisted values (readable for back-compat)
@@ -570,11 +576,14 @@ public partial class MainWindow : Window
         _settings.Theme.ActiveWindowOpacity = _settings.Player.ConstantWindowOpacity;
         _settings.Theme.IdleWindowOpacity = _settings.Player.IdleWindowOpacity;
         _settings.Theme.StripAutoHide = _settings.Player.StripAutoHide;
+        _settings.Theme.CornerStyle = ThemeCatalog.NormalizeCornerStyle(cornerStyle);
 
-        // Recolor the accent-driven shell resources live (DynamicResource consumers re-resolve), then
-        // the runtime-applied Pin/Fade glyphs, so the whole accent moves together on apply.
+        // Restyle the theme-driven shell resources live (DynamicResource consumers re-resolve), then
+        // the runtime-applied Pin/Fade glyphs and the native window corners, so the whole theme
+        // moves together on apply.
         ThemeResourceApplier.Apply(Application.Current.Resources, _settings.Theme, _settings.Player);
         ApplySourceAppearance();
+        ApplyOwnCornerMode();
         ApplyOpenPlayerAppearance();
         _settingsService.Save(_settings);
     }
@@ -594,18 +603,34 @@ public partial class MainWindow : Window
     private double EffectiveIdleWindowOpacity =>
         ThemePreferenceResolver.IdleWindowOpacity(_settings.Theme, _settings.Player);
 
+    private string EffectiveCornerStyle =>
+        ThemePreferenceResolver.CornerStyle(_settings.Theme);
+
+    private DwmCornerMode EffectiveDwmCornerMode =>
+        ThemePreferenceResolver.DwmCorners(_settings.Theme);
+
+    /// <summary>Apply the theme/override native corner preference to this window's own HWND.
+    /// No-op before SourceInitialized (which applies the initial mode).</summary>
+    private void ApplyOwnCornerMode()
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;
+        WindowOpacityApplier.SetCornerMode(hwnd, EffectiveDwmCornerMode);
+    }
+
     private void ApplyOpenPlayerAppearance()
     {
         _player?.ApplyAppearance(EffectiveAccentColor, EffectiveFadeIdleDelayMs, EffectiveStripAutoHide);
         _player?.ApplyWindowOpacity(EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity);
+        _player?.ApplyCornerMode(EffectiveDwmCornerMode);
     }
 
     internal void ReplaceSettingsForTests(AppSettings settings) => _settings = settings;
 
     internal (string AccentColor, int FadeIdleDelayMs, double ActiveWindowOpacity, double IdleWindowOpacity,
-        bool StripAutoHide) EffectivePlayerPreferencesForTests =>
+        bool StripAutoHide, string CornerStyle) EffectivePlayerPreferencesForTests =>
         (EffectiveAccentColor, EffectiveFadeIdleDelayMs, EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity,
-            EffectiveStripAutoHide);
+            EffectiveStripAutoHide, EffectiveCornerStyle);
 
     private async Task PerformClearBrowserDataAsync()
     {
@@ -731,7 +756,7 @@ public partial class MainWindow : Window
                 _settings.Player.FadeEnabled, EffectiveAccentColor,
                 EffectiveFadeIdleDelayMs, mode, target,
                 EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity,
-                EffectiveStripAutoHide);
+                EffectiveStripAutoHide, EffectiveDwmCornerMode);
             _player.PlayerClosed += Player_OnClosed;
             _player.Show();
 

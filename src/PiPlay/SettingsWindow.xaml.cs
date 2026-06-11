@@ -28,6 +28,10 @@ public partial class SettingsWindow : Window
     /// Task 10): one accent replaces the separate Pin/Fade color choices.</summary>
     internal string ThemeId { get; private set; }
     internal string AccentColor { get; private set; }
+
+    /// <summary>Corner profile override (review doc §8.1): "theme" follows the preset; the other
+    /// styles swap the whole radius + native-corner profile.</summary>
+    internal string CornerStyle { get; private set; }
     internal int FadeIdleDelayMs { get; private set; }
     internal bool CompactMode { get; private set; }
     internal double ConstantWindowOpacity { get; private set; }
@@ -50,13 +54,18 @@ public partial class SettingsWindow : Window
         bool compactMode = false,
         double constantWindowOpacity = WindowOpacityPolicy.Default,
         double idleWindowOpacity = WindowOpacityPolicy.Default,
-        bool stripAutoHide = false)
+        bool stripAutoHide = false,
+        string? cornerStyle = ThemeCatalog.DefaultCornerStyle)
     {
         InitializeComponent();
         ApplyInitialBounds();
+        // The dialog wears the theme/override corner shape itself, and re-applies it on chip
+        // clicks — instant feedback for the corner-style row (review doc §8.7).
+        SourceInitialized += (_, _) => ApplyOwnCornerMode();
 
         ThemeId = ThemeCatalog.NormalizeThemeId(themeId);
         AccentColor = ThemeCatalog.NormalizeAccentColor(accentColor);
+        CornerStyle = ThemeCatalog.NormalizeCornerStyle(cornerStyle);
         FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
         CompactMode = compactMode;
         CompactModeToggle.IsChecked = compactMode;
@@ -118,11 +127,31 @@ public partial class SettingsWindow : Window
 
     private void ThemePreset_Click(object sender, RoutedEventArgs e)
     {
+        var previousPreset = ThemeCatalog.PresetFor(ThemeId);
         ThemeId = ThemeCatalog.NormalizeThemeId(((FrameworkElement)sender).Tag as string);
-        // Selecting a preset adopts its default accent; the chips below can then fine-tune it.
-        AccentColor = ThemeCatalog.NormalizeAccentColor(ThemeCatalog.PresetFor(ThemeId).DefaultAccentColor);
+        // An explicit preset selection adopts the preset's defaults (review doc §2.1) — fade
+        // delay, top-bar auto-hide, opacity levels, and theme-owned corners. The controls below
+        // can then fine-tune each one; manual changes after this click are overrides. The accent
+        // follows the §3.3 switch rule (custom accents survive) via the pure catalog helper.
+        var preset = ThemeCatalog.PresetFor(ThemeId);
+        AccentColor = ThemeCatalog.AccentForThemeSwitch(AccentColor, previousPreset, preset);
+        CornerStyle = ThemeCatalog.DefaultCornerStyle;
+        FadeIdleDelayMs = ThemeCatalog.FadeDelayMillisecondsForPreset(preset.DefaultFadeDelayPreset);
+        StripAutoHide = preset.DefaultStripAutoHide;
+        StripAutoHideToggle.IsChecked = StripAutoHide;
+        // Adopt the opacity levels directly, then move the sliders: Slider.Value raises no
+        // ValueChanged when the DISPLAY percent doesn't move (e.g. a stored 0.917 and a preset
+        // 0.92 both display 92), so the stored values must not depend on the event side effect.
+        // The explicit preview invoke makes the preset's translucency visible before close.
+        ConstantWindowOpacity = WindowOpacityPolicy.Normalize(preset.DefaultActiveWindowOpacity);
+        IdleWindowOpacity = WindowOpacityPolicy.Normalize(preset.DefaultIdleWindowOpacity);
+        ActiveOpacitySlider.Value = DisplayPercent(ConstantWindowOpacity);
+        IdleOpacitySlider.Value = DisplayPercent(IdleWindowOpacity);
+        UpdateOpacityValueTexts();
+        OpacityPreviewChanged?.Invoke(ConstantWindowOpacity, IdleWindowOpacity);
         AppearanceChanged = true;
         ApplyAppearanceSelections();
+        ApplyOwnCornerMode();
     }
 
     private void AccentChip_Click(object sender, RoutedEventArgs e)
@@ -130,6 +159,23 @@ public partial class SettingsWindow : Window
         AccentColor = ThemeCatalog.NormalizeAccentColor(((FrameworkElement)sender).Tag as string);
         AppearanceChanged = true;
         ApplyAppearanceSelections();
+    }
+
+    private void CornerStyle_Click(object sender, RoutedEventArgs e)
+    {
+        CornerStyle = ThemeCatalog.NormalizeCornerStyle(((FrameworkElement)sender).Tag as string);
+        AppearanceChanged = true;
+        ApplyAppearanceSelections();
+        ApplyOwnCornerMode();
+    }
+
+    /// <summary>The dialog's own native corner shape follows the pending theme/override selection.</summary>
+    private void ApplyOwnCornerMode()
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;   // SourceInitialized applies the initial state
+        WindowOpacityApplier.SetCornerMode(hwnd,
+            ThemeCatalog.DwmCornersFor(ThemeCatalog.PresetFor(ThemeId), CornerStyle));
     }
 
     private void FadeDelay_Click(object sender, RoutedEventArgs e)
@@ -209,7 +255,10 @@ public partial class SettingsWindow : Window
     private void ApplyAppearanceSelections()
     {
         SelectByTag(ThemeId, ThemeSharpDarkPreset, ThemeMinimalPreset, ThemeSoftGlassPreset);
-        SelectByTag(AccentColor, AccentChipCyan, AccentChipSteelBlue, AccentChipViolet, AccentChipGreen, AccentChipAmber);
+        SelectByTag(AccentColor, AccentChipCyan, AccentChipSteelBlue, AccentChipSteel, AccentChipViolet,
+            AccentChipGreen, AccentChipAmber);
+        SelectByTag(CornerStyle, CornerStyleThemeChip, CornerStyleSquareChip, CornerStyleSmallChip,
+            CornerStyleSoftChip, CornerStyleRoundChip);
         SelectDelay(FadeIdleDelayMs, FadeDelayShortPreset, FadeDelayNormalPreset, FadeDelayLongPreset);
     }
 

@@ -40,6 +40,12 @@ internal static class Prompt
             SnapsToDevicePixels = true,
         };
 
+        // Same native corner shape as the themed owner windows (review doc §8.7): without this,
+        // a round/square theme would leave the prompt as the only differently-shaped dialog.
+        win.SourceInitialized += (_, _) => Services.WindowOpacityApplier.SetCornerMode(
+            new System.Windows.Interop.WindowInteropHelper(win).Handle,
+            Theme.ThemeResourceApplier.CurrentDwmCorners);
+
         var root = new DockPanel();
 
         var bar = new Grid { Height = 42, Background = Brush("SurfaceBase") };

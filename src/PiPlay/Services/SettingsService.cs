@@ -176,11 +176,23 @@ public sealed class SettingsService
         s.Theme.ThemeId = ThemeCatalog.NormalizeThemeId(s.Theme.ThemeId);
         s.Theme.AccentColor = ThemeCatalog.NormalizeAccentColor(s.Theme.AccentColor);
         s.Theme.FadeDelayPreset = ThemeCatalog.NormalizeFadeDelayPreset(s.Theme.FadeDelayPreset);
+        s.Theme.CornerStyle = ThemeCatalog.NormalizeCornerStyle(s.Theme.CornerStyle);
         s.Theme.ActiveWindowOpacity = NormalizeOptionalOpacity(s.Theme.ActiveWindowOpacity);
         s.Theme.IdleWindowOpacity = NormalizeOptionalOpacity(s.Theme.IdleWindowOpacity);
+        // Schema ≤2 semantic switch (end-pass review F2): those files' null theme behavior
+        // values meant "use the legacy Player fields", so backfill them as explicit overrides
+        // once — under schema 3 a null means "use the preset default", and a configured look
+        // must never change across the upgrade. Runs after the opacity normalization so an
+        // invalid old override also lands on the user's previous effective value.
+        if (s.SchemaVersion < 3)
+        {
+            s.Theme.StripAutoHide ??= s.Player.StripAutoHide;
+            s.Theme.ActiveWindowOpacity ??= s.Player.ConstantWindowOpacity;
+            s.Theme.IdleWindowOpacity ??= s.Player.IdleWindowOpacity;
+        }
         if (s.Player.LastWidth < 320) s.Player.LastWidth = 960;
         if (s.Player.LastHeight < 180) s.Player.LastHeight = 540;
-        if (s.SchemaVersion <= 0) s.SchemaVersion = AppSettings.CurrentSchemaVersion;
+        if (s.SchemaVersion < AppSettings.CurrentSchemaVersion) s.SchemaVersion = AppSettings.CurrentSchemaVersion;
 
         s.Profiles.RemoveAll(p => p is null || string.IsNullOrWhiteSpace(p.Name));
         // Repair the per-profile playback mode to the durable vocabulary (null/normal/compact),

@@ -59,6 +59,7 @@ public partial class PlayerWindow : Window
     private double _constantWindowOpacity;
     private double _idleWindowOpacity;
     private bool _windowOpacityIdle;
+    private DwmCornerMode _dwmCornerMode;            // theme/override native corner shape (review doc §8.7)
     private int _probeCursorX, _probeCursorY;        // last cursor position the activity probe saw
     private long _lastInWindowCursorMoveMs = -1;     // Environment.TickCount64 of the last in-window move
     private readonly DispatcherTimer _opacityHoverPoll;
@@ -98,7 +99,8 @@ public partial class PlayerWindow : Window
         YouTubeTarget? fallbackTarget = null,
         double constantWindowOpacity = WindowOpacityPolicy.Default,
         double idleWindowOpacity = WindowOpacityPolicy.Default,
-        bool stripAutoHide = false)
+        bool stripAutoHide = false,
+        DwmCornerMode dwmCornerMode = DwmCornerMode.Default)
     {
         InitializeComponent();
         BorderlessWindowHelper.EnableExpandedResizeZones(this);
@@ -147,6 +149,7 @@ public partial class PlayerWindow : Window
 
         _constantWindowOpacity = WindowOpacityPolicy.Normalize(constantWindowOpacity);
         _idleWindowOpacity = WindowOpacityPolicy.Normalize(idleWindowOpacity);
+        _dwmCornerMode = dwmCornerMode;
         _opacityHoverPoll = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _opacityHoverPoll.Tick += OpacityHoverPoll_Tick;
 
@@ -167,6 +170,9 @@ public partial class PlayerWindow : Window
         SourceInitialized += (_, _) =>
         {
             if (_placement is not null) WindowPlacementService.Restore(this, _placement);
+            // Theme-driven native corners (review doc §8.7): explicit theme/override data, no
+            // longer an opacity side effect. Default mode leaves the window DWM-pristine.
+            ApplyCornerModeToHwnd();
             ApplyWindowOpacityToHwnd(animate: false);   // appear at the configured level, no flash
         };
         Closing += PlayerWindow_Closing;
@@ -704,12 +710,25 @@ public partial class PlayerWindow : Window
 
         var active = WindowOpacityPolicy.Effective(isIdle: false, _constantWindowOpacity, _idleWindowOpacity);
         var idle = WindowOpacityPolicy.Effective(isIdle: true, _constantWindowOpacity, _idleWindowOpacity);
-        // Rounded corners belong to the floating translucent look (spike S-3). They track the
-        // CONFIGURED feature, not the momentary alpha, so hover-restores don't square the corners;
-        // with both levels at 1.0 the window stays byte-identical to the pre-Phase-4 popout.
-        WindowOpacityApplier.SetRoundedCorners(hwnd, rounded: active < WindowOpacityPolicy.Max || idle < WindowOpacityPolicy.Max);
+        // Corner shape is theme/override data applied separately (ApplyCornerMode) — opacity no
+        // longer drives DWM rounding (review doc §2.6 decoupling).
         WindowOpacityApplier.Apply(hwnd, _windowOpacityIdle ? idle : active, animate);
         UpdateActivityProbe();
+    }
+
+    /// <summary>Live re-apply seam for the theme/override native corner shape, called by
+    /// MainWindow on settings changes (mirrors <see cref="ApplyWindowOpacity"/>).</summary>
+    internal void ApplyCornerMode(DwmCornerMode mode)
+    {
+        _dwmCornerMode = mode;
+        ApplyCornerModeToHwnd();
+    }
+
+    private void ApplyCornerModeToHwnd()
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero) return;   // SourceInitialized applies the initial state
+        WindowOpacityApplier.SetCornerMode(hwnd, _dwmCornerMode);
     }
 
     /// <summary>
