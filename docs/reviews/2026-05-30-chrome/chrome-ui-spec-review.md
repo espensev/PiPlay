@@ -181,4 +181,4 @@ Bottom line: based on current screenshots and current source/spec evidence, the 
 
 ## Prior Related Report
 
-This document supersedes and consolidates the earlier notes in `docs\Chrome_UI_Issue_Report.md` with current screenshots and refreshed source/spec evidence. The earlier report remains useful as the first-pass wording record.
+This document supersedes and consolidates the earlier notes in `superseded-chrome-ui-issue-report.md` with current screenshots and refreshed source/spec evidence. The earlier report remains useful as the first-pass wording record.

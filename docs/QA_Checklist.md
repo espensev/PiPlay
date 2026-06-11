@@ -2,7 +2,15 @@
 
 Re-runnable manual test pass for each shareable build. Derived from spec section 22 (Quality gates). Copy this list per release and fill it in.
 
+> **Test the deployed copy, not the repo.** Run this checklist against the deployed Stable exe at
+> `E:\Dev_test_implemenations\PiPlay\PiPlay.exe` (deployed via `scripts\Publish-Stable.ps1`) — never
+> against repo build output (`src\...\bin\...`, `bin\publish\...`); stale binaries are the classic
+> false pass. Before starting, run `.\scripts\Verify-StableDeploy.ps1` and copy its identity block
+> into the fields below.
+
 - **Build / version:** ____________________
+- **Deployed exe (must be `E:\Dev_test_implemenations\PiPlay\PiPlay.exe`):** ____________________
+- **Source commit (from `Verify-StableDeploy.ps1`):** ____________________
 - **Date / tester:** ____________________
 - **OS / DPI / monitors:** ____________________
 - **WebView2 runtime version:** ____________________

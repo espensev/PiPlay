@@ -12,11 +12,20 @@
     3. validates the publish metadata (SHA256/size) via scripts\Test-PublishMetadata.ps1;
     4. deploys the runnable copy to a deploy root (default E:\Dev_test_implemenations\PiPlay),
        REPLACING the binaries but PRESERVING the PiPlayData runtime folder so login/session survive;
-    5. writes a .piplay.publish.marker and prints a summary.
+    5. writes a .piplay.publish.marker;
+    6. re-verifies the DEPLOYED copy via scripts\Verify-StableDeploy.ps1 (post-copy artifact
+       re-hash + repo cross-check) and prints a summary.
+
+  The deployed copy at the deploy root is the ONLY sanctioned target for manual/human testing
+  (root CLAUDE.md, docs\AGENTS.md). Normal publishes bump VERSION/BUILD_NUMBER in the working
+  tree; commit those stamps and tag the source commit stable-vX.Y.Z-bN. For an exact current-HEAD
+  deploy, pre-commit the stamps and publish with -NoVersionBump -NoBuildNumberBump.
 
   By default the semantic VERSION bumps by patch before publish, so the versioned publish folder,
   archive, metadata, and window title advance together. Pass -Version minor|major|<semver> for a
-  different bump, or -NoVersionBump to keep VERSION unchanged and only bump BUILD_NUMBER.
+  different bump, or -NoVersionBump to keep VERSION unchanged and only bump BUILD_NUMBER. If
+  VERSION/BUILD_NUMBER are already committed for an exact source identity, pass both
+  -NoVersionBump and -NoBuildNumberBump.
   Code signing is intentionally not part of this pipeline yet (mirrors Build-PiPlay.ps1).
 
 .EXAMPLE
@@ -26,6 +35,8 @@
 .EXAMPLE
   .\scripts\Publish-Stable.ps1 -NoVersionBump
 .EXAMPLE
+  .\scripts\Publish-Stable.ps1 -NoVersionBump -NoBuildNumberBump
+.EXAMPLE
   .\scripts\Publish-Stable.ps1 -DeployRoot 'E:\Dev_test_implemenations\PiPlay' -SkipTests
 #>
 [CmdletBinding()]
@@ -33,10 +44,12 @@ param(
     [string]$DeployRoot = "E:\Dev_test_implemenations\PiPlay",
     [string]$Version,
     [switch]$NoVersionBump,
+    [int]$BuildNumber = 0,
+    [switch]$NoBuildNumberBump,
     [switch]$SkipTests,
     [switch]$SkipDeploy,
     [ValidateRange(1, 200)]
-    [int]$KeepPublishCount = 10
+    [int]$KeepPublishCount = 3
 )
 
 Set-StrictMode -Version Latest
@@ -67,6 +80,9 @@ Write-Host "Signing     : not configured" -ForegroundColor DarkGray
 if ($Version -and $NoVersionBump) {
     throw "Use either -Version or -NoVersionBump, not both."
 }
+if ($PSBoundParameters.ContainsKey("BuildNumber") -and $NoBuildNumberBump) {
+    throw "Use either -BuildNumber or -NoBuildNumberBump, not both."
+}
 
 # 1. Test gate (mirror CI's deterministic lane).
 if ($SkipTests) {
@@ -74,12 +90,16 @@ if ($SkipTests) {
 } else {
     Write-Step 1 "Running deterministic test lane (gate)..."
     $prevDataRoot = $env:PIPLAY_DATA_ROOT
-    $env:PIPLAY_DATA_ROOT = Join-Path ([System.IO.Path]::GetTempPath()) "PiPlayStablePublishTests"
+    $testDataRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("PiPlayStablePublishTests-" + [guid]::NewGuid().ToString("N"))
+    $env:PIPLAY_DATA_ROOT = $testDataRoot
     try {
         & dotnet test (Join-Path $repoRoot "PiPlay.sln") --configuration Debug
         if ($LASTEXITCODE -ne 0) { throw "Test lane failed; aborting stable publish." }
     } finally {
         $env:PIPLAY_DATA_ROOT = $prevDataRoot
+        if (Test-Path -LiteralPath $testDataRoot) {
+            Remove-Item -LiteralPath $testDataRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
 }
 
@@ -115,6 +135,11 @@ if ($NoVersionBump) {
 } else {
     # Stable publishes should normally move the versioned folder/archive/title forward.
     $buildParams["Version"] = if ($Version) { $Version } else { "patch" }
+}
+if ($PSBoundParameters.ContainsKey("BuildNumber")) {
+    $buildParams["BuildNumber"] = $BuildNumber
+} elseif ($NoBuildNumberBump) {
+    $buildParams["NoBuildNumberBump"] = $true
 }
 & $buildScript @buildParams
 if ($LASTEXITCODE -ne 0) { throw "Build-PiPlay.ps1 failed (exit $LASTEXITCODE)." }
@@ -165,7 +190,7 @@ foreach ($item in @(Get-ChildItem -LiteralPath $DeployRoot -Force -ErrorAction S
 
 Copy-Item -Path (Join-Path $latestDir "*") -Destination $DeployRoot -Recurse -Force
 
-# 5. Marker + summary.
+# 5. Marker.
 $nowUtc = (Get-Date).ToUniversalTime().ToString("o")
 $markerText = @"
 PiPlay stable publish marker (safe to clean).
@@ -178,6 +203,11 @@ sourceCommit=$($buildInfo.sourceCommit)
 deployedUtc=$nowUtc
 "@
 Set-Content -LiteralPath (Join-Path $DeployRoot $markerName) -Value $markerText -Encoding UTF8
+
+# 6. Post-copy verification: re-hash the deployed artifacts and cross-check identity vs the repo.
+Write-Step 6 "Verifying the deployed copy (Verify-StableDeploy.ps1)..."
+& (Join-Path $PSScriptRoot "Verify-StableDeploy.ps1") -DeployRoot $DeployRoot
+if ($LASTEXITCODE -ne 0) { throw "Deployed copy failed verification - do NOT test from it." }
 
 Write-Host "`n--- STABLE DEPLOY COMPLETE ---" -ForegroundColor Green
 Write-Host "Version      : $($buildInfo.version) (build $($buildInfo.buildNumber))"

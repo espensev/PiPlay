@@ -102,14 +102,16 @@ dotnet test --filter Category=Markup
 dotnet test --filter Category=Wpf
 ```
 
-Release candidates still need the manual lane:
+Release candidates still need the manual lane — run it against the **deployed Stable copy**, never
+the repo tree (stale repo binaries are the classic false pass; see `AGENTS.md` Conventions):
 
 ```powershell
-.\Build-PiPlay.ps1 -Stage Publish
-pwsh -File scripts\Test-UiSmoke.ps1
+.\scripts\Publish-Stable.ps1                 # gate + build + deploy to E:\Dev_test_implemenations\PiPlay
+.\scripts\Verify-StableDeploy.ps1            # confirm WHAT you are about to test (version/build/commit + hashes)
+pwsh -File scripts\Test-UiSmoke.ps1 -ExePath E:\Dev_test_implemenations\PiPlay\PiPlay.exe
 ```
 
-Then run `docs/QA_Checklist.md` for shareable builds.
+Then run `docs/QA_Checklist.md` for shareable builds — also against the deployed exe.
 
 ### Review the risky changes
 
@@ -135,8 +137,21 @@ identity, and a `PiPlay — Stable vX.Y.Z (bN)` title. After deploying, launch t
 confirm it opens its own window with an isolated `PiPlayData` folder beside it. Background and trade-offs:
 `docs/adr/0007-stable-channel-and-portable-data.md`.
 
-Use `-Version minor|major|<semver>` to choose a different version move, or `-NoVersionBump` when you
-intentionally want another build under the same semantic version.
+**Choosing the version move** (`VERSION` is the semantic version; `BUILD_NUMBER` moves on every publish):
+
+- New user-visible feature or behavior → `-Version minor`; breaking change / milestone → `-Version major`.
+- Fixes and small tweaks only → the default patch bump.
+- Rebuild of identical source (re-deploy, doc-only) → `-NoVersionBump` (build number still moves).
+- Exact pre-stamped source identity → commit `VERSION`/`BUILD_NUMBER` first, then publish with
+  `-NoVersionBump -NoBuildNumberBump`.
+
+**After a normal deploy** — the scripts bump `VERSION`/`BUILD_NUMBER` in the working tree but never
+commit them: commit the bumped files together with the CHANGELOG entry and tag the source commit
+`stable-vX.Y.Z-bN`, so every deployed build maps back to a commit. For an exact current-HEAD deploy,
+pre-commit the stamps and publish with `-NoVersionBump -NoBuildNumberBump`; then tag that committed
+source after the deploy. Then (or any time you are about to test) run
+`.\scripts\Verify-StableDeploy.ps1` — it re-hashes the deployed artifacts and prints the deployed
+version/build/commit, including how far the deploy lags HEAD.
 
 ## 5. Open the PR
 

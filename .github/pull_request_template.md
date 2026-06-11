@@ -38,4 +38,7 @@ dotnet test PiPlay.sln --configuration Debug
 
 ## Manual QA evidence
 
-<!-- For release-candidate or visual work: evidence paths under docs/evidence/. Otherwise "N/A". -->
+<!-- For release-candidate or visual work: evidence paths under docs/evidence/. Otherwise "N/A".
+     Manual testing runs against the DEPLOYED Stable copy (E:\Dev_test_implemenations\PiPlay), never
+     repo build output. State the tested build identity (version/build/commit) as printed by
+     .\scripts\Verify-StableDeploy.ps1. -->

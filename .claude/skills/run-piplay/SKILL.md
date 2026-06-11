@@ -13,6 +13,13 @@ PiPlay is a Windows-native **WPF (.NET 10) app hosting WebView2** — a GUI, not
 This recipe is verified on Windows 11 + WebView2 Evergreen. The built-in `/run` fallbacks don't
 cover a WPF + WebView2 window — this skill is the repo's verified path; follow it verbatim.
 
+> **Scope: automated change-verification only.** The repo Debug build this skill launches exists to
+> confirm a code change works while developing. Any **manual/human testing, QA-checklist pass, or
+> release verification** instead uses the deployed Stable copy at
+> `E:\Dev_test_implemenations\PiPlay\PiPlay.exe` (deploy: `scripts\Publish-Stable.ps1`; confirm
+> what's deployed first: `scripts\Verify-StableDeploy.ps1`). Never present a repo-built launch as
+> manual-QA or release evidence — stale repo binaries are the classic false pass (root `CLAUDE.md`).
+
 ## Prerequisites (check, don't assume)
 
 - **WebView2 Evergreen Runtime** — folder `C:\Program Files (x86)\Microsoft\EdgeWebView\Application\<ver>`.
@@ -27,8 +34,10 @@ dotnet build src\PiPlay\PiPlay.csproj -c Debug
 ```
 
 Exe: `src\PiPlay\bin\Debug\net10.0-windows\PiPlay.exe` (Default dev channel — title bar reads
-"PiPlay"; data under `%LOCALAPPDATA%\PiPlay`). For the Stable channel instead, see
-`scripts\Publish-Stable.ps1` and run the deployed copy ("PiPlay — Stable vX.Y.Z" title).
+"PiPlay"; data under `%LOCALAPPDATA%\PiPlay`). To drive the **deployed Stable copy** instead
+(manual-QA territory — see the scope note above), pass
+`-Exe E:\Dev_test_implemenations\PiPlay\PiPlay.exe` to `launch-and-capture.ps1`
+("PiPlay — Stable vX.Y.Z (bN)" title; data in `PiPlayData` beside the exe).
 
 ## 2. Launch + drive + screenshot
 

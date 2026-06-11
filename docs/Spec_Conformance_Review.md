@@ -37,7 +37,7 @@ behavior — most now closed by this suite — or (b) Phase-2/4 features the spe
 **None.** The review's two `isReal=true` verdicts — both in Chrome (REQ-UI-01 "dark-theme
 completeness" and "dark tooltips") — are **stale-evidence artifacts**, not current bugs:
 
-- Their evidence cites `docs/Chrome_UI_Issue_Report.md` and the `chrome-current-*.png`
+- Their evidence cites `docs/reviews/2026-05-30-chrome/superseded-chrome-ui-issue-report.md` and the `chrome-current-*.png`
   screenshots, which capture the **pre-fix** state dated 2026-05-30 (there are also
   `chrome-fixed-*.png` "after" captures).
 - The current source already implements the dark fixes: `ControlStyles.xaml` defines a full

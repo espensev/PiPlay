@@ -3,8 +3,15 @@
 Review date: 2026-05-30  
 Workspace: `D:\Development\DesktopApps\PiPlay`  
 Build reviewed: `bin\publish\latest\PiPlay.exe`  
-Related findings report: `docs/Chrome_UI_Spec_Review.md`  
-Earlier first-pass report: `docs/Chrome_UI_Issue_Report.md`
+Archived findings report: `docs/reviews/2026-05-30-chrome/chrome-ui-spec-review.md`  
+Earlier first-pass report: `docs/reviews/2026-05-30-chrome/superseded-chrome-ui-issue-report.md`
+
+> **Test build rule (applies to every future run of this procedure):** the original 2026-05-30
+> review used the repo's `bin\publish\latest\PiPlay.exe`; that is no longer the sanctioned test
+> target. Run this procedure against the **deployed Stable copy** at
+> `E:\Dev_test_implemenations\PiPlay\PiPlay.exe` (deploy: `scripts\Publish-Stable.ps1`), and record
+> the build identity printed by `.\scripts\Verify-StableDeploy.ps1` as the "Build reviewed". Never
+> review repo build output — stale binaries invalidate the evidence (root `CLAUDE.md`).
 
 ## Purpose
 
@@ -135,7 +142,7 @@ These cases extend the first screenshot pass so most identifiable source-window 
 
 Action:
 
-1. Launch `bin\publish\latest\PiPlay.exe`.
+1. Launch the deployed Stable exe: `E:\Dev_test_implemenations\PiPlay\PiPlay.exe`.
 2. Wait for the main window and YouTube content to appear.
 3. Capture `chrome-<build>-base.png`.
 
@@ -450,7 +457,7 @@ Source references:
 
 ## Manual Test Result Template
 
-Use this template when updating `docs\Chrome_UI_Spec_Review.md` or creating a build-specific manual QA note.
+Use this template when updating `docs\reviews\2026-05-30-chrome\chrome-ui-spec-review.md` or creating a build-specific manual QA note.
 
 ```text
 Build:
@@ -498,13 +505,16 @@ The screenshots used by the review are stored in `docs/evidence`.
 
 ## Step-by-Step Procedure
 
-1. Build or select the app build to review.
+1. Deploy and verify the build to review.
 
-   The reviewed build was the published executable at `bin\publish\latest\PiPlay.exe`. The review used that executable as the runtime source of truth for the captured screenshots.
+   Deploy with `.\scripts\Publish-Stable.ps1`, then run `.\scripts\Verify-StableDeploy.ps1` and record
+   its identity block (version/build/commit) as the reviewed build. The deployed Stable executable at
+   `E:\Dev_test_implemenations\PiPlay\PiPlay.exe` is the runtime source of truth for the captured
+   screenshots. (The original 2026-05-30 review predates this rule and used `bin\publish\latest\PiPlay.exe`.)
 
 2. Launch the app.
 
-   Run `bin\publish\latest\PiPlay.exe` from the workspace or from File Explorer. Wait for the main PiPlay window to appear and for the embedded WebView2 content to finish painting enough that the toolbar and page content are visible.
+   Run `E:\Dev_test_implemenations\PiPlay\PiPlay.exe` from File Explorer or a shell. Wait for the main PiPlay window to appear and for the embedded WebView2 content to finish painting enough that the toolbar and page content are visible.
 
 3. Capture the base chrome state.
 
@@ -657,4 +667,4 @@ Not verified by this pass:
 6. Save screenshots with a date/build-specific naming scheme if preserving multiple runs.
 7. Compare screenshots against `src\PiPlay\MainWindow.xaml`, `src\PiPlay\Theme\ControlStyles.xaml`, `src\PiPlay\Theme\Colors.xaml`, `src\PiPlay\Models\AppSettings.cs`, `src\PiPlay\MainWindow.xaml.cs`, `src\PiPlay\PlayerWindow.xaml`, and `src\PiPlay\Prompt.cs`.
 8. Check the current spec and ADR text before deciding whether each visible problem is out of spec.
-9. Update `docs\Chrome_UI_Spec_Review.md` with the new evidence, source locations, verdicts, and confidence levels.
+9. Update `docs\reviews\2026-05-30-chrome\chrome-ui-spec-review.md` with the new evidence, source locations, verdicts, and confidence levels.

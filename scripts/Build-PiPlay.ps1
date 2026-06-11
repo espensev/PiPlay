@@ -40,7 +40,7 @@ param(
     [string]$PublishLabel,
 
     [ValidateRange(1, 200)]
-    [int]$KeepPublishCount = 10,
+    [int]$KeepPublishCount = 3,
 
     [switch]$NoLatest,
     [switch]$NoVersionTable,
@@ -666,7 +666,7 @@ if ($Help) {
     Write-Host "OUTPUT OPTIONS" -ForegroundColor Yellow
     Write-Host "  -PublishRoot <path>     Publish root (default: bin\publish)"
     Write-Host "  -PublishLabel <label>   Explicit publish folder label"
-    Write-Host "  -KeepPublishCount <n>   Keep newest n publish folders (default: 10)"
+    Write-Host "  -KeepPublishCount <n>   Keep newest n publish folders (default: 3)"
     Write-Host "  -NoLatest               Skip bin\publish\latest"
     Write-Host "  -NoVersionTable         Skip VERSION_TABLE.json"
     Write-Host "  -NoArchive              Skip archive zip in Release stage"
