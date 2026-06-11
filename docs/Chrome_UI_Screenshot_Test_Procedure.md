@@ -3,7 +3,7 @@
 Review date: 2026-05-30  
 Workspace: `D:\Development\DesktopApps\PiPlay`  
 Build reviewed: `bin\publish\latest\PiPlay.exe`  
-Archived findings report: `docs/reviews/2026-05-30-chrome/chrome-ui-spec-review.md`  
+Archived findings report: `docs/reviews/2026-05-30-chrome/chrome-ui-spec-review.md`
 Earlier first-pass report: `docs/reviews/2026-05-30-chrome/superseded-chrome-ui-issue-report.md`
 
 > **Test build rule (applies to every future run of this procedure):** the original 2026-05-30

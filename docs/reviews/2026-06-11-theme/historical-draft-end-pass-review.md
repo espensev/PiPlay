@@ -6,9 +6,9 @@
 
 # PiPlay Theme End-Pass Review
 
-Date: 2026-06-11  
-Scope: live checkout in `D:\Development\DesktopApps\PiPlay`  
-Review target: theme foundation, Settings appearance flow, accent resources, radius tokens, native corner behavior, tests  
+Date: 2026-06-11
+Scope: live checkout in `D:\Development\DesktopApps\PiPlay`
+Review target: theme foundation, Settings appearance flow, accent resources, radius tokens, native corner behavior, tests
 Verdict: not ready as the full theme/radius variant pass. This is a useful foundation pass, but the actual app path still behaves mostly like the legacy Pin/Fade customization system.
 
 Verification run:

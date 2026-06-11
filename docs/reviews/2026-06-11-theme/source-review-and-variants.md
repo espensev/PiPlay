@@ -1,7 +1,7 @@
 # PiPlay Theme Review and Color Variant Definition
 
-Source reviewed: `PiPlay-review-bundle-2026-06-11-v2-for-chatgpt.zip`  
-Scope: current theme implementation, Settings appearance flow, color variants, rounding/theme definitions  
+Source reviewed: `PiPlay-review-bundle-2026-06-11-v2-for-chatgpt.zip`
+Scope: current theme implementation, Settings appearance flow, color variants, rounding/theme definitions
 Status: implementation guide; no code changes applied in this review
 
 > Note: I could not run `dotnet test` in this container because the .NET SDK is not installed here. This review is based on static inspection of the supplied bundle.
