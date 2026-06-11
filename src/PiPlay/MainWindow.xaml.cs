@@ -484,9 +484,9 @@ public partial class MainWindow : Window
             accentColor: EffectiveAccentColor,
             fadeIdleDelayMs: EffectiveFadeIdleDelayMs,
             compactMode: _settings.Player.CompactMode,
-            constantWindowOpacity: EffectiveActiveWindowOpacity,
-            idleWindowOpacity: EffectiveIdleWindowOpacity,
-            stripAutoHide: EffectiveStripAutoHide,
+            activeOpacityOverride: _settings.Theme.ActiveWindowOpacity,
+            idleOpacityOverride: _settings.Theme.IdleWindowOpacity,
+            stripAutoHideOverride: _settings.Theme.StripAutoHide,
             cornerStyle: EffectiveCornerStyle)
         {
             Owner = this,
@@ -513,7 +513,8 @@ public partial class MainWindow : Window
         if (dialog.AppearanceChanged)
         {
             ApplyPlayerPreferences(dialog.ThemeId, dialog.AccentColor, dialog.FadeIdleDelayMs, dialog.CompactMode,
-                dialog.ConstantWindowOpacity, dialog.IdleWindowOpacity, dialog.StripAutoHide, dialog.CornerStyle);
+                dialog.ActiveOpacityOverride, dialog.IdleOpacityOverride, dialog.StripAutoHideOverride,
+                dialog.CornerStyle);
         }
 
         switch (dialog.RequestedAction)
@@ -558,25 +559,15 @@ public partial class MainWindow : Window
     }
 
     private void ApplyPlayerPreferences(string themeId, string accentColor, int fadeIdleDelayMs, bool compactMode,
-        double constantWindowOpacity, double idleWindowOpacity, bool stripAutoHide,
+        double? activeOpacityOverride, double? idleOpacityOverride, bool? stripAutoHideOverride,
         string cornerStyle = ThemeCatalog.DefaultCornerStyle)
     {
-        // Theme accent is the single source of truth for Pin/Fade color now (overhaul Task 10). The
-        // legacy Player.PinAccent/FadeAccent stay at their persisted values (readable for back-compat)
-        // but no longer drive any color.
-        _settings.Theme.ThemeId = ThemeCatalog.NormalizeThemeId(themeId);
-        _settings.Theme.AccentColor = ThemeCatalog.NormalizeAccentColor(accentColor);
-        _settings.Player.FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
-        _settings.Theme.FadeDelayPreset = ThemeCatalog.FadeDelayPresetForMilliseconds(_settings.Player.FadeIdleDelayMs);
-        // Global compact-mode default takes effect on the NEXT popout; an open player keeps its mode.
-        _settings.Player.CompactMode = compactMode;
-        _settings.Player.ConstantWindowOpacity = WindowOpacityPolicy.Normalize(constantWindowOpacity);
-        _settings.Player.IdleWindowOpacity = WindowOpacityPolicy.Normalize(idleWindowOpacity);
-        _settings.Player.StripAutoHide = stripAutoHide;
-        _settings.Theme.ActiveWindowOpacity = _settings.Player.ConstantWindowOpacity;
-        _settings.Theme.IdleWindowOpacity = _settings.Player.IdleWindowOpacity;
-        _settings.Theme.StripAutoHide = _settings.Player.StripAutoHide;
-        _settings.Theme.CornerStyle = ThemeCatalog.NormalizeCornerStyle(cornerStyle);
+        // Theme accent is the single source of truth for Pin/Fade color now (overhaul Task 10);
+        // behavior values are NULLABLE overrides (theme code review P2) — the pure writer keeps
+        // nulls null so an accent-only apply leaves the user following preset defaults, and
+        // mirrors the EFFECTIVE values onto the legacy Player fields.
+        ThemeSettingsWriter.Apply(_settings, themeId, accentColor, fadeIdleDelayMs, compactMode,
+            activeOpacityOverride, idleOpacityOverride, stripAutoHideOverride, cornerStyle);
 
         // Restyle the theme-driven shell resources live (DynamicResource consumers re-resolve), then
         // the runtime-applied Pin/Fade glyphs and the native window corners, so the whole theme

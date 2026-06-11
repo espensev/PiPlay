@@ -131,8 +131,11 @@
 
         <TextBlock Text="Theme" FontSize="12" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,0,0,6" />
+        <!-- Copy matches the actual close-to-apply behavior (theme code review P3): theme and
+             accent land on every open window when the dialog closes; only the opacity sliders
+             (and this dialog's own corners) preview live while it is open. -->
         <TextBlock x:Name="ThemeHintText"
-                   Text="Themes and the accent apply right away to the main window and to new Popout Players. A preset sets the accent; the chips fine-tune it."
+                   Text="Theme, accent, and corners apply to every open window when you close Settings - no restart needed. A preset sets the accent; the chips fine-tune it."
                    TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,0,0,8" />
         <StackPanel Orientation="Horizontal" Margin="0,0,0,14">

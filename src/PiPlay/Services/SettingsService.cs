@@ -217,12 +217,6 @@ public sealed class SettingsService
         }
     }
 
-    private static double? NormalizeOptionalOpacity(double? value)
-    {
-        if (value is null) return null;
-        var raw = value.Value;
-        if (double.IsNaN(raw) || raw < WindowOpacityPolicy.FileFloor || raw > WindowOpacityPolicy.Max)
-            return null;
-        return raw;
-    }
+    private static double? NormalizeOptionalOpacity(double? value) =>
+        WindowOpacityPolicy.NormalizeOptional(value);   // one repair rule with the Settings-apply writer
 }

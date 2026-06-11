@@ -34,9 +34,31 @@ public partial class SettingsWindow : Window
     internal string CornerStyle { get; private set; }
     internal int FadeIdleDelayMs { get; private set; }
     internal bool CompactMode { get; private set; }
-    internal double ConstantWindowOpacity { get; private set; }
-    internal double IdleWindowOpacity { get; private set; }
-    internal bool StripAutoHide { get; private set; }
+
+    /// <summary>Nullable behavior OVERRIDES (theme code review P2): null = follow the selected
+    /// preset's default. Only touching a behavior control (or a persisted override seeded into
+    /// the ctor) makes a value explicit — an accent-only apply keeps nulls null, so the user
+    /// keeps following future preset behavior defaults.</summary>
+    internal double? ActiveOpacityOverride { get; private set; }
+
+    /// <inheritdoc cref="ActiveOpacityOverride"/>
+    internal double? IdleOpacityOverride { get; private set; }
+
+    /// <inheritdoc cref="ActiveOpacityOverride"/>
+    internal bool? StripAutoHideOverride { get; private set; }
+
+    /// <summary>The EFFECTIVE levels (override ?? preset default): what the sliders display,
+    /// the live preview sends, and the legacy Player mirrors persist.</summary>
+    internal double ConstantWindowOpacity => WindowOpacityPolicy.Normalize(
+        ActiveOpacityOverride ?? ThemeCatalog.PresetFor(ThemeId).DefaultActiveWindowOpacity);
+
+    /// <inheritdoc cref="ConstantWindowOpacity"/>
+    internal double IdleWindowOpacity => WindowOpacityPolicy.Normalize(
+        IdleOpacityOverride ?? ThemeCatalog.PresetFor(ThemeId).DefaultIdleWindowOpacity);
+
+    /// <inheritdoc cref="ConstantWindowOpacity"/>
+    internal bool StripAutoHide =>
+        StripAutoHideOverride ?? ThemeCatalog.PresetFor(ThemeId).DefaultStripAutoHide;
 
     /// <summary>Raised on every opacity slider move so MainWindow can live-preview the levels on
     /// the open popout (spec 7.3 / plan Task 3). Args: (constant, idle).</summary>
@@ -52,9 +74,9 @@ public partial class SettingsWindow : Window
         string? accentColor = ThemeCatalog.DefaultAccentColor,
         int fadeIdleDelayMs = PlayerAppearancePolicy.DefaultFadeIdleDelayMs,
         bool compactMode = false,
-        double constantWindowOpacity = WindowOpacityPolicy.Default,
-        double idleWindowOpacity = WindowOpacityPolicy.Default,
-        bool stripAutoHide = false,
+        double? activeOpacityOverride = null,
+        double? idleOpacityOverride = null,
+        bool? stripAutoHideOverride = null,
         string? cornerStyle = ThemeCatalog.DefaultCornerStyle)
     {
         InitializeComponent();
@@ -69,13 +91,14 @@ public partial class SettingsWindow : Window
         FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
         CompactMode = compactMode;
         CompactModeToggle.IsChecked = compactMode;
-        StripAutoHide = stripAutoHide;
-        StripAutoHideToggle.IsChecked = stripAutoHide;
+        StripAutoHideOverride = stripAutoHideOverride;
+        StripAutoHideToggle.IsChecked = StripAutoHide;
 
-        // A hand-edited sub-floor level (the spec 7.3 explicit unlock) is preserved exactly until
-        // the user moves that slider: the DISPLAY clamps to the 45% floor, the stored value doesn't.
-        ConstantWindowOpacity = WindowOpacityPolicy.Normalize(constantWindowOpacity);
-        IdleWindowOpacity = WindowOpacityPolicy.Normalize(idleWindowOpacity);
+        // A hand-edited sub-floor override (the spec 7.3 explicit unlock) is preserved exactly
+        // until the user moves that slider: the DISPLAY clamps to the 45% floor, the stored
+        // override doesn't.
+        ActiveOpacityOverride = NormalizeOverride(activeOpacityOverride);
+        IdleOpacityOverride = NormalizeOverride(idleOpacityOverride);
         ActiveOpacitySlider.Value = DisplayPercent(ConstantWindowOpacity);
         IdleOpacitySlider.Value = DisplayPercent(IdleWindowOpacity);
         _seedingOpacitySliders = false;
@@ -137,16 +160,18 @@ public partial class SettingsWindow : Window
         AccentColor = ThemeCatalog.AccentForThemeSwitch(AccentColor, previousPreset, preset);
         CornerStyle = ThemeCatalog.DefaultCornerStyle;
         FadeIdleDelayMs = ThemeCatalog.FadeDelayMillisecondsForPreset(preset.DefaultFadeDelayPreset);
-        StripAutoHide = preset.DefaultStripAutoHide;
+        // Behavior returns to "follow the preset" (code review P2): the overrides reset to null
+        // and the controls DISPLAY the new preset's defaults. The seeding guard wraps the slider
+        // moves so the programmatic update cannot re-create overrides; the explicit preview
+        // invoke still shows the preset's translucency before close.
+        StripAutoHideOverride = null;
+        ActiveOpacityOverride = null;
+        IdleOpacityOverride = null;
         StripAutoHideToggle.IsChecked = StripAutoHide;
-        // Adopt the opacity levels directly, then move the sliders: Slider.Value raises no
-        // ValueChanged when the DISPLAY percent doesn't move (e.g. a stored 0.917 and a preset
-        // 0.92 both display 92), so the stored values must not depend on the event side effect.
-        // The explicit preview invoke makes the preset's translucency visible before close.
-        ConstantWindowOpacity = WindowOpacityPolicy.Normalize(preset.DefaultActiveWindowOpacity);
-        IdleWindowOpacity = WindowOpacityPolicy.Normalize(preset.DefaultIdleWindowOpacity);
+        _seedingOpacitySliders = true;
         ActiveOpacitySlider.Value = DisplayPercent(ConstantWindowOpacity);
         IdleOpacitySlider.Value = DisplayPercent(IdleWindowOpacity);
+        _seedingOpacitySliders = false;
         UpdateOpacityValueTexts();
         OpacityPreviewChanged?.Invoke(ConstantWindowOpacity, IdleWindowOpacity);
         AppearanceChanged = true;
@@ -197,20 +222,23 @@ public partial class SettingsWindow : Window
 
     private void StripAutoHideToggle_Click(object sender, RoutedEventArgs e)
     {
-        StripAutoHide = StripAutoHideToggle.IsChecked == true;
+        StripAutoHideOverride = StripAutoHideToggle.IsChecked == true;
         AppearanceChanged = true;
     }
 
     private static double DisplayPercent(double level) =>
         Math.Round(Math.Max(level, WindowOpacityPolicy.UiFloor) * 100.0);
 
+    private static double? NormalizeOverride(double? value) =>
+        WindowOpacityPolicy.NormalizeOptional(value);   // invalid input = no override, follow the preset
+
     private void OpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (_seedingOpacitySliders) return;
         var slider = (Slider)sender;
         var level = Math.Round(slider.Value) / 100.0;
-        if (ReferenceEquals(slider, ActiveOpacitySlider)) ConstantWindowOpacity = level;
-        else IdleWindowOpacity = level;
+        if (ReferenceEquals(slider, ActiveOpacitySlider)) ActiveOpacityOverride = level;
+        else IdleOpacityOverride = level;
         AppearanceChanged = true;
         UpdateOpacityValueTexts();
         OpacityPreviewChanged?.Invoke(ConstantWindowOpacity, IdleWindowOpacity);
