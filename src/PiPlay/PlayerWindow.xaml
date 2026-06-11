@@ -8,7 +8,7 @@
         WindowStyle="None"
         ResizeMode="CanResize"
         AllowsTransparency="False"
-        Background="Black"
+        Background="{StaticResource Theme.MediaBackdrop}"
         ShowInTaskbar="True"
         UseLayoutRounding="False"
         SnapsToDevicePixels="True">

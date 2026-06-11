@@ -127,7 +127,7 @@
     </Grid>
 
     <!-- Content: browser + overlays -->
-    <Grid Grid.Row="2" Background="Black">
+    <Grid Grid.Row="2" Background="{StaticResource Theme.MediaBackdrop}">
       <!-- Resize inset band (REQ-WINDOW-02, overhaul Task 1): the WebView2 child HWND swallows
            WM_NCHITTEST, so the top-level window must own the edge pixels for the resize subclass
            to see them. Left/right/bottom margin == BorderlessResizeHitTestPolicy.ResizeBorderDip
@@ -148,7 +148,7 @@
       </wv2:WebView2>
 
       <!-- Tier-1 Source Placeholder: shown (and the WebView hidden) while popped out (spec 13.3). -->
-      <Border x:Name="SourcePlaceholder" Background="Black" Visibility="Collapsed">
+      <Border x:Name="SourcePlaceholder" Background="{StaticResource Theme.MediaBackdrop}" Visibility="Collapsed">
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
           <TextBlock Text="&#xE8A7;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="40"
                      Foreground="{StaticResource AccentCyan}" HorizontalAlignment="Center" />

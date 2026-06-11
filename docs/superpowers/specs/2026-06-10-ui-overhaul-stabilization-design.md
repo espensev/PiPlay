@@ -354,3 +354,34 @@ include a dated design spec or a Spec-Exception line.
 Popout Standard / Popout Fullview Faded divergence. Guardrails added where implementation could
 accidentally create it: route-B mode gating (Task 4), fade-state-agnostic fixes (Tasks 1-2), and the
 source-side fallback note placement (Task 6).
+
+## Task 9 implementation record (2026-06-11)
+
+Settled mechanics for the theme-resource pass, recorded because two of them are non-obvious:
+
+- **Startup ordering.** `App.OnStartup` applies theme tokens via a new side-effect-free
+  `SettingsService.LoadReadOnly()` (no directory creation, no quarantine, no cleanup, no logging)
+  before `MainWindow` is constructed; `MainWindow` still owns the real `Load()` and any repair.
+  `ThemeResourceApplier.Apply` never throws — theming cannot break startup.
+- **Replace every defining dictionary, don't root-only replace.** `Theme/ControlStyles.xaml` parses
+  during `App.InitializeComponent`, BEFORE `OnStartup`, and app-owned `Freezable` resources may be
+  frozen. The applier therefore replaces each `Theme.Accent*` entry in every merged dictionary that
+  defines it, so deferred styles resolve against their local dictionary scope and still see the
+  themed value. Only the accent family and the `Theme.*WindowOpacity`/`Theme.FadeIdleDelayMs` value
+  tokens vary at runtime this pass; base palette tokens are static.
+- **Alias mechanics (BAML limitation).** `<StaticResource x:Key=... ResourceKey=.../>` alias
+  ENTRIES do not resolve from a BAML-compiled merged dictionary (deferred-resource realization
+  fails with "Cannot find resource"). Legacy brush keys are therefore real brushes taking `Color`
+  from the `Theme.*Color` tokens; legacy `*Color` keys duplicate the hex literally and
+  `XamlInvariantTests.Compatibility_aliases_match_their_theme_tokens` pins the duplicates equal.
+  Instance identity is not required: the applier never mutates an aliased key.
+- **Accent derivation.** `AccentPalette.Derive` produces hover/pressed/dim/border deterministically
+  (sRGB mixes) and picks the foreground as white-or-black by WCAG contrast — the two ratios against
+  any color multiply to 21, so the winner is always >= sqrt(21) ~ 4.58:1, which also holds for any
+  future color-wheel accent. The fixed `AccentCyan*` chips and `PinToggle`'s checked accent are NOT
+  theme-derived; they stay until Task 10 lands the single-accent path.
+- **Staged radius scope.** `Radius.MainWindow`/`Radius.Popout` are defined at 0 but UNWIRED:
+  `WindowChrome.CornerRadius` stays a pinned literal (hit testing/DWM/airspace risk). Wired this
+  pass, value-preserving: `Radius.Button` (text buttons, 10), `Radius.Panel` (combo dropdown, 8),
+  `Radius.Settings` (swatch/preset toggles, 8). Icon buttons/textbox/combo (8), tooltip/combo item
+  (6), and scrollbar (5) keep literals until the radius taxonomy names them.

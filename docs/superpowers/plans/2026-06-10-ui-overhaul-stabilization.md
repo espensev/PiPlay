@@ -11,14 +11,15 @@ manual code verification). Diagnoses for Tasks 1-4 are now settled against sourc
 routes are recorded as rule-outs so they are not re-litigated during implementation. See the spec's
 "Review addendum" for the evidence trail.
 
-**Result:** In progress (2026-06-11). Tasks 1, 3, 4, 5, 6, 7, and
-8 landed; `dotnet test PiPlay.sln --configuration Debug --no-restore` = 476/476 and
+**Result:** In progress (2026-06-11). Tasks 1, 3, 4, 5, 6, 7, 8, and
+9 landed; `dotnet test PiPlay.sln --configuration Debug --no-restore` = 507/507 and
 `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` clean (0 warnings). Task 1's
 inset band was live-verified by an HWND-rect probe (10 px left/right/bottom) AND owner-verified by
 manual drag resize. Task 2 was live-diagnosed (wheel focus-routing — click into the page, then
 scroll works, even at 86% opacity; layered opacity ruled out) and the fix deferred by owner
 decision. Task 4's maximize semantics were decided (keep current full-monitor maximize). Remaining:
-Tasks 9-10 (theme resources and Settings UI), 11, 12.
+Task 10 (theme selector and accent chips), 11, 12; manual startup/theme smoke for Task 9 rides
+with Task 12's gate.
 
 ## Tasks
 
@@ -236,7 +237,15 @@ Tasks 9-10 (theme resources and Settings UI), 11, 12.
     directions), migration, invalid values, extension-data preservation, and catalog uniqueness.
   - Commit: `feat(theme): add compatible theme settings model`
 
-- [ ] **Task 9 - Introduce theme resources and compatibility aliases.**
+- [x] **Task 9 - Introduce theme resources and compatibility aliases.**
+  *(Landed 2026-06-11: canonical `Theme.*`/`Radius.*` tokens in Colors.xaml with the original
+  brush keys as value-pinned compatibility aliases, `AccentPalette` derivation (hover/pressed/
+  dim/border + contrast-safe white/black foreground), `ThemeResourceApplier` replacement across
+  every defining merged dictionary wired in `App.OnStartup` via a new side-effect-free
+  `SettingsService.LoadReadOnly()`, staged radius wiring (buttons/dropdown/settings toggles;
+  windows stay 0/unwired), and `Theme.MediaBackdrop` for the window/media backdrops. 507/507
+  after +31 token/alias/derivation/read-only-load tests; mechanics recorded in the spec's
+  "Task 9 implementation record".)*
   - Add theme-owned resource tokens for base colors, accent derivations, opacity/fade defaults, and
     staged radius values while keeping existing brush keys as aliases during migration.
   - Startup ordering: settings are currently loaded inside the `MainWindow` constructor — applying

@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using PiPlay.Services;
+using PiPlay.Theme;
 
 namespace PiPlay.Tests;
 
@@ -324,6 +325,10 @@ public class XamlInvariantTests
     [InlineData("TextPrimaryColor", "AppBackgroundColor", 4.5)]
     [InlineData("TextPrimaryColor", "SurfaceBaseColor", 4.5)]
     [InlineData("TextSecondaryColor", "SurfaceBaseColor", 4.5)]   // secondary text / empty state
+    [InlineData("Theme.AccentForegroundColor", "Theme.AccentColor", 4.5)]   // derived accent fg (Task 9)
+    [InlineData("AccentCyanForegroundColor", "AccentCyanColor", 4.5)]       // AccentButton fill
+    [InlineData("AccentCyanForegroundColor", "AccentCyanLightColor", 4.5)]  // AccentButton hover fill
+    [InlineData("Theme.TextOnDangerColor", "Theme.DangerColor", 3.0)]       // DangerButton (bold UI text)
     public void Theme_contrast_meets_minimum(string fg, string bg, double min)
     {
         var t = ColorTokens();
@@ -334,8 +339,10 @@ public class XamlInvariantTests
     [Fact]
     public void Accent_button_text_is_readable_on_accent_fill()
     {
-        // AccentButton: foreground #FF06141A literal on AccentCyan fill (ControlStyles.xaml).
-        var ratio = Wcag.ContrastRatio("#FF06141A", ColorTokens()["AccentCyanColor"]);
+        // AccentButton: AccentCyanForeground token on AccentCyan fill (was a #FF06141A literal
+        // in ControlStyles.xaml until overhaul Task 9 moved it into Colors.xaml).
+        var t = ColorTokens();
+        var ratio = Wcag.ContrastRatio(t["AccentCyanForegroundColor"], t["AccentCyanColor"]);
         Assert.True(ratio >= 4.5, $"Accent button text contrast = {ratio:F2}:1.");
     }
 
@@ -422,6 +429,96 @@ public class XamlInvariantTests
             .Select(e => e.Attribute(XamlTestFiles.X + "Key")?.Value)
             .Where(k => k is not null);
         Assert.Contains("DangerButton", keys);
+    }
+
+    // --- Theme tokens, compatibility aliases, and staged radius values (overhaul Task 9) ---
+
+    private static Dictionary<string, XElement> KeyedElements(string file) =>
+        XamlTestFiles.Load(file).Descendants()
+            .Where(e => e.Attribute(XamlTestFiles.X + "Key") is not null)
+            .ToDictionary(e => e.Attribute(XamlTestFiles.X + "Key")!.Value, e => e);
+
+    [Fact]
+    public void Theme_tokens_are_defined()
+    {
+        var keys = KeyedElements("Theme/Colors.xaml").Keys.ToHashSet();
+
+        foreach (var brushToken in new[]
+        {
+            "Theme.AppBackground", "Theme.SurfaceBase", "Theme.SurfaceRaised", "Theme.SurfaceHover",
+            "Theme.BorderSubtle", "Theme.TextPrimary", "Theme.TextSecondary", "Theme.Danger",
+            "Theme.TextOnDanger", "Theme.MediaBackdrop",
+            "Theme.Accent", "Theme.AccentHover", "Theme.AccentPressed", "Theme.AccentDim",
+            "Theme.AccentBorder", "Theme.AccentForeground",
+            "AccentCyanForeground",
+        })
+        {
+            Assert.True(keys.Contains(brushToken), $"Missing brush token {brushToken}.");
+            Assert.True(keys.Contains(brushToken + "Color"), $"Missing color token {brushToken}Color.");
+        }
+
+        foreach (var token in new[]
+        {
+            "Theme.ActiveWindowOpacity", "Theme.IdleWindowOpacity", "Theme.FadeIdleDelayMs",
+        })
+        {
+            Assert.True(keys.Contains(token), $"Missing token {token}.");
+        }
+    }
+
+    [Theory]
+    [InlineData("AppBackgroundColor", "Theme.AppBackgroundColor", "AppBackground")]
+    [InlineData("SurfaceBaseColor", "Theme.SurfaceBaseColor", "SurfaceBase")]
+    [InlineData("SurfaceRaisedColor", "Theme.SurfaceRaisedColor", "SurfaceRaised")]
+    [InlineData("SurfaceHoverColor", "Theme.SurfaceHoverColor", "SurfaceHover")]
+    [InlineData("BorderSubtleColor", "Theme.BorderSubtleColor", "BorderSubtle")]
+    [InlineData("TextPrimaryColor", "Theme.TextPrimaryColor", "TextPrimary")]
+    [InlineData("TextSecondaryColor", "Theme.TextSecondaryColor", "TextSecondary")]
+    [InlineData("DangerPinColor", "Theme.DangerColor", "DangerPin")]
+    public void Compatibility_aliases_match_their_theme_tokens(
+        string legacyColor, string themeColor, string legacyBrush)
+    {
+        // Alias COLOR keys must duplicate the hex literally (a StaticResource alias ENTRY does
+        // not resolve from a BAML-compiled merged dictionary), so pin the duplicate here.
+        var t = ColorTokens();
+        Assert.Equal(t[themeColor], t[legacyColor]);
+
+        // Alias BRUSHES take their Color from the Theme token (single source).
+        var brush = KeyedElements("Theme/Colors.xaml")[legacyBrush];
+        Assert.Equal($"{{StaticResource {themeColor}}}", brush.Attribute("Color")?.Value);
+    }
+
+    [Fact]
+    public void Accent_derivation_defaults_match_palette()
+    {
+        // The Theme.Accent* XAML defaults are hand-authored; keep them equal to what
+        // ThemeResourceApplier derives for the default accent so a launch with no settings file
+        // and a launch with default settings render identically.
+        var t = ColorTokens();
+        var p = AccentPalette.Derive(ThemeCatalog.DefaultAccentColor);
+        Assert.Equal(p.Accent.ToString(), t["Theme.AccentColor"]);
+        Assert.Equal(p.Hover.ToString(), t["Theme.AccentHoverColor"]);
+        Assert.Equal(p.Pressed.ToString(), t["Theme.AccentPressedColor"]);
+        Assert.Equal(p.Dim.ToString(), t["Theme.AccentDimColor"]);
+        Assert.Equal(p.Border.ToString(), t["Theme.AccentBorderColor"]);
+        Assert.Equal(p.Foreground.ToString(), t["Theme.AccentForegroundColor"]);
+    }
+
+    [Theory]
+    [InlineData("Radius.MainWindow", "0")]
+    [InlineData("Radius.Popout", "0")]
+    [InlineData("Radius.Button", "10")]
+    [InlineData("Radius.Panel", "8")]
+    [InlineData("Radius.Thumbnail", "8")]
+    [InlineData("Radius.Settings", "8")]
+    public void Radius_tokens_are_defined_with_staged_values(string key, string value)
+    {
+        // Staged values (outline 7.5): tokens exist app-wide, but Radius.MainWindow/Radius.Popout
+        // stay 0 and unwired — WindowChrome CornerRadius is pinned to 0 above and rounding the
+        // windows touches hit testing/DWM/airspace, which is a later, separately-QA'd stage.
+        var el = KeyedElements("Theme/Colors.xaml")[key];
+        Assert.Equal("CornerRadius", el.Name.LocalName);
+        Assert.Equal(value, el.Value.Trim());
     }
 
     // --- App manifest declares per-monitor-v2 DPI awareness (REQ-WINDOW-01, Q-7) ---

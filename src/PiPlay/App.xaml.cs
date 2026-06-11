@@ -5,6 +5,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
 using PiPlay.Services;
+using PiPlay.Theme;
 
 namespace PiPlay;
 
@@ -54,6 +55,11 @@ public partial class App : Application
 
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         StartPipeServer();
+
+        // Apply theme tokens BEFORE the first window parses: window XAML is StaticResource-only,
+        // so values freeze at parse time (UI overhaul Task 9). Read-only load — MainWindow owns
+        // the real Load and any settings repair.
+        ThemeResourceApplier.Apply(Resources, new SettingsService().LoadReadOnly());
 
         var main = new MainWindow();
         MainWindow = main;

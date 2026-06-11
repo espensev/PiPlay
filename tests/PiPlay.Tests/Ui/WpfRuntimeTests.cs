@@ -289,6 +289,67 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void Theme_tokens_resolve_at_runtime() => StaTestThread.Invoke(() =>
+    {
+        // Overhaul Task 9: the canonical theme tokens and the typed value tokens resolve from
+        // the merged dictionaries, and a compatibility alias carries its theme token's color.
+        Assert.IsType<SolidColorBrush>(Application.Current.TryFindResource("Theme.Accent"));
+        Assert.IsType<SolidColorBrush>(Application.Current.TryFindResource("Theme.AccentForeground"));
+        Assert.IsType<SolidColorBrush>(Application.Current.TryFindResource("Theme.MediaBackdrop"));
+        Assert.Equal(new CornerRadius(10), Application.Current.TryFindResource("Radius.Button"));
+        Assert.Equal(new CornerRadius(0), Application.Current.TryFindResource("Radius.Popout"));
+        Assert.Equal(1.0, Application.Current.TryFindResource("Theme.ActiveWindowOpacity"));
+        Assert.Equal(2500, Application.Current.TryFindResource("Theme.FadeIdleDelayMs"));
+
+        var alias = Assert.IsType<SolidColorBrush>(Application.Current.TryFindResource("SurfaceBase"));
+        var token = Assert.IsType<SolidColorBrush>(Application.Current.TryFindResource("Theme.SurfaceBase"));
+        Assert.Equal(token.Color, alias.Color);
+    });
+
+    [Fact]
+    public void Theme_applier_rederives_accent_family_from_settings() => StaTestThread.Invoke(() =>
+    {
+        // Apply against a FRESH dictionary instance, not the shared test Application's resources,
+        // so the mutation cannot leak into other tests.
+        var resources = new ResourceDictionary
+        {
+            Source = new Uri("/PiPlay;component/Theme/Colors.xaml", UriKind.Relative),
+        };
+        var before = Assert.IsType<SolidColorBrush>(resources["Theme.Accent"]);
+
+        var settings = new AppSettings();
+        settings.Theme.AccentColor = "#A78BFA";
+        settings.Theme.FadeDelayPreset = "short";
+        settings.Theme.ActiveWindowOpacity = 0.82;
+        settings.Theme.IdleWindowOpacity = 0.5;
+        ThemeResourceApplier.Apply(resources, settings);
+
+        var palette = AccentPalette.Derive("#A78BFA");
+        // Replaced in every dictionary defining the key: app-owned resources may be frozen, and
+        // deferred styles resolve StaticResource against their own dictionary scope.
+        Assert.NotSame(before, resources["Theme.Accent"]);
+        Assert.Equal(palette.Accent, ((SolidColorBrush)resources["Theme.Accent"]).Color);
+        Assert.Equal(palette.Hover, ((SolidColorBrush)resources["Theme.AccentHover"]).Color);
+        Assert.Equal(palette.Pressed, ((SolidColorBrush)resources["Theme.AccentPressed"]).Color);
+        Assert.Equal(palette.Foreground, ((SolidColorBrush)resources["Theme.AccentForeground"]).Color);
+        Assert.Equal(palette.Accent, (Color)resources["Theme.AccentColor"]);
+        Assert.Equal(0.82, resources["Theme.ActiveWindowOpacity"]);
+        Assert.Equal(0.5, resources["Theme.IdleWindowOpacity"]);
+        Assert.Equal(1500, resources["Theme.FadeIdleDelayMs"]);
+    });
+
+    [Fact]
+    public void Theme_applier_is_safe_on_a_dictionary_without_tokens() => StaTestThread.Invoke(() =>
+    {
+        // Theming must never break startup: on a dictionary with no tokens the applier creates
+        // the brush entries instead of throwing.
+        var resources = new ResourceDictionary();
+        var ex = Record.Exception(() => ThemeResourceApplier.Apply(resources, new AppSettings()));
+        Assert.Null(ex);
+        Assert.IsType<SolidColorBrush>(resources["Theme.Accent"]);
+    });
+
+    [Fact]
     public void Prompt_dialogs_are_borderless_dark() => StaTestThread.Invoke(() =>
     {
         // The themed dialogs are built in code (no XAML), so the markup suite can't guard them.
