@@ -11,7 +11,12 @@ namespace PiPlay.Models;
 /// </summary>
 public sealed class AppSettings
 {
-    public const int CurrentSchemaVersion = 2;
+    /// <summary>
+    /// Schema 3 (end-pass review F2): null theme behavior values mean "use the preset default".
+    /// Schema ≤2 wrote theme blocks whose nulls meant "fall back to the legacy Player fields",
+    /// so SettingsService backfills those nulls from Player once on first load.
+    /// </summary>
+    public const int CurrentSchemaVersion = 3;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
     public string LastUrl { get; set; } = "https://www.youtube.com/";
@@ -103,8 +108,18 @@ public sealed class ThemeSettings
     /// files keep preset-owned corners.
     /// </summary>
     public string CornerStyle { get; set; } = ThemeCatalog.DefaultCornerStyle;
+
+    /// <summary>
+    /// Behavior OVERRIDES, not final values (end-pass review §3.2): null = follow the selected
+    /// preset's default; the resolver applies preset default → override → normalized. The
+    /// property names keep their original JSON spelling for settings back-compat.
+    /// </summary>
     public bool? StripAutoHide { get; set; }
+
+    /// <inheritdoc cref="StripAutoHide"/>
     public double? ActiveWindowOpacity { get; set; }
+
+    /// <inheritdoc cref="StripAutoHide"/>
     public double? IdleWindowOpacity { get; set; }
 
     [JsonExtensionData]
@@ -114,5 +129,11 @@ public sealed class ThemeSettings
     {
         AccentColor = ThemeCatalog.AccentColorForLegacyAccent(player.PinAccent),
         FadeDelayPreset = ThemeCatalog.FadeDelayPresetForMilliseconds(player.FadeIdleDelayMs),
+        // The legacy behavior values become EXPLICIT overrides at seed time, so the resolver's
+        // preset-default fallback (end-pass review F2) can never change a migrated user's
+        // configured look. Callers sanitize Player before seeding, so these are normalized.
+        StripAutoHide = player.StripAutoHide,
+        ActiveWindowOpacity = player.ConstantWindowOpacity,
+        IdleWindowOpacity = player.IdleWindowOpacity,
     };
 }

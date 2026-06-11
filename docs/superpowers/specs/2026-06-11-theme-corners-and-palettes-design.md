@@ -99,6 +99,33 @@ fires the live preview, so Soft Glass's translucency is visible before the dialo
   Default-reset transition on a modified HWND; Settings corner-style flow + preset-defaults
   adoption.
 
+## Addendum: end-pass review disposition (2026-06-11)
+
+`piplay-theme-end-pass-review.md` audited the live checkout at `6e843a2` — the superseded
+parallel draft (AccentPalette.cs, `Theme.Accent*` keys, separate Pin/Fade color rows), NOT the
+merged lineage. Disposition against current code:
+
+- **F1** (split-brain settings) / **F3** (accent not wired) / **F5** (old Settings model) /
+  **F6** (one-shot resource apply) — already fixed by PR #18 + follow-up `3d530cd`
+  (theme/accent UI, DynamicResource + re-apply on save, single accent everywhere).
+- **F4** (radius/DWM staged) / **F7** (no preset palettes) / **F8** (alias drift; current
+  lineage has ONE key set, applier updates Brush + Color together) — fixed by this PR.
+- **F2** (preset defaults dead data) — REAL residual, fixed in this addendum pass:
+  `ThemePreferenceResolver` now resolves preset default → explicit override → normalized for
+  strip/opacities. Migration safety is two-layered: `ThemeSettings.FromLegacy` copies legacy
+  behavior values as explicit overrides at seed time, and **schema 3** backfills the nulls of
+  schema ≤2 theme blocks from the Player fields once on load (those files' nulls meant "use
+  Player"; schema 3 nulls mean "use the preset default"). Raw-Player fallback remains only for
+  a null theme block.
+- **§3.3** (accent preservation rule, wanted before any color wheel) — implemented: a preset
+  click adopts the new preset's default accent ONLY when the current accent is the previous
+  preset's default; a custom accent survives theme switches. (Refines §2.1 adoption, which
+  still applies to fade/strip/opacity/corners unconditionally.)
+- **§3.2** (override naming) — kept JSON-compatible names; fields are now documented as
+  overrides and the resolver enforces the semantics.
+- **§3.1** (generated chips), **§3.5** (MediaBackdrop token), **§3.7** (media-glow), color
+  wheel — still deferred by design, matching both review docs' ordering.
+
 ## Accepted residuals / next pass
 
 - `ControlCornerRadius`/`ButtonCornerRadius` aliases kept one migration pass (review doc §8.4)

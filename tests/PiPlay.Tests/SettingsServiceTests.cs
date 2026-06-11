@@ -115,9 +115,12 @@ public class SettingsServiceTests : IDisposable
 
         Assert.Equal("#38D996", loaded.Theme.AccentColor);
         Assert.Equal("long", loaded.Theme.FadeDelayPreset);
-        Assert.Null(loaded.Theme.StripAutoHide);
-        Assert.Null(loaded.Theme.ActiveWindowOpacity);
-        Assert.Null(loaded.Theme.IdleWindowOpacity);
+        // The legacy behavior values become EXPLICIT theme overrides at seed time (end-pass
+        // review F2): the resolver's preset-default fallback must never change a migrated
+        // user's configured look.
+        Assert.True(loaded.Theme.StripAutoHide);
+        Assert.Equal(0.82, loaded.Theme.ActiveWindowOpacity);
+        Assert.Equal(0.44, loaded.Theme.IdleWindowOpacity);
         Assert.Equal(4000, ThemePreferenceResolver.FadeIdleDelayMs(loaded.Theme, loaded.Player));
         Assert.True(ThemePreferenceResolver.StripAutoHide(loaded.Theme, loaded.Player));
         Assert.Equal(0.82, ThemePreferenceResolver.ActiveWindowOpacity(loaded.Theme, loaded.Player));
@@ -161,8 +164,51 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal(ThemeCatalog.DefaultAccentColor, loaded.Theme.AccentColor);
         Assert.Equal(ThemeCatalog.DefaultFadeDelayPreset, loaded.Theme.FadeDelayPreset);
         Assert.Equal(ThemeCatalog.DefaultCornerStyle, loaded.Theme.CornerStyle);
+        // A schema-LESS hand-made file deserializes at the current schema (the C# initializer),
+        // so the invalid opacities null out and resolve to preset defaults — only files that
+        // explicitly say schemaVersion ≤ 2 (every real pre-upgrade PiPlay file does) get the
+        // legacy backfill below.
         Assert.Null(loaded.Theme.ActiveWindowOpacity);
         Assert.Null(loaded.Theme.IdleWindowOpacity);
+    }
+
+    [Fact]
+    public void Schema2_theme_nulls_backfill_from_legacy_player_values()
+    {
+        // A PR #18-era (schema 2) file: theme block exists but its null behavior values meant
+        // "use the Player fields". The schema-3 upgrade must pin the OLD effective look as
+        // explicit overrides — never let preset defaults change a configured window.
+        File.WriteAllText(_path,
+            "{\"schemaVersion\":2,\"player\":{\"constantWindowOpacity\":0.8,\"idleWindowOpacity\":0.7," +
+            "\"stripAutoHide\":true},\"theme\":{\"themeId\":\"soft-glass\",\"accentColor\":\"#A78BFA\"}}");
+        var svc = new SettingsService(_path);
+
+        var loaded = svc.Load();
+
+        Assert.Equal(0.8, loaded.Theme.ActiveWindowOpacity);
+        Assert.Equal(0.7, loaded.Theme.IdleWindowOpacity);
+        Assert.True(loaded.Theme.StripAutoHide);
+        Assert.Equal(0.8, ThemePreferenceResolver.ActiveWindowOpacity(loaded.Theme, loaded.Player));
+        Assert.Equal(AppSettings.CurrentSchemaVersion, loaded.SchemaVersion);
+    }
+
+    [Fact]
+    public void Schema3_theme_nulls_resolve_to_preset_defaults()
+    {
+        // Same content at schema 3: nulls are deliberate "follow the preset" values — a
+        // hand-edited soft-glass file is translucent without manual slider work (review F2).
+        File.WriteAllText(_path,
+            "{\"schemaVersion\":3,\"player\":{\"constantWindowOpacity\":0.8,\"idleWindowOpacity\":0.7}," +
+            "\"theme\":{\"themeId\":\"soft-glass\",\"accentColor\":\"#A78BFA\"}}");
+        var svc = new SettingsService(_path);
+
+        var loaded = svc.Load();
+
+        Assert.Null(loaded.Theme.ActiveWindowOpacity);
+        Assert.Null(loaded.Theme.IdleWindowOpacity);
+        var preset = ThemeCatalog.PresetFor("soft-glass");
+        Assert.Equal(preset.DefaultActiveWindowOpacity, ThemePreferenceResolver.ActiveWindowOpacity(loaded.Theme, loaded.Player));
+        Assert.Equal(preset.DefaultIdleWindowOpacity, ThemePreferenceResolver.IdleWindowOpacity(loaded.Theme, loaded.Player));
     }
 
     [Fact]

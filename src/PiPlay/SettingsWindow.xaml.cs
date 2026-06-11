@@ -127,12 +127,20 @@ public partial class SettingsWindow : Window
 
     private void ThemePreset_Click(object sender, RoutedEventArgs e)
     {
+        var previousDefaultAccent = ThemeCatalog.PresetFor(ThemeId).DefaultAccentColor;
         ThemeId = ThemeCatalog.NormalizeThemeId(((FrameworkElement)sender).Tag as string);
-        // An explicit preset selection adopts the preset's defaults (review doc §2.1) — accent,
-        // fade delay, top-bar auto-hide, opacity levels, and theme-owned corners. The controls
-        // below can then fine-tune each one; manual changes after this click are overrides.
+        // An explicit preset selection adopts the preset's defaults (review doc §2.1) — fade
+        // delay, top-bar auto-hide, opacity levels, and theme-owned corners. The controls below
+        // can then fine-tune each one; manual changes after this click are overrides.
+        // The accent follows the end-pass review §3.3 rule: adopt the new preset's default ONLY
+        // when the current accent IS the previous preset's default — a deliberately chosen
+        // custom accent survives theme switches.
         var preset = ThemeCatalog.PresetFor(ThemeId);
-        AccentColor = ThemeCatalog.NormalizeAccentColor(preset.DefaultAccentColor);
+        if (string.Equals(AccentColor, ThemeCatalog.NormalizeAccentColor(previousDefaultAccent),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            AccentColor = ThemeCatalog.NormalizeAccentColor(preset.DefaultAccentColor);
+        }
         CornerStyle = ThemeCatalog.DefaultCornerStyle;
         FadeIdleDelayMs = ThemeCatalog.FadeDelayMillisecondsForPreset(preset.DefaultFadeDelayPreset);
         StripAutoHide = preset.DefaultStripAutoHide;

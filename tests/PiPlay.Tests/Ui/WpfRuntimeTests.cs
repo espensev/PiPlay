@@ -264,9 +264,11 @@ public class WpfRuntimeTests : IDisposable
     public void SettingsWindow_preset_click_adopts_the_preset_defaults() => StaTestThread.Invoke(() =>
     {
         // Review doc §2.1: an EXPLICIT preset selection applies the preset's behavior defaults —
-        // accent, fade delay, strip auto-hide, opacity levels — and returns corners to the theme.
-        // Controls touched afterwards become overrides (they fire their own handlers).
-        var w = new SettingsWindow(isBrowserReady: true, themeId: "sharp-dark", accentColor: "#FFC857",
+        // fade delay, strip auto-hide, opacity levels — and returns corners to the theme.
+        // Controls touched afterwards become overrides (they fire their own handlers). The
+        // accent here is the sharp-dark DEFAULT, so the §3.3 rule adopts the new default too.
+        var w = new SettingsWindow(isBrowserReady: true, themeId: "sharp-dark",
+            accentColor: ThemeCatalog.DefaultAccentColor,
             fadeIdleDelayMs: 1500, constantWindowOpacity: 1.0, idleWindowOpacity: 1.0,
             stripAutoHide: true, cornerStyle: "square");
 
@@ -283,6 +285,27 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal(preset.DefaultActiveWindowOpacity, w.ConstantWindowOpacity);
         Assert.Equal(preset.DefaultIdleWindowOpacity, w.IdleWindowOpacity);
         Assert.True(w.AppearanceChanged);
+    });
+
+    [Fact]
+    public void SettingsWindow_preset_click_preserves_a_custom_accent() => StaTestThread.Invoke(() =>
+    {
+        // End-pass review §3.3: a deliberately chosen accent survives theme switches; only a
+        // user still on the previous theme's default adopts the new theme's default.
+        var w = new SettingsWindow(isBrowserReady: true, themeId: "sharp-dark", accentColor: "#FFC857");
+
+        ((ToggleButton)w.FindName("ThemeSoftGlassPreset")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+
+        Assert.Equal("soft-glass", w.ThemeId);
+        Assert.Equal("#FFC857", w.AccentColor);   // amber preserved, not reset to violet
+        Assert.True(((ToggleButton)w.FindName("AccentChipAmber")!).IsChecked);
+
+        // Selecting the previous default first puts the user back on rails: the next theme
+        // switch adopts that theme's default accent.
+        ((ToggleButton)w.FindName("AccentChipViolet")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        ((ToggleButton)w.FindName("ThemeSharpDarkPreset")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        Assert.Equal(ThemeCatalog.DefaultAccentColor, w.AccentColor);
+        Assert.True(((ToggleButton)w.FindName("AccentChipCyan")!).IsChecked);
     });
 
     // --- Resolved DependencyProperty invariants (runtime counterpart to Layer 1) ---
