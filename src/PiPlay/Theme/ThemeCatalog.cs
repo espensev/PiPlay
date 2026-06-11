@@ -110,7 +110,7 @@ public static class ThemeCatalog
             "violet" => "#A78BFA",
             "green" => "#38D996",
             "amber" => "#FFC857",
-            _ => "#00D4FF",
+            _ => DefaultAccentColor,
         };
     }
 

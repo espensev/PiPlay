@@ -251,6 +251,41 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void MainWindow_resolves_popout_preferences_from_theme_overrides() => StaTestThread.Invoke(() =>
+    {
+        // Regression for PR #18 review: the ThemePreferenceResolver tests were correct, but
+        // MainWindow still fed new/reapplied popouts from the stale legacy PlayerSettings fields.
+        var w = new MainWindow();
+        w.ReplaceSettingsForTests(new AppSettings
+        {
+            Player = new PlayerSettings
+            {
+                PinAccent = "amber",
+                FadeIdleDelayMs = 4000,
+                ConstantWindowOpacity = 0.9,
+                IdleWindowOpacity = 0.7,
+                StripAutoHide = true,
+            },
+            Theme = new ThemeSettings
+            {
+                AccentColor = "#A78BFA",
+                FadeDelayPreset = "short",
+                ActiveWindowOpacity = 0.6,
+                IdleWindowOpacity = 0.4,
+                StripAutoHide = false,
+            },
+        });
+
+        var prefs = w.EffectivePlayerPreferencesForTests;
+
+        Assert.Equal("#A78BFA", prefs.AccentColor);
+        Assert.Equal(1500, prefs.FadeIdleDelayMs);
+        Assert.Equal(0.6, prefs.ActiveWindowOpacity);
+        Assert.Equal(0.4, prefs.IdleWindowOpacity);
+        Assert.False(prefs.StripAutoHide);
+    });
+
+    [Fact]
     public void PlayerWindow_applies_one_accent_to_pin_and_fade_and_the_delay() => StaTestThread.Invoke(() =>
     {
         var w = new PlayerWindow(
