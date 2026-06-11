@@ -14,14 +14,17 @@
        REPLACING the binaries but PRESERVING the PiPlayData runtime folder so login/session survive;
     5. writes a .piplay.publish.marker and prints a summary.
 
-  By default the semantic VERSION is kept and only BUILD_NUMBER bumps, so repeated stable publishes
-  produce v0.3.0 (b8), (b9), ... Pass -Version patch|minor|major|<semver> to bump the version.
+  By default the semantic VERSION bumps by patch before publish, so the versioned publish folder,
+  archive, metadata, and window title advance together. Pass -Version minor|major|<semver> for a
+  different bump, or -NoVersionBump to keep VERSION unchanged and only bump BUILD_NUMBER.
   Code signing is intentionally not part of this pipeline yet (mirrors Build-PiPlay.ps1).
 
 .EXAMPLE
   .\scripts\Publish-Stable.ps1
 .EXAMPLE
-  .\scripts\Publish-Stable.ps1 -Version patch
+  .\scripts\Publish-Stable.ps1 -Version minor
+.EXAMPLE
+  .\scripts\Publish-Stable.ps1 -NoVersionBump
 .EXAMPLE
   .\scripts\Publish-Stable.ps1 -DeployRoot 'E:\Dev_test_implemenations\PiPlay' -SkipTests
 #>
@@ -29,6 +32,7 @@
 param(
     [string]$DeployRoot = "E:\Dev_test_implemenations\PiPlay",
     [string]$Version,
+    [switch]$NoVersionBump,
     [switch]$SkipTests,
     [switch]$SkipDeploy,
     [ValidateRange(1, 200)]
@@ -37,6 +41,12 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+if (-not [System.IO.Path]::IsPathRooted($DeployRoot)) {
+    # A bare token like '--help' binds positionally to -DeployRoot and would deploy a full
+    # publish tree into a junk folder next to this script. Use Get-Help for usage.
+    throw "DeployRoot must be an absolute path (got '$DeployRoot'). For usage, run: Get-Help $PSCommandPath"
+}
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $buildScript = Join-Path $PSScriptRoot "Build-PiPlay.ps1"
@@ -53,6 +63,10 @@ Write-Host "--- PiPlay stable publish ---" -ForegroundColor Cyan
 Write-Host "Repo root   : $repoRoot"
 Write-Host "Deploy root : $DeployRoot"
 Write-Host "Signing     : not configured" -ForegroundColor DarkGray
+
+if ($Version -and $NoVersionBump) {
+    throw "Use either -Version or -NoVersionBump, not both."
+}
 
 # 1. Test gate (mirror CI's deterministic lane).
 if ($SkipTests) {
@@ -96,8 +110,12 @@ $buildParams = @{
     KeepPublishCount = $KeepPublishCount
     StopProcessName = ""          # don't let Build-PiPlay kill every PiPlay.exe; the dev app survives a publish
 }
-if ($Version) { $buildParams["Version"] = $Version }
-else { $buildParams["NoVersionBump"] = $true }   # keep the semantic version; BUILD_NUMBER still bumps for a unique build
+if ($NoVersionBump) {
+    $buildParams["NoVersionBump"] = $true
+} else {
+    # Stable publishes should normally move the versioned folder/archive/title forward.
+    $buildParams["Version"] = if ($Version) { $Version } else { "patch" }
+}
 & $buildScript @buildParams
 if ($LASTEXITCODE -ne 0) { throw "Build-PiPlay.ps1 failed (exit $LASTEXITCODE)." }
 

@@ -129,15 +129,14 @@ To cut a **stable** copy that runs side by side with the dev app and deploy it f
 ```
 
 This test-gates, builds the **Stable** channel (baked in via `-p:PiPlayChannel=Stable`), validates the
-publish metadata, and deploys a runnable copy — replacing binaries but **preserving** the `PiPlayData`
+publish metadata, bumps the patch version by default, and deploys a runnable copy — replacing binaries but **preserving** the `PiPlayData`
 runtime folder. A Stable copy is differentiable from dev: data beside the exe, its own single-instance
 identity, and a `PiPlay — Stable vX.Y.Z (bN)` title. After deploying, launch the deployed `PiPlay.exe` and
 confirm it opens its own window with an isolated `PiPlayData` folder beside it. Background and trade-offs:
 `docs/adr/0007-stable-channel-and-portable-data.md`.
 
-Heads-up: the build stage force-stops every running `PiPlay.exe` (including the dev app) to free the build
-tree, so close the dev app before publishing — or expect it to be stopped mid-publish, losing its unsaved
-window state — and relaunch it afterward.
+Use `-Version minor|major|<semver>` to choose a different version move, or `-NoVersionBump` when you
+intentionally want another build under the same semantic version.
 
 ## 5. Open the PR
 
