@@ -95,6 +95,14 @@ public sealed class ThemeSettings
     public string ThemeId { get; set; } = ThemeCatalog.DefaultThemeId;
     public string AccentColor { get; set; } = ThemeCatalog.DefaultAccentColor;
     public string FadeDelayPreset { get; set; } = ThemeCatalog.DefaultFadeDelayPreset;
+
+    /// <summary>
+    /// Corner profile override (review doc §8.1): "theme" (default) follows the selected preset's
+    /// radii + native corner mode; "square"/"small"/"soft"/"round" swap the whole profile. A
+    /// missing value deserializes to null and sanitizes to "theme", so existing settings.json
+    /// files keep preset-owned corners.
+    /// </summary>
+    public string CornerStyle { get; set; } = ThemeCatalog.DefaultCornerStyle;
     public bool? StripAutoHide { get; set; }
     public double? ActiveWindowOpacity { get; set; }
     public double? IdleWindowOpacity { get; set; }

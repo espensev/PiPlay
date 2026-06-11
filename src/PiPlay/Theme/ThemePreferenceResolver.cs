@@ -24,4 +24,16 @@ public static class ThemePreferenceResolver
 
     public static double IdleWindowOpacity(ThemeSettings? theme, PlayerSettings player) =>
         WindowOpacityPolicy.Normalize(theme?.IdleWindowOpacity ?? player.IdleWindowOpacity);
+
+    public static string CornerStyle(ThemeSettings? theme) =>
+        ThemeCatalog.NormalizeCornerStyle(theme?.CornerStyle);
+
+    /// <summary>The effective native (DWM) corner preference: the user's corner-style override
+    /// over the selected preset's mode. Explicit data, never an opacity side effect.</summary>
+    public static DwmCornerMode DwmCorners(ThemeSettings? theme) =>
+        ThemeCatalog.DwmCornersFor(ThemeCatalog.PresetFor(theme?.ThemeId), theme?.CornerStyle);
+
+    /// <summary>The effective control radii: the user's corner-style override over the preset's.</summary>
+    public static ThemeRadii Radii(ThemeSettings? theme) =>
+        ThemeCatalog.RadiiFor(ThemeCatalog.PresetFor(theme?.ThemeId), theme?.CornerStyle);
 }

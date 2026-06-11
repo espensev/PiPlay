@@ -2,6 +2,10 @@
   PiPlay control styles - dark, minimal, utility-first (spec section 5).
   Soft rounded rectangles, high-contrast controls, low-glow cyan/purple accents.
   Pin/Fade active state defaults to AccentCyan and can be overridden per control (spec 6.3).
+
+  Theme-controlled values (palette brushes + Radius* corner tokens) are referenced via
+  DynamicResource: ThemeResourceApplier REPLACES those dictionary entries on theme change and
+  every realized control re-resolves live. Fixed alias brushes (AccentCyan etc.) stay Static.
 -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -13,16 +17,16 @@
 
   <!-- Base text -->
   <Style TargetType="TextBlock">
-    <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
     <Setter Property="FontFamily" Value="Segoe UI" />
     <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
   </Style>
 
   <!-- Generic dark button (rounded, hover surface) -->
   <Style TargetType="Button" x:Key="DarkButton">
-    <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-    <Setter Property="Background" Value="{StaticResource SurfaceRaised}" />
-    <Setter Property="BorderBrush" Value="{StaticResource BorderSubtle}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceRaised}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="FontFamily" Value="Segoe UI" />
     <Setter Property="FontSize" Value="13" />
@@ -35,13 +39,13 @@
           <Border x:Name="bd" Background="{TemplateBinding Background}"
                   BorderBrush="{TemplateBinding BorderBrush}"
                   BorderThickness="{TemplateBinding BorderThickness}"
-                  CornerRadius="{StaticResource ButtonCornerRadius}">
+                  CornerRadius="{DynamicResource RadiusButton}">
             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                               Margin="{TemplateBinding Padding}" />
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="bd" Property="Background" Value="{StaticResource SurfaceHover}" />
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource SurfaceHover}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter Property="Opacity" Value="0.45" />
@@ -62,7 +66,7 @@
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
-          <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="{StaticResource ButtonCornerRadius}">
+          <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="{DynamicResource RadiusButton}">
             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                               Margin="{TemplateBinding Padding}" />
           </Border>
@@ -81,14 +85,14 @@
 
   <!-- Destructive action button (e.g. the Clear browser data confirm): red fill, white text. -->
   <Style TargetType="Button" x:Key="DangerButton" BasedOn="{StaticResource DarkButton}">
-    <Setter Property="Background" Value="{StaticResource DangerPin}" />
+    <Setter Property="Background" Value="{DynamicResource DangerPin}" />
     <Setter Property="Foreground" Value="White" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
-          <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="10">
+          <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="{DynamicResource RadiusButton}">
             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                               Margin="{TemplateBinding Padding}" />
           </Border>
@@ -105,12 +109,12 @@
     </Setter>
   </Style>
 
-  <!-- Chrome icon button: 32x32 hit target, transparent, hover surface, rounded 10px.
+  <!-- Chrome icon button: 32x32 hit target, transparent, hover surface, rounded.
        Set Content to a glyph (Segoe Fluent / MDL2) or short text. -->
   <Style TargetType="Button" x:Key="IconButton">
     <Setter Property="Width" Value="32" />
     <Setter Property="Height" Value="32" />
-    <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
     <Setter Property="FontSize" Value="14" />
@@ -119,7 +123,7 @@
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
-          <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="{StaticResource ControlCornerRadius}">
+          <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="{DynamicResource RadiusIconButton}">
             <!-- Render the glyph through an in-template TextBlock with the icon font set here
                  (template-property precedence), so the app-wide implicit TextBlock style cannot
                  reset it to a non-icon font and drop the glyph to a .notdef box (REQ-UI-02). -->
@@ -131,7 +135,7 @@
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="bd" Property="Background" Value="{StaticResource SurfaceHover}" />
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource SurfaceHover}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter Property="Opacity" Value="0.4" />
@@ -147,7 +151,7 @@
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
-          <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8">
+          <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="{DynamicResource RadiusIconButton}">
             <TextBlock Text="{TemplateBinding Content}"
                        FontFamily="{TemplateBinding FontFamily}"
                        FontSize="{TemplateBinding FontSize}"
@@ -156,7 +160,7 @@
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="bd" Property="Background" Value="{StaticResource DangerPin}" />
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource DangerPin}" />
               <Setter Property="Foreground" Value="White" />
             </Trigger>
           </ControlTemplate.Triggers>
@@ -169,7 +173,7 @@
   <Style TargetType="ToggleButton" x:Key="PinToggle">
     <Setter Property="Width" Value="32" />
     <Setter Property="Height" Value="32" />
-    <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
@@ -183,7 +187,7 @@
         <ControlTemplate TargetType="ToggleButton">
           <Border x:Name="bd" Background="{TemplateBinding Background}"
                   BorderBrush="{TemplateBinding BorderBrush}"
-                  CornerRadius="8" BorderThickness="1">
+                  CornerRadius="{DynamicResource RadiusIconButton}" BorderThickness="1">
             <TextBlock Text="{TemplateBinding Content}"
                        FontFamily="{TemplateBinding FontFamily}"
                        FontSize="{TemplateBinding FontSize}"
@@ -192,7 +196,7 @@
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="bd" Property="Background" Value="{StaticResource SurfaceHover}" />
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource SurfaceHover}" />
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -205,11 +209,11 @@
        fractional DPI came from the window-level UseLayoutRounding=True (removed on both windows),
        not from this template. (UI-CHK-5) -->
   <Style TargetType="TextBox" x:Key="DarkTextBox">
-    <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
     <Setter Property="CaretBrush" Value="{DynamicResource AccentPrimary}" />
     <Setter Property="SelectionBrush" Value="{DynamicResource AccentPrimary}" />
-    <Setter Property="Background" Value="{StaticResource SurfaceRaised}" />
-    <Setter Property="BorderBrush" Value="{StaticResource BorderSubtle}" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceRaised}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="FontFamily" Value="Segoe UI" />
     <Setter Property="FontSize" Value="13" />
@@ -223,7 +227,7 @@
           <Border x:Name="bd" Background="{TemplateBinding Background}"
                   BorderBrush="{TemplateBinding BorderBrush}"
                   BorderThickness="{TemplateBinding BorderThickness}"
-                  CornerRadius="8" Padding="{TemplateBinding Padding}">
+                  CornerRadius="{DynamicResource RadiusInput}" Padding="{TemplateBinding Padding}">
             <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
                           HorizontalScrollBarVisibility="Hidden"
                           VerticalScrollBarVisibility="Hidden" />
@@ -256,7 +260,8 @@
                 <Thumb>
                   <Thumb.Template>
                     <ControlTemplate TargetType="Thumb">
-                      <Border CornerRadius="5" Margin="2,0" Background="{StaticResource SurfaceHover}" />
+                      <Border CornerRadius="{DynamicResource RadiusScrollbarThumb}" Margin="2,0"
+                              Background="{DynamicResource SurfaceHover}" />
                     </ControlTemplate>
                   </Thumb.Template>
                 </Thumb>
@@ -287,7 +292,8 @@
                     <Thumb>
                       <Thumb.Template>
                         <ControlTemplate TargetType="Thumb">
-                          <Border CornerRadius="5" Margin="0,2" Background="{StaticResource SurfaceHover}" />
+                          <Border CornerRadius="{DynamicResource RadiusScrollbarThumb}" Margin="0,2"
+                                  Background="{DynamicResource SurfaceHover}" />
                         </ControlTemplate>
                       </Thumb.Template>
                     </Thumb>
@@ -309,7 +315,7 @@
 
   <!-- Dropdown item: dark, rounded hover. Defined before DarkComboBox so it can be referenced. -->
   <Style TargetType="ComboBoxItem" x:Key="DarkComboBoxItem">
-    <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="FontFamily" Value="Segoe UI" />
     <Setter Property="FontSize" Value="13" />
@@ -320,15 +326,15 @@
       <Setter.Value>
         <ControlTemplate TargetType="ComboBoxItem">
           <Border x:Name="bd" Background="{TemplateBinding Background}"
-                  CornerRadius="6" Padding="{TemplateBinding Padding}">
+                  CornerRadius="{DynamicResource RadiusPopup}" Padding="{TemplateBinding Padding}">
             <ContentPresenter />
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsHighlighted" Value="True">
-              <Setter TargetName="bd" Property="Background" Value="{StaticResource SurfaceHover}" />
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource SurfaceHover}" />
             </Trigger>
             <Trigger Property="IsSelected" Value="True">
-              <Setter TargetName="bd" Property="Background" Value="{StaticResource SurfaceRaised}" />
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource SurfaceRaised}" />
             </Trigger>
           </ControlTemplate.Triggers>
         </ControlTemplate>
@@ -339,9 +345,9 @@
   <!-- Dark combo box for profiles: dark closed control AND dark popup + items, with an
        intentional empty state (no profiles yet) rather than a blank light box (REQ-UI-01). -->
   <Style TargetType="ComboBox" x:Key="DarkComboBox">
-    <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-    <Setter Property="Background" Value="{StaticResource SurfaceRaised}" />
-    <Setter Property="BorderBrush" Value="{StaticResource BorderSubtle}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceRaised}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="FontFamily" Value="Segoe UI" />
     <Setter Property="FontSize" Value="13" />
@@ -356,17 +362,17 @@
                           IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
               <ToggleButton.Template>
                 <ControlTemplate TargetType="ToggleButton">
-                  <Border x:Name="bd" Background="{StaticResource SurfaceRaised}"
-                          BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1"
-                          CornerRadius="8">
+                  <Border x:Name="bd" Background="{DynamicResource SurfaceRaised}"
+                          BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1"
+                          CornerRadius="{DynamicResource RadiusInput}">
                     <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
                                Margin="0,0,9,0" Text="&#xE70D;"
                                FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11"
-                               Foreground="{StaticResource TextSecondary}" />
+                               Foreground="{DynamicResource TextSecondary}" />
                   </Border>
                   <ControlTemplate.Triggers>
                     <Trigger Property="IsMouseOver" Value="True">
-                      <Setter TargetName="bd" Property="Background" Value="{StaticResource SurfaceHover}" />
+                      <Setter TargetName="bd" Property="Background" Value="{DynamicResource SurfaceHover}" />
                     </Trigger>
                   </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -383,14 +389,14 @@
             <TextBlock x:Name="Placeholder" Text="Profiles" Margin="10,0,28,0"
                        VerticalAlignment="Center" IsHitTestVisible="False"
                        FontFamily="Segoe UI" FontSize="13"
-                       Foreground="{StaticResource TextSecondary}" Visibility="Collapsed" />
+                       Foreground="{DynamicResource TextSecondary}" Visibility="Collapsed" />
 
             <Popup x:Name="Popup" Placement="Bottom" Focusable="False" AllowsTransparency="True"
                    IsOpen="{TemplateBinding IsDropDownOpen}" PopupAnimation="Slide">
               <Border x:Name="DropDownBorder" MinWidth="{Binding ActualWidth, ElementName=ToggleButton}"
                       MaxHeight="{TemplateBinding MaxDropDownHeight}" Margin="0,4,0,0"
-                      Background="{StaticResource SurfaceBase}" BorderBrush="{StaticResource BorderSubtle}"
-                      BorderThickness="1" CornerRadius="8">
+                      Background="{DynamicResource SurfaceBase}" BorderBrush="{DynamicResource BorderSubtle}"
+                      BorderThickness="1" CornerRadius="{DynamicResource RadiusPopup}">
                 <Grid>
                   <ScrollViewer x:Name="DropDownScroll" Margin="4"
                                 VerticalScrollBarVisibility="Auto"
@@ -400,7 +406,7 @@
                   </ScrollViewer>
                   <TextBlock x:Name="EmptyText" Text="No saved profiles yet" Margin="12,10"
                              FontFamily="Segoe UI" FontSize="12"
-                             Foreground="{StaticResource TextSecondary}" Visibility="Collapsed" />
+                             Foreground="{DynamicResource TextSecondary}" Visibility="Collapsed" />
                 </Grid>
               </Border>
             </Popup>
@@ -425,9 +431,9 @@
   <!-- App-wide dark tooltip (implicit: applies to every ToolTip). Placed below the control so
        it does not occlude what it describes, e.g. caption buttons (REQ-UI-01). -->
   <Style TargetType="ToolTip">
-    <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-    <Setter Property="Background" Value="{StaticResource SurfaceRaised}" />
-    <Setter Property="BorderBrush" Value="{StaticResource BorderSubtle}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceRaised}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="FontFamily" Value="Segoe UI" />
     <Setter Property="FontSize" Value="12" />
@@ -439,7 +445,8 @@
       <Setter.Value>
         <ControlTemplate TargetType="ToolTip">
           <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                  BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="8,5">
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{DynamicResource RadiusToolTip}" Padding="8,5">
             <ContentPresenter />
           </Border>
         </ControlTemplate>

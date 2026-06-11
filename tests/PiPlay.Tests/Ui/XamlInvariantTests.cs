@@ -119,7 +119,10 @@ public class XamlInvariantTests
             "ResetAppStateButton", "ResetDescriptionText",
             "ClearBrowserDataButton", "ClearDescriptionText", "CloseButton",
             "ThemeSharpDarkPreset", "ThemeMinimalPreset", "ThemeSoftGlassPreset",
-            "AccentChipCyan", "AccentChipSteelBlue", "AccentChipViolet", "AccentChipGreen", "AccentChipAmber",
+            "AccentChipCyan", "AccentChipSteelBlue", "AccentChipSteel", "AccentChipViolet", "AccentChipGreen",
+            "AccentChipAmber",
+            "CornerStyleThemeChip", "CornerStyleSquareChip", "CornerStyleSmallChip",
+            "CornerStyleSoftChip", "CornerStyleRoundChip",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
             "ActiveOpacitySlider", "ActiveOpacityValueText", "IdleOpacitySlider", "IdleOpacityValueText",
             "StripAutoHideToggle",
@@ -170,6 +173,7 @@ public class XamlInvariantTests
 
     [Theory]
     [InlineData("CompactModeToggle", "PlaybackSectionHeader", "AdvancedSectionHeader")]   // Playback owns compact
+    [InlineData("CornerStyleThemeChip", "AppearanceSectionHeader", "PlaybackSectionHeader")] // Appearance owns corners
     [InlineData("FadeDelayShortPreset", "AdvancedSectionHeader", null)]                   // Advanced owns fade delay
     [InlineData("ActiveOpacitySlider", "AdvancedSectionHeader", null)]                    // Advanced owns opacity
     [InlineData("StripAutoHideToggle", "AdvancedSectionHeader", null)]                    // Advanced owns auto-hide
@@ -374,6 +378,130 @@ public class XamlInvariantTests
         Assert.True(missing.Length == 0, "Undefined StaticResource keys: " + string.Join(", ", missing));
     }
 
+    [Fact]
+    public void Every_DynamicResource_reference_is_defined_in_a_reachable_scope()
+    {
+        // The theme pass moved palette brushes and Radius* tokens to DynamicResource. A typo'd
+        // DynamicResource key fails SILENTLY at runtime (null brush / default CornerRadius), so
+        // the markup sweep must cover it like the StaticResource one above — and PER SCOPE: a key
+        // defined only inside another window's Window.Resources would pass a pooled union check
+        // yet resolve to null everywhere else (adversarial review finding). App-level keys (the
+        // App.xaml merged dictionaries) are reachable from every window; window-local keys only
+        // from their own file.
+        var appFiles = new[] { "App.xaml", "Theme/ControlStyles.xaml", "Theme/Colors.xaml" };
+        var windowFiles = new[] { "MainWindow.xaml", "PlayerWindow.xaml", "SettingsWindow.xaml" };
+        var rx = new Regex(@"\{DynamicResource\s+([^}]+)\}", RegexOptions.Compiled);
+
+        HashSet<string> KeysOf(string f) => XamlTestFiles.Load(f).Descendants()
+            .Select(e => e.Attribute(XamlTestFiles.X + "Key")?.Value?.Trim())
+            .Where(k => k is not null)
+            .ToHashSet()!;
+        HashSet<string> RefsOf(string f) => XamlTestFiles.Load(f).Descendants()
+            .SelectMany(e => e.Attributes())
+            .SelectMany(a => rx.Matches(a.Value).Select(m => m.Groups[1].Value.Trim()))
+            .ToHashSet();
+
+        var appDefined = appFiles.SelectMany(KeysOf).ToHashSet();
+        foreach (var f in appFiles.Concat(windowFiles))
+        {
+            var reachable = appFiles.Contains(f) ? appDefined : appDefined.Union(KeysOf(f)).ToHashSet();
+            var missing = RefsOf(f).Where(r => !reachable.Contains(r)).OrderBy(x => x).ToArray();
+            Assert.True(missing.Length == 0,
+                $"{f}: DynamicResource keys unreachable from its scope: " + string.Join(", ", missing));
+        }
+    }
+
+    // --- Theme-owned rounding (review doc §8): no scattered hardcoded radii ---
+
+    [Theory]
+    [InlineData("MainWindow.xaml")]
+    [InlineData("PlayerWindow.xaml")]
+    [InlineData("SettingsWindow.xaml")]
+    [InlineData("Theme/ControlStyles.xaml")]
+    public void No_hardcoded_corner_radii_outside_the_token_dictionary(string file)
+    {
+        // Every control radius must ride a semantic Radius* token via DYNAMIC resource (a
+        // StaticResource reference yields correct initial values but silently defeats the live
+        // theme/corner-style restyle) so themes actually own rounding. The ONLY allowed literal
+        // is WindowChrome.CornerRadius="0": WindowChrome is not a FrameworkElement (no dynamic
+        // lookup), and the real outer corner belongs to DWM (review doc §2.6) — tests above pin 0.
+        // Setter-form radii are swept too (the adversarial review's escape hatch).
+        void AssertRadius(string radius, string context)
+        {
+            if (radius.StartsWith("{"))
+            {
+                Assert.True(radius.StartsWith("{DynamicResource Radius"),
+                    $"{file}: CornerRadius \"{radius}\" on {context} must be a {{DynamicResource Radius*}} token.");
+                return;
+            }
+            Assert.True(context == "WindowChrome" && radius == "0",
+                $"{file}: hardcoded CornerRadius=\"{radius}\" on {context} — use a Radius* token.");
+        }
+
+        foreach (var el in XamlTestFiles.Load(file).Descendants())
+        {
+            if (el.Attribute("CornerRadius")?.Value is { } direct)
+                AssertRadius(direct, el.Name.LocalName);
+            if (el.Name.LocalName == "Setter" && el.Attribute("Property")?.Value == "CornerRadius" &&
+                el.Attribute("Value")?.Value is { } setterValue)
+                AssertRadius(setterValue, "Setter");
+        }
+    }
+
+    [Fact]
+    public void Colors_xaml_seeds_match_the_sharp_dark_preset()
+    {
+        // The Colors.xaml surface/border/text seeds cover design time and the pre-Apply instant;
+        // sharp-dark is the default theme, so the seeds must BE its palette and radii or a fresh
+        // launch would flash different values before ThemeResourceApplier runs.
+        var sharpDark = ThemeCatalog.PresetFor("sharp-dark");
+        var tokens = ColorTokens();
+        var palette = sharpDark.Palette;
+        foreach (var (key, hex) in new[]
+        {
+            ("AppBackgroundColor", palette.AppBackground), ("SurfaceBaseColor", palette.SurfaceBase),
+            ("SurfaceRaisedColor", palette.SurfaceRaised), ("SurfaceHoverColor", palette.SurfaceHover),
+            ("BorderSubtleColor", palette.BorderSubtle), ("BorderStrongColor", palette.BorderStrong),
+            ("TextPrimaryColor", palette.TextPrimary), ("TextSecondaryColor", palette.TextSecondary),
+            ("DangerPinColor", palette.Danger),
+        })
+        {
+            Assert.Equal("#FF" + hex.TrimStart('#'), tokens[key]);
+        }
+
+        var radiusTokens = XamlTestFiles.Load("Theme/Colors.xaml")
+            .Descendants(XamlTestFiles.Pres + "CornerRadius")
+            .ToDictionary(
+                e => e.Attribute(XamlTestFiles.X + "Key")!.Value,
+                e => e.Value.Trim());
+        var radii = sharpDark.Radii;
+        // Invariant culture: a future fractional radius must compare as "4.5", never "4,5"
+        // (which a comma-decimal locale would produce — and which collides with CornerRadius
+        // four-component syntax).
+        string Inv(double v) => v.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        foreach (var (key, expected) in new[]
+        {
+            ("RadiusMainWindowFrame", Inv(radii.MainWindowFrame)),
+            ("RadiusPopoutFrame", Inv(radii.PopoutFrame)),
+            ("RadiusTitleBar", $"{Inv(radii.TitleBar)},{Inv(radii.TitleBar)},0,0"),
+            ("RadiusButton", Inv(radii.Button)),
+            ("RadiusIconButton", Inv(radii.IconButton)),
+            ("RadiusInput", Inv(radii.Input)),
+            ("RadiusPanel", Inv(radii.Panel)),
+            ("RadiusPopup", Inv(radii.Popup)),
+            ("RadiusThumbnail", Inv(radii.Thumbnail)),
+            ("RadiusSwatch", Inv(radii.Swatch)),
+            ("RadiusScrollbarThumb", Inv(radii.ScrollbarThumb)),
+            ("RadiusToolTip", Inv(radii.ToolTip)),
+            // Compatibility aliases follow Input/Button (review doc §8.4).
+            ("ControlCornerRadius", Inv(radii.Input)),
+            ("ButtonCornerRadius", Inv(radii.Button)),
+        })
+        {
+            Assert.Equal(expected, radiusTokens[key]);
+        }
+    }
+
     // --- Theme contrast (WCAG) computed from the actual Colors.xaml tokens ---
 
     private static Dictionary<string, string> ColorTokens()
@@ -465,6 +593,10 @@ public class XamlInvariantTests
 
         var accentTags = NamesWhere(n => n.StartsWith("AccentChip")).Select(Tag).ToHashSet();
         Assert.Equal(ThemeCatalog.AccentOptions.Select(o => o.HexColor).ToHashSet(), accentTags!);
+
+        // Corner-style chip Tags are the catalog corner style keys (review doc §8.1 override).
+        var cornerTags = NamesWhere(n => n.StartsWith("CornerStyle")).Select(Tag).ToHashSet();
+        Assert.Equal(ThemeCatalog.CornerStyleOptions.Select(o => o.Key).ToHashSet(), cornerTags!);
     }
 
     [Fact]
@@ -478,7 +610,10 @@ public class XamlInvariantTests
         foreach (var name in new[]
         {
             "ThemeSharpDarkPreset", "ThemeMinimalPreset", "ThemeSoftGlassPreset",
-            "AccentChipCyan", "AccentChipSteelBlue", "AccentChipViolet", "AccentChipGreen", "AccentChipAmber",
+            "AccentChipCyan", "AccentChipSteelBlue", "AccentChipSteel", "AccentChipViolet", "AccentChipGreen",
+            "AccentChipAmber",
+            "CornerStyleThemeChip", "CornerStyleSquareChip", "CornerStyleSmallChip",
+            "CornerStyleSoftChip", "CornerStyleRoundChip",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
             "ActiveOpacitySlider", "IdleOpacitySlider",
             "StripAutoHideToggle",

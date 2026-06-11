@@ -43,6 +43,7 @@ public class SettingsServiceTests : IDisposable
         Assert.Null(settings.Theme.StripAutoHide);
         Assert.Null(settings.Theme.ActiveWindowOpacity);
         Assert.Null(settings.Theme.IdleWindowOpacity);
+        Assert.Equal(ThemeCatalog.DefaultCornerStyle, settings.Theme.CornerStyle);
     }
 
     [Fact]
@@ -84,6 +85,7 @@ public class SettingsServiceTests : IDisposable
             StripAutoHide = true,
             ActiveWindowOpacity = 0.82,
             IdleWindowOpacity = 0.5,
+            CornerStyle = "ROUND",
         };
 
         svc.Save(settings);
@@ -98,6 +100,7 @@ public class SettingsServiceTests : IDisposable
         Assert.True(loaded.Theme.StripAutoHide);
         Assert.Equal(0.82, loaded.Theme.ActiveWindowOpacity);
         Assert.Equal(0.5, loaded.Theme.IdleWindowOpacity);
+        Assert.Equal("round", loaded.Theme.CornerStyle);   // normalized on save
     }
 
     [Fact]
@@ -149,7 +152,7 @@ public class SettingsServiceTests : IDisposable
     {
         File.WriteAllText(_path,
             "{\"theme\":{\"themeId\":\"hologram\",\"accentColor\":\"not-a-color\",\"fadeDelayPreset\":\"forever\"," +
-            "\"activeWindowOpacity\":5.0,\"idleWindowOpacity\":-1.0}}");
+            "\"cornerStyle\":\"dodecagon\",\"activeWindowOpacity\":5.0,\"idleWindowOpacity\":-1.0}}");
         var svc = new SettingsService(_path);
 
         var loaded = svc.Load();
@@ -157,6 +160,7 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal(ThemeCatalog.DefaultThemeId, loaded.Theme.ThemeId);
         Assert.Equal(ThemeCatalog.DefaultAccentColor, loaded.Theme.AccentColor);
         Assert.Equal(ThemeCatalog.DefaultFadeDelayPreset, loaded.Theme.FadeDelayPreset);
+        Assert.Equal(ThemeCatalog.DefaultCornerStyle, loaded.Theme.CornerStyle);
         Assert.Null(loaded.Theme.ActiveWindowOpacity);
         Assert.Null(loaded.Theme.IdleWindowOpacity);
     }

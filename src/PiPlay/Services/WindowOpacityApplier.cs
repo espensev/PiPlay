@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
+using PiPlay.Theme;
 
 namespace PiPlay.Services;
 
@@ -35,7 +36,9 @@ public static class WindowOpacityApplier
     private const int WM_NCDESTROY = 0x0082;
     private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     private const int DWMWCP_DEFAULT = 0;
+    private const int DWMWCP_DONOTROUND = 1;
     private const int DWMWCP_ROUND = 2;
+    private const int DWMWCP_ROUNDSMALL = 3;
     private const int AnimationStepMs = 15;
     private static readonly UIntPtr GuardSubclassId = new(0x4F504143); // "OPAC"
     private static readonly Dictionary<IntPtr, GuardState> States = new();
@@ -46,7 +49,7 @@ public static class WindowOpacityApplier
         public byte CurrentAlpha = 255;
         public byte TargetAlpha = 255;
         public bool ForceLayeredBit;
-        public bool RoundedCorners;
+        public DwmCornerMode CornerMode = DwmCornerMode.Default;
         public long LastExStyleWritten;
         public DispatcherTimer? Animator;
     }
@@ -99,19 +102,26 @@ public static class WindowOpacityApplier
     }
 
     /// <summary>
-    /// DWM rounded corners for the floating look (spike S-3). Never touches a window it hasn't
-    /// rounded before when asked for square corners, so default-look windows stay pristine.
-    /// Silently a no-op on Windows 10 (DWM rejects the attribute).
+    /// DWM corner preference, theme/user-driven (review doc §8.7; the spike S-3 rounded look is
+    /// now <see cref="DwmCornerMode.Round"/>). Never touches a window whose corners were never
+    /// changed when asked for <see cref="DwmCornerMode.Default"/>, so default-look windows stay
+    /// pristine. Silently a no-op on Windows 10 (DWM rejects the attribute).
     /// </summary>
-    public static void SetRoundedCorners(IntPtr hwnd, bool rounded)
+    public static void SetCornerMode(IntPtr hwnd, DwmCornerMode mode)
     {
         if (hwnd == IntPtr.Zero) return;
         States.TryGetValue(hwnd, out var state);
-        if (!rounded && (state is null || !state.RoundedCorners)) return;
+        if (mode == DwmCornerMode.Default && (state is null || state.CornerMode == DwmCornerMode.Default)) return;
         state ??= Install(hwnd);
-        if (state is null || state.RoundedCorners == rounded) return;
-        state.RoundedCorners = rounded;
-        var pref = rounded ? DWMWCP_ROUND : DWMWCP_DEFAULT;
+        if (state is null || state.CornerMode == mode) return;
+        state.CornerMode = mode;
+        var pref = mode switch
+        {
+            DwmCornerMode.Square => DWMWCP_DONOTROUND,
+            DwmCornerMode.SmallRound => DWMWCP_ROUNDSMALL,
+            DwmCornerMode.Round => DWMWCP_ROUND,
+            _ => DWMWCP_DEFAULT,
+        };
         _ = DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref pref, sizeof(int));
     }
 
@@ -137,7 +147,8 @@ public static class WindowOpacityApplier
     internal static bool IsEngagedForTests(IntPtr hwnd) => States.TryGetValue(hwnd, out var s) && s.ForceLayeredBit;
     internal static byte? TargetAlphaForTests(IntPtr hwnd) => States.TryGetValue(hwnd, out var s) ? s.TargetAlpha : null;
     internal static byte? CurrentAlphaForTests(IntPtr hwnd) => States.TryGetValue(hwnd, out var s) ? s.CurrentAlpha : null;
-    internal static bool IsRoundedForTests(IntPtr hwnd) => States.TryGetValue(hwnd, out var s) && s.RoundedCorners;
+    internal static DwmCornerMode CornerModeForTests(IntPtr hwnd) =>
+        States.TryGetValue(hwnd, out var s) ? s.CornerMode : DwmCornerMode.Default;
     internal static bool LastExStyleWriteCarriedTransparentBitForTests(IntPtr hwnd) =>
         States.TryGetValue(hwnd, out var s) && (s.LastExStyleWritten & WS_EX_TRANSPARENT) != 0;
 

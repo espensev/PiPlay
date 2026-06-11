@@ -8,7 +8,7 @@
         AllowsTransparency="False"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
-        Background="{StaticResource AppBackground}"
+        Background="{DynamicResource AppBackground}"
         UseLayoutRounding="False"
         SnapsToDevicePixels="True">
 
@@ -18,7 +18,7 @@
       <Setter Property="Height" Value="34" />
       <Setter Property="Margin" Value="0,0,8,0" />
       <Setter Property="Cursor" Value="Hand" />
-      <Setter Property="BorderBrush" Value="{StaticResource BorderSubtle}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="SnapsToDevicePixels" Value="True" />
       <Setter Property="Template">
@@ -27,13 +27,13 @@
             <Border x:Name="bd" Background="{TemplateBinding Background}"
                     BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="{TemplateBinding BorderThickness}"
-                    CornerRadius="8" />
+                    CornerRadius="{DynamicResource RadiusSwatch}" />
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource TextPrimary}" />
+                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource TextPrimary}" />
               </Trigger>
               <Trigger Property="IsChecked" Value="True">
-                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource TextPrimary}" />
+                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource TextPrimary}" />
                 <Setter TargetName="bd" Property="BorderThickness" Value="2" />
               </Trigger>
             </ControlTemplate.Triggers>
@@ -46,9 +46,9 @@
       <Setter Property="MinWidth" Value="76" />
       <Setter Property="Height" Value="30" />
       <Setter Property="Margin" Value="0,0,8,0" />
-      <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-      <Setter Property="Background" Value="{StaticResource SurfaceRaised}" />
-      <Setter Property="BorderBrush" Value="{StaticResource BorderSubtle}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+      <Setter Property="Background" Value="{DynamicResource SurfaceRaised}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="FontFamily" Value="Segoe UI" />
       <Setter Property="FontSize" Value="12" />
@@ -60,13 +60,13 @@
             <Border x:Name="bd" Background="{TemplateBinding Background}"
                     BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="{TemplateBinding BorderThickness}"
-                    CornerRadius="8" Padding="10,0">
+                    CornerRadius="{DynamicResource RadiusPanel}" Padding="10,0">
               <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                                 TextElement.Foreground="{TemplateBinding Foreground}" />
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="bd" Property="Background" Value="{StaticResource SurfaceHover}" />
+                <Setter TargetName="bd" Property="Background" Value="{DynamicResource SurfaceHover}" />
               </Trigger>
               <Trigger Property="IsChecked" Value="True">
                 <Setter Property="Foreground" Value="{DynamicResource AccentPrimary}" />
@@ -79,7 +79,7 @@
     </Style>
   </Window.Resources>
 
-  <Border BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1">
+  <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1">
     <!-- Bounded + scrollable (overhaul Task 5): the title bar stays fixed; the sections scroll.
          Frame model reconciled with the parallel main landing (b35c0dd): a fixed launch Height
          (clamped to the work area in the ctor) instead of SizeToContent, so the dialog cannot
@@ -91,10 +91,10 @@
       </Grid.RowDefinitions>
 
       <!-- Title bar (drag to move; close button) -->
-      <Grid Grid.Row="0" Background="{StaticResource SurfaceBase}" Height="42"
+      <Grid Grid.Row="0" Background="{DynamicResource SurfaceBase}" Height="42"
             MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
         <TextBlock Text="Settings" Margin="16,0" VerticalAlignment="Center"
-                   FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" />
+                   FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" />
         <Button x:Name="CloseButton" Style="{StaticResource CloseIconButton}"
                 Content="&#xE8BB;" ToolTip="Close" AutomationProperties.Name="Close settings"
                 HorizontalAlignment="Right" Margin="0,0,5,0" Click="CloseButton_Click" />
@@ -108,32 +108,32 @@
         <!-- Privacy: distinct Reset app state vs Clear browser data wording/actions
              (REQ-PRIVACY-01/-02; text sourced from PrivacyService so tests pin it). -->
         <TextBlock x:Name="PrivacySectionHeader" Text="Privacy" FontSize="16" FontWeight="SemiBold"
-                   Foreground="{StaticResource TextPrimary}" Margin="0,0,0,2" />
+                   Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,2" />
 
         <TextBlock x:Name="ResetDescriptionText" TextWrapping="Wrap" FontSize="12"
-                   Foreground="{StaticResource TextSecondary}" Margin="0,10,0,8" />
+                   Foreground="{DynamicResource TextSecondary}" Margin="0,10,0,8" />
         <Button x:Name="ResetAppStateButton" Style="{StaticResource DarkButton}"
                 HorizontalAlignment="Left" Click="ResetAppStateButton_Click" />
 
-        <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,18" />
+        <Border Height="1" Background="{DynamicResource BorderSubtle}" Margin="0,18" />
 
         <TextBlock x:Name="ClearDescriptionText" TextWrapping="Wrap" FontSize="12"
-                   Foreground="{StaticResource TextSecondary}" Margin="0,0,0,8" />
+                   Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,8" />
         <Button x:Name="ClearBrowserDataButton" Style="{StaticResource DarkButton}"
                 HorizontalAlignment="Left" Click="ClearBrowserDataButton_Click" />
 
-        <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,18" />
+        <Border Height="1" Background="{DynamicResource BorderSubtle}" Margin="0,18" />
 
         <!-- Appearance (overhaul Task 10): one theme preset + one shared accent replace the separate
              Pin/Fade color swatches. The accent drives Source Pin, Popout Pin, and Popout Fade. -->
         <TextBlock x:Name="AppearanceSectionHeader" Text="Appearance" FontSize="16" FontWeight="SemiBold"
-                   Foreground="{StaticResource TextPrimary}" Margin="0,0,0,10" />
+                   Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,10" />
 
-        <TextBlock Text="Theme" FontSize="12" Foreground="{StaticResource TextSecondary}"
+        <TextBlock Text="Theme" FontSize="12" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,0,0,6" />
         <TextBlock x:Name="ThemeHintText"
                    Text="Themes and the accent apply right away to the main window and to new Popout Players. A preset sets the accent; the chips fine-tune it."
-                   TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextSecondary}"
+                   TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,0,0,8" />
         <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
           <ToggleButton x:Name="ThemeSharpDarkPreset" Style="{StaticResource PresetToggle}"
@@ -147,7 +147,7 @@
                         ToolTip="Soft Glass theme" AutomationProperties.Name="Soft Glass theme" />
         </StackPanel>
 
-        <TextBlock Text="Accent color" FontSize="12" Foreground="{StaticResource TextSecondary}"
+        <TextBlock Text="Accent color" FontSize="12" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,0,0,6" />
         <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
           <ToggleButton x:Name="AccentChipCyan" Style="{StaticResource SwatchToggle}"
@@ -156,6 +156,9 @@
           <ToggleButton x:Name="AccentChipSteelBlue" Style="{StaticResource SwatchToggle}"
                         Background="#5AA9E6" Tag="#5AA9E6" Click="AccentChip_Click"
                         ToolTip="Accent: Steel blue" AutomationProperties.Name="Accent Steel blue" />
+          <ToggleButton x:Name="AccentChipSteel" Style="{StaticResource SwatchToggle}"
+                        Background="#4A8FAB" Tag="#4A8FAB" Click="AccentChip_Click"
+                        ToolTip="Accent: Steel (muted)" AutomationProperties.Name="Accent Steel" />
           <ToggleButton x:Name="AccentChipViolet" Style="{StaticResource SwatchToggle}"
                         Background="#A78BFA" Tag="#A78BFA" Click="AccentChip_Click"
                         ToolTip="Accent: Violet" AutomationProperties.Name="Accent Violet" />
@@ -167,30 +170,59 @@
                         ToolTip="Accent: Amber" AutomationProperties.Name="Accent Amber" />
         </StackPanel>
 
-        <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,18" />
+        <!-- Corner style (review doc §8.1): an override of the theme's whole corner PROFILE
+             (control radii + native window corner), never individual per-control radii. "Theme"
+             keeps preset-owned corners. Chip names use the CornerStyle prefix — the catalog-drift
+             test predicates key on Theme*Preset / AccentChip* names. -->
+        <TextBlock Text="Corners" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                   Margin="0,0,0,6" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+          <ToggleButton x:Name="CornerStyleThemeChip" Style="{StaticResource PresetToggle}"
+                        MinWidth="60" Content="Theme" Tag="theme" Click="CornerStyle_Click"
+                        ToolTip="Corners follow the selected theme"
+                        AutomationProperties.Name="Corners follow theme" />
+          <ToggleButton x:Name="CornerStyleSquareChip" Style="{StaticResource PresetToggle}"
+                        MinWidth="60" Content="Square" Tag="square" Click="CornerStyle_Click"
+                        ToolTip="Square corners everywhere"
+                        AutomationProperties.Name="Square corners" />
+          <ToggleButton x:Name="CornerStyleSmallChip" Style="{StaticResource PresetToggle}"
+                        MinWidth="60" Content="Small" Tag="small" Click="CornerStyle_Click"
+                        ToolTip="Small, sharp corner rounding"
+                        AutomationProperties.Name="Small corners" />
+          <ToggleButton x:Name="CornerStyleSoftChip" Style="{StaticResource PresetToggle}"
+                        MinWidth="60" Content="Soft" Tag="soft" Click="CornerStyle_Click"
+                        ToolTip="Moderate, soft corner rounding"
+                        AutomationProperties.Name="Soft corners" />
+          <ToggleButton x:Name="CornerStyleRoundChip" Style="{StaticResource PresetToggle}"
+                        MinWidth="60" Content="Round" Tag="round" Click="CornerStyle_Click"
+                        ToolTip="Large, round overlay-style corners"
+                        AutomationProperties.Name="Round corners" />
+        </StackPanel>
+
+        <Border Height="1" Background="{DynamicResource BorderSubtle}" Margin="0,18" />
 
         <!-- Playback: mode of the NEXT popout, not the app theme (spec settled decision 4). -->
         <TextBlock x:Name="PlaybackSectionHeader" Text="Playback" FontSize="16" FontWeight="SemiBold"
-                   Foreground="{StaticResource TextPrimary}" Margin="0,0,0,2" />
+                   Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,2" />
         <TextBlock x:Name="CompactModeHintText"
                    Text="Compact player uses YouTube's embedded player for a cleaner floating window. It applies to new Popout Players only - normal page mode stays the default and the fallback."
                    TextWrapping="Wrap" FontSize="12"
-                   Foreground="{StaticResource TextSecondary}" Margin="0,10,0,8" />
+                   Foreground="{DynamicResource TextSecondary}" Margin="0,10,0,8" />
         <ToggleButton x:Name="CompactModeToggle" Style="{StaticResource PresetToggle}"
                       MinWidth="150" HorizontalAlignment="Left"
                       Content="Compact player" Click="CompactModeToggle_Click"
                       ToolTip="Use the compact embedded player for new popouts"
                       AutomationProperties.Name="Compact player mode" />
 
-        <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,18" />
+        <Border Height="1" Background="{DynamicResource BorderSubtle}" Margin="0,18" />
 
         <!-- Advanced: fade/opacity/top-bar behavior tuning (overhaul Task 5; future reset-theme
              defaults land here too). The opacity live-preview path (OpacitySlider_ValueChanged ->
              OpacityPreviewChanged) survives the re-section untouched. -->
         <TextBlock x:Name="AdvancedSectionHeader" Text="Advanced" FontSize="16" FontWeight="SemiBold"
-                   Foreground="{StaticResource TextPrimary}" Margin="0,0,0,10" />
+                   Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,10" />
 
-        <TextBlock Text="Fade delay" FontSize="12" Foreground="{StaticResource TextSecondary}"
+        <TextBlock Text="Fade delay" FontSize="12" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,0,0,6" />
         <StackPanel Orientation="Horizontal">
           <ToggleButton x:Name="FadeDelayShortPreset" Style="{StaticResource PresetToggle}"
@@ -209,7 +241,7 @@
 
         <!-- Whole-window opacity (spec 7.3, Phase 4). Sliders floor at 45% (QA §3); values
              10-45% are honored only when hand-edited into settings.json (the explicit unlock). -->
-        <TextBlock Text="Window opacity" FontSize="12" Foreground="{StaticResource TextSecondary}"
+        <TextBlock Text="Window opacity" FontSize="12" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,12,0,6" />
         <Grid Margin="0,0,0,6">
           <Grid.ColumnDefinitions>
@@ -217,7 +249,7 @@
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="44" />
           </Grid.ColumnDefinitions>
-          <TextBlock Text="Active" FontSize="12" Foreground="{StaticResource TextPrimary}"
+          <TextBlock Text="Active" FontSize="12" Foreground="{DynamicResource TextPrimary}"
                      VerticalAlignment="Center" />
           <Slider x:Name="ActiveOpacitySlider" Grid.Column="1" Minimum="45" Maximum="100"
                   SmallChange="1" LargeChange="10" IsMoveToPointEnabled="True"
@@ -225,7 +257,7 @@
                   ToolTip="Popout window opacity while you interact with it (45-100%)"
                   AutomationProperties.Name="Active window opacity" />
           <TextBlock x:Name="ActiveOpacityValueText" Grid.Column="2" FontSize="12" TextAlignment="Right"
-                     Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center" />
+                     Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
         </Grid>
         <Grid>
           <Grid.ColumnDefinitions>
@@ -233,7 +265,7 @@
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="44" />
           </Grid.ColumnDefinitions>
-          <TextBlock Text="When idle" FontSize="12" Foreground="{StaticResource TextPrimary}"
+          <TextBlock Text="When idle" FontSize="12" Foreground="{DynamicResource TextPrimary}"
                      VerticalAlignment="Center" />
           <Slider x:Name="IdleOpacitySlider" Grid.Column="1" Minimum="45" Maximum="100"
                   SmallChange="1" LargeChange="10" IsMoveToPointEnabled="True"
@@ -241,12 +273,12 @@
                   ToolTip="Popout window opacity after the mouse goes idle (45-100%)"
                   AutomationProperties.Name="Idle window opacity" />
           <TextBlock x:Name="IdleOpacityValueText" Grid.Column="2" FontSize="12" TextAlignment="Right"
-                     Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center" />
+                     Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
         </Grid>
 
         <!-- Strip auto-hide (spec 7.2, Phase 4): selectable appearance behavior, default off.
              Only engages while the popout's Fade toggle is on (one idleness definition). -->
-        <TextBlock Text="Popout top bar" FontSize="12" Foreground="{StaticResource TextSecondary}"
+        <TextBlock Text="Popout top bar" FontSize="12" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,12,0,6" />
         <ToggleButton x:Name="StripAutoHideToggle" Style="{StaticResource PresetToggle}"
                       MinWidth="150" HorizontalAlignment="Left"

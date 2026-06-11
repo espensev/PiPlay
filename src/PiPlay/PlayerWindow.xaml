@@ -34,7 +34,7 @@
     </Grid.RowDefinitions>
 
     <!-- Chrome strip: drag region + Pin + Close (always visible in MVP; fade is Phase 2). -->
-    <Border x:Name="ChromeStrip" Grid.Row="0" Height="32" Background="{StaticResource SurfaceBase}"
+    <Border x:Name="ChromeStrip" Grid.Row="0" Height="32" Background="{DynamicResource SurfaceBase}"
             MouseLeftButtonDown="ChromeStrip_MouseLeftButtonDown">
       <Grid>
         <Grid.ColumnDefinitions>
@@ -43,7 +43,7 @@
         </Grid.ColumnDefinitions>
 
         <TextBlock Text="PiPlay" Grid.Column="0" Margin="10,0,0,0" VerticalAlignment="Center"
-                   FontSize="12" Foreground="{StaticResource TextSecondary}" />
+                   FontSize="12" Foreground="{DynamicResource TextSecondary}" />
 
         <StackPanel Grid.Column="1" Orientation="Horizontal">
           <ToggleButton x:Name="FadeToggle" Style="{StaticResource PinToggle}" Width="30" Height="30"
@@ -69,7 +69,7 @@
          IFrame API error, fails to load, or times out. A separate row, not an overlay — WPF can't
          render over the WebView2 HwndHost (airspace), and the bar leaves YouTube's own in-player
          error message visible (Q-5). Collapsed in normal mode and whenever there is no error. -->
-    <Border x:Name="ErrorBar" Grid.Row="1" Background="{StaticResource SurfaceRaised}"
+    <Border x:Name="ErrorBar" Grid.Row="1" Background="{DynamicResource SurfaceRaised}"
             Padding="10,6" Visibility="Collapsed">
       <Grid>
         <Grid.ColumnDefinitions>
@@ -79,7 +79,7 @@
         </Grid.ColumnDefinitions>
 
         <TextBlock x:Name="ErrorText" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap"
-                   FontSize="12" Foreground="{StaticResource TextPrimary}" />
+                   FontSize="12" Foreground="{DynamicResource TextPrimary}" />
 
         <Button x:Name="FallbackButton" Grid.Column="1" Style="{StaticResource AccentButton}"
                 Margin="10,0,0,0" Content="Open normal page" Click="FallbackButton_Click"
