@@ -265,12 +265,13 @@ public class WpfRuntimeTests : IDisposable
     {
         // Review doc §2.1: an EXPLICIT preset selection applies the preset's behavior defaults —
         // fade delay, strip auto-hide, opacity levels — and returns corners to the theme.
-        // Controls touched afterwards become overrides (they fire their own handlers). The
-        // accent here is the sharp-dark DEFAULT, so the §3.3 rule adopts the new default too.
+        // Behavior returns to "follow the preset" (code review P2): the overrides become NULL,
+        // not snapshots, so only controls touched afterwards become overrides. The accent here
+        // is the sharp-dark DEFAULT, so the §3.3 rule adopts the new default too.
         var w = new SettingsWindow(isBrowserReady: true, themeId: "sharp-dark",
             accentColor: ThemeCatalog.DefaultAccentColor,
-            fadeIdleDelayMs: 1500, constantWindowOpacity: 1.0, idleWindowOpacity: 1.0,
-            stripAutoHide: true, cornerStyle: "square");
+            fadeIdleDelayMs: 1500, activeOpacityOverride: 1.0, idleOpacityOverride: 1.0,
+            stripAutoHideOverride: true, cornerStyle: "square");
 
         ((ToggleButton)w.FindName("ThemeSoftGlassPreset")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
 
@@ -280,11 +281,36 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal(ThemeCatalog.DefaultCornerStyle, w.CornerStyle);
         Assert.True(((ToggleButton)w.FindName("CornerStyleThemeChip")!).IsChecked);
         Assert.Equal(ThemeCatalog.FadeDelayMillisecondsForPreset(preset.DefaultFadeDelayPreset), w.FadeIdleDelayMs);
+        Assert.Null(w.StripAutoHideOverride);
+        Assert.Null(w.ActiveOpacityOverride);
+        Assert.Null(w.IdleOpacityOverride);
         Assert.Equal(preset.DefaultStripAutoHide, w.StripAutoHide);
         Assert.Equal(preset.DefaultStripAutoHide, ((ToggleButton)w.FindName("StripAutoHideToggle")!).IsChecked);
         Assert.Equal(preset.DefaultActiveWindowOpacity, w.ConstantWindowOpacity);
         Assert.Equal(preset.DefaultIdleWindowOpacity, w.IdleWindowOpacity);
+        Assert.Equal(92, ((Slider)w.FindName("ActiveOpacitySlider")!).Value);   // displays the preset default
         Assert.True(w.AppearanceChanged);
+    });
+
+    [Fact]
+    public void SettingsWindow_accent_only_change_keeps_behavior_on_preset_defaults() => StaTestThread.Invoke(() =>
+    {
+        // Code review P2 regression: an accent-only apply must NOT materialize the null
+        // "follow the preset" behavior overrides into explicit values.
+        var w = new SettingsWindow(isBrowserReady: true);   // fresh: all behavior overrides null
+
+        ((ToggleButton)w.FindName("AccentChipAmber")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+
+        Assert.True(w.AppearanceChanged);
+        Assert.Null(w.ActiveOpacityOverride);
+        Assert.Null(w.IdleOpacityOverride);
+        Assert.Null(w.StripAutoHideOverride);
+
+        // Touching ONE behavior control creates an override for just that control.
+        ((Slider)w.FindName("IdleOpacitySlider")!).Value = 70;
+        Assert.Equal(0.7, w.IdleOpacityOverride);
+        Assert.Null(w.ActiveOpacityOverride);
+        Assert.Null(w.StripAutoHideOverride);
     });
 
     [Fact]
@@ -762,7 +788,7 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void SettingsWindow_reflects_and_updates_window_opacity() => StaTestThread.Invoke(() =>
     {
-        var w = new SettingsWindow(isBrowserReady: true, constantWindowOpacity: 0.8, idleWindowOpacity: 0.6);
+        var w = new SettingsWindow(isBrowserReady: true, activeOpacityOverride: 0.8, idleOpacityOverride: 0.6);
 
         Assert.Equal(0.8, w.ConstantWindowOpacity);
         Assert.Equal(0.6, w.IdleWindowOpacity);
@@ -784,7 +810,7 @@ public class WpfRuntimeTests : IDisposable
     {
         // Spec 7.3 explicit unlock: a hand-edited 0.25 displays clamped at the 45% slider floor
         // but must survive an unrelated settings change untouched.
-        var w = new SettingsWindow(isBrowserReady: true, constantWindowOpacity: 0.25, idleWindowOpacity: 1.0);
+        var w = new SettingsWindow(isBrowserReady: true, activeOpacityOverride: 0.25, idleOpacityOverride: 1.0);
 
         Assert.Equal(45, ((Slider)w.FindName("ActiveOpacitySlider")!).Value);
         Assert.Equal(0.25, w.ConstantWindowOpacity);
@@ -1394,11 +1420,11 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void SettingsWindow_reflects_and_toggles_strip_auto_hide() => StaTestThread.Invoke(() =>
     {
-        var on = new SettingsWindow(isBrowserReady: true, stripAutoHide: true);
+        var on = new SettingsWindow(isBrowserReady: true, stripAutoHideOverride: true);
         Assert.True(on.StripAutoHide);
         Assert.True(((ToggleButton)on.FindName("StripAutoHideToggle")!).IsChecked);
 
-        var w = new SettingsWindow(isBrowserReady: true, stripAutoHide: false);
+        var w = new SettingsWindow(isBrowserReady: true, stripAutoHideOverride: false);
         Assert.False(w.StripAutoHide);
         var toggle = (ToggleButton)w.FindName("StripAutoHideToggle")!;
         Assert.False(toggle.IsChecked);

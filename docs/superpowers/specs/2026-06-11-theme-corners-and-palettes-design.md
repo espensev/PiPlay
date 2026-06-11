@@ -146,6 +146,36 @@ current-state verdict is `piplay-theme-post-merge-disposition-review.md` (root o
 checkout): R1–R7 satisfied for this pass; remaining items deferred by design, enumerated in
 "Accepted residuals / next pass" below.
 
+## Addendum 2: Settings override-model pass (2026-06-11, post-merge code review)
+
+`piplay-theme-pass-code-review.md` — the first review against merged main — found no blocker in
+the resolver/migration/palette/radius/DWM core but flagged a real model mismatch:
+
+- **P2 (fixed)** — the Settings apply path collapsed the nullable override model: ONE coarse
+  `AppearanceChanged` flag meant an accent-only apply wrote all three behavior values back as
+  explicit overrides, silently detaching the user from preset behavior defaults. Now:
+  - `SettingsWindow` tracks **nullable behavior overrides** (`ActiveOpacityOverride`,
+    `IdleOpacityOverride`, `StripAutoHideOverride`; null = follow the preset) and computes the
+    displayed/previewed values as `override ?? preset default`. Only touching a behavior control
+    creates an override; the seeding guard covers programmatic slider moves.
+  - A preset click now returns behavior to "follow the preset" (overrides reset to **null**, the
+    controls display the new preset's defaults) instead of snapshotting explicit values — this
+    answers the review's open question 1: preset-owned behavior defaults remain LIVE until the
+    user touches a behavior control.
+  - The model mapping moved to the pure `ThemeSettingsWriter.Apply` (Logic-lane testable):
+    nullable overrides land on `Theme` unchanged; the legacy `Player` mirrors carry the
+    EFFECTIVE values for pre-theme readers.
+  - Tests: `ThemeSettingsWriterTests` (accent-only null preservation, normalization, effective
+    mirrors), `WpfRuntimeTests.SettingsWindow_accent_only_change_keeps_behavior_on_preset_defaults`,
+    and the preset-click test now asserts null overrides + displayed preset defaults.
+- **P3 (fixed)** — the Settings copy promised "apply right away" while theme/accent are
+  close-to-apply. The copy now states the actual contract: "Theme, accent, and corners apply to
+  every open window when you close Settings — no restart needed." This answers open question 2:
+  theme/accent/corner selection is deliberately close-to-apply (the opacity sliders live-preview
+  because drag feedback is the point; the dialog additionally self-previews its native corners).
+  A full live theme preview (with cancel/revert mirroring the opacity rollback) stays an
+  optional future nicety, not promised by the UI.
+
 ## Accepted residuals / next pass
 
 - `ControlCornerRadius`/`ButtonCornerRadius` aliases kept one migration pass (review doc §8.4)
