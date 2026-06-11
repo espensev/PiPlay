@@ -26,7 +26,12 @@ current video`); its spec re-verification is recorded at the Task 3 entry. Task 
 (`refactor(settings): make settings scrollable and sectioned`). Task 11 landed (`docs(ui): refresh
 overhaul qa evidence`). Task 12 closed 2026-06-11 via PR #17 (`fix(player): harden return paths and
 expand latch after review`). Task 8 landed 2026-06-11 (`feat(theme): add compatible theme settings
-model`). Remaining: Tasks 9-10 (theme resources and Settings UI), then re-run the Task 11/12 gate.
+model`). Theme pass complete 2026-06-11: Task 9 (`feat(theme): apply preset resource tokens`) and
+Task 10 (`feat(settings): add theme and accent controls`) on the theme-resource branch
+`claude/determined-boyd-94fad8` (integrated onto post-PR-#17 main). **All tasks landed.** Final gate:
+`dotnet test PiPlay.sln --configuration Debug` = **508/508, 0 skipped**, build **0W/0E**. See the
+Self-review "Verified (theme pass)" entry and the design "Theme pass addendum" for the settled
+decisions (incl. the readability-driven palette realignment).
 
 **Reconciliation (2026-06-11):** main received a PARALLEL, smaller Task 4/5 landing (`b35c0dd`,
 `FullscreenButton` + DockPanel settings, 456/456 at its gate) while PR #17 carried the
@@ -403,7 +408,23 @@ deep-copy (pure-copy assertions added), and `HorizontalScrollBarVisibility=Disab
     dialog opened height-bounded at the work-area clamp (~917 DIP on this display). Captures under
     `%TEMP%\piplay_run\`; fresh per-state screenshots remain the owner QA pass
     (`docs/QA_Checklist.md` §2.1 dual-capture table + §3.5 compact rows).
-  - Deferred, deliberate: Tasks 8-10 (theme foundation) are the next pass; Task 2 scroll fix
-    deferred by owner decision (click-then-scroll documented); outline item 5.6 discoverability
-    recorded deferral; retarget→fallback→return end-to-end and account-backed playback rows are
-    live QA (headless fallback requires a live CoreWebView2).
+  - Deferred, deliberate: Task 2 scroll fix deferred by owner decision (click-then-scroll
+    documented); outline item 5.6 discoverability recorded deferral; retarget→fallback→return
+    end-to-end and account-backed playback rows are live QA (headless fallback requires a live
+    CoreWebView2).
+- Verified (theme pass, Tasks 8-10, 2026-06-11):
+  - Gates: `dotnet test PiPlay.sln --configuration Debug` = **508/508, 0 skipped**;
+    `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` = **0 warnings, 0 errors**.
+    Task 8 (theme model/migration) merged the integrated base from PR #17 first; Tasks 9-10 build on
+    it. Net theme-pass test growth: +20 over the post-merge 488 baseline (theme model, colors,
+    applier, palette/sync, selector).
+  - Settled decisions recorded in the design "Theme pass addendum (Tasks 9-10)": in-place startup
+    recolor (no DynamicResource migration), single `Theme.AccentColor` driving Source/Popout
+    Pin+Fade, the readability-driven palette realignment (DEVIATION from the plan's literal "muted
+    cyan"/"steel blue #4D7EA8" — both failed the on-dark glyph floor; default is now the current
+    shell cyan `#00D4FF`), and fade delay kept on `Player.FadeIdleDelayMs`.
+  - Deferred, deliberate: live theme switching of already-open windows (Unresolved decision 3 —
+    startup/next-window only this pass); manual theme-preset + accent smoke and account-backed QA
+    (`docs/QA_Checklist.md` §3 accent row + Tasks 9-10 theme row). Legacy `BrushResourceKeyFor`/
+    `DisplayNameForAccent` are now unreferenced by production but kept (tested legacy-accent mapping);
+    candidate cleanup if the legacy `PinAccent`/`FadeAccent` fields are ever dropped.

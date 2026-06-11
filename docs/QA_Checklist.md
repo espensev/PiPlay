@@ -59,8 +59,7 @@ captures and record the evidence per column, never write per-state procedures.
 
 ## 3. Fade and appearance (Q-8)
 - [ ] Popout controls fade after idle and restore on hover / mouse-move.
-- [ ] Settings → Appearance Pin color changes the active Pin color on the Source Window and Popout Player, and persists across restart.
-- [ ] Settings → Appearance Fade color changes the active Fade toggle color in the Popout Player, independent of Pin.
+- [ ] Settings → Appearance Accent color: picking a chip recolors the Source Pin, Popout Pin, AND Popout Fade glyphs to the SAME accent (one accent, not separate Pin/Fade colors), live on the open popout, and persists across restart.
 - [ ] Settings → Appearance fade delay Short / Normal / Long changes the controls-fade idle timing; Normal is the default 2.5 s behavior.
 - [ ] The player stays clickable at all times — clicks do **not** pass through. **(Q-8)**
 - [ ] Whole-window opacity: Active and When-idle sliders apply live to the open popout; idle dims after the fade delay and movement over the player restores it.
@@ -68,7 +67,7 @@ captures and record the evidence per column, never write per-state procedures.
 - [ ] Auto-hide top bar (with Fade on): the strip collapses after the fade and the video fills the window; hovering the top edge reveals it.
 - [ ] **Overhaul Task 5 — Settings fits short displays:** on (or simulating) a ~768 px work area, the Settings window caps at the work area, the sections scroll, the title-bar close button never scrolls away, and all four sections are reachable in order: Privacy, Appearance, Playback, Advanced.
 - [ ] Settings → Playback copy states the Compact player applies to NEW Popout Players only; an already-open popout is unaffected by toggling it.
-- [ ] *(Pending Tasks 8-10 — skip until the theme pass lands)* Theme preset smoke: each preset applies at startup, accent chips drive Pin/Fade consistently, invalid persisted theme values fall back safely.
+- [ ] **Overhaul Tasks 9-10 — Theme preset + accent smoke:** Settings → Appearance shows a Theme row (Sharp Dark / Minimal / Soft Glass) and a single Accent color chip row. Selecting a preset checks it and adopts that preset's default accent. The chosen accent recolors the primary "Pop out video" button, the URL caret/focus, and the Pin/Fade glyphs on the NEXT app start (chrome) and immediately (Pin/Fade). A hand-edited invalid `theme.themeId`/`accentColor` in settings.json falls back to Sharp Dark / cyan without crashing.
 
 ## 3.5 Compact player (Phase 3)
 - [ ] Global Settings compact-player preference defaults off; when enabled, new popouts use compact mode.
