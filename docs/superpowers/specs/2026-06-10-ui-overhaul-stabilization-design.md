@@ -353,3 +353,30 @@ include a dated design spec or a Spec-Exception line.
 Popout Standard / Popout Fullview Faded divergence. Guardrails added where implementation could
 accidentally create it: route-B mode gating (Task 4), fade-state-agnostic fixes (Tasks 1-2), and the
 source-side fallback note placement (Task 6).
+
+## Implementation reconciliation addendum (2026-06-11)
+
+Two parallel implementations of Tasks 4-5 existed briefly: this branch's review-hardened pass and
+a smaller direct landing on main (`b35c0dd`). The reconciliation merge settled the following as
+design decisions:
+
+1. **Settings frame model: fixed launch height, not SizeToContent.** The dialog declares
+   `Width=520 Height=680 MinHeight=360`; the constructor clamps `MaxHeight` to the primary work
+   area less a 48 DIP margin (floor 420 for misreported work areas) and clamps the launch Height
+   under it. Rationale: the dialog must not grow with future sections — the scroll viewer absorbs
+   content growth instead. Pinned by a XAML invariant (no `SizeToContent`, `Height`/`MinHeight`
+   present, horizontal scrolling disabled) and runtime asserts on the exact clamp derivation.
+2. **Expand affordance: `ExpandButton`, state-neutral UIA name** ("Expand or restore popout",
+   MaximizeButton precedent); glyph and tooltip flip in code. One toggle path serves the native
+   button, the shell `fullscreenToggle` request, and (gated on live compact mode) the WebView2
+   fullscreen element, with a caused-by-element latch so an element exit never undoes a posture
+   the user chose; the latch self-syncs on `StateChanged` for OS-driven exits.
+3. **Every expand path counts as user activity** (adopted from `b35c0dd`): an auto-hidden strip
+   un-collapses on expand/restore so the restore affordance is immediately reachable without the
+   top-edge reveal.
+4. **Placement normalization is a pure copy** (`PlacementMath.ForNextLaunch`): applied on BOTH
+   capture and launch (a popout never launches expanded, including from pre-fix settings files),
+   never mutates its input, and deep-copies `MonitorWorkArea` so snapshots share no mutable state.
+5. **Shell-reported video ids are validated at protocol parse** (`PlayerShellProtocol.Parse`):
+   a malformed id is wire-level malformed input and parses as absent, protecting every consumer —
+   the host turns this string into a source navigation target on close.
