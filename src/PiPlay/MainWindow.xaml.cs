@@ -812,38 +812,7 @@ public partial class MainWindow : Window
 
             // Return to the source (spec 14). LastKnownSeconds is nullable; 0 is a valid timestamp.
             ShowSourcePlaceholder(false);
-            var core = Browser.CoreWebView2;
-            // Skip driving source playback when a Clear browser data is wiping the session — the
-            // page is about to be cleared/navigated, so seek/play scripts would be wasted or race.
-            if (core is not null && !_clearingBrowserData)
-            {
-                // REQ-RETURN-01: resume only if the source was playing when popout started;
-                // 0 is a valid timestamp distinct from unknown. Decision lives in ReturnPolicy.
-                switch (ReturnPolicy.Decide(state.LastKnownSeconds, _sourceWasPlayingAtPopout,
-                            state.VideoId, _popoutSourceVideoId))
-                {
-                    case ReturnAction.Navigate:
-                        // The popout ended on a DIFFERENT video (recommendation click, playlist
-                        // auto-advance, SPA navigation): bring the source to where the user
-                        // actually is. The timestamp rides the watch URL; Auto's de-dup key
-                        // updates FIRST so the returned video is not instantly re-popped.
-                        _autoLastHandledVideoId = state.VideoId;
-                        NavigateInternal(YouTubeUrlHelper.BuildWatchUrl(
-                            new YouTubeTarget { VideoId = state.VideoId }, state.LastKnownSeconds));
-                        break;
-                    case ReturnAction.SeekAndPlay:
-                        await YouTubeDomBridge.SeekAndPlayAsync(core, state.LastKnownSeconds!.Value);
-                        break;
-                    case ReturnAction.Seek:
-                        await YouTubeDomBridge.SeekAsync(core, state.LastKnownSeconds!.Value);
-                        break;
-                    case ReturnAction.Play:
-                        await YouTubeDomBridge.PlayAsync(core);
-                        break;
-                    case ReturnAction.None:
-                        break;
-                }
-            }
+            await ApplyReturnActionAsync(state);
 
             _settingsService.Save(_settings);
             Log.Info("Returned from Video Popout.");
@@ -853,6 +822,50 @@ public partial class MainWindow : Window
             Log.Error("Error returning from Video Popout.", ex);
         }
     }
+
+    /// <summary>
+    /// The return decision of <see cref="Player_OnClosed"/> (REQ-RETURN-01), separate from the
+    /// persistence half so the WPF lane can drive it without writing real settings. Skipped
+    /// entirely while Clear browser data is wiping the session — the page is about to be
+    /// cleared/navigated, so driving it would be wasted or race. Navigate needs no live core
+    /// (<see cref="NavigateInternal"/> queues until the browser is ready); the script-driven
+    /// cases do, and fall through silently without one.
+    /// </summary>
+    internal async Task ApplyReturnActionAsync(PlayerReturnState state)
+    {
+        if (_clearingBrowserData) return;
+        var core = Browser.CoreWebView2;
+
+        // REQ-RETURN-01: resume only if the source was playing when popout started;
+        // 0 is a valid timestamp distinct from unknown. Decision lives in ReturnPolicy.
+        switch (ReturnPolicy.Decide(state.LastKnownSeconds, _sourceWasPlayingAtPopout,
+                    state.VideoId, _popoutSourceVideoId))
+        {
+            case ReturnAction.Navigate:
+                // The popout ended on a DIFFERENT video (recommendation click, playlist
+                // auto-advance, SPA navigation): bring the source to where the user
+                // actually is. The timestamp rides the watch URL; Auto's de-dup key
+                // updates FIRST so the returned video is not instantly re-popped.
+                _autoLastHandledVideoId = state.VideoId;
+                NavigateInternal(YouTubeUrlHelper.BuildWatchUrl(
+                    new YouTubeTarget { VideoId = state.VideoId }, state.LastKnownSeconds));
+                break;
+            case ReturnAction.SeekAndPlay when core is not null:
+                await YouTubeDomBridge.SeekAndPlayAsync(core, state.LastKnownSeconds!.Value);
+                break;
+            case ReturnAction.Seek when core is not null:
+                await YouTubeDomBridge.SeekAsync(core, state.LastKnownSeconds!.Value);
+                break;
+            case ReturnAction.Play when core is not null:
+                await YouTubeDomBridge.PlayAsync(core);
+                break;
+        }
+    }
+
+    // Return seams (overhaul Task 3, WPF lane): drive the navigate-vs-seek return decision
+    // headlessly — the queued pending URL is the observable for the Navigate case.
+    internal void SeedPopoutReturnForTests(string sourceVideoId) => _popoutSourceVideoId = sourceVideoId;
+    internal string? AutoLastHandledVideoIdForTests => _autoLastHandledVideoId;
 
     // --- Single-instance activation (REQ-APP-01) ---
 

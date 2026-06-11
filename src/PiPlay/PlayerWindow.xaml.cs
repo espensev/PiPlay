@@ -20,13 +20,19 @@ namespace PiPlay;
 /// </summary>
 public partial class PlayerWindow : Window
 {
-    private const string GlyphExpand = "\uE922";
-    private const string GlyphRestore = "\uE923";
+    // Segoe MDL2 caption glyphs (kept as escapes so the source stays plain ASCII).
+    private const string GlyphMaximize = "";
+    private const string GlyphRestore = "";
 
     private readonly CoreWebView2Environment _environment;
     private readonly PlacementData? _placement;
     private readonly DispatcherTimer _syncTimer;
     private readonly PlayerReturnState _returnState = new();
+
+    // Expand/restore (overhaul Task 4): true only while a compact fullscreen ELEMENT (the shell's
+    // YouTube fullscreen button) caused the expansion, so exiting element fullscreen restores the
+    // window without un-expanding one the user expanded deliberately.
+    private bool _maximizedForFullScreenElement;
 
     // Mutable: the compact fallback (spec 10.3 / Q-6) flips the window to normal-mode behavior in
     // place, so the mode-dependent seams (timestamp source, minimum size) follow the live surface.
@@ -103,8 +109,6 @@ public partial class PlayerWindow : Window
         _mode = mode;
         _currentTarget = fallbackTarget;
         _returnState.VideoId = fallbackTarget?.VideoId;   // the launch video until navigation says otherwise
-        UpdateFullscreenButtonState();
-        StateChanged += (_, _) => UpdateFullscreenButtonState();
 
         // Mode-specific minimum (spec 10.2 / 16.1): compact embed mode needs a larger floor than the
         // 320x180 normal minimum so the embedded player controls stay usable. MinWidth/MinHeight set
@@ -116,7 +120,11 @@ public partial class PlayerWindow : Window
         var minHeight = PlaybackModePolicy.MinHeightFor(mode);
         MinWidth = minWidth;
         MinHeight = minHeight;
-        _placement = placement is null ? null : PlacementMath.EnsureMinSize(placement, minWidth, minHeight);
+        // ForNextLaunch on the way IN as well as on capture (Task 4): a popout never LAUNCHES
+        // expanded, including from pre-fix settings files that saved Maximized.
+        _placement = placement is null
+            ? null
+            : PlacementMath.EnsureMinSize(PlacementMath.ForNextLaunch(placement)!, minWidth, minHeight);
 
         Width = Math.Max(MinWidth, defaultWidth);
         Height = Math.Max(MinHeight, defaultHeight);
@@ -153,6 +161,10 @@ public partial class PlayerWindow : Window
 
         Loaded += (_, _) => ApplyFadeState();
         Loaded += async (_, _) => await InitializePlayerAsync();
+        // OS-driven state changes (Win+Up/Down, aero snap) must keep the affordance honest too —
+        // the direct calls in ToggleExpandedState cover the test lane, where unshown windows
+        // never receive StateChanged.
+        StateChanged += (_, _) => HandleWindowStateChanged();
         SourceInitialized += (_, _) =>
         {
             if (_placement is not null) WindowPlacementService.Restore(this, _placement);
@@ -177,7 +189,12 @@ public partial class PlayerWindow : Window
             core.NewWindowRequested += Core_NewWindowRequested;
             core.NavigationCompleted += Core_NavigationCompleted;
             core.SourceChanged += Core_SourceChanged;
-            core.ContainsFullScreenElementChanged += Core_ContainsFullScreenElementChanged;
+            // Secondary expand route (overhaul Task 4): the compact shell's YouTube fullscreen
+            // button raises a fullscreen ELEMENT that today fills only the WebView bounds the
+            // player already fills — honor it as window expansion. The handler gates on the LIVE
+            // mode, so the normal watch page gains no new fullscreen invariant.
+            core.ContainsFullScreenElementChanged += (_, _) =>
+                ApplyFullScreenElementState(core.ContainsFullScreenElement);
 
             if (_mode == PlaybackMode.Compact)
             {
@@ -250,6 +267,10 @@ public partial class PlayerWindow : Window
         _returnState.VideoId = target.VideoId;
         _returnState.LastKnownSeconds = null;
         _nudgedPlay = false;
+        // The navigation tears down any fullscreen element with no exit event reaching a handler
+        // that still believes the OLD page's element is up — drop the latch, keep the window state
+        // (yanking the window around mid-retarget would be worse than staying expanded).
+        _maximizedForFullScreenElement = false;
         _currentUrl = PlaybackModePolicy.BuildPopoutUrl(
             _mode, target, target.StartSeconds, WebViewEnvironmentService.ShellPlayerUrl);
 
@@ -279,12 +300,6 @@ public partial class PlayerWindow : Window
             _returnState.VideoId = t.VideoId;
     }
 
-    private void Core_ContainsFullScreenElementChanged(object? sender, object e)
-    {
-        if (_mode != PlaybackMode.Compact || sender is not CoreWebView2 core) return;
-        SetExpanded(core.ContainsFullScreenElement);
-    }
-
     private void Core_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
         _navCompleted = true;
@@ -312,7 +327,9 @@ public partial class PlayerWindow : Window
         // Compact mode's source of truth for the return timestamp is the IFrame API, not the DOM.
         _returnState.LastKnownSeconds = state.CurrentTime;
         // Protocol v3: the shell reports the CURRENT video (playlist auto-advance and in-iframe
-        // clicks are invisible to the host). Absent/empty keeps the last-known id.
+        // clicks are invisible to the host). PlayerShellProtocol.Parse already rejected malformed
+        // ids at the wire (the parse IS the trust boundary), so a non-empty value here is a
+        // well-formed id; absent/invalid keeps the last-known id.
         if (!string.IsNullOrEmpty(state.VideoId)) _returnState.VideoId = state.VideoId;
         // A playing state proves recovery (e.g. a playlist auto-advanced past a dead entry) —
         // clear a showing error so the bar can't outlive the problem it reported.
@@ -348,7 +365,7 @@ public partial class PlayerWindow : Window
                 Topmost = PinToggle.IsChecked == true;
                 break;
             case PlayerShellProtocol.ActionFullscreenToggle:
-                ToggleExpanded();
+                ToggleExpandedState();
                 break;
         }
     }
@@ -399,6 +416,9 @@ public partial class PlayerWindow : Window
         _mode = PlaybackMode.Normal;
         MinWidth = PlaybackModePolicy.MinWidthFor(PlaybackMode.Normal);
         MinHeight = PlaybackModePolicy.MinHeightFor(PlaybackMode.Normal);
+        // The mode gate makes further fullscreen-element events no-ops, so a latch set by the dying
+        // shell could never clear — drop it (window state stays; the expand button is the exit).
+        _maximizedForFullScreenElement = false;
         HideShellError();
 
         // A zero timestamp here means the shell never actually played (the usual fallback cause,
@@ -424,6 +444,7 @@ public partial class PlayerWindow : Window
     internal string? CurrentFallbackVideoIdForTests => _currentTarget?.VideoId;
     internal string? ReturnVideoIdForTests => _returnState.VideoId;
     internal int? ReturnSecondsForTests => _returnState.LastKnownSeconds;
+    internal PlacementData? LaunchPlacementForTests => _placement;
 
     // Strip auto-hide seams (Wpf lane): drive the collapse/reveal state machine headlessly.
     internal bool StripAutoHideForTests => _stripAutoHide;
@@ -453,32 +474,15 @@ public partial class PlayerWindow : Window
 
     private void PinToggle_Click(object sender, RoutedEventArgs e) => Topmost = PinToggle.IsChecked == true;
 
-    private void FullscreenButton_Click(object sender, RoutedEventArgs e) => ToggleExpanded();
-
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
-
-    private void ToggleExpanded() => SetExpanded(WindowState != WindowState.Maximized);
-
-    private void SetExpanded(bool expanded)
-    {
-        WindowState = expanded ? WindowState.Maximized : WindowState.Normal;
-        OnUserActivity();   // keep the restore affordance reachable after any expand path.
-        UpdateFullscreenButtonState();
-    }
-
-    private void UpdateFullscreenButtonState()
-    {
-        if (FullscreenButton is null) return;
-        var expanded = WindowState == WindowState.Maximized;
-        FullscreenButton.Content = expanded ? GlyphRestore : GlyphExpand;
-        FullscreenButton.ToolTip = expanded ? "Restore popout" : "Expand popout";
-        System.Windows.Automation.AutomationProperties.SetName(
-            FullscreenButton, expanded ? "Restore popout" : "Expand popout");
-    }
 
     private void ChromeStrip_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ButtonState != MouseButtonState.Pressed) return;
+        // Expanded covers the monitor: there is nowhere to drag to, and DragMove on a maximized
+        // borderless window misbehaves (the frame moves without un-maximizing). Restore is a
+        // deliberate act (expand button / Esc), never a drag side effect.
+        if (WindowState == WindowState.Maximized) return;
         _isDragging = true;
         try { DragMove(); }
         catch { /* DragMove throws if the button was already released */ }
@@ -488,6 +492,104 @@ public partial class PlayerWindow : Window
             OnUserActivity(); // keep controls up briefly after a drag, then resume idle countdown
         }
     }
+
+    // --- Expand / restore (overhaul Task 4) ---
+
+    private void ExpandButton_Click(object sender, RoutedEventArgs e) => ToggleExpandedState();
+
+    /// <summary>
+    /// The ONE expand path (Q-2): the native strip button and the shell's fullscreenToggle request
+    /// land here. Maximize semantics are the decided full-monitor cover (owner decision 2026-06-10,
+    /// no work-area hook). A user toggle clears the fullscreen-element latch: from here on the
+    /// expansion is theirs, and an element exit must not undo it.
+    /// </summary>
+    private void ToggleExpandedState()
+    {
+        _maximizedForFullScreenElement = false;
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        UpdateExpandAffordance();
+        // Any expand path counts as activity (adopted from the parallel b35c0dd landing): an
+        // auto-hidden strip un-collapses, so the restore affordance is immediately reachable in
+        // the new state instead of waiting for the top-edge reveal.
+        OnUserActivity();
+    }
+
+    /// <summary>
+    /// Runs on every StateChanged: any exit from Maximized — ours, or an OS path our toggles never
+    /// see (Win+Down, aero snap) — invalidates the element-caused latch, because the expansion it
+    /// described no longer exists. Without this, a stale latch survives an OS restore and the
+    /// state machine lies until the next element event (review finding 2026-06-10).
+    /// </summary>
+    private void HandleWindowStateChanged()
+    {
+        if (WindowState != WindowState.Maximized) _maximizedForFullScreenElement = false;
+        UpdateExpandAffordance();
+    }
+
+    /// <summary>Keep glyph and tooltip truthful in both states; the UIA name stays state-neutral
+    /// ("Expand or restore popout", XamlInvariantTests pins it).</summary>
+    private void UpdateExpandAffordance()
+    {
+        var maximized = WindowState == WindowState.Maximized;
+        ExpandButton.Content = maximized ? GlyphRestore : GlyphMaximize;
+        ExpandButton.ToolTip = maximized ? "Restore popout" : "Expand popout";
+    }
+
+    /// <summary>
+    /// Secondary expand route (spec settled decision 14): a compact fullscreen ELEMENT (the
+    /// shell's YouTube fullscreen button) expands the window; exiting restores it ONLY if the
+    /// element caused the expansion. Gated on the LIVE mode — the compact→normal fallback flips
+    /// <see cref="_mode"/> in place, and the normal watch page must not gain a fullscreen
+    /// invariant (Popout Standard / Fullview Faded stay one path).
+    /// </summary>
+    private void ApplyFullScreenElementState(bool containsFullScreenElement)
+    {
+        if (_mode != PlaybackMode.Compact) return;
+        if (containsFullScreenElement)
+        {
+            if (WindowState == WindowState.Maximized) return;   // already the user's posture
+            _maximizedForFullScreenElement = true;
+            WindowState = WindowState.Maximized;
+            UpdateExpandAffordance();
+            OnUserActivity();   // reveal the strip in the new state (see ToggleExpandedState)
+        }
+        else if (_maximizedForFullScreenElement)
+        {
+            _maximizedForFullScreenElement = false;
+            if (WindowState != WindowState.Maximized) return;   // user already restored it
+            WindowState = WindowState.Normal;
+            UpdateExpandAffordance();
+            OnUserActivity();
+        }
+    }
+
+    /// <summary>Esc restores an expanded popout (Task 4 reversibility). Only reachable while WPF
+    /// owns focus — keys pressed inside the WebView2 child stay in the browser.</summary>
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        if (!e.Handled && e.Key == Key.Escape && TryRestoreFromEscape()) e.Handled = true;
+        base.OnPreviewKeyDown(e);
+    }
+
+    private bool TryRestoreFromEscape()
+    {
+        if (WindowState != WindowState.Maximized) return false;
+        _maximizedForFullScreenElement = false;
+        WindowState = WindowState.Normal;
+        UpdateExpandAffordance();
+        OnUserActivity();
+        return true;
+    }
+
+    // Expand/restore seams (WPF lane): KeyEventArgs needs a PresentationSource and fullscreen
+    // element events need a live CoreWebView2, neither of which exists for an unshown window —
+    // and unshown windows receive no StateChanged, so the OS path is driven directly.
+    internal void ApplyFullScreenElementStateForTests(bool contains) => ApplyFullScreenElementState(contains);
+    internal bool HandleEscapeForTests() => TryRestoreFromEscape();
+    internal void HandleWindowStateChangedForTests() => HandleWindowStateChanged();
+    internal bool IsMaximizedForFullScreenElementForTests => _maximizedForFullScreenElement;
+    internal string ExpandGlyphForTests => (string)ExpandButton.Content;
+    internal string ExpandToolTipForTests => (string)ExpandButton.ToolTip;
 
     // --- Controls fade (spec 11, Phase 2) ---
 
@@ -728,7 +830,9 @@ public partial class PlayerWindow : Window
         _opacityHoverPoll.Stop();
         _returnState.Topmost = Topmost;
         _returnState.FadeEnabled = _fadeEnabled;
-        _returnState.Placement = NormalizeReturnPlacement(WindowPlacementService.TryCapture(this));
+        // ForNextLaunch (overhaul Task 4): closing expanded must not make the NEXT popout launch
+        // expanded — the capture keeps the prior normal bounds and drops only the maximized flag.
+        _returnState.Placement = PlacementMath.ForNextLaunch(WindowPlacementService.TryCapture(this));
     }
 
     private void PlayerWindow_Closed(object? sender, EventArgs e)
@@ -747,33 +851,5 @@ public partial class PlayerWindow : Window
         if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) return;
         try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
         catch (Exception ex) { Log.Error("Failed to open an external link.", ex); }
-    }
-
-    internal static PlacementData? NormalizeReturnPlacementForTests(PlacementData? placement) =>
-        NormalizeReturnPlacement(placement);
-
-    private static PlacementData? NormalizeReturnPlacement(PlacementData? placement)
-    {
-        if (placement is null) return null;
-
-        return new PlacementData
-        {
-            X = placement.X,
-            Y = placement.Y,
-            Width = placement.Width,
-            Height = placement.Height,
-            Maximized = false,
-            MonitorDeviceName = placement.MonitorDeviceName,
-            MonitorWorkArea = placement.MonitorWorkArea is null
-                ? null
-                : new RectData
-                {
-                    X = placement.MonitorWorkArea.X,
-                    Y = placement.MonitorWorkArea.Y,
-                    Width = placement.MonitorWorkArea.Width,
-                    Height = placement.MonitorWorkArea.Height,
-                },
-            DpiScale = placement.DpiScale,
-        };
     }
 }

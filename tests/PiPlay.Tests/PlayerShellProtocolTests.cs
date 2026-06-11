@@ -47,6 +47,24 @@ public class PlayerShellProtocolTests
         Assert.Equal("dQw4w9WgXcQ", msg.VideoId);
     }
 
+    [Theory]
+    [InlineData("abc&evil=1//")]   // URL metacharacters — would ride into a watch URL downstream
+    [InlineData("shortid")]        // too short
+    [InlineData("dQw4w9WgXcQX")]   // too long (12)
+    [InlineData("")]               // empty string is not an id
+    [InlineData("dQw4w9WgXc!")]    // disallowed charset
+    public void Malformed_state_video_ids_parse_as_absent(string hostile)
+    {
+        // FieldVideoId carries a YouTube id BY CONTRACT: the parser is the trust boundary, so a
+        // malformed value from the (untrusted) shell never reaches ANY consumer — the host turns
+        // this string into a source navigation target on close.
+        var msg = PlayerShellProtocol.Parse(
+            $"{{\"v\":3,\"type\":\"state\",\"currentTime\":42,\"videoId\":\"{hostile}\"}}");
+        Assert.Equal(ShellMessageKind.State, msg.Kind);   // the state itself still parses
+        Assert.Equal(42, msg.CurrentTime);
+        Assert.Null(msg.VideoId);                         // the malformed id does not
+    }
+
     [Fact]
     public void Parses_error_code()
     {

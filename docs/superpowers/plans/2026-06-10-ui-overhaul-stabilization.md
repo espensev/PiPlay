@@ -11,14 +11,33 @@ manual code verification). Diagnoses for Tasks 1-4 are now settled against sourc
 routes are recorded as rule-outs so they are not re-litigated during implementation. See the spec's
 "Review addendum" for the evidence trail.
 
-**Result:** In progress (2026-06-11). Tasks 1, 3, 4, 5, 6, 7, and
-8 landed; `dotnet test PiPlay.sln --configuration Debug --no-restore` = 476/476 and
+**Result:** In progress (2026-06-11). Tasks 1, 3, 4, 5, 6, 7, 8, 11, and 12 landed
+(Tasks 1-7, 11, 12 via merged PR #17 `claude/ecstatic-mclaren-b97f77`; Task 8 on the theme-resource
+branch `claude/determined-boyd-94fad8`). Post-merge gate: `dotnet test PiPlay.sln --configuration
+Debug --no-restore` = 476/476 and
 `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` clean (0 warnings). Task 1's
 inset band was live-verified by an HWND-rect probe (10 px left/right/bottom) AND owner-verified by
 manual drag resize. Task 2 was live-diagnosed (wheel focus-routing — click into the page, then
 scroll works, even at 86% opacity; layered opacity ruled out) and the fix deferred by owner
-decision. Task 4's maximize semantics were decided (keep current full-monitor maximize). Remaining:
-Tasks 9-10 (theme resources and Settings UI), 11, 12.
+decision. Task 4's maximize semantics were decided (keep current full-monitor maximize) and its
+affordance + reversibility landed 2026-06-10 (`feat(popout): add reliable expand path`). Task 3's
+implementation landed 2026-06-10 (`fix(compact): keep recommendations in piplay and return the
+current video`); its spec re-verification is recorded at the Task 3 entry. Task 5 landed
+(`refactor(settings): make settings scrollable and sectioned`). Task 11 landed (`docs(ui): refresh
+overhaul qa evidence`). Task 12 closed 2026-06-11 via PR #17 (`fix(player): harden return paths and
+expand latch after review`). Task 8 landed 2026-06-11 (`feat(theme): add compatible theme settings
+model`). Remaining: Tasks 9-10 (theme resources and Settings UI), then re-run the Task 11/12 gate.
+
+**Reconciliation (2026-06-11):** main received a PARALLEL, smaller Task 4/5 landing (`b35c0dd`,
+`FullscreenButton` + DockPanel settings, 456/456 at its gate) while PR #17 carried the
+review-hardened superset. Resolved by merge: PR #17's implementation and names win
+(`ExpandButton` with the state-neutral UIA name, caused-by-element latch, Esc restore,
+launch-side placement normalization, protocol-parse id gate, `SettingsScroll` + `*SectionHeader`
+names); adopted FROM `b35c0dd`: the fixed-height Settings frame (520x680, `MinHeight` 360, launch
+Height clamped to the work area — replaces SizeToContent), `OnUserActivity()` on every expand
+path so an auto-hidden strip reveals and restore stays reachable (new test), the placement
+deep-copy (pure-copy assertions added), and `HorizontalScrollBarVisibility=Disabled` +
+`CanContentScroll=False` on the scroll viewer.
 
 ## Tasks
 
@@ -89,9 +108,17 @@ Tasks 9-10 (theme resources and Settings UI), 11, 12.
   - Commit: `fix(popout): allow scrolling in normal page player`
 
 - [x] **Task 3 - Keep compact navigation inside PiPlay and make return state video-aware (both modes).**
-  *(Landed `fix(compact): keep recommendations in piplay and return the current video`; merged into
-  `main` in `e11756a`; deterministic suite now includes the compact navigation, shell video-id, and
-  return-policy coverage.)*
+  *(Landed `fix(compact): keep recommendations in piplay and return the current video` (452/452);
+  adversarially re-verified against this spec 2026-06-11 — every bullet satisfied: TryParse-with-
+  VideoId gate, in-place retarget with full launch-state follow-up, protocol v3 additive videoId,
+  navigate-vs-seek with the Auto de-dup key armed first, SourceChanged tracking naturally compact-
+  excluded. Review hardening landed same day: explicit `IsVideoId` charset gate where the
+  shell-reported id enters the host (the downstream re-parse + allowlist already caught hostile
+  values; the gate makes it explicit), and the source-side return decision extracted to
+  `ApplyReturnActionAsync` with headless tests proving Navigate queues the returned video's watch
+  URL and arms the de-dup key. Accepted residual (documented at the code): a final state message
+  from a dying shell can race a retarget in a narrow window. Retarget→fallback→return end-to-end
+  is a live QA row, not headless-testable (fallback requires a live CoreWebView2).)*
   - New-window policy (reframed): WebView2's `NewWindowRequested` carries no window-open disposition,
     so "explicit external intent" is NOT distinguishable from a left-click. Use the URL-shape proxy,
     mirroring `MainWindow.Core_NewWindowRequested`: a parsed YouTube watch target with a `VideoId`
@@ -123,9 +150,12 @@ Tasks 9-10 (theme resources and Settings UI), 11, 12.
     `fix(player): return current video and timestamp on close` if landed separately)
 
 - [x] **Task 4 - Provide one reliable expand/fullview path (native strip affordance + gated event).**
-  *(Landed 2026-06-11: native popout expand/restore button, compact WebView2 fullscreen-element
-  event gated to compact mode, shared shell/native toggle path, restore affordance kept visible, and
-  maximized placement normalized so the next popout launches from normal bounds.)*
+  *(Landed `feat(popout): add reliable expand path`: native `ExpandButton` on the ChromeStrip
+  (state-neutral UIA name, glyph/tooltip flip), shell `fullscreenToggle` rerouted through the same
+  `ToggleExpandedState`, `ContainsFullScreenElementChanged` honored gated on live compact mode with
+  a caused-by-element latch, Esc restore (WPF-focus-only residual documented), and
+  `PlacementMath.ForNextLaunch` normalization on BOTH capture and launch so a popout never relaunches
+  expanded. Drag while expanded deliberately inert. 461/461 tests at commit.)*
   - Primary route (settled): a native WPF expand/restore button on the existing `ChromeStrip`,
     calling the same host handler `fullscreenToggle` already reaches. No protocol change is needed —
     the `fullscreenToggle` channel (protocol consts, dual allowlists, bridge event, host handler,
@@ -151,9 +181,11 @@ Tasks 9-10 (theme resources and Settings UI), 11, 12.
   - Commit: `feat(popout): add reliable expand path`
 
 - [x] **Task 5 - Make Settings scrollable and sectioned.**
-  *(Landed 2026-06-11: bounded Settings dialog with scrollable content, Privacy / Appearance /
-  Playback / Advanced section order, visible compact-mode "new popouts only" copy, and existing
-  control names preserved for Task 10.)*
+  *(Landed `refactor(settings): make settings scrollable and sectioned`: fixed title bar +
+  `SettingsScroll` ScrollViewer, work-area-derived `MaxHeight` (420 floor), sections
+  Privacy/Appearance/Playback/Advanced with fade delay + opacity + auto-hide under Advanced,
+  compact copy states "new Popout Players only", every `x:Name` and the opacity live-preview path
+  preserved, 5.6 stays deferred. 468/468 tests at commit.)*
   - Update `SettingsWindow.xaml` from a tall fixed dialog (`SizeToContent="Height"`, no scrolling) to
     a bounded layout: `MaxHeight` (work-area-derived) + `ScrollViewer` so it fits shorter displays.
   - Organize sections as Privacy, Appearance, Playback, and Advanced.
@@ -266,7 +298,16 @@ Tasks 9-10 (theme resources and Settings UI), 11, 12.
     after replacement, and manual captures for Pin/Fade/accent consistency.
   - Commit: `feat(settings): add theme and accent controls`
 
-- [ ] **Task 11 - Refresh QA docs and discovery evidence.**
+- [x] **Task 11 - Refresh QA docs and discovery evidence.**
+  *(Landed `docs(ui): refresh overhaul qa evidence`: Phase-3 resize rows amended to pointer-over-
+  surface; new §2.1 dual-capture behavior table (click-then-scroll, band contract, expand/restore,
+  restore reachability, never-relaunch-expanded, reveal-then-resize beat); compact Task 3/4 rows;
+  Settings short-display + new-popouts-copy rows; UI-CHK-7 accessible names; theme-preset row
+  parked pending Tasks 8-10. CHANGELOG `[Unreleased]` opened; SPEC_GAPS Stage-4 claim corrected to
+  shipped; ui-state-notes State 03 renamed `Source Expanded Player` + post-fix addendum (fresh
+  captures deferred to the manual QA pass). Wording sweep clean: remaining "fullscreen" hits are
+  YouTube's own button, the W3C fullscreen-element API, protocol identifiers, or preserved pre-fix
+  capture notes. theme-system-overhaul-evaluation.md untouched — no theme decisions changed.)*
   - `docs/QA_Checklist.md`: AMEND the existing Phase-3 resize rows to require resize with the pointer
     OVER the player surface (the actual reported bug) rather than adding duplicate rows; add rows for
     scroll, compact recommendation navigation, compact expand/fullview (including
@@ -286,7 +327,10 @@ Tasks 9-10 (theme resources and Settings UI), 11, 12.
     protocol identifiers (`ActionFullscreenToggle`, `fullscreenToggle`) and compact-mode QA rows.
   - Commit: `docs(ui): refresh overhaul qa evidence`
 
-- [ ] **Task 12 - Run full gate and self-review.**
+- [x] **Task 12 - Run full gate and self-review (stabilization pass; theme Tasks 8-10 excluded).**
+  *(Landed `chore(ui): record overhaul stabilization verification`. Gate and review evidence in
+  the Self-review "Verified" section below. Tasks 8-10 are the deliberate later theme pass and get
+  their own gate when they land.)*
   - Run `dotnet test PiPlay.sln --configuration Debug`.
   - Run `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump`.
   - Landing note: prefer a single PR containing this spec; if the work splits across PRs, every
@@ -331,7 +375,23 @@ Tasks 9-10 (theme resources and Settings UI), 11, 12.
   - Settings/theme migration risk is concentrated in schema compatibility (mitigated by
     `[JsonExtensionData]`) and resource drift; Task 10's swatch replacement is a known test-rewrite.
   - Manual QA remains required for real YouTube scroll, expand behavior, and mixed-display resize.
-- Verified:
-  - Current merged checkpoint: `dotnet test PiPlay.sln --configuration Debug --no-restore` = 456/456,
-    and `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` succeeded with 0 warnings.
-    Fill this again after Tasks 4, 5, 8-12 and add manual QA evidence paths.
+- Verified (stabilization pass, 2026-06-11):
+  - Gates: `dotnet test PiPlay.sln --configuration Debug` = **472/472, 0 skipped**;
+    `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` = **0 warnings, 0 errors**.
+  - Focused review: two adversarial passes (spec-vs-code over the Task 3 commit; bug hunt over the
+    Task 4/5 commits). Findings: ONE real defect (OS un-maximize left the fullscreen-element latch
+    stale — fixed, StateChanged now syncs it) plus two hardening items on Task 3 (explicit shell-id
+    charset gate; source-side return tests for the Auto de-dup + queued navigate URL) — all landed
+    in `fix(player): harden return paths and expand latch after review`. Settings measure
+    semantics (SizeToContent + MaxHeight + star-row ScrollViewer), placement persistence loop,
+    x:Name survival, and the opacity live-preview path were each explicitly verified FINE.
+  - Live smoke (dev channel beside the user's Stable copy): popout `ExpandButton` exposes UIA name
+    "Expand or restore popout"; invoke → `WindowVisualState=Maximized`, full-bleed video across the
+    5120x2160 monitor (inset band correctly dropped); invoke → `Normal` restored. The Settings
+    dialog opened height-bounded at the work-area clamp (~917 DIP on this display). Captures under
+    `%TEMP%\piplay_run\`; fresh per-state screenshots remain the owner QA pass
+    (`docs/QA_Checklist.md` §2.1 dual-capture table + §3.5 compact rows).
+  - Deferred, deliberate: Tasks 8-10 (theme foundation) are the next pass; Task 2 scroll fix
+    deferred by owner decision (click-then-scroll documented); outline item 5.6 discoverability
+    recorded deferral; retarget→fallback→return end-to-end and account-backed playback rows are
+    live QA (headless fallback requires a live CoreWebView2).

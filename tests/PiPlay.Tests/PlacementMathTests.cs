@@ -117,4 +117,43 @@ public class PlacementMathTests
         Assert.NotNull(clamped.MonitorWorkArea);
         Assert.Equal(1920, clamped.MonitorWorkArea!.X);
     }
+
+    // --- ForNextLaunch: a closed-expanded popout must not relaunch expanded (overhaul Task 4) ---
+
+    [Fact]
+    public void ForNextLaunch_drops_only_the_maximized_flag()
+    {
+        var captured = new PlacementData
+        {
+            X = 100, Y = 50, Width = 960, Height = 540, Maximized = true,
+            MonitorDeviceName = @"\\.\DISPLAY2",
+            MonitorWorkArea = new RectData { X = 1920, Y = 0, Width = 1920, Height = 1080 },
+            DpiScale = 1.5,
+        };
+
+        var next = PlacementMath.ForNextLaunch(captured)!;
+
+        Assert.False(next.Maximized);
+        // The captured bounds are the prior NORMAL rectangle (rcNormalPosition) — they all survive.
+        Assert.Equal(100, next.X);
+        Assert.Equal(50, next.Y);
+        Assert.Equal(960, next.Width);
+        Assert.Equal(540, next.Height);
+        Assert.Equal(@"\\.\DISPLAY2", next.MonitorDeviceName);
+        Assert.Equal(1920, next.MonitorWorkArea!.X);
+        Assert.Equal(1080, next.MonitorWorkArea.Height);
+        Assert.Equal(1.5, next.DpiScale);
+
+        // Pure copy (adopted from the b35c0dd landing): the saved input is untouched and the
+        // result shares no mutable parts with it.
+        Assert.True(captured.Maximized);
+        Assert.NotSame(captured.MonitorWorkArea, next.MonitorWorkArea);
+    }
+
+    [Fact]
+    public void ForNextLaunch_passes_null_through()
+    {
+        // No capture (e.g. the window never got an HWND) stays no capture.
+        Assert.Null(PlacementMath.ForNextLaunch(null));
+    }
 }

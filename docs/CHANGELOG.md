@@ -2,6 +2,47 @@
 
 All notable changes to PiPlay are recorded here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/); draft numbering is used until 1.0.
 
+## [Unreleased]
+
+UI overhaul stabilization (plan `docs/superpowers/plans/2026-06-10-ui-overhaul-stabilization.md`).
+
+### Added
+- **Popout expand/restore:** a native expand button on the popout top bar toggles a
+  full-monitor view and back, in both playback modes; the glyph and tooltip flip together.
+  The YouTube fullscreen button inside the compact player now expands the popout window too,
+  and exiting restores it (without un-expanding a window you expanded yourself). Esc restores
+  while the popout chrome has focus. Closing an expanded popout never relaunches the next one
+  expanded.
+- **Compact recommendations stay in PiPlay:** clicking a recommendation or end-screen video in
+  the compact player moves this same popout to that video in compact mode instead of leaving
+  the app; channels, search and non-YouTube links still open in the system browser. After such
+  a move, the error bar's "Open normal page" reopens the video you are actually on.
+
+### Changed
+- **Video-aware return:** closing a popout that moved to a different video (recommendation
+  click, playlist auto-advance, or in-page navigation) returns the main window to that video
+  at the popout's timestamp, instead of seeking the original video to a foreign timestamp.
+  With Auto on, the returned video is not instantly re-popped.
+- **Settings layout:** Settings is sectioned (Privacy, Appearance, Playback, Advanced) and
+  scrolls inside a height bounded by the screen work area, so it fits shorter displays. Fade
+  delay, window opacity, and top-bar auto-hide moved under Advanced; the compact-player copy
+  states it applies to new popouts only.
+- **Resize over the video:** edge and corner resize now work with the pointer over the
+  video/page surface on both windows (a 10 DIP inset band owned by the window); maximized
+  stays full-bleed.
+- **Popout action clarity:** while a popout is open, the main-window action reads
+  "Show popout" (and restores a minimized popout); the YouTube mix/radio fallback reason is
+  shown on the source placeholder instead of being log-only.
+
+### Accessibility
+- Explicit accessible names for every icon-only control: main chrome, navigation, URL box,
+  profiles controls, Pin, Auto, the popout action (name tracks its state), popout
+  Fade/Pin/Expand/Close, Settings close, and the Prompt dialog close button.
+
+### Known behavior
+- Wheel scroll over the normal-page popout needs one click into the page first (wheel
+  focus-routing; documented owner decision 2026-06-10). Scroll then works at any opacity.
+
 ## [0.4.0-beta] - 2026-06-10
 
 ### Added
