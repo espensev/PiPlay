@@ -34,6 +34,9 @@ public partial class MainWindow : Window
     private bool _popoutInProgress;
     private PlayerWindow? _player;
     private bool _sourceWasPlayingAtPopout;
+    // The video the source was on when the popout launched (overhaul Task 3): compared against the
+    // popout's returned video id to decide navigate-vs-seek on close (REQ-RETURN-01).
+    private string? _popoutSourceVideoId;
 
     // Auto (spec §6.1): source-side playback detector + the de-dup key that blocks the return-resume
     // re-pop loop. The timer only runs while Auto is on and the browser is ready.
@@ -640,7 +643,7 @@ public partial class MainWindow : Window
     {
         // Guards (spec 13.4): browser ready, no popout in flight, single player (ADR-0005).
         if (!_browserReady || _popoutInProgress) return;
-        if (_player is not null) { _player.Activate(); return; }
+        if (_player is not null) { ActivateExistingPlayer(); return; }
 
         _popoutInProgress = true;
         PopOutButton.IsEnabled = false;
@@ -664,6 +667,7 @@ public partial class MainWindow : Window
             // Auto de-dup: remember this video so the return-resume play edge (and an in-source
             // pause/resume) isn't read as a fresh play that should re-pop it (spec §6.1).
             _autoLastHandledVideoId = target.VideoId;
+            _popoutSourceVideoId = target.VideoId;
 
             // 2b) Resolve the effective playback mode (spec 10): a matching profile override wins,
             // otherwise the global compact default. Compact mode uses the embedded YouTube player;
@@ -673,9 +677,11 @@ public partial class MainWindow : Window
             var popoutUrl = PlaybackModePolicy.BuildPopoutUrl(
                 mode, target, seconds, WebViewEnvironmentService.ShellPlayerUrl);
 
-            // 3) Pause the source and show the placeholder (Q-1: no duplicate audio).
+            // 3) Pause the source and show the placeholder (Q-1: no duplicate audio). A non-null
+            // FallbackReason (mix/radio drop) rides along as the placeholder note (Q-6) — it was
+            // previously log-only, invisible to the user.
             await YouTubeDomBridge.PauseAsync(core);
-            ShowSourcePlaceholder(true);
+            ShowSourcePlaceholder(true, target.FallbackReason);
 
             // 4) Create the single Popout Player on the shared environment, in the resolved mode.
             var env = App.Current.WebViewEnvironment.Environment
@@ -712,7 +718,38 @@ public partial class MainWindow : Window
         {
             _popoutInProgress = false;
             PopOutButton.IsEnabled = true;
+            UpdatePopoutActionState();   // covers both outcomes: player created or rolled back
         }
+    }
+
+    /// <summary>
+    /// Show/focus the existing popout (ADR-0005 activate-existing rule). RestoreWindow first:
+    /// Activate() alone does not un-minimize, and restoring (not forcing Normal) keeps a
+    /// maximized popout maximized.
+    /// </summary>
+    private void ActivateExistingPlayer()
+    {
+        if (_player is null) return;
+        if (_player.WindowState == WindowState.Minimized)
+            System.Windows.SystemCommands.RestoreWindow(_player);
+        _player.Activate();
+    }
+
+    /// <summary>
+    /// Reflect the single-player lifecycle on the primary action (Q-6): while a popout is open the
+    /// button shows/focuses it instead of implying a second popout will open. Label, tooltip, and
+    /// UIA name flip together so the accessible name never lies (REQ-UI-02).
+    /// </summary>
+    private void UpdatePopoutActionState() => ApplyPopoutActionState(_player is not null);
+
+    internal void ApplyPopoutActionState(bool hasPlayer)
+    {
+        var label = hasPlayer ? "Show popout" : "Pop out video";
+        PopOutButtonText.Text = label;
+        System.Windows.Automation.AutomationProperties.SetName(PopOutButton, label);
+        PopOutButton.ToolTip = hasPlayer
+            ? "Bring the open Video Popout to the front"
+            : "Pop out the current video";
     }
 
     /// <summary>
@@ -743,11 +780,17 @@ public partial class MainWindow : Window
         return YouTubeUrlHelper.TryParse(core.Source, out var fromSource) ? fromSource : null;
     }
 
-    private void ShowSourcePlaceholder(bool visible)
+    internal void ShowSourcePlaceholder(bool visible, string? note = null)
     {
         // Tier-1 placeholder (spec 13.3): hide the source WebView, show the WPF black panel.
         Browser.Visibility = visible ? Visibility.Hidden : Visibility.Visible;
         SourcePlaceholder.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+
+        // Optional non-blocking note (Q-6), e.g. the mix/radio fallback reason. Cleared with the
+        // placeholder so a stale note can't survive into the next popout.
+        PlaceholderNoteText.Text = note ?? string.Empty;
+        PlaceholderNoteText.Visibility =
+            visible && !string.IsNullOrEmpty(note) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private async void Player_OnClosed(object? sender, PlayerReturnState state)
@@ -755,6 +798,7 @@ public partial class MainWindow : Window
         try
         {
             _player = null;
+            UpdatePopoutActionState();
 
             // Persist Popout Player window state.
             _settings.Player.Topmost = state.Topmost;
@@ -768,28 +812,7 @@ public partial class MainWindow : Window
 
             // Return to the source (spec 14). LastKnownSeconds is nullable; 0 is a valid timestamp.
             ShowSourcePlaceholder(false);
-            var core = Browser.CoreWebView2;
-            // Skip driving source playback when a Clear browser data is wiping the session — the
-            // page is about to be cleared/navigated, so seek/play scripts would be wasted or race.
-            if (core is not null && !_clearingBrowserData)
-            {
-                // REQ-RETURN-01: resume only if the source was playing when popout started;
-                // 0 is a valid timestamp distinct from unknown. Decision lives in ReturnPolicy.
-                switch (ReturnPolicy.Decide(state.LastKnownSeconds, _sourceWasPlayingAtPopout))
-                {
-                    case ReturnAction.SeekAndPlay:
-                        await YouTubeDomBridge.SeekAndPlayAsync(core, state.LastKnownSeconds!.Value);
-                        break;
-                    case ReturnAction.Seek:
-                        await YouTubeDomBridge.SeekAsync(core, state.LastKnownSeconds!.Value);
-                        break;
-                    case ReturnAction.Play:
-                        await YouTubeDomBridge.PlayAsync(core);
-                        break;
-                    case ReturnAction.None:
-                        break;
-                }
-            }
+            await ApplyReturnActionAsync(state);
 
             _settingsService.Save(_settings);
             Log.Info("Returned from Video Popout.");
@@ -799,6 +822,50 @@ public partial class MainWindow : Window
             Log.Error("Error returning from Video Popout.", ex);
         }
     }
+
+    /// <summary>
+    /// The return decision of <see cref="Player_OnClosed"/> (REQ-RETURN-01), separate from the
+    /// persistence half so the WPF lane can drive it without writing real settings. Skipped
+    /// entirely while Clear browser data is wiping the session — the page is about to be
+    /// cleared/navigated, so driving it would be wasted or race. Navigate needs no live core
+    /// (<see cref="NavigateInternal"/> queues until the browser is ready); the script-driven
+    /// cases do, and fall through silently without one.
+    /// </summary>
+    internal async Task ApplyReturnActionAsync(PlayerReturnState state)
+    {
+        if (_clearingBrowserData) return;
+        var core = Browser.CoreWebView2;
+
+        // REQ-RETURN-01: resume only if the source was playing when popout started;
+        // 0 is a valid timestamp distinct from unknown. Decision lives in ReturnPolicy.
+        switch (ReturnPolicy.Decide(state.LastKnownSeconds, _sourceWasPlayingAtPopout,
+                    state.VideoId, _popoutSourceVideoId))
+        {
+            case ReturnAction.Navigate:
+                // The popout ended on a DIFFERENT video (recommendation click, playlist
+                // auto-advance, SPA navigation): bring the source to where the user
+                // actually is. The timestamp rides the watch URL; Auto's de-dup key
+                // updates FIRST so the returned video is not instantly re-popped.
+                _autoLastHandledVideoId = state.VideoId;
+                NavigateInternal(YouTubeUrlHelper.BuildWatchUrl(
+                    new YouTubeTarget { VideoId = state.VideoId }, state.LastKnownSeconds));
+                break;
+            case ReturnAction.SeekAndPlay when core is not null:
+                await YouTubeDomBridge.SeekAndPlayAsync(core, state.LastKnownSeconds!.Value);
+                break;
+            case ReturnAction.Seek when core is not null:
+                await YouTubeDomBridge.SeekAsync(core, state.LastKnownSeconds!.Value);
+                break;
+            case ReturnAction.Play when core is not null:
+                await YouTubeDomBridge.PlayAsync(core);
+                break;
+        }
+    }
+
+    // Return seams (overhaul Task 3, WPF lane): drive the navigate-vs-seek return decision
+    // headlessly — the queued pending URL is the observable for the Navigate case.
+    internal void SeedPopoutReturnForTests(string sourceVideoId) => _popoutSourceVideoId = sourceVideoId;
+    internal string? AutoLastHandledVideoIdForTests => _autoLastHandledVideoId;
 
     // --- Single-instance activation (REQ-APP-01) ---
 

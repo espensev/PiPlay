@@ -92,7 +92,7 @@ public class PlayerShellAssetTests
         {
             PlayerShellProtocol.FieldCurrentTime, PlayerShellProtocol.FieldPlayerState,
             PlayerShellProtocol.FieldDuration, PlayerShellProtocol.FieldCode, PlayerShellProtocol.FieldSeconds,
-            PlayerShellProtocol.FieldAction,
+            PlayerShellProtocol.FieldAction, PlayerShellProtocol.FieldVideoId,
         })
         {
             Assert.Contains(field, js);   // catches field-level drift between the JS and the C# protocol

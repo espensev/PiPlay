@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="PiPlay settings"
-        Width="480" SizeToContent="Height"
+        Width="520" Height="680" MinHeight="360"
         WindowStyle="None"
         ResizeMode="NoResize"
         AllowsTransparency="False"
@@ -80,21 +80,34 @@
   </Window.Resources>
 
   <Border BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1">
-    <StackPanel>
+    <!-- Bounded + scrollable (overhaul Task 5): the title bar stays fixed; the sections scroll.
+         Frame model reconciled with the parallel main landing (b35c0dd): a fixed launch Height
+         (clamped to the work area in the ctor) instead of SizeToContent, so the dialog cannot
+         grow with future sections. -->
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
 
       <!-- Title bar (drag to move; close button) -->
-      <Grid Background="{StaticResource SurfaceBase}" Height="42"
+      <Grid Grid.Row="0" Background="{StaticResource SurfaceBase}" Height="42"
             MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
         <TextBlock Text="Settings" Margin="16,0" VerticalAlignment="Center"
                    FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" />
         <Button x:Name="CloseButton" Style="{StaticResource CloseIconButton}"
-                Content="&#xE8BB;" ToolTip="Close"
+                Content="&#xE8BB;" ToolTip="Close" AutomationProperties.Name="Close settings"
                 HorizontalAlignment="Right" Margin="0,0,5,0" Click="CloseButton_Click" />
       </Grid>
 
-      <!-- Privacy section -->
+      <ScrollViewer x:Name="SettingsScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled" CanContentScroll="False"
+                    Focusable="False">
       <StackPanel Margin="20">
-        <TextBlock Text="Privacy" FontSize="16" FontWeight="SemiBold"
+
+        <!-- Privacy: distinct Reset app state vs Clear browser data wording/actions
+             (REQ-PRIVACY-01/-02; text sourced from PrivacyService so tests pin it). -->
+        <TextBlock x:Name="PrivacySectionHeader" Text="Privacy" FontSize="16" FontWeight="SemiBold"
                    Foreground="{StaticResource TextPrimary}" Margin="0,0,0,2" />
 
         <TextBlock x:Name="ResetDescriptionText" TextWrapping="Wrap" FontSize="12"
@@ -111,7 +124,9 @@
 
         <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,18" />
 
-        <TextBlock Text="Appearance" FontSize="16" FontWeight="SemiBold"
+        <!-- Appearance: the Pin/Fade swatches survive here until Task 10 replaces them with the
+             theme accent path (XamlInvariantTests pins their names). -->
+        <TextBlock x:Name="AppearanceSectionHeader" Text="Appearance" FontSize="16" FontWeight="SemiBold"
                    Foreground="{StaticResource TextPrimary}" Margin="0,0,0,10" />
 
         <TextBlock Text="Pin color" FontSize="12" Foreground="{StaticResource TextSecondary}"
@@ -155,6 +170,29 @@
                         Click="FadeAccent_Click" ToolTip="Fade color: Amber"
                         AutomationProperties.Name="Fade color Amber" />
         </StackPanel>
+
+        <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,18" />
+
+        <!-- Playback: mode of the NEXT popout, not the app theme (spec settled decision 4). -->
+        <TextBlock x:Name="PlaybackSectionHeader" Text="Playback" FontSize="16" FontWeight="SemiBold"
+                   Foreground="{StaticResource TextPrimary}" Margin="0,0,0,2" />
+        <TextBlock x:Name="CompactModeHintText"
+                   Text="Compact player uses YouTube's embedded player for a cleaner floating window. It applies to new Popout Players only - normal page mode stays the default and the fallback."
+                   TextWrapping="Wrap" FontSize="12"
+                   Foreground="{StaticResource TextSecondary}" Margin="0,10,0,8" />
+        <ToggleButton x:Name="CompactModeToggle" Style="{StaticResource PresetToggle}"
+                      MinWidth="150" HorizontalAlignment="Left"
+                      Content="Compact player" Click="CompactModeToggle_Click"
+                      ToolTip="Use the compact embedded player for new popouts"
+                      AutomationProperties.Name="Compact player mode" />
+
+        <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,18" />
+
+        <!-- Advanced: fade/opacity/top-bar behavior tuning (overhaul Task 5; future reset-theme
+             defaults land here too). The opacity live-preview path (OpacitySlider_ValueChanged ->
+             OpacityPreviewChanged) survives the re-section untouched. -->
+        <TextBlock x:Name="AdvancedSectionHeader" Text="Advanced" FontSize="16" FontWeight="SemiBold"
+                   Foreground="{StaticResource TextPrimary}" Margin="0,0,0,10" />
 
         <TextBlock Text="Fade delay" FontSize="12" Foreground="{StaticResource TextSecondary}"
                    Margin="0,0,0,6" />
@@ -219,21 +257,9 @@
                       Content="Auto-hide top bar" Click="StripAutoHideToggle_Click"
                       ToolTip="Collapse the popout's top bar while idle so the video fills the window; hover the top edge to bring it back"
                       AutomationProperties.Name="Auto-hide popout top bar" />
-
-        <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,18" />
-
-        <TextBlock Text="Playback" FontSize="16" FontWeight="SemiBold"
-                   Foreground="{StaticResource TextPrimary}" Margin="0,0,0,2" />
-        <TextBlock Text="Compact player uses YouTube's embedded player for a cleaner floating window. Normal page mode stays the default and the fallback."
-                   TextWrapping="Wrap" FontSize="12"
-                   Foreground="{StaticResource TextSecondary}" Margin="0,10,0,8" />
-        <ToggleButton x:Name="CompactModeToggle" Style="{StaticResource PresetToggle}"
-                      MinWidth="150" HorizontalAlignment="Left"
-                      Content="Compact player" Click="CompactModeToggle_Click"
-                      ToolTip="Use the compact embedded player for new popouts"
-                      AutomationProperties.Name="Compact player mode" />
       </StackPanel>
+      </ScrollViewer>
 
-    </StackPanel>
+    </Grid>
   </Border>
 </Window>

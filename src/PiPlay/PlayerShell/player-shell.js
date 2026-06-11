@@ -9,7 +9,7 @@
 (function () {
   "use strict";
 
-  var PROTOCOL_VERSION = 2;
+  var PROTOCOL_VERSION = 3;
   var host = window.chrome && window.chrome.webview;
 
   function postToHost(message) {
@@ -54,8 +54,20 @@
     catch (e) { return -1; }
   }
 
+  // The CURRENT video id (protocol v3): playlists auto-advance and end-screen clicks navigate
+  // inside the iframe with no host-visible event, so the host needs this for correct return.
+  function currentVideoId() {
+    try {
+      var d = player && player.getVideoData ? player.getVideoData() : null;
+      return d && d.video_id ? String(d.video_id) : "";
+    } catch (e) { return ""; }
+  }
+
   function sendState() {
-    postToHost({ type: "state", currentTime: currentTime(), playerState: playerState(), duration: duration() });
+    var msg = { type: "state", currentTime: currentTime(), playerState: playerState(), duration: duration() };
+    var vid = currentVideoId();
+    if (vid) msg.videoId = vid;   // omitted while unknown; the host keeps its last-known value
+    postToHost(msg);
   }
 
   // Called by the YouTube IFrame API once it has loaded (defined before the API script runs).

@@ -62,6 +62,8 @@ internal static class Prompt
             HorizontalAlignment = HorizontalAlignment.Right,
             Margin = new Thickness(0, 0, 5, 0),
         };
+        // Icon-only and code-built, so UIA would otherwise expose the bare glyph (REQ-UI-02).
+        System.Windows.Automation.AutomationProperties.SetName(close, "Close dialog");
         // Title-bar close behaves as Cancel: set DialogResult=false (which auto-closes the modal)
         // so ShowDialog() returns false, matching the IsCancel button. (Was win.Close() -> null.)
         close.Click += (_, _) => { win.DialogResult = false; };

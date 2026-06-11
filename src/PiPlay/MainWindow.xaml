@@ -49,13 +49,14 @@
       <!-- Caption buttons must opt out of the draggable caption area. -->
       <StackPanel Grid.Column="1" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
         <Button x:Name="SettingsButton" Style="{StaticResource IconButton}" Click="SettingsButton_Click"
-                Content="&#xE713;" ToolTip="Settings" />
+                Content="&#xE713;" ToolTip="Settings" AutomationProperties.Name="Settings" />
         <Button x:Name="MinimizeButton" Style="{StaticResource IconButton}" Click="MinimizeButton_Click"
-                Content="&#xE921;" ToolTip="Minimize" />
+                Content="&#xE921;" ToolTip="Minimize" AutomationProperties.Name="Minimize" />
+        <!-- State-neutral name: the glyph flips Maximize/Restore in code, the name must stay true. -->
         <Button x:Name="MaximizeButton" Style="{StaticResource IconButton}" Click="MaximizeButton_Click"
-                Content="&#xE922;" ToolTip="Maximize" />
+                Content="&#xE922;" ToolTip="Maximize" AutomationProperties.Name="Maximize or restore" />
         <Button x:Name="CloseButton" Style="{StaticResource CloseIconButton}" Click="CloseButton_Click"
-                Content="&#xE8BB;" ToolTip="Close" />
+                Content="&#xE8BB;" ToolTip="Close" AutomationProperties.Name="Close" />
       </StackPanel>
     </Grid>
 
@@ -73,51 +74,78 @@
 
       <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="8,0,4,0" VerticalAlignment="Center">
         <Button x:Name="BackButton" Style="{StaticResource IconButton}" Click="BackButton_Click"
-                Content="&#xE72B;" ToolTip="Back" />
+                Content="&#xE72B;" ToolTip="Back" AutomationProperties.Name="Back" />
         <Button x:Name="ReloadButton" Style="{StaticResource IconButton}" Click="ReloadButton_Click"
-                Content="&#xE72C;" ToolTip="Reload" />
+                Content="&#xE72C;" ToolTip="Reload" AutomationProperties.Name="Reload" />
         <Button x:Name="HomeButton" Style="{StaticResource IconButton}" Click="HomeButton_Click"
-                Content="&#xE80F;" ToolTip="YouTube home" />
+                Content="&#xE80F;" ToolTip="YouTube home" AutomationProperties.Name="YouTube home" />
       </StackPanel>
 
       <TextBox x:Name="UrlBox" Grid.Column="1" Style="{StaticResource DarkTextBox}"
                Margin="6,9" VerticalAlignment="Center"
                KeyDown="UrlBox_KeyDown"
-               ToolTip="Paste a YouTube URL or type to search, then press Enter" />
+               ToolTip="Paste a YouTube URL or type to search, then press Enter"
+               AutomationProperties.Name="URL or search" />
 
       <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="4,0" VerticalAlignment="Center">
         <ComboBox x:Name="ProfilesCombo" Style="{StaticResource DarkComboBox}" Width="150"
                   DisplayMemberPath="Name" SelectionChanged="ProfilesCombo_SelectionChanged"
-                  ToolTip="Saved profiles" />
+                  ToolTip="Saved profiles" AutomationProperties.Name="Saved profiles" />
         <Button x:Name="SaveProfileButton" Style="{StaticResource IconButton}" Click="SaveProfileButton_Click"
-                Content="&#xE74E;" ToolTip="Save current page as a profile" Margin="2,0,0,0" />
+                Content="&#xE74E;" ToolTip="Save current page as a profile" Margin="2,0,0,0"
+                AutomationProperties.Name="Save profile" />
         <Button x:Name="EditProfileButton" Style="{StaticResource IconButton}" Click="EditProfileButton_Click"
-                Content="&#xE70F;" ToolTip="Edit selected profile" Margin="2,0,0,0" IsEnabled="False" />
+                Content="&#xE70F;" ToolTip="Edit selected profile" Margin="2,0,0,0" IsEnabled="False"
+                AutomationProperties.Name="Edit profile" />
         <Button x:Name="DeleteProfileButton" Style="{StaticResource IconButton}" Click="DeleteProfileButton_Click"
-                Content="&#xE74D;" ToolTip="Delete selected profile" Margin="2,0,0,0" IsEnabled="False" />
+                Content="&#xE74D;" ToolTip="Delete selected profile" Margin="2,0,0,0" IsEnabled="False"
+                AutomationProperties.Name="Delete profile" />
       </StackPanel>
 
       <ToggleButton x:Name="PinToggle" Grid.Column="3" Style="{StaticResource PinToggle}"
                     Margin="6,0" Content="&#xE840;" Click="PinToggle_Click"
-                    ToolTip="Pin PiPlay on top" />
+                    ToolTip="Pin PiPlay on top" AutomationProperties.Name="Pin PiPlay on top" />
 
       <ToggleButton x:Name="AutoToggle" Grid.Column="4" Style="{StaticResource PinToggle}"
                     Margin="6,0" Content="&#xE768;" Click="AutoToggle_Click"
-                    ToolTip="Automatically pop out videos when playback starts" />
+                    ToolTip="Automatically pop out videos when playback starts"
+                    AutomationProperties.Name="Auto popout" />
 
+      <!-- Single-player action (ADR-0005): while a popout is open this shows/focuses it instead of
+           implying a second popout. UpdatePopoutActionState flips label, tooltip, and UIA name
+           together; the inner TextBlocks are named so code toggles .Text without losing the icon. -->
       <Button x:Name="PopOutButton" Grid.Column="5" Style="{StaticResource AccentButton}"
-              Margin="6,9,10,9" Click="PopOutButton_Click" IsEnabled="False">
+              Margin="6,9,10,9" Click="PopOutButton_Click" IsEnabled="False"
+              ToolTip="Pop out the current video" AutomationProperties.Name="Pop out video">
         <StackPanel Orientation="Horizontal">
-          <TextBlock Text="&#xE8A7;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14"
+          <TextBlock x:Name="PopOutButtonIcon" Text="&#xE8A7;"
+                     FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14"
                      VerticalAlignment="Center" Margin="0,0,8,0" />
-          <TextBlock Text="Pop out video" VerticalAlignment="Center" />
+          <TextBlock x:Name="PopOutButtonText" Text="Pop out video" VerticalAlignment="Center" />
         </StackPanel>
       </Button>
     </Grid>
 
     <!-- Content: browser + overlays -->
     <Grid Grid.Row="2" Background="Black">
-      <wv2:WebView2 x:Name="Browser" />
+      <!-- Resize inset band (REQ-WINDOW-02, overhaul Task 1): the WebView2 child HWND swallows
+           WM_NCHITTEST, so the top-level window must own the edge pixels for the resize subclass
+           to see them. Left/right/bottom margin == BorderlessResizeHitTestPolicy.ResizeBorderDip
+           (the top band is the WPF title bar + toolbar). Maximized goes full-bleed: resize zones
+           are inert there. XamlInvariantTests pins both values. -->
+      <wv2:WebView2 x:Name="Browser">
+        <wv2:WebView2.Style>
+          <Style TargetType="{x:Type wv2:WebView2}">
+            <Setter Property="Margin" Value="10,0,10,10" />
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}"
+                           Value="Maximized">
+                <Setter Property="Margin" Value="0" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </wv2:WebView2.Style>
+      </wv2:WebView2>
 
       <!-- Tier-1 Source Placeholder: shown (and the WebView hidden) while popped out (spec 13.3). -->
       <Border x:Name="SourcePlaceholder" Background="Black" Visibility="Collapsed">
@@ -129,6 +157,12 @@
           <TextBlock Text="Close the popout to bring playback back here."
                      FontSize="12" Margin="0,6,0,0"
                      Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" />
+          <!-- Non-blocking fallback note (Q-6): e.g. the mix/radio "popped out the current video
+               only" reason, previously log-only. Lives on the SOURCE side by design - the popout
+               ErrorBar is compact-error semantics and must not diverge the popout captures. -->
+          <TextBlock x:Name="PlaceholderNoteText" FontSize="12" Margin="0,14,0,0" MaxWidth="420"
+                     TextWrapping="Wrap" TextAlignment="Center" Visibility="Collapsed"
+                     Foreground="{StaticResource AccentAmber}" HorizontalAlignment="Center" />
         </StackPanel>
       </Border>
 

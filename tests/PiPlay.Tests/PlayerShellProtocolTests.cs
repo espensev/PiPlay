@@ -33,6 +33,36 @@ public class PlayerShellProtocolTests
         Assert.Equal(0, msg.CurrentTime);
         Assert.Equal(-1, msg.PlayerState);   // YT "unstarted"
         Assert.Null(msg.Duration);           // live/unknown duration stays null
+        Assert.Null(msg.VideoId);            // pre-v3 senders never carry it (overhaul Task 3)
+    }
+
+    [Fact]
+    public void Parses_state_video_id_when_present()
+    {
+        // Protocol v3 (overhaul Task 3): the shell reports the CURRENT video so playlist
+        // auto-advance and in-iframe clicks survive into the return state.
+        var msg = PlayerShellProtocol.Parse(
+            "{\"v\":3,\"type\":\"state\",\"currentTime\":42,\"playerState\":1,\"videoId\":\"dQw4w9WgXcQ\"}");
+        Assert.Equal(ShellMessageKind.State, msg.Kind);
+        Assert.Equal("dQw4w9WgXcQ", msg.VideoId);
+    }
+
+    [Theory]
+    [InlineData("abc&evil=1//")]   // URL metacharacters — would ride into a watch URL downstream
+    [InlineData("shortid")]        // too short
+    [InlineData("dQw4w9WgXcQX")]   // too long (12)
+    [InlineData("")]               // empty string is not an id
+    [InlineData("dQw4w9WgXc!")]    // disallowed charset
+    public void Malformed_state_video_ids_parse_as_absent(string hostile)
+    {
+        // FieldVideoId carries a YouTube id BY CONTRACT: the parser is the trust boundary, so a
+        // malformed value from the (untrusted) shell never reaches ANY consumer — the host turns
+        // this string into a source navigation target on close.
+        var msg = PlayerShellProtocol.Parse(
+            $"{{\"v\":3,\"type\":\"state\",\"currentTime\":42,\"videoId\":\"{hostile}\"}}");
+        Assert.Equal(ShellMessageKind.State, msg.Kind);   // the state itself still parses
+        Assert.Equal(42, msg.CurrentTime);
+        Assert.Null(msg.VideoId);                         // the malformed id does not
     }
 
     [Fact]

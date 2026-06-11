@@ -5,7 +5,7 @@ Status: evaluation only; no implementation in this pass.
 Source input: proposed "PiPlay UI Theme System and Visual Guide" plus live UI-state notes captured on
 2026-06-10.
 
-## Summary verdict
+## Summary
 
 The proposed direction is right: PiPlay has outgrown separate Pin color, Fade color, fade delay, and
 opacity controls. A coherent theme preset plus one user accent would make the app easier to tune,

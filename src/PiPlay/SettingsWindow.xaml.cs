@@ -49,6 +49,7 @@ public partial class SettingsWindow : Window
         bool stripAutoHide = false)
     {
         InitializeComponent();
+        ApplyInitialBounds();
 
         PinAccent = PlayerAppearancePolicy.NormalizeAccent(pinAccent);
         FadeAccent = PlayerAppearancePolicy.NormalizeAccent(fadeAccent);
@@ -81,6 +82,18 @@ public partial class SettingsWindow : Window
             ClearBrowserDataButton.ToolTip = PrivacyService.ClearNotReadyHint;
             ToolTipService.SetShowOnDisabled(ClearBrowserDataButton, true);
         }
+    }
+
+    /// <summary>
+    /// Bounded height (overhaul Task 5; frame model reconciled with the b35c0dd landing): the
+    /// fixed launch Height clamps to the primary work area less a margin, so the border never
+    /// touches the taskbar and shorter displays get the scroll instead of clipping. The floor
+    /// keeps the dialog usable if a misreported work area ever comes back tiny.
+    /// </summary>
+    private void ApplyInitialBounds()
+    {
+        MaxHeight = Math.Max(420, SystemParameters.WorkArea.Height - 48);
+        Height = Math.Min(Height, MaxHeight);
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)

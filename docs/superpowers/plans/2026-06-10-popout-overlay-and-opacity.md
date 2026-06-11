@@ -69,6 +69,11 @@ until the final smoke. If S-1 fails, Stages 2's opacity work gates on a
   - Commit: `feat(player): shell request channel + auto-hiding chrome strip`
 
 - [ ] **Task 5 — Overlay controls in the shell (compact, selectable, default off).**
+  - *Reconciled 2026-06-10 (overhaul stabilization Task 4): the EXPAND affordance is now the native
+    ChromeStrip expand/restore button in `PlayerWindow`, which serves both playback modes — an
+    in-shell fullscreen overlay button is no longer the primary expand path. The `request` channel
+    stays (the shell's fullscreenToggle now routes through the same `ToggleExpandedState`), so an
+    overlay fullscreen button, if this task proceeds, is a secondary caller of an existing path.*
   - `player.html`/`player-shell.js`: `controls=0` chromeless player when overlay look is on;
     overlay DOM (prev/play-pause/next, progress + seek, volume/mute, captions, close, fullscreen),
     hover/pause reveal + idle auto-hide; transport is shell-local via the IFrame API;

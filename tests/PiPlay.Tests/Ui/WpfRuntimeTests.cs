@@ -293,8 +293,14 @@ public class WpfRuntimeTests : IDisposable
         var border = Assert.IsType<Border>(win.Content);
         var dock = Assert.IsType<DockPanel>(border.Child);
         var bar = Assert.IsType<Grid>(dock.Children[0]);
-        Assert.Contains(bar.Children.OfType<Button>(),
+        var close = Assert.Single(bar.Children.OfType<Button>(),
             b => ReferenceEquals(b.Style, Application.Current.Resources["CloseIconButton"]));
+
+        // Code-built and icon-only: the markup a11y sweep can't see it, so pin the UIA name here
+        // (REQ-UI-02, overhaul Task 7).
+        Assert.False(string.IsNullOrWhiteSpace(
+            System.Windows.Automation.AutomationProperties.GetName(close)),
+            "Prompt close button is missing an automation name.");
     });
 
     [Fact]
@@ -306,6 +312,46 @@ public class WpfRuntimeTests : IDisposable
         Assert.IsType<ComboBox>(w.FindName("ProfilesCombo"));
         Assert.IsType<Border>(w.FindName("SourcePlaceholder"));
         Assert.IsType<Border>(w.FindName("RuntimeErrorPanel"));
+    });
+
+    [Fact]
+    public void Popout_action_state_flips_label_tooltip_and_uia_name_together() => StaTestThread.Invoke(() =>
+    {
+        // Q-6 / REQ-UI-02 (overhaul Task 6): while a popout is open the primary action must say
+        // show/focus, and the accessible name must flip in the same code path as the label.
+        var w = new MainWindow();
+        var btn = (Button)w.FindName("PopOutButton")!;
+        var label = (TextBlock)w.FindName("PopOutButtonText")!;
+
+        w.ApplyPopoutActionState(hasPlayer: true);
+        Assert.Equal("Show popout", label.Text);
+        Assert.Equal("Show popout", System.Windows.Automation.AutomationProperties.GetName(btn));
+        Assert.Contains("front", (string)btn.ToolTip);
+
+        w.ApplyPopoutActionState(hasPlayer: false);
+        Assert.Equal("Pop out video", label.Text);
+        Assert.Equal("Pop out video", System.Windows.Automation.AutomationProperties.GetName(btn));
+        Assert.Contains("Pop out", (string)btn.ToolTip);
+    });
+
+    [Fact]
+    public void Source_placeholder_surfaces_and_clears_the_fallback_note() => StaTestThread.Invoke(() =>
+    {
+        // The mix/radio FallbackReason was log-only; it now rides the placeholder (Q-6) and must
+        // be cleared with it so a stale note can't survive into the next popout.
+        var w = new MainWindow();
+        var note = (TextBlock)w.FindName("PlaceholderNoteText")!;
+
+        w.ShowSourcePlaceholder(true, "Mix/radio playlists aren't supported in Video Popout - popped out the current video.");
+        Assert.Equal(Visibility.Visible, note.Visibility);
+        Assert.Contains("Mix/radio", note.Text);
+
+        w.ShowSourcePlaceholder(true);   // no reason this time
+        Assert.Equal(Visibility.Collapsed, note.Visibility);
+        Assert.Equal(string.Empty, note.Text);
+
+        w.ShowSourcePlaceholder(false);
+        Assert.Equal(Visibility.Collapsed, note.Visibility);
     });
 
     [Fact]
@@ -448,6 +494,32 @@ public class WpfRuntimeTests : IDisposable
         toggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
         Assert.True(w.CompactMode);
         Assert.True(w.AppearanceChanged);   // any persisted player preference change is flagged
+    });
+
+    // --- Settings is bounded + scrollable (overhaul Task 5) ---
+
+    [Fact]
+    public void SettingsWindow_height_is_bounded_by_the_work_area() => StaTestThread.Invoke(() =>
+    {
+        var w = new SettingsWindow(isBrowserReady: true);
+
+        // Pin the exact clamp derivation: work area less the margin, with the usability floor —
+        // the floor WINS on a sub-468px work area, so asserting "<= work area" outright would
+        // self-contradict the floor there (review finding 2026-06-11).
+        Assert.True(double.IsFinite(w.MaxHeight), "Settings MaxHeight must be bounded.");
+        Assert.Equal(Math.Max(420, SystemParameters.WorkArea.Height - 48), w.MaxHeight);
+        // Frame model reconciled with the b35c0dd landing: fixed launch Height under the clamp.
+        Assert.True(w.Height <= w.MaxHeight, $"Launch Height {w.Height} exceeds the clamp {w.MaxHeight}.");
+        Assert.True(w.MinHeight > 0, "The dialog must declare a usable MinHeight.");
+        Assert.IsType<ScrollViewer>(w.FindName("SettingsScroll"));
+    });
+
+    [Fact]
+    public void SettingsWindow_states_that_compact_applies_to_new_popouts() => StaTestThread.Invoke(() =>
+    {
+        // Spec acceptance: "Settings copy states that Compact player applies to new popouts only."
+        var hint = (TextBlock)new SettingsWindow(isBrowserReady: true).FindName("CompactModeHintText")!;
+        Assert.Contains("new Popout Players", hint.Text);
     });
 
     // --- Whole-window opacity (spec 7.3, Phase 4) ---
@@ -674,6 +746,248 @@ public class WpfRuntimeTests : IDisposable
 
         w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionFullscreenToggle));
         Assert.Equal(WindowState.Normal, w.WindowState);
+    });
+
+    // --- Expand / restore affordance (overhaul Task 4) ---
+
+    private const string GlyphMaximize = "";
+    private const string GlyphRestore = "";
+
+    private static void ClickExpand(PlayerWindow w) =>
+        ((Button)w.FindName("ExpandButton")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+
+    [Fact]
+    public void Expand_button_toggles_maximized_in_normal_mode_and_keeps_the_affordance_honest() =>
+        StaTestThread.Invoke(() =>
+        {
+            // Normal mode deliberately: the native button must serve BOTH playback modes.
+            var w = NewPlayer();
+            Assert.Equal(GlyphMaximize, w.ExpandGlyphForTests);
+            Assert.Equal("Expand popout", w.ExpandToolTipForTests);
+
+            ClickExpand(w);
+            Assert.Equal(WindowState.Maximized, w.WindowState);
+            Assert.Equal(GlyphRestore, w.ExpandGlyphForTests);
+            Assert.Equal("Restore popout", w.ExpandToolTipForTests);
+
+            ClickExpand(w);
+            Assert.Equal(WindowState.Normal, w.WindowState);
+            Assert.Equal(GlyphMaximize, w.ExpandGlyphForTests);
+            Assert.Equal("Expand popout", w.ExpandToolTipForTests);
+        });
+
+    [Fact]
+    public void Shell_fullscreen_request_updates_the_expand_affordance() => StaTestThread.Invoke(() =>
+    {
+        // The shell request and the native button are ONE path; the glyph follows either caller.
+        var w = NewCompactPlayer();
+        w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionFullscreenToggle));
+        Assert.Equal(GlyphRestore, w.ExpandGlyphForTests);
+    });
+
+    [Fact]
+    public void Fullscreen_element_expands_compact_and_exit_restores() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+
+        w.ApplyFullScreenElementStateForTests(contains: true);
+        Assert.Equal(WindowState.Maximized, w.WindowState);
+        Assert.Equal(GlyphRestore, w.ExpandGlyphForTests);
+
+        w.ApplyFullScreenElementStateForTests(contains: false);
+        Assert.Equal(WindowState.Normal, w.WindowState);
+        Assert.Equal(GlyphMaximize, w.ExpandGlyphForTests);
+    });
+
+    [Fact]
+    public void Fullscreen_element_is_ignored_in_normal_mode() => StaTestThread.Invoke(() =>
+    {
+        // The gate is the LIVE mode (Popout Standard / Fullview Faded must not gain a new
+        // fullscreen invariant) — same gate the compact→normal fallback relies on.
+        var w = NewPlayer();
+        w.ApplyFullScreenElementStateForTests(contains: true);
+        Assert.Equal(WindowState.Normal, w.WindowState);
+    });
+
+    [Fact]
+    public void Fullscreen_element_exit_keeps_a_user_expanded_window() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+        ClickExpand(w);   // the user's own posture, not the element's
+        Assert.Equal(WindowState.Maximized, w.WindowState);
+
+        w.ApplyFullScreenElementStateForTests(contains: true);
+        w.ApplyFullScreenElementStateForTests(contains: false);
+        Assert.Equal(WindowState.Maximized, w.WindowState);
+    });
+
+    [Fact]
+    public void Expand_toggle_reveals_a_collapsed_strip_so_restore_stays_reachable() => StaTestThread.Invoke(() =>
+    {
+        // Adopted from the parallel b35c0dd landing: any expand path counts as activity, so an
+        // auto-hidden strip un-collapses and the restore affordance is reachable in the new state
+        // without waiting for the top-edge reveal (Task 4 reversibility).
+        var w = NewCompactAutoHidePlayer();
+        w.HideControlsForTests();
+        w.CompleteHideFadeForTests();
+        Assert.True(w.IsChromeStripCollapsedForTests);
+
+        ClickExpand(w);
+        Assert.Equal(WindowState.Maximized, w.WindowState);
+        Assert.False(w.IsChromeStripCollapsedForTests);
+        Assert.True(w.IsChromeStripHitTestVisibleForTests);
+    });
+
+    [Fact]
+    public void Os_restore_clears_the_fullscreen_element_latch() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+        w.ApplyFullScreenElementStateForTests(contains: true);
+        Assert.True(w.IsMaximizedForFullScreenElementForTests);
+
+        // The OS path our toggles never see (Win+Down, aero snap): the state changes, then
+        // StateChanged runs the sync — the expansion the latch described no longer exists.
+        w.WindowState = WindowState.Normal;
+        w.HandleWindowStateChangedForTests();
+        Assert.False(w.IsMaximizedForFullScreenElementForTests);
+
+        // The element's later exit must not disturb the state the user chose via the OS.
+        w.ApplyFullScreenElementStateForTests(contains: false);
+        Assert.Equal(WindowState.Normal, w.WindowState);
+    });
+
+    [Fact]
+    public void Escape_restores_an_expanded_popout_and_is_inert_otherwise() => StaTestThread.Invoke(() =>
+    {
+        var w = NewPlayer();
+        Assert.False(w.HandleEscapeForTests());
+
+        ClickExpand(w);
+        Assert.True(w.HandleEscapeForTests());
+        Assert.Equal(WindowState.Normal, w.WindowState);
+        Assert.Equal(GlyphMaximize, w.ExpandGlyphForTests);
+    });
+
+    [Fact]
+    public void Popout_never_launches_expanded_even_from_a_maximized_capture() => StaTestThread.Invoke(() =>
+    {
+        // Pre-fix settings files can carry Maximized=true; the ctor normalizes it away.
+        var w = new PlayerWindow(environment: null!, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            topmost: false,
+            placement: new PlacementData { X = 20, Y = 20, Width = 900, Height = 560, Maximized = true },
+            defaultWidth: 960, defaultHeight: 540, fadeEnabled: true);
+
+        Assert.NotNull(w.LaunchPlacementForTests);
+        Assert.False(w.LaunchPlacementForTests!.Maximized);
+        Assert.Equal(900, w.LaunchPlacementForTests.Width);   // bounds survive the normalization
+    });
+
+    // --- In-place retarget + video-aware return state (overhaul Task 3) ---
+
+    [Fact]
+    public void Compact_player_carries_its_launch_video_in_the_return_state() => StaTestThread.Invoke(() =>
+    {
+        Assert.Equal("dQw4w9WgXcQ", NewCompactPlayer().ReturnVideoIdForTests);
+    });
+
+    [Fact]
+    public void Shell_state_updates_the_return_video_and_timestamp() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+        w.HandleShellStateForTests(new InboundShellMessage(
+            ShellMessageKind.State, CurrentTime: 42, PlayerState: 1, VideoId: "autoAdvVid1"));
+
+        Assert.Equal("autoAdvVid1", w.ReturnVideoIdForTests);   // playlist auto-advance tracked
+        Assert.Equal(42, w.ReturnSecondsForTests);
+
+        // A state message WITHOUT a videoId (pre-v3 shape) keeps the last-known id.
+        w.HandleShellStateForTests(new InboundShellMessage(ShellMessageKind.State, CurrentTime: 50));
+        Assert.Equal("autoAdvVid1", w.ReturnVideoIdForTests);
+        Assert.Equal(50, w.ReturnSecondsForTests);
+    });
+
+    [Fact]
+    public void Hostile_shell_video_ids_never_become_the_return_target() => StaTestThread.Invoke(() =>
+    {
+        // End-to-end through the REAL wire path: the shell string later becomes a SOURCE
+        // navigation target on close, and PlayerShellProtocol.Parse (the trust boundary) must
+        // reject the malformed id before the host ever sees it.
+        var w = NewCompactPlayer();
+        w.HandleShellStateForTests(PlayerShellProtocol.Parse(
+            "{\"v\":3,\"type\":\"state\",\"currentTime\":5,\"playerState\":1,\"videoId\":\"abc&evil=1//\"}"));
+
+        Assert.Equal("dQw4w9WgXcQ", w.ReturnVideoIdForTests);   // launch id kept
+        Assert.Equal(5, w.ReturnSecondsForTests);               // the timestamp itself still lands
+    });
+
+    [Fact]
+    public void Compact_retarget_rebuilds_the_shell_url_and_resets_launch_state() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+        w.HandleShellStateForTests(new InboundShellMessage(ShellMessageKind.State, CurrentTime: 42, PlayerState: 1));
+
+        Assert.True(w.TryRetargetForNewWindow("https://www.youtube.com/watch?v=recVideo001&t=30s"));
+
+        Assert.Contains("piplay.local/player.html", w.CurrentUrlForTests);   // same mode: shell rebuild
+        Assert.Contains("v=recVideo001", w.CurrentUrlForTests);
+        Assert.Contains("start=30", w.CurrentUrlForTests);
+        Assert.Equal("recVideo001", w.ReturnVideoIdForTests);
+        Assert.Equal("recVideo001", w.CurrentFallbackVideoIdForTests);   // error-bar fallback follows
+        Assert.Null(w.ReturnSecondsForTests);   // unknown until the NEW shell reports
+    });
+
+    [Fact]
+    public void Normal_retarget_navigates_to_the_watch_url() => StaTestThread.Invoke(() =>
+    {
+        var w = NewPlayer();
+        Assert.True(w.TryRetargetForNewWindow("https://www.youtube.com/watch?v=recVideo001"));
+
+        Assert.StartsWith("https://www.youtube.com/watch?v=recVideo001", w.CurrentUrlForTests);
+        Assert.Equal("recVideo001", w.ReturnVideoIdForTests);
+    });
+
+    [Fact]
+    public void Non_playable_new_window_targets_are_not_retargeted() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+        var urlBefore = w.CurrentUrlForTests;
+
+        Assert.False(w.TryRetargetForNewWindow("https://www.youtube.com/@SomeChannel"));
+        Assert.False(w.TryRetargetForNewWindow("https://example.com/watch?v=dQw4w9WgXcQ"));
+
+        Assert.Equal(urlBefore, w.CurrentUrlForTests);
+        Assert.Equal("dQw4w9WgXcQ", w.ReturnVideoIdForTests);   // launch state untouched
+    });
+
+    // --- Video-aware return on the SOURCE side (overhaul Task 3) ---
+
+    [Fact]
+    public void Return_to_a_different_video_navigates_and_arms_the_auto_dedup_key() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        w.SeedPopoutReturnForTests(sourceVideoId: "AAAAAAAAAAA");
+
+        w.ApplyReturnActionAsync(new PlayerReturnState { VideoId = "BBBBBBBBBBB", LastKnownSeconds = 42 })
+            .GetAwaiter().GetResult();   // Navigate completes synchronously (no core to script)
+
+        // The browser never initializes in the test lane, so the navigation queues — the queued
+        // URL IS the assertion: the source heads to the RETURNED video at its timestamp.
+        Assert.Equal("https://www.youtube.com/watch?v=BBBBBBBBBBB&t=42s", w.PendingUrlForTests);
+        // De-dup key armed before navigating: Auto must not instantly re-pop the returned video.
+        Assert.Equal("BBBBBBBBBBB", w.AutoLastHandledVideoIdForTests);
+    });
+
+    [Fact]
+    public void Return_on_the_same_video_seeks_rather_than_navigates() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        w.SeedPopoutReturnForTests(sourceVideoId: "AAAAAAAAAAA");
+
+        w.ApplyReturnActionAsync(new PlayerReturnState { VideoId = "AAAAAAAAAAA", LastKnownSeconds = 42 })
+            .GetAwaiter().GetResult();
+
+        Assert.Null(w.PendingUrlForTests);               // the seek path scripts a live core instead
+        Assert.Null(w.AutoLastHandledVideoIdForTests);   // de-dup key untouched on a plain return
     });
 
     [Fact]
