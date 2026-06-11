@@ -76,7 +76,18 @@ public static class PlacementMath
             Height = data.Height,
             Maximized = false,
             MonitorDeviceName = data.MonitorDeviceName,
-            MonitorWorkArea = data.MonitorWorkArea,
+            // Deep copy (adopted from the b35c0dd landing): the result must not alias the saved
+            // input — PlacementData is mutable, and a shared RectData would let one consumer's
+            // edit silently rewrite the other's snapshot.
+            MonitorWorkArea = data.MonitorWorkArea is null
+                ? null
+                : new RectData
+                {
+                    X = data.MonitorWorkArea.X,
+                    Y = data.MonitorWorkArea.Y,
+                    Width = data.MonitorWorkArea.Width,
+                    Height = data.MonitorWorkArea.Height,
+                },
             DpiScale = data.DpiScale,
         };
     }

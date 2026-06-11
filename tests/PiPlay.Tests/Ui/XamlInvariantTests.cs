@@ -150,6 +150,23 @@ public class XamlInvariantTests
             e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "CloseButton");
     }
 
+    [Fact]
+    public void Settings_window_uses_the_fixed_height_frame()
+    {
+        // Frame model reconciled with the parallel main landing (b35c0dd): a fixed launch Height
+        // (clamped to the work area in code) instead of SizeToContent, so the dialog cannot grow
+        // with future sections; the scroll viewer never scrolls sideways.
+        var doc = XamlTestFiles.Load("SettingsWindow.xaml");
+        var root = doc.Root!;
+        Assert.Null(root.Attribute("SizeToContent"));
+        Assert.NotNull(root.Attribute("Height"));
+        Assert.NotNull(root.Attribute("MinHeight"));
+
+        var scroll = doc.Descendants(XamlTestFiles.Pres + "ScrollViewer")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "SettingsScroll");
+        Assert.Equal("Disabled", scroll.Attribute("HorizontalScrollBarVisibility")?.Value);
+    }
+
     [Theory]
     [InlineData("CompactModeToggle", "PlaybackSectionHeader", "AdvancedSectionHeader")]   // Playback owns compact
     [InlineData("FadeDelayShortPreset", "AdvancedSectionHeader", null)]                   // Advanced owns fade delay

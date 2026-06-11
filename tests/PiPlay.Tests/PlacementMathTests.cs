@@ -141,7 +141,13 @@ public class PlacementMathTests
         Assert.Equal(540, next.Height);
         Assert.Equal(@"\\.\DISPLAY2", next.MonitorDeviceName);
         Assert.Equal(1920, next.MonitorWorkArea!.X);
+        Assert.Equal(1080, next.MonitorWorkArea.Height);
         Assert.Equal(1.5, next.DpiScale);
+
+        // Pure copy (adopted from the b35c0dd landing): the saved input is untouched and the
+        // result shares no mutable parts with it.
+        Assert.True(captured.Maximized);
+        Assert.NotSame(captured.MonitorWorkArea, next.MonitorWorkArea);
     }
 
     [Fact]

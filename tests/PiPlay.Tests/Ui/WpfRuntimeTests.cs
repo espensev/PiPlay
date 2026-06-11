@@ -503,12 +503,14 @@ public class WpfRuntimeTests : IDisposable
     {
         var w = new SettingsWindow(isBrowserReady: true);
 
-        // SizeToContent alone left MaxHeight unbounded and the dialog clipped short displays.
-        // Pin the exact derivation: work area less the margin, with the usability floor — the
-        // floor WINS on a sub-468px work area, so asserting "<= work area" outright would
+        // Pin the exact clamp derivation: work area less the margin, with the usability floor —
+        // the floor WINS on a sub-468px work area, so asserting "<= work area" outright would
         // self-contradict the floor there (review finding 2026-06-11).
         Assert.True(double.IsFinite(w.MaxHeight), "Settings MaxHeight must be bounded.");
         Assert.Equal(Math.Max(420, SystemParameters.WorkArea.Height - 48), w.MaxHeight);
+        // Frame model reconciled with the b35c0dd landing: fixed launch Height under the clamp.
+        Assert.True(w.Height <= w.MaxHeight, $"Launch Height {w.Height} exceeds the clamp {w.MaxHeight}.");
+        Assert.True(w.MinHeight > 0, "The dialog must declare a usable MinHeight.");
         Assert.IsType<ScrollViewer>(w.FindName("SettingsScroll"));
     });
 
@@ -817,6 +819,23 @@ public class WpfRuntimeTests : IDisposable
         w.ApplyFullScreenElementStateForTests(contains: true);
         w.ApplyFullScreenElementStateForTests(contains: false);
         Assert.Equal(WindowState.Maximized, w.WindowState);
+    });
+
+    [Fact]
+    public void Expand_toggle_reveals_a_collapsed_strip_so_restore_stays_reachable() => StaTestThread.Invoke(() =>
+    {
+        // Adopted from the parallel b35c0dd landing: any expand path counts as activity, so an
+        // auto-hidden strip un-collapses and the restore affordance is reachable in the new state
+        // without waiting for the top-edge reveal (Task 4 reversibility).
+        var w = NewCompactAutoHidePlayer();
+        w.HideControlsForTests();
+        w.CompleteHideFadeForTests();
+        Assert.True(w.IsChromeStripCollapsedForTests);
+
+        ClickExpand(w);
+        Assert.Equal(WindowState.Maximized, w.WindowState);
+        Assert.False(w.IsChromeStripCollapsedForTests);
+        Assert.True(w.IsChromeStripHitTestVisibleForTests);
     });
 
     [Fact]

@@ -27,6 +27,17 @@ landed 2026-06-10 (`docs(ui): refresh overhaul qa evidence`). Task 12 (this pass
 after review`), final gate **472/472** + build **0W/0E** — see Self-review "Verified". Remaining:
 Tasks 8-10 (theme pass) only.
 
+**Reconciliation (2026-06-11):** main received a PARALLEL, smaller Task 4/5 landing (`b35c0dd`,
+`FullscreenButton` + DockPanel settings, 456/456 at its gate) while this branch carried the
+review-hardened superset. Resolved by merge: this branch's implementation and names win
+(`ExpandButton` with the state-neutral UIA name, caused-by-element latch, Esc restore,
+launch-side placement normalization, protocol-parse id gate, `SettingsScroll` + `*SectionHeader`
+names); adopted FROM `b35c0dd`: the fixed-height Settings frame (520x680, `MinHeight` 360, launch
+Height clamped to the work area — replaces SizeToContent), `OnUserActivity()` on every expand
+path so an auto-hidden strip reveals and restore stays reachable (new test), the placement
+deep-copy (pure-copy assertions added), and `HorizontalScrollBarVisibility=Disabled` +
+`CanContentScroll=False` on the scroll viewer.
+
 ## Tasks
 
 - [x] **Task 1 - Repair edge and corner resize over WebView2 (Popout Player AND Source Window).**

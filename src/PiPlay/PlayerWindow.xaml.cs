@@ -508,6 +508,10 @@ public partial class PlayerWindow : Window
         _maximizedForFullScreenElement = false;
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
         UpdateExpandAffordance();
+        // Any expand path counts as activity (adopted from the parallel b35c0dd landing): an
+        // auto-hidden strip un-collapses, so the restore affordance is immediately reachable in
+        // the new state instead of waiting for the top-edge reveal.
+        OnUserActivity();
     }
 
     /// <summary>
@@ -547,6 +551,7 @@ public partial class PlayerWindow : Window
             _maximizedForFullScreenElement = true;
             WindowState = WindowState.Maximized;
             UpdateExpandAffordance();
+            OnUserActivity();   // reveal the strip in the new state (see ToggleExpandedState)
         }
         else if (_maximizedForFullScreenElement)
         {
@@ -554,6 +559,7 @@ public partial class PlayerWindow : Window
             if (WindowState != WindowState.Maximized) return;   // user already restored it
             WindowState = WindowState.Normal;
             UpdateExpandAffordance();
+            OnUserActivity();
         }
     }
 
@@ -571,6 +577,7 @@ public partial class PlayerWindow : Window
         _maximizedForFullScreenElement = false;
         WindowState = WindowState.Normal;
         UpdateExpandAffordance();
+        OnUserActivity();
         return true;
     }
 
