@@ -21,6 +21,13 @@
   <Color x:Key="AccentAmberColor">#FFFFC857</Color>
   <Color x:Key="DangerPinColor">#FFFF4B55</Color>
 
+  <!-- Theme accent (overhaul Task 9): the single, preset-driven accent. Defaults to the sharp-dark
+       cyan so the out-of-box look is unchanged; ThemeResourceApplier replaces the AccentPrimary
+       brushes below with the chosen accent. AccentCyan/AccentCyanLight remain defined as
+       compatibility aliases (the fixed cyan swatch + any markup that still names them). -->
+  <Color x:Key="AccentPrimaryColor">#FF00D4FF</Color>
+  <Color x:Key="AccentPrimaryLightColor">#FF5BE6FF</Color>
+
   <SolidColorBrush x:Key="AppBackground" Color="{StaticResource AppBackgroundColor}" />
   <SolidColorBrush x:Key="SurfaceBase" Color="{StaticResource SurfaceBaseColor}" />
   <SolidColorBrush x:Key="SurfaceRaised" Color="{StaticResource SurfaceRaisedColor}" />
@@ -35,5 +42,16 @@
   <SolidColorBrush x:Key="AccentGreen" Color="{StaticResource AccentGreenColor}" />
   <SolidColorBrush x:Key="AccentAmber" Color="{StaticResource AccentAmberColor}" />
   <SolidColorBrush x:Key="DangerPin" Color="{StaticResource DangerPinColor}" />
+
+  <!-- Default (cyan) seeds. ThemeResourceApplier REPLACES these dictionary entries at startup (and on
+       accent change) with the chosen accent; every consumer references them via DynamicResource and
+       re-resolves. The seeds keep the design-time look correct and cover the pre-Apply instant. -->
+  <SolidColorBrush x:Key="AccentPrimary" Color="{StaticResource AccentPrimaryColor}" />
+  <SolidColorBrush x:Key="AccentPrimaryLight" Color="{StaticResource AccentPrimaryLightColor}" />
+
+  <!-- Staged corner-radius tokens (overhaul Task 9): a single owner for control rounding. Wired
+       into the generic button styles now; the remaining hardcoded radii migrate in a later pass. -->
+  <CornerRadius x:Key="ControlCornerRadius">8</CornerRadius>
+  <CornerRadius x:Key="ButtonCornerRadius">10</CornerRadius>
 
 </ResourceDictionary>

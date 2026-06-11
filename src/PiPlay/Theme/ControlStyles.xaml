@@ -35,7 +35,7 @@
           <Border x:Name="bd" Background="{TemplateBinding Background}"
                   BorderBrush="{TemplateBinding BorderBrush}"
                   BorderThickness="{TemplateBinding BorderThickness}"
-                  CornerRadius="10">
+                  CornerRadius="{StaticResource ButtonCornerRadius}">
             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                               Margin="{TemplateBinding Padding}" />
           </Border>
@@ -55,20 +55,20 @@
 
   <!-- Primary action button (e.g. Pop out video) -->
   <Style TargetType="Button" x:Key="AccentButton" BasedOn="{StaticResource DarkButton}">
-    <Setter Property="Background" Value="{StaticResource AccentCyan}" />
+    <Setter Property="Background" Value="{DynamicResource AccentPrimary}" />
     <Setter Property="Foreground" Value="#FF06141A" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
-          <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="10">
+          <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="{StaticResource ButtonCornerRadius}">
             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                               Margin="{TemplateBinding Padding}" />
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="bd" Property="Background" Value="{StaticResource AccentCyanLight}" />
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource AccentPrimaryLight}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter Property="Opacity" Value="0.4" />
@@ -119,7 +119,7 @@
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
-          <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8">
+          <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="{StaticResource ControlCornerRadius}">
             <!-- Render the glyph through an in-template TextBlock with the icon font set here
                  (template-property precedence), so the app-wide implicit TextBlock style cannot
                  reset it to a non-icon font and drop the glyph to a .notdef box (REQ-UI-02). -->
@@ -177,7 +177,7 @@
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="ToolTip" Value="Pin (keep on top)" />
     <Setter Property="SnapsToDevicePixels" Value="True" />
-    <Setter Property="theme:ToggleAccent.CheckedBrush" Value="{StaticResource AccentCyan}" />
+    <Setter Property="theme:ToggleAccent.CheckedBrush" Value="{DynamicResource AccentPrimary}" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="ToggleButton">
@@ -206,8 +206,8 @@
        not from this template. (UI-CHK-5) -->
   <Style TargetType="TextBox" x:Key="DarkTextBox">
     <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-    <Setter Property="CaretBrush" Value="{StaticResource AccentCyan}" />
-    <Setter Property="SelectionBrush" Value="{StaticResource AccentCyan}" />
+    <Setter Property="CaretBrush" Value="{DynamicResource AccentPrimary}" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource AccentPrimary}" />
     <Setter Property="Background" Value="{StaticResource SurfaceRaised}" />
     <Setter Property="BorderBrush" Value="{StaticResource BorderSubtle}" />
     <Setter Property="BorderThickness" Value="1" />
@@ -230,7 +230,7 @@
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
-              <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource AccentCyan}" />
+              <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource AccentPrimary}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter Property="Opacity" Value="0.45" />

@@ -1,3 +1,7 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using PiPlay.Theme;
+
 namespace PiPlay.Models;
 
 /// <summary>
@@ -20,7 +24,11 @@ public sealed class AppSettings
 
     public WindowSettings MainWindow { get; set; } = new();
     public PlayerSettings Player { get; set; } = new();
+    public ThemeSettings Theme { get; set; } = new();
     public List<Profile> Profiles { get; set; } = new();
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
 }
 
 public sealed class WindowSettings
@@ -77,4 +85,26 @@ public sealed class PlayerSettings
     public bool StripAutoHide { get; set; }
     public int LastWidth { get; set; } = 960;
     public int LastHeight { get; set; } = 540;
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
+}
+
+public sealed class ThemeSettings
+{
+    public string ThemeId { get; set; } = ThemeCatalog.DefaultThemeId;
+    public string AccentColor { get; set; } = ThemeCatalog.DefaultAccentColor;
+    public string FadeDelayPreset { get; set; } = ThemeCatalog.DefaultFadeDelayPreset;
+    public bool? StripAutoHide { get; set; }
+    public double? ActiveWindowOpacity { get; set; }
+    public double? IdleWindowOpacity { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? ExtensionData { get; set; }
+
+    public static ThemeSettings FromLegacy(PlayerSettings player) => new()
+    {
+        AccentColor = ThemeCatalog.AccentColorForLegacyAccent(player.PinAccent),
+        FadeDelayPreset = ThemeCatalog.FadeDelayPresetForMilliseconds(player.FadeIdleDelayMs),
+    };
 }

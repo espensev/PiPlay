@@ -242,6 +242,7 @@ dotnet test PiPlay.sln --configuration Debug
 | `src/PiPlay/Services/YouTubeUrlHelper.cs` | Target normalization and mix/radio fallback semantics if needed. |
 | `src/PiPlay/Services/BorderlessWindowHelper.cs` | Unchanged by the inset route (subclass already correct); touch only if the band-HWND fallback is needed. |
 | `src/PiPlay/Services/BorderlessResizeHitTestPolicy.cs` | Unchanged; its `ResizeBorderDip` constant becomes the inset-band source of truth. |
+| `src/PiPlay/Services/PopoutNavigationPolicy.cs` | NEW: pure new-window decision for the Popout Player (URL-shape proxy: playable target retargets in place, else external). |
 | `src/PiPlay/Services/ReturnPolicy.cs` | Navigate-vs-seek decision when the returned video differs from the source video. |
 | `src/PiPlay/Models/PlayerReturnState.cs` | Carry the popout's current video identity alongside the timestamp. |
 | `src/PiPlay/Services/WindowPlacementService.cs` | Normalize maximized capture so an expanded popout does not relaunch maximized (Task 4 decision). |
@@ -380,3 +381,50 @@ design decisions:
 5. **Shell-reported video ids are validated at protocol parse** (`PlayerShellProtocol.Parse`):
    a malformed id is wire-level malformed input and parses as absent, protecting every consumer —
    the host turns this string into a source navigation target on close.
+
+## Theme pass addendum (Tasks 9-10, 2026-06-11)
+
+Settled decisions for the theme-resource and theme-selector tasks:
+
+1. **Single accent token + DynamicResource recolor (Task 9).** `Theme/Colors.xaml` gains
+   `AccentPrimary`/`AccentPrimaryLight` brushes (plus `AccentPrimaryColor`/`AccentPrimaryLightColor`
+   seeds and staged `ControlCornerRadius`/`ButtonCornerRadius`); `AccentButton` fill/hover, the URL
+   caret/selection/focus, the `PinToggle` default, and the Settings preset chips reference them via
+   **`DynamicResource`**. `AccentCyan*` stays defined as a compatibility alias.
+   `ThemeResourceApplier.Apply` **replaces** the two accent dictionary entries with frozen brushes for
+   the resolved accent; `DynamicResource` consumers re-resolve, including controls already realized in
+   open windows. **Mechanism note (verified by test):** the first cut MUTATED the seed brushes in
+   place, but compiled BAML FREEZES resource brushes, so `Application.Current.FindResource("AccentPrimary")`
+   is frozen and an in-place `Color` write silently no-ops — replace-the-entry + `DynamicResource` is
+   the mechanism that actually recolors. The applier runs at `App.OnStartup` (after a read-only
+   `SettingsService.Load`, before the first window) AND from `MainWindow` on every accent change /
+   reset, so the open main window recolors live and new popouts inherit it. This delivers
+   "Unresolved decision 3" for the accent tokens; live switching of the broader base/surface tokens
+   remains out of scope this pass. Pure color math (`ThemeColors.ParseColor/Lighten/Brush`) is
+   unit-tested; the live recolor of an already-realized consumer is STA-tested against the real app
+   resources.
+
+2. **One accent drives Source Pin, Popout Pin, and Popout Fade (Task 10).** `Theme.AccentColor` is
+   now the single color source: `MainWindow.ApplySourceAppearance`, `PlayerWindow.ApplyAppearance`,
+   and the popout launch all resolve it via `ThemeColors.Brush` (one frozen brush shared by the two
+   popout toggles). The `SettingsWindow`/`PlayerWindow` ctor + `ApplyAppearance` surfaces collapsed
+   from `pinAccent`+`fadeAccent` to one `accentColor`. Legacy `Player.PinAccent`/`FadeAccent` (and
+   `PlayerAppearancePolicy` accent mapping) stay readable for back-compat and migration seeding but
+   drive no color.
+
+3. **Palette realigned for readability and "sharp-dark = current shell" (deviation from the plan's
+   literal chip wording).** The plan named the first two chips "muted cyan" (`#2D6F8F`) and "steel
+   blue" (`#4D7EA8`); both measured BELOW the on-dark glyph contrast floor (2.33:1 and ~2.99:1 on the
+   hover surface). To keep the default look identical to today and guarantee readability, the catalog
+   default accent is the current shell cyan `#00D4FF` (so a fresh install and the migrated legacy
+   "cyan" seed agree), and the chips are Cyan `#00D4FF`, Steel blue `#5AA9E6`, Violet `#A78BFA`,
+   Green `#38D996`, Amber `#FFC857`. The `Minimal` preset's default accent moved to the brighter
+   steel blue `#5AA9E6`. Every offered accent is gated by `Theme_accent_palette_is_readable`
+   (≥3:1 as an on-dark glyph, ≥4.5:1 under the dark `AccentButton` text); a XAML↔catalog sync test
+   keeps the hand-written chips aligned with `ThemeCatalog`. Task 8's only consequent test change was
+   the two invalid-accent fallback rows (now `#00D4FF`).
+
+4. **Fade delay stays `Player.FadeIdleDelayMs`-driven.** The theme model carries `FadeDelayPreset`
+   (Task 8 migration artifact, resolver-backed) but the live Advanced "Fade delay" control and the
+   popout idle timer keep using `Player.FadeIdleDelayMs` this pass — no behavior change, no dormant
+   divergence wired into the runtime path.

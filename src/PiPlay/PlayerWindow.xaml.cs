@@ -92,8 +92,7 @@ public partial class PlayerWindow : Window
         int defaultWidth,
         int defaultHeight,
         bool fadeEnabled,
-        string pinAccent = PlayerAppearancePolicy.DefaultAccent,
-        string fadeAccent = PlayerAppearancePolicy.DefaultAccent,
+        string? accentColor = ThemeCatalog.DefaultAccentColor,
         int fadeIdleDelayMs = PlayerAppearancePolicy.DefaultFadeIdleDelayMs,
         PlaybackMode mode = PlaybackMode.Normal,
         YouTubeTarget? fallbackTarget = null,
@@ -155,7 +154,7 @@ public partial class PlayerWindow : Window
         // Both timers exist before ApplyAppearance, which touches the interval AND the probe.
         _idleTimer = new DispatcherTimer();
         _idleTimer.Tick += IdleTimer_Tick;
-        ApplyAppearance(pinAccent, fadeAccent, fadeIdleDelayMs, stripAutoHide);
+        ApplyAppearance(accentColor, fadeIdleDelayMs, stripAutoHide);
         MouseMove += (_, _) => OnUserActivity();
         MouseEnter += (_, _) => OnUserActivity();
 
@@ -600,10 +599,13 @@ public partial class PlayerWindow : Window
         ApplyFadeState();
     }
 
-    internal void ApplyAppearance(string? pinAccent, string? fadeAccent, int fadeIdleDelayMs, bool stripAutoHide = false)
+    internal void ApplyAppearance(string? accentColor, int fadeIdleDelayMs, bool stripAutoHide = false)
     {
-        ToggleAccent.SetCheckedBrush(PinToggle, ResolveAccentBrush(pinAccent));
-        ToggleAccent.SetCheckedBrush(FadeToggle, ResolveAccentBrush(fadeAccent));
+        // One theme accent drives both Popout Pin and Popout Fade (overhaul Task 10); the brush is
+        // shared (frozen) across the two toggles.
+        var accentBrush = ResolveAccentBrush(accentColor);
+        ToggleAccent.SetCheckedBrush(PinToggle, accentBrush);
+        ToggleAccent.SetCheckedBrush(FadeToggle, accentBrush);
         _idleTimer.Interval = TimeSpan.FromMilliseconds(
             PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs));
 
@@ -615,8 +617,7 @@ public partial class PlayerWindow : Window
         if (_fadeEnabled && _idleTimer.IsEnabled) RestartIdleTimer();
     }
 
-    private Brush ResolveAccentBrush(string? accentKey) =>
-        (Brush)FindResource(PlayerAppearancePolicy.BrushResourceKeyFor(accentKey));
+    private static Brush ResolveAccentBrush(string? accentColor) => ThemeColors.Brush(accentColor);
 
     /// <summary>Reset the fade lifecycle to match <see cref="_fadeEnabled"/>: either show-and-arm or pin visible.</summary>
     private void ApplyFadeState()

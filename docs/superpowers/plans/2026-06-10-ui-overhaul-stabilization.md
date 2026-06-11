@@ -11,25 +11,31 @@ manual code verification). Diagnoses for Tasks 1-4 are now settled against sourc
 routes are recorded as rule-outs so they are not re-litigated during implementation. See the spec's
 "Review addendum" for the evidence trail.
 
-**Result:** In progress (2026-06-10, branch `claude/condescending-ptolemy-dee3cf`). Tasks 1, 6, and
-7 landed; `dotnet test PiPlay.sln --configuration Debug` = 425/425 and
+**Result:** In progress (2026-06-11). Tasks 1, 3, 4, 5, 6, 7, 8, 11, and 12 landed
+(Tasks 1-7, 11, 12 via merged PR #17 `claude/ecstatic-mclaren-b97f77`; Task 8 on the theme-resource
+branch `claude/determined-boyd-94fad8`). Post-merge gate: `dotnet test PiPlay.sln --configuration
+Debug --no-restore` = 476/476 and
 `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` clean (0 warnings). Task 1's
 inset band was live-verified by an HWND-rect probe (10 px left/right/bottom) AND owner-verified by
 manual drag resize. Task 2 was live-diagnosed (wheel focus-routing — click into the page, then
 scroll works, even at 86% opacity; layered opacity ruled out) and the fix deferred by owner
 decision. Task 4's maximize semantics were decided (keep current full-monitor maximize) and its
-affordance + reversibility landed 2026-06-10 (`feat(popout): add reliable expand path`, 461/461).
-Task 3's implementation landed 2026-06-10 (`fix(compact): keep recommendations in piplay and return
-the current video`, 452/452); its spec re-verification is recorded at the Task 3 entry. Task 5
-landed 2026-06-10 (`refactor(settings): make settings scrollable and sectioned`, 468/468). Task 11
-landed 2026-06-10 (`docs(ui): refresh overhaul qa evidence`). Task 12 (this pass) closed
-2026-06-11: review-driven hardening landed (`fix(player): harden return paths and expand latch
-after review`), final gate **472/472** + build **0W/0E** — see Self-review "Verified". Remaining:
-Tasks 8-10 (theme pass) only.
+affordance + reversibility landed 2026-06-10 (`feat(popout): add reliable expand path`). Task 3's
+implementation landed 2026-06-10 (`fix(compact): keep recommendations in piplay and return the
+current video`); its spec re-verification is recorded at the Task 3 entry. Task 5 landed
+(`refactor(settings): make settings scrollable and sectioned`). Task 11 landed (`docs(ui): refresh
+overhaul qa evidence`). Task 12 closed 2026-06-11 via PR #17 (`fix(player): harden return paths and
+expand latch after review`). Task 8 landed 2026-06-11 (`feat(theme): add compatible theme settings
+model`). Theme pass complete 2026-06-11: Task 9 (`feat(theme): apply preset resource tokens`) and
+Task 10 (`feat(settings): add theme and accent controls`) on the theme-resource branch
+`claude/determined-boyd-94fad8` (integrated onto post-PR-#17 main). **All tasks landed.** Final gate:
+`dotnet test PiPlay.sln --configuration Debug` = **508/508, 0 skipped**, build **0W/0E**. See the
+Self-review "Verified (theme pass)" entry and the design "Theme pass addendum" for the settled
+decisions (incl. the readability-driven palette realignment).
 
 **Reconciliation (2026-06-11):** main received a PARALLEL, smaller Task 4/5 landing (`b35c0dd`,
-`FullscreenButton` + DockPanel settings, 456/456 at its gate) while this branch carried the
-review-hardened superset. Resolved by merge: this branch's implementation and names win
+`FullscreenButton` + DockPanel settings, 456/456 at its gate) while PR #17 carried the
+review-hardened superset. Resolved by merge: PR #17's implementation and names win
 (`ExpandButton` with the state-neutral UIA name, caused-by-element latch, Esc restore,
 launch-side placement normalization, protocol-parse id gate, `SettingsScroll` + `*SectionHeader`
 names); adopted FROM `b35c0dd`: the fixed-height Settings frame (520x680, `MinHeight` 360, launch
@@ -246,7 +252,10 @@ deep-copy (pure-copy assertions added), and `HorizontalScrollBarVisibility=Disab
   - Verify by extending `XamlInvariantTests` required-name rows and running existing WPF runtime tests.
   - Commit: `fix(a11y): name icon controls`
 
-- [ ] **Task 8 - Add theme settings model and migration.**
+- [x] **Task 8 - Add theme settings model and migration.**
+  *(Landed 2026-06-11: additive `AppSettings.Theme`, theme catalog/resolver seam, missing-theme
+  migration from legacy player preferences, invalid theme-value recovery, and root/player/theme
+  `[JsonExtensionData]` round-trip protection.)*
   - Add `ThemeSettings` to `src/PiPlay/Models/AppSettings.cs` with default `ThemeId`,
     `AccentColor`, `FadeDelayPreset`, and nullable overrides for strip auto-hide and active/idle
     opacity. Pin the precedence rules (ThemeSettings override vs legacy field) in tests.
@@ -264,7 +273,14 @@ deep-copy (pure-copy assertions added), and `HorizontalScrollBarVisibility=Disab
     directions), migration, invalid values, extension-data preservation, and catalog uniqueness.
   - Commit: `feat(theme): add compatible theme settings model`
 
-- [ ] **Task 9 - Introduce theme resources and compatibility aliases.**
+- [x] **Task 9 - Introduce theme resources and compatibility aliases.**
+  *(Landed 2026-06-11: `AccentPrimary`/`AccentPrimaryLight` accent tokens + staged corner-radius
+  tokens in `Theme/Colors.xaml`; `AccentButton`/`DarkTextBox`/`PinToggle`/`PresetToggle` reference the
+  accent via `DynamicResource` with `AccentCyan*` kept as compatibility aliases; `ThemeColors` (pure
+  parse/lighten/brush) + `ThemeResourceApplier` REPLACE the accent entries (a verification test caught
+  that compiled BAML freezes the seed brushes, so in-place mutation no-ops) at `App.OnStartup` via a
+  read-only settings load and from `MainWindow` on every accent change/reset for a live recolor; tests
+  for the pure math, the entry replacement, and the live update of an already-realized consumer.)*
   - Add theme-owned resource tokens for base colors, accent derivations, opacity/fade defaults, and
     staged radius values while keeping existing brush keys as aliases during migration.
   - Startup ordering: settings are currently loaded inside the `MainWindow` constructor — applying
@@ -280,7 +296,14 @@ deep-copy (pure-copy assertions added), and `HorizontalScrollBarVisibility=Disab
     and a manual startup/theme smoke.
   - Commit: `feat(theme): apply preset resource tokens`
 
-- [ ] **Task 10 - Add theme selector and accent chips.**
+- [x] **Task 10 - Add theme selector and accent chips.**
+  *(Landed 2026-06-11: Settings "Theme" preset selector (Sharp Dark / Minimal / Soft Glass) + a single
+  "Accent color" chip row (cyan, steel blue, violet, green, amber) replace the separate Pin/Fade color
+  swatches; one `Theme.AccentColor` now drives Source Pin, Popout Pin, and Popout Fade. Catalog default
+  accent realigned to the current shell cyan `#00D4FF` and the palette chosen for on-dark readability
+  (new `Theme_accent_palette_is_readable` gate); `SettingsWindow`/`PlayerWindow` ctor + `ApplyAppearance`
+  surfaces migrated to the single accent; swatch-pinning tests rewritten to the preset/chip surface +
+  a catalog-sync test. Legacy `Player.PinAccent/FadeAccent` stay readable but drive no color.)*
   - Add Settings controls for theme preset selection and fixed accent chips: muted cyan, steel blue,
     violet, green, and amber. Store normalized hex from the start.
   - Replace separate Pin/Fade color controls only after the single accent path drives Source Window
@@ -387,7 +410,33 @@ deep-copy (pure-copy assertions added), and `HorizontalScrollBarVisibility=Disab
     dialog opened height-bounded at the work-area clamp (~917 DIP on this display). Captures under
     `%TEMP%\piplay_run\`; fresh per-state screenshots remain the owner QA pass
     (`docs/QA_Checklist.md` §2.1 dual-capture table + §3.5 compact rows).
-  - Deferred, deliberate: Tasks 8-10 (theme foundation) are the next pass; Task 2 scroll fix
-    deferred by owner decision (click-then-scroll documented); outline item 5.6 discoverability
-    recorded deferral; retarget→fallback→return end-to-end and account-backed playback rows are
-    live QA (headless fallback requires a live CoreWebView2).
+  - Deferred, deliberate: Task 2 scroll fix deferred by owner decision (click-then-scroll
+    documented); outline item 5.6 discoverability recorded deferral; retarget→fallback→return
+    end-to-end and account-backed playback rows are live QA (headless fallback requires a live
+    CoreWebView2).
+- Verified (theme pass, Tasks 8-10, 2026-06-11):
+  - Gates: `dotnet test PiPlay.sln --configuration Debug` = **508/508, 0 skipped**;
+    `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` = **0 warnings, 0 errors**.
+    Task 8 (theme model/migration) merged the integrated base from PR #17 first; Tasks 9-10 build on
+    it. Net theme-pass test growth: +20 over the post-merge 488 baseline (theme model, colors,
+    applier, palette/sync, selector).
+  - Settled decisions recorded in the design "Theme pass addendum (Tasks 9-10)": accent tokens use
+    `DynamicResource` and the applier REPLACES the entries (the first cut mutated the seed brushes in
+    place, but a verification test caught that compiled BAML freezes them, so mutation no-ops — see
+    the addendum's mechanism note); single `Theme.AccentColor` drives Source/Popout Pin+Fade; the
+    readability-driven palette realignment (DEVIATION from the plan's literal "muted cyan"/"steel blue
+    #4D7EA8" — both failed the on-dark glyph floor; default is now the current shell cyan `#00D4FF`);
+    fade delay kept on `Player.FadeIdleDelayMs`.
+  - Live smoke (dev Default channel beside the user's Stable b17): fresh launch booted clean —
+    `PiPlay starting` → `WebView2 environment created` → `Source browser initialized` with NO
+    "Failed to apply theme resources at startup" error, so the new `App.OnStartup` settings-load +
+    theme-apply path is healthy; the Auto/Compact popout rendered dark/themed (not blank). The
+    non-default-accent-at-startup visual remains owner manual QA (not run here to avoid touching the
+    user's settings.json).
+  - Accent now applies LIVE: `App.OnStartup` + `MainWindow` (on accent change / reset) call the
+    applier, so the open main window recolors live and new popouts inherit it (Unresolved decision 3
+    delivered for accent tokens; broader base/surface live-switching still deferred). Manual
+    theme-preset + accent smoke and account-backed QA remain (`docs/QA_Checklist.md` §3 accent row +
+    Tasks 9-10 theme row). Legacy `BrushResourceKeyFor`/`DisplayNameForAccent` are now unreferenced by
+    production but kept (tested legacy-accent mapping); candidate cleanup if the legacy
+    `PinAccent`/`FadeAccent` fields are ever dropped.

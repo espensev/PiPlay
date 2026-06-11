@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using PiPlay.Models;
+using PiPlay.Theme;
 
 namespace PiPlay.Services;
 
@@ -36,6 +37,7 @@ public sealed class SettingsService
             }
 
             var json = File.ReadAllText(_path);
+            var seedThemeFromLegacy = !HasThemeBlock(json);
             var settings = JsonSerializer.Deserialize<AppSettings>(json, Options);
             if (settings is null)
             {
@@ -44,7 +46,7 @@ public sealed class SettingsService
                 return Sanitize(new AppSettings());
             }
 
-            return Sanitize(settings);
+            return Sanitize(settings, seedThemeFromLegacy);
         }
         catch (Exception ex)
         {
@@ -156,10 +158,11 @@ public sealed class SettingsService
     }
 
     /// <summary>Repair nulls and out-of-range values so the rest of the app can trust the model.</summary>
-    private static AppSettings Sanitize(AppSettings s)
+    private static AppSettings Sanitize(AppSettings s, bool seedThemeFromLegacy = false)
     {
         s.MainWindow ??= new WindowSettings();
         s.Player ??= new PlayerSettings();
+        s.Theme ??= new ThemeSettings();
         s.Profiles ??= new List<Profile>();
 
         if (string.IsNullOrWhiteSpace(s.LastUrl)) s.LastUrl = "https://www.youtube.com/";
@@ -168,6 +171,13 @@ public sealed class SettingsService
         s.Player.FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(s.Player.FadeIdleDelayMs);
         s.Player.IdleWindowOpacity = WindowOpacityPolicy.Normalize(s.Player.IdleWindowOpacity);
         s.Player.ConstantWindowOpacity = WindowOpacityPolicy.Normalize(s.Player.ConstantWindowOpacity);
+        if (seedThemeFromLegacy)
+            s.Theme = ThemeSettings.FromLegacy(s.Player);
+        s.Theme.ThemeId = ThemeCatalog.NormalizeThemeId(s.Theme.ThemeId);
+        s.Theme.AccentColor = ThemeCatalog.NormalizeAccentColor(s.Theme.AccentColor);
+        s.Theme.FadeDelayPreset = ThemeCatalog.NormalizeFadeDelayPreset(s.Theme.FadeDelayPreset);
+        s.Theme.ActiveWindowOpacity = NormalizeOptionalOpacity(s.Theme.ActiveWindowOpacity);
+        s.Theme.IdleWindowOpacity = NormalizeOptionalOpacity(s.Theme.IdleWindowOpacity);
         if (s.Player.LastWidth < 320) s.Player.LastWidth = 960;
         if (s.Player.LastHeight < 180) s.Player.LastHeight = 540;
         if (s.SchemaVersion <= 0) s.SchemaVersion = AppSettings.CurrentSchemaVersion;
@@ -178,5 +188,29 @@ public sealed class SettingsService
         foreach (var p in s.Profiles)
             p.Mode = PlaybackModePolicy.NormalizeProfileMode(p.Mode);
         return s;
+    }
+
+    private static bool HasThemeBlock(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("theme", out var theme)
+                && theme.ValueKind != JsonValueKind.Null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static double? NormalizeOptionalOpacity(double? value)
+    {
+        if (value is null) return null;
+        var raw = value.Value;
+        if (double.IsNaN(raw) || raw < WindowOpacityPolicy.FileFloor || raw > WindowOpacityPolicy.Max)
+            return null;
+        return raw;
     }
 }

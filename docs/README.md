@@ -60,10 +60,8 @@ The pipeline uses `VERSION` as the semantic version source and `BUILD_NUMBER` as
 Stable publish (a differentiable, runnable copy deployed for side-by-side test use):
 
 ```powershell
-# Test-gate, build the Stable channel, validate metadata, and deploy a runnable copy to
-# Deploy a side-by-side Stable copy (override the location with -DeployRoot).
-# Keeps the semantic version and bumps BUILD_NUMBER; pass -Version patch|minor|major
-# to bump the version.
+# Test-gate, build the Stable channel, validate metadata, and deploy a side-by-side copy.
+# Bumps the patch version by default; pass -Version minor|major|<semver> or -NoVersionBump.
 .\scripts\Publish-Stable.ps1
 ```
 
