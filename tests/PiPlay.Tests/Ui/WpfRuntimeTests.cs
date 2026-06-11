@@ -268,6 +268,19 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void SettingsWindow_uses_bounded_scroll_layout_and_visible_compact_scope_copy() => StaTestThread.Invoke(() =>
+    {
+        var w = new SettingsWindow(isBrowserReady: true);
+
+        Assert.IsType<ScrollViewer>(w.FindName("SettingsScrollViewer"));
+        Assert.True(w.MaxHeight >= w.MinHeight);
+        Assert.True(w.Height <= w.MaxHeight);
+        Assert.Contains("new popouts only",
+            ((TextBlock)w.FindName("CompactModeDescriptionText")!).Text,
+            StringComparison.OrdinalIgnoreCase);
+    });
+
+    [Fact]
     public void DangerButton_style_resolves_at_runtime() => StaTestThread.Invoke(() =>
     {
         // The destructive confirm resolves DangerButton from code (Prompt.AskConfirm), not XAML,
@@ -713,13 +726,69 @@ public class WpfRuntimeTests : IDisposable
     public void Shell_fullscreen_request_toggles_maximized() => StaTestThread.Invoke(() =>
     {
         var w = NewCompactPlayer();
+        var button = (Button)w.FindName("FullscreenButton")!;
         Assert.Equal(WindowState.Normal, w.WindowState);
+        Assert.Equal("Expand popout", System.Windows.Automation.AutomationProperties.GetName(button));
 
         w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionFullscreenToggle));
         Assert.Equal(WindowState.Maximized, w.WindowState);
+        Assert.Equal("Restore popout", System.Windows.Automation.AutomationProperties.GetName(button));
 
         w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionFullscreenToggle));
         Assert.Equal(WindowState.Normal, w.WindowState);
+        Assert.Equal("Expand popout", System.Windows.Automation.AutomationProperties.GetName(button));
+    });
+
+    [Fact]
+    public void Native_fullscreen_button_toggles_maximized_and_keeps_restore_visible() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactAutoHidePlayer();
+        var button = (Button)w.FindName("FullscreenButton")!;
+
+        w.HideControlsForTests();
+        w.CompleteHideFadeForTests();
+        Assert.True(w.IsChromeStripCollapsedForTests);
+
+        button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+
+        Assert.Equal(WindowState.Maximized, w.WindowState);
+        Assert.False(w.IsChromeStripCollapsedForTests);
+        Assert.True(w.IsChromeStripHitTestVisibleForTests);
+        Assert.Equal("Restore popout", System.Windows.Automation.AutomationProperties.GetName(button));
+
+        button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+
+        Assert.Equal(WindowState.Normal, w.WindowState);
+        Assert.Equal("Expand popout", System.Windows.Automation.AutomationProperties.GetName(button));
+    });
+
+    [Fact]
+    public void PlayerWindow_return_placement_never_persists_maximized() => StaTestThread.Invoke(() =>
+    {
+        var placement = new PlacementData
+        {
+            X = 20,
+            Y = 30,
+            Width = 960,
+            Height = 540,
+            Maximized = true,
+            MonitorDeviceName = @"\\.\DISPLAY1",
+            MonitorWorkArea = new RectData { X = 0, Y = 0, Width = 1920, Height = 1040 },
+            DpiScale = 1.25,
+        };
+
+        var normalized = PlayerWindow.NormalizeReturnPlacementForTests(placement)!;
+
+        Assert.False(normalized.Maximized);
+        Assert.True(placement.Maximized);   // pure copy: callers cannot mutate the saved input by accident
+        Assert.Equal(placement.X, normalized.X);
+        Assert.Equal(placement.Y, normalized.Y);
+        Assert.Equal(placement.Width, normalized.Width);
+        Assert.Equal(placement.Height, normalized.Height);
+        Assert.Equal(placement.MonitorDeviceName, normalized.MonitorDeviceName);
+        Assert.NotSame(placement.MonitorWorkArea, normalized.MonitorWorkArea);
+        Assert.Equal(placement.MonitorWorkArea!.Width, normalized.MonitorWorkArea!.Width);
+        Assert.Equal(placement.DpiScale, normalized.DpiScale);
     });
 
     // --- In-place retarget + video-aware return state (overhaul Task 3) ---

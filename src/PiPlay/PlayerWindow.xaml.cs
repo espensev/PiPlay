@@ -20,6 +20,9 @@ namespace PiPlay;
 /// </summary>
 public partial class PlayerWindow : Window
 {
+    private const string GlyphExpand = "\uE922";
+    private const string GlyphRestore = "\uE923";
+
     private readonly CoreWebView2Environment _environment;
     private readonly PlacementData? _placement;
     private readonly DispatcherTimer _syncTimer;
@@ -100,6 +103,8 @@ public partial class PlayerWindow : Window
         _mode = mode;
         _currentTarget = fallbackTarget;
         _returnState.VideoId = fallbackTarget?.VideoId;   // the launch video until navigation says otherwise
+        UpdateFullscreenButtonState();
+        StateChanged += (_, _) => UpdateFullscreenButtonState();
 
         // Mode-specific minimum (spec 10.2 / 16.1): compact embed mode needs a larger floor than the
         // 320x180 normal minimum so the embedded player controls stay usable. MinWidth/MinHeight set
@@ -172,6 +177,7 @@ public partial class PlayerWindow : Window
             core.NewWindowRequested += Core_NewWindowRequested;
             core.NavigationCompleted += Core_NavigationCompleted;
             core.SourceChanged += Core_SourceChanged;
+            core.ContainsFullScreenElementChanged += Core_ContainsFullScreenElementChanged;
 
             if (_mode == PlaybackMode.Compact)
             {
@@ -273,6 +279,12 @@ public partial class PlayerWindow : Window
             _returnState.VideoId = t.VideoId;
     }
 
+    private void Core_ContainsFullScreenElementChanged(object? sender, object e)
+    {
+        if (_mode != PlaybackMode.Compact || sender is not CoreWebView2 core) return;
+        SetExpanded(core.ContainsFullScreenElement);
+    }
+
     private void Core_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
         _navCompleted = true;
@@ -336,7 +348,7 @@ public partial class PlayerWindow : Window
                 Topmost = PinToggle.IsChecked == true;
                 break;
             case PlayerShellProtocol.ActionFullscreenToggle:
-                WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+                ToggleExpanded();
                 break;
         }
     }
@@ -441,7 +453,28 @@ public partial class PlayerWindow : Window
 
     private void PinToggle_Click(object sender, RoutedEventArgs e) => Topmost = PinToggle.IsChecked == true;
 
+    private void FullscreenButton_Click(object sender, RoutedEventArgs e) => ToggleExpanded();
+
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+
+    private void ToggleExpanded() => SetExpanded(WindowState != WindowState.Maximized);
+
+    private void SetExpanded(bool expanded)
+    {
+        WindowState = expanded ? WindowState.Maximized : WindowState.Normal;
+        OnUserActivity();   // keep the restore affordance reachable after any expand path.
+        UpdateFullscreenButtonState();
+    }
+
+    private void UpdateFullscreenButtonState()
+    {
+        if (FullscreenButton is null) return;
+        var expanded = WindowState == WindowState.Maximized;
+        FullscreenButton.Content = expanded ? GlyphRestore : GlyphExpand;
+        FullscreenButton.ToolTip = expanded ? "Restore popout" : "Expand popout";
+        System.Windows.Automation.AutomationProperties.SetName(
+            FullscreenButton, expanded ? "Restore popout" : "Expand popout");
+    }
 
     private void ChromeStrip_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -695,7 +728,7 @@ public partial class PlayerWindow : Window
         _opacityHoverPoll.Stop();
         _returnState.Topmost = Topmost;
         _returnState.FadeEnabled = _fadeEnabled;
-        _returnState.Placement = WindowPlacementService.TryCapture(this);
+        _returnState.Placement = NormalizeReturnPlacement(WindowPlacementService.TryCapture(this));
     }
 
     private void PlayerWindow_Closed(object? sender, EventArgs e)
@@ -714,5 +747,33 @@ public partial class PlayerWindow : Window
         if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) return;
         try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
         catch (Exception ex) { Log.Error("Failed to open an external link.", ex); }
+    }
+
+    internal static PlacementData? NormalizeReturnPlacementForTests(PlacementData? placement) =>
+        NormalizeReturnPlacement(placement);
+
+    private static PlacementData? NormalizeReturnPlacement(PlacementData? placement)
+    {
+        if (placement is null) return null;
+
+        return new PlacementData
+        {
+            X = placement.X,
+            Y = placement.Y,
+            Width = placement.Width,
+            Height = placement.Height,
+            Maximized = false,
+            MonitorDeviceName = placement.MonitorDeviceName,
+            MonitorWorkArea = placement.MonitorWorkArea is null
+                ? null
+                : new RectData
+                {
+                    X = placement.MonitorWorkArea.X,
+                    Y = placement.MonitorWorkArea.Y,
+                    Width = placement.MonitorWorkArea.Width,
+                    Height = placement.MonitorWorkArea.Height,
+                },
+            DpiScale = placement.DpiScale,
+        };
     }
 }

@@ -108,11 +108,13 @@ public class XamlInvariantTests
         }},
         new object[] { "PlayerWindow.xaml", new[]
         {
-            "ChromeStrip", "FadeToggle", "PinToggle", "CloseButton", "Player",
+            "ChromeStrip", "FadeToggle", "PinToggle", "FullscreenButton", "CloseButton", "Player",
             "ErrorBar", "ErrorText", "FallbackButton", "ErrorDismissButton",
         }},
         new object[] { "SettingsWindow.xaml", new[]
         {
+            "SettingsScrollViewer",
+            "PrivacySectionHeading", "AppearanceSectionHeading", "PlaybackSectionHeading", "AdvancedSectionHeading",
             "ResetAppStateButton", "ResetDescriptionText",
             "ClearBrowserDataButton", "ClearDescriptionText", "CloseButton",
             "PinAccentCyanSwatch", "PinAccentVioletSwatch", "PinAccentGreenSwatch", "PinAccentAmberSwatch",
@@ -120,7 +122,7 @@ public class XamlInvariantTests
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
             "ActiveOpacitySlider", "ActiveOpacityValueText", "IdleOpacitySlider", "IdleOpacityValueText",
             "StripAutoHideToggle",
-            "CompactModeToggle",
+            "CompactModeDescriptionText", "CompactModeToggle",
         }},
     };
 
@@ -191,7 +193,7 @@ public class XamlInvariantTests
             "SaveProfileButton", "EditProfileButton", "DeleteProfileButton",
             "PinToggle", "AutoToggle", "PopOutButton",
         }},
-        new object[] { "PlayerWindow.xaml", new[] { "FadeToggle", "PinToggle", "CloseButton" } },
+        new object[] { "PlayerWindow.xaml", new[] { "FadeToggle", "PinToggle", "FullscreenButton", "CloseButton" } },
         new object[] { "SettingsWindow.xaml", new[] { "CloseButton" } },
     };
 
@@ -380,6 +382,37 @@ public class XamlInvariantTests
         // The Settings dialog hosts no WebView2, but stays opaque for visual consistency.
         var w = XamlTestFiles.Load("SettingsWindow.xaml").Root!;
         Assert.NotEqual("True", w.Attribute("AllowsTransparency")?.Value);
+    }
+
+    [Fact]
+    public void SettingsWindow_is_bounded_scrollable_and_sectioned()
+    {
+        var doc = XamlTestFiles.Load("SettingsWindow.xaml");
+        var root = doc.Root!;
+        Assert.NotEqual("Height", root.Attribute("SizeToContent")?.Value);
+        Assert.NotNull(root.Attribute("Height"));
+
+        var byName = doc.Descendants()
+            .Where(e => e.Attribute(XamlTestFiles.X + "Name") is not null)
+            .GroupBy(e => e.Attribute(XamlTestFiles.X + "Name")!.Value)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var scroll = byName["SettingsScrollViewer"];
+        Assert.Equal("Auto", scroll.Attribute("VerticalScrollBarVisibility")?.Value);
+        Assert.Equal("Disabled", scroll.Attribute("HorizontalScrollBarVisibility")?.Value);
+
+        var orderedNames = doc.Descendants()
+            .Select(e => e.Attribute(XamlTestFiles.X + "Name")?.Value)
+            .Where(n => n is "PrivacySectionHeading" or "AppearanceSectionHeading" or
+                "PlaybackSectionHeading" or "AdvancedSectionHeading")
+            .ToArray();
+        Assert.Equal(new[]
+        {
+            "PrivacySectionHeading", "AppearanceSectionHeading", "PlaybackSectionHeading", "AdvancedSectionHeading",
+        }, orderedNames);
+
+        Assert.Contains("new popouts only", byName["CompactModeDescriptionText"].Attribute("Text")?.Value ?? "",
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

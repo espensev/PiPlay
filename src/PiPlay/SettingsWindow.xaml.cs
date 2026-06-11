@@ -49,6 +49,7 @@ public partial class SettingsWindow : Window
         bool stripAutoHide = false)
     {
         InitializeComponent();
+        ApplyInitialBounds();
 
         PinAccent = PlayerAppearancePolicy.NormalizeAccent(pinAccent);
         FadeAccent = PlayerAppearancePolicy.NormalizeAccent(fadeAccent);
@@ -81,6 +82,12 @@ public partial class SettingsWindow : Window
             ClearBrowserDataButton.ToolTip = PrivacyService.ClearNotReadyHint;
             ToolTipService.SetShowOnDisabled(ClearBrowserDataButton, true);
         }
+    }
+
+    private void ApplyInitialBounds()
+    {
+        MaxHeight = Math.Max(MinHeight, SystemParameters.WorkArea.Height - 48);
+        Height = Math.Min(Height, MaxHeight);
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)

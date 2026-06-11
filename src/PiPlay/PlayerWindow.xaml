@@ -52,6 +52,9 @@
           <ToggleButton x:Name="PinToggle" Style="{StaticResource PinToggle}" Width="30" Height="30"
                         Content="&#xE840;" Click="PinToggle_Click" ToolTip="Pin on top"
                         AutomationProperties.Name="Pin popout on top" />
+          <Button x:Name="FullscreenButton" Style="{StaticResource IconButton}" Width="30" Height="30"
+                  Content="&#xE922;" Click="FullscreenButton_Click" ToolTip="Expand popout"
+                  AutomationProperties.Name="Expand popout" />
           <Button x:Name="CloseButton" Style="{StaticResource CloseIconButton}" Width="30" Height="30"
                   Content="&#xE8BB;" Click="CloseButton_Click" ToolTip="Close popout (return video)"
                   AutomationProperties.Name="Close popout" />

@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="PiPlay settings"
-        Width="480" SizeToContent="Height"
+        Width="520" Height="680" MinHeight="360"
         WindowStyle="None"
         ResizeMode="NoResize"
         AllowsTransparency="False"
@@ -80,11 +80,11 @@
   </Window.Resources>
 
   <Border BorderBrush="{StaticResource BorderSubtle}" BorderThickness="1">
-    <StackPanel>
+    <DockPanel>
 
       <!-- Title bar (drag to move; close button) -->
       <Grid Background="{StaticResource SurfaceBase}" Height="42"
-            MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            DockPanel.Dock="Top" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
         <TextBlock Text="Settings" Margin="16,0" VerticalAlignment="Center"
                    FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" />
         <Button x:Name="CloseButton" Style="{StaticResource CloseIconButton}"
@@ -92,148 +92,160 @@
                 HorizontalAlignment="Right" Margin="0,0,5,0" Click="CloseButton_Click" />
       </Grid>
 
-      <!-- Privacy section -->
-      <StackPanel Margin="20">
-        <TextBlock Text="Privacy" FontSize="16" FontWeight="SemiBold"
-                   Foreground="{StaticResource TextPrimary}" Margin="0,0,0,2" />
+      <ScrollViewer x:Name="SettingsScrollViewer" VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled" CanContentScroll="False">
+        <StackPanel Margin="20">
+          <!-- Privacy section -->
+          <TextBlock x:Name="PrivacySectionHeading" Text="Privacy" FontSize="16" FontWeight="SemiBold"
+                     Foreground="{StaticResource TextPrimary}" Margin="0,0,0,2" />
 
-        <TextBlock x:Name="ResetDescriptionText" TextWrapping="Wrap" FontSize="12"
-                   Foreground="{StaticResource TextSecondary}" Margin="0,10,0,8" />
-        <Button x:Name="ResetAppStateButton" Style="{StaticResource DarkButton}"
-                HorizontalAlignment="Left" Click="ResetAppStateButton_Click" />
+          <TextBlock x:Name="ResetDescriptionText" TextWrapping="Wrap" FontSize="12"
+                     Foreground="{StaticResource TextSecondary}" Margin="0,10,0,8" />
+          <Button x:Name="ResetAppStateButton" Style="{StaticResource DarkButton}"
+                  HorizontalAlignment="Left" Click="ResetAppStateButton_Click" />
 
-        <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,18" />
+          <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,18" />
 
-        <TextBlock x:Name="ClearDescriptionText" TextWrapping="Wrap" FontSize="12"
-                   Foreground="{StaticResource TextSecondary}" Margin="0,0,0,8" />
-        <Button x:Name="ClearBrowserDataButton" Style="{StaticResource DarkButton}"
-                HorizontalAlignment="Left" Click="ClearBrowserDataButton_Click" />
+          <TextBlock x:Name="ClearDescriptionText" TextWrapping="Wrap" FontSize="12"
+                     Foreground="{StaticResource TextSecondary}" Margin="0,0,0,8" />
+          <Button x:Name="ClearBrowserDataButton" Style="{StaticResource DarkButton}"
+                  HorizontalAlignment="Left" Click="ClearBrowserDataButton_Click" />
 
-        <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,18" />
+          <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,18" />
 
-        <TextBlock Text="Appearance" FontSize="16" FontWeight="SemiBold"
-                   Foreground="{StaticResource TextPrimary}" Margin="0,0,0,10" />
+          <!-- Appearance section -->
+          <TextBlock x:Name="AppearanceSectionHeading" Text="Appearance" FontSize="16" FontWeight="SemiBold"
+                     Foreground="{StaticResource TextPrimary}" Margin="0,0,0,10" />
 
-        <TextBlock Text="Pin color" FontSize="12" Foreground="{StaticResource TextSecondary}"
-                   Margin="0,0,0,6" />
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-          <ToggleButton x:Name="PinAccentCyanSwatch" Style="{StaticResource SwatchToggle}"
-                        Background="{StaticResource AccentCyan}" Tag="cyan"
-                        Click="PinAccent_Click" ToolTip="Pin color: Cyan"
-                        AutomationProperties.Name="Pin color Cyan" />
-          <ToggleButton x:Name="PinAccentVioletSwatch" Style="{StaticResource SwatchToggle}"
-                        Background="{StaticResource AccentViolet}" Tag="violet"
-                        Click="PinAccent_Click" ToolTip="Pin color: Violet"
-                        AutomationProperties.Name="Pin color Violet" />
-          <ToggleButton x:Name="PinAccentGreenSwatch" Style="{StaticResource SwatchToggle}"
-                        Background="{StaticResource AccentGreen}" Tag="green"
-                        Click="PinAccent_Click" ToolTip="Pin color: Green"
-                        AutomationProperties.Name="Pin color Green" />
-          <ToggleButton x:Name="PinAccentAmberSwatch" Style="{StaticResource SwatchToggle}"
-                        Background="{StaticResource AccentAmber}" Tag="amber"
-                        Click="PinAccent_Click" ToolTip="Pin color: Amber"
-                        AutomationProperties.Name="Pin color Amber" />
+          <TextBlock Text="Pin color" FontSize="12" Foreground="{StaticResource TextSecondary}"
+                     Margin="0,0,0,6" />
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+            <ToggleButton x:Name="PinAccentCyanSwatch" Style="{StaticResource SwatchToggle}"
+                          Background="{StaticResource AccentCyan}" Tag="cyan"
+                          Click="PinAccent_Click" ToolTip="Pin color: Cyan"
+                          AutomationProperties.Name="Pin color Cyan" />
+            <ToggleButton x:Name="PinAccentVioletSwatch" Style="{StaticResource SwatchToggle}"
+                          Background="{StaticResource AccentViolet}" Tag="violet"
+                          Click="PinAccent_Click" ToolTip="Pin color: Violet"
+                          AutomationProperties.Name="Pin color Violet" />
+            <ToggleButton x:Name="PinAccentGreenSwatch" Style="{StaticResource SwatchToggle}"
+                          Background="{StaticResource AccentGreen}" Tag="green"
+                          Click="PinAccent_Click" ToolTip="Pin color: Green"
+                          AutomationProperties.Name="Pin color Green" />
+            <ToggleButton x:Name="PinAccentAmberSwatch" Style="{StaticResource SwatchToggle}"
+                          Background="{StaticResource AccentAmber}" Tag="amber"
+                          Click="PinAccent_Click" ToolTip="Pin color: Amber"
+                          AutomationProperties.Name="Pin color Amber" />
+          </StackPanel>
+
+          <TextBlock Text="Fade color" FontSize="12" Foreground="{StaticResource TextSecondary}"
+                     Margin="0,0,0,6" />
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+            <ToggleButton x:Name="FadeAccentCyanSwatch" Style="{StaticResource SwatchToggle}"
+                          Background="{StaticResource AccentCyan}" Tag="cyan"
+                          Click="FadeAccent_Click" ToolTip="Fade color: Cyan"
+                          AutomationProperties.Name="Fade color Cyan" />
+            <ToggleButton x:Name="FadeAccentVioletSwatch" Style="{StaticResource SwatchToggle}"
+                          Background="{StaticResource AccentViolet}" Tag="violet"
+                          Click="FadeAccent_Click" ToolTip="Fade color: Violet"
+                          AutomationProperties.Name="Fade color Violet" />
+            <ToggleButton x:Name="FadeAccentGreenSwatch" Style="{StaticResource SwatchToggle}"
+                          Background="{StaticResource AccentGreen}" Tag="green"
+                          Click="FadeAccent_Click" ToolTip="Fade color: Green"
+                          AutomationProperties.Name="Fade color Green" />
+            <ToggleButton x:Name="FadeAccentAmberSwatch" Style="{StaticResource SwatchToggle}"
+                          Background="{StaticResource AccentAmber}" Tag="amber"
+                          Click="FadeAccent_Click" ToolTip="Fade color: Amber"
+                          AutomationProperties.Name="Fade color Amber" />
+          </StackPanel>
+
+          <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,18" />
+
+          <!-- Playback section -->
+          <TextBlock x:Name="PlaybackSectionHeading" Text="Playback" FontSize="16" FontWeight="SemiBold"
+                     Foreground="{StaticResource TextPrimary}" Margin="0,0,0,2" />
+          <TextBlock x:Name="CompactModeDescriptionText"
+                     Text="Compact player uses YouTube's embedded player for a cleaner floating window. It applies to new popouts only; close and reopen the current popout to switch modes."
+                     TextWrapping="Wrap" FontSize="12"
+                     Foreground="{StaticResource TextSecondary}" Margin="0,10,0,8" />
+          <ToggleButton x:Name="CompactModeToggle" Style="{StaticResource PresetToggle}"
+                        MinWidth="150" HorizontalAlignment="Left"
+                        Content="Compact player" Click="CompactModeToggle_Click"
+                        ToolTip="Use the compact embedded player for new popouts"
+                        AutomationProperties.Name="Compact player mode" />
+
+          <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,18" />
+
+          <!-- Advanced section -->
+          <TextBlock x:Name="AdvancedSectionHeading" Text="Advanced" FontSize="16" FontWeight="SemiBold"
+                     Foreground="{StaticResource TextPrimary}" Margin="0,0,0,10" />
+
+          <TextBlock Text="Fade delay" FontSize="12" Foreground="{StaticResource TextSecondary}"
+                     Margin="0,0,0,6" />
+          <StackPanel Orientation="Horizontal">
+            <ToggleButton x:Name="FadeDelayShortPreset" Style="{StaticResource PresetToggle}"
+                          Content="Short" Tag="1500" Click="FadeDelay_Click"
+                          ToolTip="Fade controls after 1.5 seconds"
+                          AutomationProperties.Name="Fade delay Short" />
+            <ToggleButton x:Name="FadeDelayNormalPreset" Style="{StaticResource PresetToggle}"
+                          Content="Normal" Tag="2500" Click="FadeDelay_Click"
+                          ToolTip="Fade controls after 2.5 seconds"
+                          AutomationProperties.Name="Fade delay Normal" />
+            <ToggleButton x:Name="FadeDelayLongPreset" Style="{StaticResource PresetToggle}"
+                          Content="Long" Tag="4000" Click="FadeDelay_Click"
+                          ToolTip="Fade controls after 4 seconds"
+                          AutomationProperties.Name="Fade delay Long" />
+          </StackPanel>
+
+          <!-- Whole-window opacity (spec 7.3, Phase 4). Sliders floor at 45% (QA §3); values
+               10-45% are honored only when hand-edited into settings.json (the explicit unlock). -->
+          <TextBlock Text="Window opacity" FontSize="12" Foreground="{StaticResource TextSecondary}"
+                     Margin="0,12,0,6" />
+          <Grid Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="72" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="44" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Active" FontSize="12" Foreground="{StaticResource TextPrimary}"
+                       VerticalAlignment="Center" />
+            <Slider x:Name="ActiveOpacitySlider" Grid.Column="1" Minimum="45" Maximum="100"
+                    SmallChange="1" LargeChange="10" IsMoveToPointEnabled="True"
+                    VerticalAlignment="Center" ValueChanged="OpacitySlider_ValueChanged"
+                    ToolTip="Popout window opacity while you interact with it (45-100%)"
+                    AutomationProperties.Name="Active window opacity" />
+            <TextBlock x:Name="ActiveOpacityValueText" Grid.Column="2" FontSize="12" TextAlignment="Right"
+                       Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center" />
+          </Grid>
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="72" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="44" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="When idle" FontSize="12" Foreground="{StaticResource TextPrimary}"
+                       VerticalAlignment="Center" />
+            <Slider x:Name="IdleOpacitySlider" Grid.Column="1" Minimum="45" Maximum="100"
+                    SmallChange="1" LargeChange="10" IsMoveToPointEnabled="True"
+                    VerticalAlignment="Center" ValueChanged="OpacitySlider_ValueChanged"
+                    ToolTip="Popout window opacity after the mouse goes idle (45-100%)"
+                    AutomationProperties.Name="Idle window opacity" />
+            <TextBlock x:Name="IdleOpacityValueText" Grid.Column="2" FontSize="12" TextAlignment="Right"
+                       Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center" />
+          </Grid>
+
+          <!-- Strip auto-hide (spec 7.2, Phase 4): selectable appearance behavior, default off.
+               Only engages while the popout's Fade toggle is on (one idleness definition). -->
+          <TextBlock Text="Popout top bar" FontSize="12" Foreground="{StaticResource TextSecondary}"
+                     Margin="0,12,0,6" />
+          <ToggleButton x:Name="StripAutoHideToggle" Style="{StaticResource PresetToggle}"
+                        MinWidth="150" HorizontalAlignment="Left"
+                        Content="Auto-hide top bar" Click="StripAutoHideToggle_Click"
+                        ToolTip="Collapse the popout's top bar while idle so the video fills the window; hover the top edge to bring it back"
+                        AutomationProperties.Name="Auto-hide popout top bar" />
         </StackPanel>
+      </ScrollViewer>
 
-        <TextBlock Text="Fade color" FontSize="12" Foreground="{StaticResource TextSecondary}"
-                   Margin="0,0,0,6" />
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-          <ToggleButton x:Name="FadeAccentCyanSwatch" Style="{StaticResource SwatchToggle}"
-                        Background="{StaticResource AccentCyan}" Tag="cyan"
-                        Click="FadeAccent_Click" ToolTip="Fade color: Cyan"
-                        AutomationProperties.Name="Fade color Cyan" />
-          <ToggleButton x:Name="FadeAccentVioletSwatch" Style="{StaticResource SwatchToggle}"
-                        Background="{StaticResource AccentViolet}" Tag="violet"
-                        Click="FadeAccent_Click" ToolTip="Fade color: Violet"
-                        AutomationProperties.Name="Fade color Violet" />
-          <ToggleButton x:Name="FadeAccentGreenSwatch" Style="{StaticResource SwatchToggle}"
-                        Background="{StaticResource AccentGreen}" Tag="green"
-                        Click="FadeAccent_Click" ToolTip="Fade color: Green"
-                        AutomationProperties.Name="Fade color Green" />
-          <ToggleButton x:Name="FadeAccentAmberSwatch" Style="{StaticResource SwatchToggle}"
-                        Background="{StaticResource AccentAmber}" Tag="amber"
-                        Click="FadeAccent_Click" ToolTip="Fade color: Amber"
-                        AutomationProperties.Name="Fade color Amber" />
-        </StackPanel>
-
-        <TextBlock Text="Fade delay" FontSize="12" Foreground="{StaticResource TextSecondary}"
-                   Margin="0,0,0,6" />
-        <StackPanel Orientation="Horizontal">
-          <ToggleButton x:Name="FadeDelayShortPreset" Style="{StaticResource PresetToggle}"
-                        Content="Short" Tag="1500" Click="FadeDelay_Click"
-                        ToolTip="Fade controls after 1.5 seconds"
-                        AutomationProperties.Name="Fade delay Short" />
-          <ToggleButton x:Name="FadeDelayNormalPreset" Style="{StaticResource PresetToggle}"
-                        Content="Normal" Tag="2500" Click="FadeDelay_Click"
-                        ToolTip="Fade controls after 2.5 seconds"
-                        AutomationProperties.Name="Fade delay Normal" />
-          <ToggleButton x:Name="FadeDelayLongPreset" Style="{StaticResource PresetToggle}"
-                        Content="Long" Tag="4000" Click="FadeDelay_Click"
-                        ToolTip="Fade controls after 4 seconds"
-                        AutomationProperties.Name="Fade delay Long" />
-        </StackPanel>
-
-        <!-- Whole-window opacity (spec 7.3, Phase 4). Sliders floor at 45% (QA §3); values
-             10-45% are honored only when hand-edited into settings.json (the explicit unlock). -->
-        <TextBlock Text="Window opacity" FontSize="12" Foreground="{StaticResource TextSecondary}"
-                   Margin="0,12,0,6" />
-        <Grid Margin="0,0,0,6">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="72" />
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="44" />
-          </Grid.ColumnDefinitions>
-          <TextBlock Text="Active" FontSize="12" Foreground="{StaticResource TextPrimary}"
-                     VerticalAlignment="Center" />
-          <Slider x:Name="ActiveOpacitySlider" Grid.Column="1" Minimum="45" Maximum="100"
-                  SmallChange="1" LargeChange="10" IsMoveToPointEnabled="True"
-                  VerticalAlignment="Center" ValueChanged="OpacitySlider_ValueChanged"
-                  ToolTip="Popout window opacity while you interact with it (45-100%)"
-                  AutomationProperties.Name="Active window opacity" />
-          <TextBlock x:Name="ActiveOpacityValueText" Grid.Column="2" FontSize="12" TextAlignment="Right"
-                     Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center" />
-        </Grid>
-        <Grid>
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="72" />
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="44" />
-          </Grid.ColumnDefinitions>
-          <TextBlock Text="When idle" FontSize="12" Foreground="{StaticResource TextPrimary}"
-                     VerticalAlignment="Center" />
-          <Slider x:Name="IdleOpacitySlider" Grid.Column="1" Minimum="45" Maximum="100"
-                  SmallChange="1" LargeChange="10" IsMoveToPointEnabled="True"
-                  VerticalAlignment="Center" ValueChanged="OpacitySlider_ValueChanged"
-                  ToolTip="Popout window opacity after the mouse goes idle (45-100%)"
-                  AutomationProperties.Name="Idle window opacity" />
-          <TextBlock x:Name="IdleOpacityValueText" Grid.Column="2" FontSize="12" TextAlignment="Right"
-                     Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center" />
-        </Grid>
-
-        <!-- Strip auto-hide (spec 7.2, Phase 4): selectable appearance behavior, default off.
-             Only engages while the popout's Fade toggle is on (one idleness definition). -->
-        <TextBlock Text="Popout top bar" FontSize="12" Foreground="{StaticResource TextSecondary}"
-                   Margin="0,12,0,6" />
-        <ToggleButton x:Name="StripAutoHideToggle" Style="{StaticResource PresetToggle}"
-                      MinWidth="150" HorizontalAlignment="Left"
-                      Content="Auto-hide top bar" Click="StripAutoHideToggle_Click"
-                      ToolTip="Collapse the popout's top bar while idle so the video fills the window; hover the top edge to bring it back"
-                      AutomationProperties.Name="Auto-hide popout top bar" />
-
-        <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,18" />
-
-        <TextBlock Text="Playback" FontSize="16" FontWeight="SemiBold"
-                   Foreground="{StaticResource TextPrimary}" Margin="0,0,0,2" />
-        <TextBlock Text="Compact player uses YouTube's embedded player for a cleaner floating window. Normal page mode stays the default and the fallback."
-                   TextWrapping="Wrap" FontSize="12"
-                   Foreground="{StaticResource TextSecondary}" Margin="0,10,0,8" />
-        <ToggleButton x:Name="CompactModeToggle" Style="{StaticResource PresetToggle}"
-                      MinWidth="150" HorizontalAlignment="Left"
-                      Content="Compact player" Click="CompactModeToggle_Click"
-                      ToolTip="Use the compact embedded player for new popouts"
-                      AutomationProperties.Name="Compact player mode" />
-      </StackPanel>
-
-    </StackPanel>
+    </DockPanel>
   </Border>
 </Window>
