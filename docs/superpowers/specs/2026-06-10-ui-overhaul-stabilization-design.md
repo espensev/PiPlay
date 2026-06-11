@@ -242,6 +242,7 @@ dotnet test PiPlay.sln --configuration Debug
 | `src/PiPlay/Services/YouTubeUrlHelper.cs` | Target normalization and mix/radio fallback semantics if needed. |
 | `src/PiPlay/Services/BorderlessWindowHelper.cs` | Unchanged by the inset route (subclass already correct); touch only if the band-HWND fallback is needed. |
 | `src/PiPlay/Services/BorderlessResizeHitTestPolicy.cs` | Unchanged; its `ResizeBorderDip` constant becomes the inset-band source of truth. |
+| `src/PiPlay/Services/PopoutNavigationPolicy.cs` | NEW: pure new-window decision for the Popout Player (URL-shape proxy: playable target retargets in place, else external). |
 | `src/PiPlay/Services/ReturnPolicy.cs` | Navigate-vs-seek decision when the returned video differs from the source video. |
 | `src/PiPlay/Models/PlayerReturnState.cs` | Carry the popout's current video identity alongside the timestamp. |
 | `src/PiPlay/Services/WindowPlacementService.cs` | Normalize maximized capture so an expanded popout does not relaunch maximized (Task 4 decision). |
