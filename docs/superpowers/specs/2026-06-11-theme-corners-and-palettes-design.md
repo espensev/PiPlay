@@ -138,10 +138,13 @@ merged lineage. Disposition against current code:
   has no MediaBackdrop token — media surfaces use literal black), **§3.7** (media-glow), color
   wheel — still deferred by design, matching both review docs' ordering.
 
-Note for evidence checks: this work lives on the PR #19 branch (`claude/wizardly-cori-2997c3`).
-A review of a checkout that is not on this branch (or on main before PR #19 merges) will not
-find it — the claim-response review of 2026-06-11 audited the superseded draft `6e843a2` and
-correctly reported the changes absent THERE.
+Note for evidence checks: verified against current `main` after the PR #19 merge (`9e822d8`).
+The 2026-06-11 end-pass and claim-response root reviews audited the superseded draft `6e843a2`
+and correctly reported the changes absent THERE — both files carry a HISTORICAL banner and
+should be read as "why the old draft failed", never as current-state verdicts. The
+current-state verdict is `piplay-theme-post-merge-disposition-review.md` (root of the main
+checkout): R1–R7 satisfied for this pass; remaining items deferred by design, enumerated in
+"Accepted residuals / next pass" below.
 
 ## Accepted residuals / next pass
 
