@@ -504,10 +504,11 @@ public class WpfRuntimeTests : IDisposable
         var w = new SettingsWindow(isBrowserReady: true);
 
         // SizeToContent alone left MaxHeight unbounded and the dialog clipped short displays.
+        // Pin the exact derivation: work area less the margin, with the usability floor — the
+        // floor WINS on a sub-468px work area, so asserting "<= work area" outright would
+        // self-contradict the floor there (review finding 2026-06-11).
         Assert.True(double.IsFinite(w.MaxHeight), "Settings MaxHeight must be bounded.");
-        Assert.True(w.MaxHeight <= SystemParameters.WorkArea.Height,
-            $"MaxHeight {w.MaxHeight} exceeds the work area {SystemParameters.WorkArea.Height}.");
-        Assert.True(w.MaxHeight >= 420, "The usability floor must hold even on tiny work areas.");
+        Assert.Equal(Math.Max(420, SystemParameters.WorkArea.Height - 48), w.MaxHeight);
         Assert.IsType<ScrollViewer>(w.FindName("SettingsScroll"));
     });
 
@@ -889,11 +890,12 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void Hostile_shell_video_ids_never_become_the_return_target() => StaTestThread.Invoke(() =>
     {
-        // The shell string later becomes a SOURCE navigation target on close — the id charset is
-        // gated at this trust boundary, not just by the downstream re-parse/allowlist.
+        // End-to-end through the REAL wire path: the shell string later becomes a SOURCE
+        // navigation target on close, and PlayerShellProtocol.Parse (the trust boundary) must
+        // reject the malformed id before the host ever sees it.
         var w = NewCompactPlayer();
-        w.HandleShellStateForTests(new InboundShellMessage(
-            ShellMessageKind.State, CurrentTime: 5, PlayerState: 1, VideoId: "abc&evil=1//"));
+        w.HandleShellStateForTests(PlayerShellProtocol.Parse(
+            "{\"v\":3,\"type\":\"state\",\"currentTime\":5,\"playerState\":1,\"videoId\":\"abc&evil=1//\"}"));
 
         Assert.Equal("dQw4w9WgXcQ", w.ReturnVideoIdForTests);   // launch id kept
         Assert.Equal(5, w.ReturnSecondsForTests);               // the timestamp itself still lands

@@ -327,12 +327,10 @@ public partial class PlayerWindow : Window
         // Compact mode's source of truth for the return timestamp is the IFrame API, not the DOM.
         _returnState.LastKnownSeconds = state.CurrentTime;
         // Protocol v3: the shell reports the CURRENT video (playlist auto-advance and in-iframe
-        // clicks are invisible to the host). The id charset is validated HERE, at the trust
-        // boundary — this string later becomes a SOURCE navigation target on close, and while the
-        // downstream re-parse + allowlist would also catch a hostile value, the gate belongs where
-        // the untrusted string enters (review hardening 2026-06-10). Absent/invalid keeps the
-        // last-known id.
-        if (YouTubeUrlHelper.IsVideoId(state.VideoId)) _returnState.VideoId = state.VideoId;
+        // clicks are invisible to the host). PlayerShellProtocol.Parse already rejected malformed
+        // ids at the wire (the parse IS the trust boundary), so a non-empty value here is a
+        // well-formed id; absent/invalid keeps the last-known id.
+        if (!string.IsNullOrEmpty(state.VideoId)) _returnState.VideoId = state.VideoId;
         // A playing state proves recovery (e.g. a playlist auto-advanced past a dead entry) —
         // clear a showing error so the bar can't outlive the problem it reported.
         if (PlayerShellErrorPolicy.ShouldAutoDismiss(state.PlayerState)) HideShellError();

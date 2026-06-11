@@ -90,7 +90,7 @@ public static class PlayerShellProtocol
                     CurrentTime: ReadInt(root, FieldCurrentTime, 0),
                     PlayerState: ReadInt(root, FieldPlayerState, -1),
                     Duration: ReadNullableInt(root, FieldDuration),
-                    VideoId: ReadString(root, FieldVideoId)),
+                    VideoId: ReadVideoId(root)),
                 TypeError => new InboundShellMessage(ShellMessageKind.Error, ErrorCode: ReadString(root, FieldCode)),
                 TypeRequest => ParseRequest(root),
                 _ => new InboundShellMessage(ShellMessageKind.Unknown),
@@ -137,4 +137,16 @@ public static class PlayerShellProtocol
 
     private static string? ReadString(JsonElement root, string name) =>
         root.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.String ? el.GetString() : null;
+
+    /// <summary>
+    /// FieldVideoId carries a YouTube video id BY CONTRACT: a value that is not the 11-char id
+    /// shape is malformed input from the (untrusted) shell and parses as absent — the gate lives
+    /// in the parser so EVERY consumer of the parsed message is protected, not just the current
+    /// one (the host later turns this string into a source navigation target on close).
+    /// </summary>
+    private static string? ReadVideoId(JsonElement root)
+    {
+        var raw = ReadString(root, FieldVideoId);
+        return YouTubeUrlHelper.IsVideoId(raw) ? raw : null;
+    }
 }
