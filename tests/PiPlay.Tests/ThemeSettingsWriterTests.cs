@@ -44,14 +44,17 @@ public class ThemeSettingsWriterTests
             cornerStyle: "round");
 
         Assert.Equal(0.8, settings.Theme.ActiveWindowOpacity);
-        Assert.Equal(1.0, settings.Theme.IdleWindowOpacity);   // junk override reset by the policy
+        // A junk override repairs to NULL = follow the preset (the same NormalizeOptional rule
+        // as settings-load repair — PR #21 review note), never to a synthetic 1.0 override.
+        Assert.Null(settings.Theme.IdleWindowOpacity);
         Assert.True(settings.Theme.StripAutoHide);
         Assert.Equal("round", settings.Theme.CornerStyle);
         Assert.Equal(1500, settings.Player.FadeIdleDelayMs);
         Assert.Equal("short", settings.Theme.FadeDelayPreset);
         Assert.True(settings.Player.CompactMode);
         Assert.Equal(0.8, settings.Player.ConstantWindowOpacity);
-        Assert.Equal(1.0, settings.Player.IdleWindowOpacity);
+        // The idle mirror carries the EFFECTIVE value: sharp-dark's idle default.
+        Assert.Equal(ThemeCatalog.PresetFor("sharp-dark").DefaultIdleWindowOpacity, settings.Player.IdleWindowOpacity);
         Assert.True(settings.Player.StripAutoHide);
     }
 

@@ -54,6 +54,20 @@ public static class WindowOpacityPolicy
     }
 
     /// <summary>
+    /// Repair an OPTIONAL opacity override (the nullable theme behavior values): an invalid
+    /// value becomes null — "follow the preset default" — rather than an explicit
+    /// <see cref="Default"/> override. One rule shared by settings-load repair and the
+    /// Settings-apply writer so the two paths cannot diverge (PR #21 review note).
+    /// </summary>
+    public static double? NormalizeOptional(double? value)
+    {
+        if (value is null) return null;
+        var raw = value.Value;
+        if (double.IsNaN(raw) || raw < FileFloor || raw > Max) return null;
+        return raw;
+    }
+
+    /// <summary>
     /// The opacity the window should have right now. Idle never makes the window MORE opaque than
     /// the active level: spec 7.3 reads idle fade as a step DOWN with "hover restores full
     /// opacity", so an idle level above the constant level is clamped to the constant level

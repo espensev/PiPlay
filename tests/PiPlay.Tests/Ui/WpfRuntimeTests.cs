@@ -288,7 +288,10 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal(preset.DefaultStripAutoHide, ((ToggleButton)w.FindName("StripAutoHideToggle")!).IsChecked);
         Assert.Equal(preset.DefaultActiveWindowOpacity, w.ConstantWindowOpacity);
         Assert.Equal(preset.DefaultIdleWindowOpacity, w.IdleWindowOpacity);
-        Assert.Equal(92, ((Slider)w.FindName("ActiveOpacitySlider")!).Value);   // displays the preset default
+        // The slider displays the preset default — expectation computed with DisplayPercent's
+        // own rounding/floor rule so the test never pins a magic percent (Copilot review nit).
+        Assert.Equal(Math.Round(Math.Max(preset.DefaultActiveWindowOpacity, WindowOpacityPolicy.UiFloor) * 100.0),
+            ((Slider)w.FindName("ActiveOpacitySlider")!).Value);
         Assert.True(w.AppearanceChanged);
     });
 

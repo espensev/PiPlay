@@ -24,10 +24,10 @@ public static class ThemeSettingsWriter
         // Global compact-mode default takes effect on the NEXT popout; an open player keeps its mode.
         settings.Player.CompactMode = compactMode;
         settings.Theme.CornerStyle = ThemeCatalog.NormalizeCornerStyle(cornerStyle);
-        settings.Theme.ActiveWindowOpacity =
-            activeOpacityOverride is null ? null : WindowOpacityPolicy.Normalize(activeOpacityOverride.Value);
-        settings.Theme.IdleWindowOpacity =
-            idleOpacityOverride is null ? null : WindowOpacityPolicy.Normalize(idleOpacityOverride.Value);
+        // Same repair rule as settings-load (WindowOpacityPolicy.NormalizeOptional): an invalid
+        // explicit override becomes null = "follow the preset", never a synthetic 1.0 override.
+        settings.Theme.ActiveWindowOpacity = WindowOpacityPolicy.NormalizeOptional(activeOpacityOverride);
+        settings.Theme.IdleWindowOpacity = WindowOpacityPolicy.NormalizeOptional(idleOpacityOverride);
         settings.Theme.StripAutoHide = stripAutoHideOverride;
         // Legacy mirrors (kept readable for pre-theme builds, overhaul Task 10) follow the
         // EFFECTIVE values; the schema-3 resolver never reads them while a theme block exists.

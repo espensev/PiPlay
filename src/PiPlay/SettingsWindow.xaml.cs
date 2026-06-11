@@ -230,7 +230,7 @@ public partial class SettingsWindow : Window
         Math.Round(Math.Max(level, WindowOpacityPolicy.UiFloor) * 100.0);
 
     private static double? NormalizeOverride(double? value) =>
-        value is null ? null : WindowOpacityPolicy.Normalize(value.Value);
+        WindowOpacityPolicy.NormalizeOptional(value);   // invalid input = no override, follow the preset
 
     private void OpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
