@@ -124,51 +124,47 @@
 
         <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,18" />
 
-        <!-- Appearance: the Pin/Fade swatches survive here until Task 10 replaces them with the
-             theme accent path (XamlInvariantTests pins their names). -->
+        <!-- Appearance (overhaul Task 10): one theme preset + one shared accent replace the separate
+             Pin/Fade color swatches. The accent drives Source Pin, Popout Pin, and Popout Fade. -->
         <TextBlock x:Name="AppearanceSectionHeader" Text="Appearance" FontSize="16" FontWeight="SemiBold"
                    Foreground="{StaticResource TextPrimary}" Margin="0,0,0,10" />
 
-        <TextBlock Text="Pin color" FontSize="12" Foreground="{StaticResource TextSecondary}"
+        <TextBlock Text="Theme" FontSize="12" Foreground="{StaticResource TextSecondary}"
                    Margin="0,0,0,6" />
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-          <ToggleButton x:Name="PinAccentCyanSwatch" Style="{StaticResource SwatchToggle}"
-                        Background="{StaticResource AccentCyan}" Tag="cyan"
-                        Click="PinAccent_Click" ToolTip="Pin color: Cyan"
-                        AutomationProperties.Name="Pin color Cyan" />
-          <ToggleButton x:Name="PinAccentVioletSwatch" Style="{StaticResource SwatchToggle}"
-                        Background="{StaticResource AccentViolet}" Tag="violet"
-                        Click="PinAccent_Click" ToolTip="Pin color: Violet"
-                        AutomationProperties.Name="Pin color Violet" />
-          <ToggleButton x:Name="PinAccentGreenSwatch" Style="{StaticResource SwatchToggle}"
-                        Background="{StaticResource AccentGreen}" Tag="green"
-                        Click="PinAccent_Click" ToolTip="Pin color: Green"
-                        AutomationProperties.Name="Pin color Green" />
-          <ToggleButton x:Name="PinAccentAmberSwatch" Style="{StaticResource SwatchToggle}"
-                        Background="{StaticResource AccentAmber}" Tag="amber"
-                        Click="PinAccent_Click" ToolTip="Pin color: Amber"
-                        AutomationProperties.Name="Pin color Amber" />
+        <TextBlock x:Name="ThemeHintText"
+                   Text="Accent changes recolor the pin and fade controls right away; theme presets fully apply the next time PiPlay starts."
+                   TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextSecondary}"
+                   Margin="0,0,0,8" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+          <ToggleButton x:Name="ThemeSharpDarkPreset" Style="{StaticResource PresetToggle}"
+                        Content="Sharp Dark" Tag="sharp-dark" Click="ThemePreset_Click"
+                        ToolTip="Sharp Dark theme" AutomationProperties.Name="Sharp Dark theme" />
+          <ToggleButton x:Name="ThemeMinimalPreset" Style="{StaticResource PresetToggle}"
+                        Content="Minimal" Tag="minimal" Click="ThemePreset_Click"
+                        ToolTip="Minimal theme" AutomationProperties.Name="Minimal theme" />
+          <ToggleButton x:Name="ThemeSoftGlassPreset" Style="{StaticResource PresetToggle}"
+                        Content="Soft Glass" Tag="soft-glass" Click="ThemePreset_Click"
+                        ToolTip="Soft Glass theme" AutomationProperties.Name="Soft Glass theme" />
         </StackPanel>
 
-        <TextBlock Text="Fade color" FontSize="12" Foreground="{StaticResource TextSecondary}"
+        <TextBlock Text="Accent color" FontSize="12" Foreground="{StaticResource TextSecondary}"
                    Margin="0,0,0,6" />
         <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-          <ToggleButton x:Name="FadeAccentCyanSwatch" Style="{StaticResource SwatchToggle}"
-                        Background="{StaticResource AccentCyan}" Tag="cyan"
-                        Click="FadeAccent_Click" ToolTip="Fade color: Cyan"
-                        AutomationProperties.Name="Fade color Cyan" />
-          <ToggleButton x:Name="FadeAccentVioletSwatch" Style="{StaticResource SwatchToggle}"
-                        Background="{StaticResource AccentViolet}" Tag="violet"
-                        Click="FadeAccent_Click" ToolTip="Fade color: Violet"
-                        AutomationProperties.Name="Fade color Violet" />
-          <ToggleButton x:Name="FadeAccentGreenSwatch" Style="{StaticResource SwatchToggle}"
-                        Background="{StaticResource AccentGreen}" Tag="green"
-                        Click="FadeAccent_Click" ToolTip="Fade color: Green"
-                        AutomationProperties.Name="Fade color Green" />
-          <ToggleButton x:Name="FadeAccentAmberSwatch" Style="{StaticResource SwatchToggle}"
-                        Background="{StaticResource AccentAmber}" Tag="amber"
-                        Click="FadeAccent_Click" ToolTip="Fade color: Amber"
-                        AutomationProperties.Name="Fade color Amber" />
+          <ToggleButton x:Name="AccentChipCyan" Style="{StaticResource SwatchToggle}"
+                        Background="#00D4FF" Tag="#00D4FF" Click="AccentChip_Click"
+                        ToolTip="Accent: Cyan" AutomationProperties.Name="Accent Cyan" />
+          <ToggleButton x:Name="AccentChipSteelBlue" Style="{StaticResource SwatchToggle}"
+                        Background="#5AA9E6" Tag="#5AA9E6" Click="AccentChip_Click"
+                        ToolTip="Accent: Steel blue" AutomationProperties.Name="Accent Steel blue" />
+          <ToggleButton x:Name="AccentChipViolet" Style="{StaticResource SwatchToggle}"
+                        Background="#A78BFA" Tag="#A78BFA" Click="AccentChip_Click"
+                        ToolTip="Accent: Violet" AutomationProperties.Name="Accent Violet" />
+          <ToggleButton x:Name="AccentChipGreen" Style="{StaticResource SwatchToggle}"
+                        Background="#38D996" Tag="#38D996" Click="AccentChip_Click"
+                        ToolTip="Accent: Green" AutomationProperties.Name="Accent Green" />
+          <ToggleButton x:Name="AccentChipAmber" Style="{StaticResource SwatchToggle}"
+                        Background="#FFC857" Tag="#FFC857" Click="AccentChip_Click"
+                        ToolTip="Accent: Amber" AutomationProperties.Name="Accent Amber" />
         </StackPanel>
 
         <Border Height="1" Background="{StaticResource BorderSubtle}" Margin="0,18" />

@@ -17,7 +17,11 @@ public sealed record ThemeAccentOption(string Key, string DisplayName, string He
 public static class ThemeCatalog
 {
     public const string DefaultThemeId = "sharp-dark";
-    public const string DefaultAccentColor = "#2D6F8F";
+    // The sharp-dark accent is the current shell cyan, so a fresh install and the migrated legacy
+    // "cyan" seed land on the same value (AccentColorForLegacyAccent("cyan")). Every offered accent
+    // is bright enough to read as an on-dark glyph and to carry the dark AccentButton text — the
+    // XamlInvariantTests "Theme accent palette is readable" theory gates this.
+    public const string DefaultAccentColor = "#00D4FF";
     public const string DefaultFadeDelayPreset = "normal";
 
     private static readonly ThemePreset[] PresetsValue =
@@ -35,7 +39,7 @@ public static class ThemeCatalog
             "minimal",
             "Minimal",
             "A quieter preset for daily browsing and low-distraction popouts.",
-            "#4D7EA8",
+            "#5AA9E6",
             DefaultFadeDelayPreset,
             DefaultStripAutoHide: false,
             DefaultActiveWindowOpacity: WindowOpacityPolicy.Default,
@@ -53,8 +57,8 @@ public static class ThemeCatalog
 
     private static readonly ThemeAccentOption[] AccentOptionsValue =
     [
-        new("muted-cyan", "Muted cyan", DefaultAccentColor),
-        new("steel-blue", "Steel blue", "#4D7EA8"),
+        new("cyan", "Cyan", DefaultAccentColor),
+        new("steel-blue", "Steel blue", "#5AA9E6"),
         new("violet", "Violet", "#A78BFA"),
         new("green", "Green", "#38D996"),
         new("amber", "Amber", "#FFC857"),

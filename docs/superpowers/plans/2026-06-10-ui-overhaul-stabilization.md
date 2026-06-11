@@ -289,7 +289,14 @@ deep-copy (pure-copy assertions added), and `HorizontalScrollBarVisibility=Disab
     and a manual startup/theme smoke.
   - Commit: `feat(theme): apply preset resource tokens`
 
-- [ ] **Task 10 - Add theme selector and accent chips.**
+- [x] **Task 10 - Add theme selector and accent chips.**
+  *(Landed 2026-06-11: Settings "Theme" preset selector (Sharp Dark / Minimal / Soft Glass) + a single
+  "Accent color" chip row (cyan, steel blue, violet, green, amber) replace the separate Pin/Fade color
+  swatches; one `Theme.AccentColor` now drives Source Pin, Popout Pin, and Popout Fade. Catalog default
+  accent realigned to the current shell cyan `#00D4FF` and the palette chosen for on-dark readability
+  (new `Theme_accent_palette_is_readable` gate); `SettingsWindow`/`PlayerWindow` ctor + `ApplyAppearance`
+  surfaces migrated to the single accent; swatch-pinning tests rewritten to the preset/chip surface +
+  a catalog-sync test. Legacy `Player.PinAccent/FadeAccent` stay readable but drive no color.)*
   - Add Settings controls for theme preset selection and fixed accent chips: muted cyan, steel blue,
     violet, green, and amber. Store normalized hex from the start.
   - Replace separate Pin/Fade color controls only after the single accent path drives Source Window

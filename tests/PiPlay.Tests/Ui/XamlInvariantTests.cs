@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using PiPlay.Services;
+using PiPlay.Theme;
 
 namespace PiPlay.Tests;
 
@@ -117,8 +118,8 @@ public class XamlInvariantTests
             "PrivacySectionHeader", "AppearanceSectionHeader", "PlaybackSectionHeader", "AdvancedSectionHeader",
             "ResetAppStateButton", "ResetDescriptionText",
             "ClearBrowserDataButton", "ClearDescriptionText", "CloseButton",
-            "PinAccentCyanSwatch", "PinAccentVioletSwatch", "PinAccentGreenSwatch", "PinAccentAmberSwatch",
-            "FadeAccentCyanSwatch", "FadeAccentVioletSwatch", "FadeAccentGreenSwatch", "FadeAccentAmberSwatch",
+            "ThemeSharpDarkPreset", "ThemeMinimalPreset", "ThemeSoftGlassPreset",
+            "AccentChipCyan", "AccentChipSteelBlue", "AccentChipViolet", "AccentChipGreen", "AccentChipAmber",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
             "ActiveOpacitySlider", "ActiveOpacityValueText", "IdleOpacitySlider", "IdleOpacityValueText",
             "StripAutoHideToggle",
@@ -430,6 +431,44 @@ public class XamlInvariantTests
     }
 
     [Fact]
+    public void Theme_accent_palette_is_readable()
+    {
+        // Every OFFERED accent chip (ThemeCatalog) must read as an on-dark glyph (>=3:1 on the hover
+        // surface) AND carry the dark AccentButton text (>=4.5:1) — the gate behind the Task 10
+        // single-accent palette and the Task 9 startup recolor of the primary button.
+        var hover = ColorTokens()["SurfaceHoverColor"];
+        foreach (var option in ThemeCatalog.AccentOptions)
+        {
+            var glyph = Wcag.ContrastRatio(option.HexColor, hover);
+            Assert.True(glyph >= 3.0, $"Accent {option.Key} ({option.HexColor}) on hover surface = {glyph:F2}:1.");
+
+            var text = Wcag.ContrastRatio("#FF06141A", option.HexColor);
+            Assert.True(text >= 4.5, $"Dark button text on accent {option.Key} ({option.HexColor}) = {text:F2}:1.");
+        }
+    }
+
+    [Fact]
+    public void Settings_theme_and_accent_controls_match_the_catalog()
+    {
+        var controls = XamlTestFiles.Load("SettingsWindow.xaml").Descendants()
+            .Where(e => e.Attribute(XamlTestFiles.X + "Name") is not null)
+            .ToList();
+
+        string? Tag(string name) => controls
+            .First(e => e.Attribute(XamlTestFiles.X + "Name")!.Value == name).Attribute("Tag")?.Value;
+        IEnumerable<string> NamesWhere(Func<string, bool> pred) => controls
+            .Select(e => e.Attribute(XamlTestFiles.X + "Name")!.Value).Where(pred);
+
+        // Preset chip Tags are the catalog preset ids; accent chip Tags are the catalog hex colors.
+        // Order-independent so the hand-written markup and the catalog cannot drift apart.
+        var presetTags = NamesWhere(n => n.StartsWith("Theme") && n.EndsWith("Preset")).Select(Tag).ToHashSet();
+        Assert.Equal(ThemeCatalog.Presets.Select(p => p.Id).ToHashSet(), presetTags!);
+
+        var accentTags = NamesWhere(n => n.StartsWith("AccentChip")).Select(Tag).ToHashSet();
+        Assert.Equal(ThemeCatalog.AccentOptions.Select(o => o.HexColor).ToHashSet(), accentTags!);
+    }
+
+    [Fact]
     public void Settings_appearance_controls_have_tooltips_and_accessible_names()
     {
         var byName = XamlTestFiles.Load("SettingsWindow.xaml").Descendants()
@@ -439,8 +478,8 @@ public class XamlInvariantTests
 
         foreach (var name in new[]
         {
-            "PinAccentCyanSwatch", "PinAccentVioletSwatch", "PinAccentGreenSwatch", "PinAccentAmberSwatch",
-            "FadeAccentCyanSwatch", "FadeAccentVioletSwatch", "FadeAccentGreenSwatch", "FadeAccentAmberSwatch",
+            "ThemeSharpDarkPreset", "ThemeMinimalPreset", "ThemeSoftGlassPreset",
+            "AccentChipCyan", "AccentChipSteelBlue", "AccentChipViolet", "AccentChipGreen", "AccentChipAmber",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
             "ActiveOpacitySlider", "IdleOpacitySlider",
             "StripAutoHideToggle",

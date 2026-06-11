@@ -278,13 +278,12 @@ public partial class MainWindow : Window
 
     private void ApplySourceAppearance()
     {
-        var pinBrush = ResolveAccentBrush(_settings.Player.PinAccent);
+        // One theme accent drives the Source Pin (overhaul Task 10): the toggle's checked glyph and
+        // the pinned hint share the accent brush built from Theme.AccentColor.
+        var pinBrush = ThemeColors.Brush(_settings.Theme.AccentColor);
         ToggleAccent.SetCheckedBrush(PinToggle, pinBrush);
         PinnedHint.Foreground = pinBrush;
     }
-
-    private Brush ResolveAccentBrush(string? accentKey) =>
-        (Brush)FindResource(PlayerAppearancePolicy.BrushResourceKeyFor(accentKey));
 
     // --- Auto: auto-popout on playback (spec §6.1) ---
 
@@ -478,8 +477,8 @@ public partial class MainWindow : Window
 
         var dialog = new SettingsWindow(
             isBrowserReady: CanClearBrowserData,
-            pinAccent: _settings.Player.PinAccent,
-            fadeAccent: _settings.Player.FadeAccent,
+            themeId: _settings.Theme.ThemeId,
+            accentColor: _settings.Theme.AccentColor,
             fadeIdleDelayMs: _settings.Player.FadeIdleDelayMs,
             compactMode: _settings.Player.CompactMode,
             constantWindowOpacity: _settings.Player.ConstantWindowOpacity,
@@ -509,7 +508,7 @@ public partial class MainWindow : Window
 
         if (dialog.AppearanceChanged)
         {
-            ApplyPlayerPreferences(dialog.PinAccent, dialog.FadeAccent, dialog.FadeIdleDelayMs, dialog.CompactMode,
+            ApplyPlayerPreferences(dialog.ThemeId, dialog.AccentColor, dialog.FadeIdleDelayMs, dialog.CompactMode,
                 dialog.ConstantWindowOpacity, dialog.IdleWindowOpacity, dialog.StripAutoHide);
         }
 
@@ -547,18 +546,21 @@ public partial class MainWindow : Window
         ApplyTopmost(false);
         ApplyAuto(false);
         ApplySourceAppearance();
-        _player?.ApplyAppearance(_settings.Player.PinAccent, _settings.Player.FadeAccent,
+        _player?.ApplyAppearance(_settings.Theme.AccentColor,
             _settings.Player.FadeIdleDelayMs, _settings.Player.StripAutoHide);
         _player?.ApplyWindowOpacity(_settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity);
         UpdateAutoDetector();   // Auto is off after reset → stop the detector
         LoadProfilesIntoCombo();
     }
 
-    private void ApplyPlayerPreferences(string pinAccent, string fadeAccent, int fadeIdleDelayMs, bool compactMode,
+    private void ApplyPlayerPreferences(string themeId, string accentColor, int fadeIdleDelayMs, bool compactMode,
         double constantWindowOpacity, double idleWindowOpacity, bool stripAutoHide)
     {
-        _settings.Player.PinAccent = PlayerAppearancePolicy.NormalizeAccent(pinAccent);
-        _settings.Player.FadeAccent = PlayerAppearancePolicy.NormalizeAccent(fadeAccent);
+        // Theme accent is the single source of truth for Pin/Fade color now (overhaul Task 10). The
+        // legacy Player.PinAccent/FadeAccent stay at their persisted values (readable for back-compat)
+        // but no longer drive any color.
+        _settings.Theme.ThemeId = ThemeCatalog.NormalizeThemeId(themeId);
+        _settings.Theme.AccentColor = ThemeCatalog.NormalizeAccentColor(accentColor);
         _settings.Player.FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
         // Global compact-mode default takes effect on the NEXT popout; an open player keeps its mode.
         _settings.Player.CompactMode = compactMode;
@@ -567,7 +569,7 @@ public partial class MainWindow : Window
         _settings.Player.StripAutoHide = stripAutoHide;
 
         ApplySourceAppearance();
-        _player?.ApplyAppearance(_settings.Player.PinAccent, _settings.Player.FadeAccent,
+        _player?.ApplyAppearance(_settings.Theme.AccentColor,
             _settings.Player.FadeIdleDelayMs, _settings.Player.StripAutoHide);
         _player?.ApplyWindowOpacity(_settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity);
         _settingsService.Save(_settings);
@@ -694,7 +696,7 @@ public partial class MainWindow : Window
             target.StartSeconds = seconds ?? target.StartSeconds;
             _player = new PlayerWindow(env, popoutUrl, _settings.Player.Topmost,
                 _settings.Player.Placement, _settings.Player.LastWidth, _settings.Player.LastHeight,
-                _settings.Player.FadeEnabled, _settings.Player.PinAccent, _settings.Player.FadeAccent,
+                _settings.Player.FadeEnabled, _settings.Theme.AccentColor,
                 _settings.Player.FadeIdleDelayMs, mode, target,
                 _settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity,
                 _settings.Player.StripAutoHide);

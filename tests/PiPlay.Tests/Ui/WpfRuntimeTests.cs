@@ -121,28 +121,35 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void SettingsWindow_reflects_and_updates_player_appearance_input() => StaTestThread.Invoke(() =>
+    public void SettingsWindow_reflects_and_updates_theme_and_accent_input() => StaTestThread.Invoke(() =>
     {
-        var w = new SettingsWindow(isBrowserReady: true, pinAccent: "green", fadeAccent: "amber", fadeIdleDelayMs: 4000);
+        var w = new SettingsWindow(isBrowserReady: true, themeId: "soft-glass", accentColor: "#38D996",
+            fadeIdleDelayMs: 4000);
 
-        Assert.Equal("green", w.PinAccent);
-        Assert.Equal("amber", w.FadeAccent);
+        Assert.Equal("soft-glass", w.ThemeId);
+        Assert.Equal("#38D996", w.AccentColor);
         Assert.Equal(4000, w.FadeIdleDelayMs);
-        Assert.True(((ToggleButton)w.FindName("PinAccentGreenSwatch")!).IsChecked);
-        Assert.True(((ToggleButton)w.FindName("FadeAccentAmberSwatch")!).IsChecked);
+        Assert.True(((ToggleButton)w.FindName("ThemeSoftGlassPreset")!).IsChecked);
+        Assert.True(((ToggleButton)w.FindName("AccentChipGreen")!).IsChecked);
         Assert.True(((ToggleButton)w.FindName("FadeDelayLongPreset")!).IsChecked);
 
-        ((ToggleButton)w.FindName("PinAccentVioletSwatch")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-        ((ToggleButton)w.FindName("FadeAccentCyanSwatch")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        // Picking a single accent chip retargets the one accent and checks only that chip.
+        ((ToggleButton)w.FindName("AccentChipViolet")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
         ((ToggleButton)w.FindName("FadeDelayShortPreset")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
 
         Assert.True(w.AppearanceChanged);
-        Assert.Equal("violet", w.PinAccent);
-        Assert.Equal("cyan", w.FadeAccent);
+        Assert.Equal("#A78BFA", w.AccentColor);
         Assert.Equal(1500, w.FadeIdleDelayMs);
-        Assert.True(((ToggleButton)w.FindName("PinAccentVioletSwatch")!).IsChecked);
-        Assert.True(((ToggleButton)w.FindName("FadeAccentCyanSwatch")!).IsChecked);
+        Assert.True(((ToggleButton)w.FindName("AccentChipViolet")!).IsChecked);
+        Assert.False(((ToggleButton)w.FindName("AccentChipGreen")!).IsChecked);
         Assert.True(((ToggleButton)w.FindName("FadeDelayShortPreset")!).IsChecked);
+
+        // Picking a preset adopts that preset's default accent (Sharp Dark -> cyan) and re-checks it.
+        ((ToggleButton)w.FindName("ThemeSharpDarkPreset")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        Assert.Equal("sharp-dark", w.ThemeId);
+        Assert.Equal(ThemeCatalog.DefaultAccentColor, w.AccentColor);
+        Assert.True(((ToggleButton)w.FindName("AccentChipCyan")!).IsChecked);
+        Assert.False(((ToggleButton)w.FindName("AccentChipViolet")!).IsChecked);
     });
 
     // --- Resolved DependencyProperty invariants (runtime counterpart to Layer 1) ---
@@ -217,15 +224,21 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void MainWindow_source_pin_uses_configurable_accent_behavior() => StaTestThread.Invoke(() =>
+    public void MainWindow_source_pin_uses_the_theme_accent() => StaTestThread.Invoke(() =>
     {
         var w = new MainWindow();
         var pin = (ToggleButton)w.FindName("PinToggle")!;
-        Assert.Same(Application.Current.FindResource("AccentCyan"), ToggleAccent.GetCheckedBrush(pin));
+        var hint = (TextBlock)w.FindName("PinnedHint")!;
+
+        // The source Pin glyph and the pinned hint share one accent brush built from Theme.AccentColor
+        // (overhaul Task 10); default settings resolve to the sharp-dark cyan.
+        var accent = (SolidColorBrush)ToggleAccent.GetCheckedBrush(pin)!;
+        Assert.Equal(ThemeColors.ParseColor(ThemeCatalog.DefaultAccentColor), accent.Color);
+        Assert.Equal(accent.Color, ((SolidColorBrush)hint.Foreground).Color);
     });
 
     [Fact]
-    public void PlayerWindow_applies_configurable_pin_fade_accents_and_delay() => StaTestThread.Invoke(() =>
+    public void PlayerWindow_applies_one_accent_to_pin_and_fade_and_the_delay() => StaTestThread.Invoke(() =>
     {
         var w = new PlayerWindow(
             environment: null!,
@@ -235,20 +248,20 @@ public class WpfRuntimeTests : IDisposable
             defaultWidth: 960,
             defaultHeight: 540,
             fadeEnabled: true,
-            pinAccent: "green",
-            fadeAccent: "amber",
+            accentColor: "#38D996",
             fadeIdleDelayMs: 4000);
 
-        Assert.Same(Application.Current.FindResource("AccentGreen"),
-            ToggleAccent.GetCheckedBrush((ToggleButton)w.FindName("PinToggle")!));
-        Assert.Same(Application.Current.FindResource("AccentAmber"),
-            ToggleAccent.GetCheckedBrush((ToggleButton)w.FindName("FadeToggle")!));
+        var pin = (ToggleButton)w.FindName("PinToggle")!;
+        var fade = (ToggleButton)w.FindName("FadeToggle")!;
 
-        w.ApplyAppearance("violet", "cyan", 1500);
-        Assert.Same(Application.Current.FindResource("AccentViolet"),
-            ToggleAccent.GetCheckedBrush((ToggleButton)w.FindName("PinToggle")!));
-        Assert.Same(Application.Current.FindResource("AccentCyan"),
-            ToggleAccent.GetCheckedBrush((ToggleButton)w.FindName("FadeToggle")!));
+        // One accent brush drives BOTH toggles (overhaul Task 10): the same frozen instance, colored
+        // from Theme.AccentColor.
+        Assert.Same(ToggleAccent.GetCheckedBrush(pin), ToggleAccent.GetCheckedBrush(fade));
+        Assert.Equal(Color.FromRgb(0x38, 0xD9, 0x96), ((SolidColorBrush)ToggleAccent.GetCheckedBrush(pin)!).Color);
+
+        w.ApplyAppearance("#A78BFA", 1500);
+        Assert.Equal(Color.FromRgb(0xA7, 0x8B, 0xFA), ((SolidColorBrush)ToggleAccent.GetCheckedBrush(pin)!).Color);
+        Assert.Equal(Color.FromRgb(0xA7, 0x8B, 0xFA), ((SolidColorBrush)ToggleAccent.GetCheckedBrush(fade)!).Color);
         Assert.Equal(TimeSpan.FromMilliseconds(1500), w.FadeIdleDelayForTests);
     });
 
@@ -1080,7 +1093,7 @@ public class WpfRuntimeTests : IDisposable
         Assert.True(w.IsChromeStripCollapsedForTests);   // precondition: collapsed
 
         // The settings path (MainWindow live re-apply) turns the behavior off mid-collapse.
-        w.ApplyAppearance("cyan", "cyan", 2500, stripAutoHide: false);
+        w.ApplyAppearance("#00D4FF", 2500, stripAutoHide: false);
 
         Assert.False(w.StripAutoHideForTests);
         Assert.False(w.IsChromeStripCollapsedForTests);

@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using PiPlay.Services;
+using PiPlay.Theme;
 
 namespace PiPlay;
 
@@ -19,11 +20,14 @@ public partial class SettingsWindow : Window
 {
     internal PrivacyAction RequestedAction { get; private set; } = PrivacyAction.None;
 
-    /// <summary>True when any persisted player preference changed (accents, fade delay, or compact
-    /// mode), so MainWindow knows to persist and re-apply on close.</summary>
+    /// <summary>True when any persisted player preference changed (theme, accent, fade delay, or
+    /// compact mode), so MainWindow knows to persist and re-apply on close.</summary>
     internal bool AppearanceChanged { get; private set; }
-    internal string PinAccent { get; private set; }
-    internal string FadeAccent { get; private set; }
+
+    /// <summary>The selected theme preset id and the single accent hex it/the chips drive (overhaul
+    /// Task 10): one accent replaces the separate Pin/Fade color choices.</summary>
+    internal string ThemeId { get; private set; }
+    internal string AccentColor { get; private set; }
     internal int FadeIdleDelayMs { get; private set; }
     internal bool CompactMode { get; private set; }
     internal double ConstantWindowOpacity { get; private set; }
@@ -40,8 +44,8 @@ public partial class SettingsWindow : Window
 
     public SettingsWindow(
         bool isBrowserReady,
-        string? pinAccent = PlayerAppearancePolicy.DefaultAccent,
-        string? fadeAccent = PlayerAppearancePolicy.DefaultAccent,
+        string? themeId = ThemeCatalog.DefaultThemeId,
+        string? accentColor = ThemeCatalog.DefaultAccentColor,
         int fadeIdleDelayMs = PlayerAppearancePolicy.DefaultFadeIdleDelayMs,
         bool compactMode = false,
         double constantWindowOpacity = WindowOpacityPolicy.Default,
@@ -51,8 +55,8 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         ApplyInitialBounds();
 
-        PinAccent = PlayerAppearancePolicy.NormalizeAccent(pinAccent);
-        FadeAccent = PlayerAppearancePolicy.NormalizeAccent(fadeAccent);
+        ThemeId = ThemeCatalog.NormalizeThemeId(themeId);
+        AccentColor = ThemeCatalog.NormalizeAccentColor(accentColor);
         FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
         CompactMode = compactMode;
         CompactModeToggle.IsChecked = compactMode;
@@ -112,16 +116,18 @@ public partial class SettingsWindow : Window
         Close();
     }
 
-    private void PinAccent_Click(object sender, RoutedEventArgs e)
+    private void ThemePreset_Click(object sender, RoutedEventArgs e)
     {
-        PinAccent = PlayerAppearancePolicy.NormalizeAccent(((FrameworkElement)sender).Tag as string);
+        ThemeId = ThemeCatalog.NormalizeThemeId(((FrameworkElement)sender).Tag as string);
+        // Selecting a preset adopts its default accent; the chips below can then fine-tune it.
+        AccentColor = ThemeCatalog.NormalizeAccentColor(ThemeCatalog.PresetFor(ThemeId).DefaultAccentColor);
         AppearanceChanged = true;
         ApplyAppearanceSelections();
     }
 
-    private void FadeAccent_Click(object sender, RoutedEventArgs e)
+    private void AccentChip_Click(object sender, RoutedEventArgs e)
     {
-        FadeAccent = PlayerAppearancePolicy.NormalizeAccent(((FrameworkElement)sender).Tag as string);
+        AccentColor = ThemeCatalog.NormalizeAccentColor(((FrameworkElement)sender).Tag as string);
         AppearanceChanged = true;
         ApplyAppearanceSelections();
     }
@@ -202,12 +208,12 @@ public partial class SettingsWindow : Window
 
     private void ApplyAppearanceSelections()
     {
-        SelectAccent(PinAccent, PinAccentCyanSwatch, PinAccentVioletSwatch, PinAccentGreenSwatch, PinAccentAmberSwatch);
-        SelectAccent(FadeAccent, FadeAccentCyanSwatch, FadeAccentVioletSwatch, FadeAccentGreenSwatch, FadeAccentAmberSwatch);
+        SelectByTag(ThemeId, ThemeSharpDarkPreset, ThemeMinimalPreset, ThemeSoftGlassPreset);
+        SelectByTag(AccentColor, AccentChipCyan, AccentChipSteelBlue, AccentChipViolet, AccentChipGreen, AccentChipAmber);
         SelectDelay(FadeIdleDelayMs, FadeDelayShortPreset, FadeDelayNormalPreset, FadeDelayLongPreset);
     }
 
-    private static void SelectAccent(string selected, params ToggleButton[] buttons)
+    private static void SelectByTag(string selected, params ToggleButton[] buttons)
     {
         foreach (var button in buttons)
         {
