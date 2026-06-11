@@ -25,6 +25,9 @@ UI overhaul stabilization (plan `docs/superpowers/plans/2026-06-10-ui-overhaul-s
   settings file no longer drops the theme block.
 
 ### Changed
+- **Same-semver release-candidate rebuild:** `BUILD_NUMBER` advances to `20` so the accepted Phase 0
+  provenance stack can publish from a new exact-source commit without moving the existing
+  `stable-v0.4.3-b19` tag.
 - **Release provenance is fail-closed:** Stable release-candidate publishes now use committed
   `VERSION`/`BUILD_NUMBER` by default, refuse dirty trees unless explicitly marked diagnostic,
   create the matching `stable-vX.Y.Z-bN` tag locally, record source cleanliness in the manifest,
