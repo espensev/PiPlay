@@ -52,6 +52,35 @@ public class WpfRuntimeTests : IDisposable
         Assert.Null(ex);
     });
 
+    // --- Theme resource application at startup (overhaul Task 9) ---
+
+    [Fact]
+    public void ThemeResourceApplier_recolors_the_shared_accent_brushes() => StaTestThread.Invoke(() =>
+    {
+        var primary = new SolidColorBrush(Colors.Black);
+        var light = new SolidColorBrush(Colors.Black);
+        var res = new ResourceDictionary { ["AccentPrimary"] = primary, ["AccentPrimaryLight"] = light };
+
+        ThemeResourceApplier.Apply(res, new ThemeSettings { AccentColor = "#38D996" }, new PlayerSettings());
+
+        Assert.Equal(Color.FromRgb(0x38, 0xD9, 0x96), primary.Color);   // base brush takes the accent
+        Assert.NotEqual(primary.Color, light.Color);                    // light is a toward-white derivation
+        Assert.True(light.Color.G >= primary.Color.G);
+    });
+
+    [Fact]
+    public void ThemeResourceApplier_skips_frozen_or_missing_brushes_without_throwing() => StaTestThread.Invoke(() =>
+    {
+        var frozen = new SolidColorBrush(Colors.Black);
+        frozen.Freeze();
+        var res = new ResourceDictionary { ["AccentPrimary"] = frozen };   // no AccentPrimaryLight key
+
+        var ex = Record.Exception(() => ThemeResourceApplier.Apply(res, new ThemeSettings(), new PlayerSettings()));
+
+        Assert.Null(ex);
+        Assert.Equal(Colors.Black, frozen.Color);   // a frozen alias brush is left untouched
+    });
+
     [Fact]
     public void SettingsWindow_shows_the_tested_privacy_wording() => StaTestThread.Invoke(() =>
     {

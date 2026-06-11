@@ -69,8 +69,8 @@
                 <Setter TargetName="bd" Property="Background" Value="{StaticResource SurfaceHover}" />
               </Trigger>
               <Trigger Property="IsChecked" Value="True">
-                <Setter Property="Foreground" Value="{StaticResource AccentCyan}" />
-                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource AccentCyan}" />
+                <Setter Property="Foreground" Value="{StaticResource AccentPrimary}" />
+                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource AccentPrimary}" />
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>

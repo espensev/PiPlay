@@ -400,9 +400,21 @@ public class XamlInvariantTests
     [Fact]
     public void Accent_button_text_is_readable_on_accent_fill()
     {
-        // AccentButton: foreground #FF06141A literal on AccentCyan fill (ControlStyles.xaml).
-        var ratio = Wcag.ContrastRatio("#FF06141A", ColorTokens()["AccentCyanColor"]);
+        // AccentButton: foreground #FF06141A literal on the AccentPrimary fill (ControlStyles.xaml).
+        // This is the DEFAULT (cyan) token; user accents are gated by the contrast theory below.
+        var ratio = Wcag.ContrastRatio("#FF06141A", ColorTokens()["AccentPrimaryColor"]);
         Assert.True(ratio >= 4.5, $"Accent button text contrast = {ratio:F2}:1.");
+    }
+
+    [Fact]
+    public void Accent_primary_token_defaults_to_the_sharp_dark_cyan()
+    {
+        // Overhaul Task 9: the theme accent token must default to the existing cyan so the
+        // out-of-box look is unchanged before ThemeResourceApplier runs. AccentCyan stays defined
+        // as a compatibility alias.
+        var t = ColorTokens();
+        Assert.Equal(t["AccentCyanColor"], t["AccentPrimaryColor"]);
+        Assert.Equal(t["AccentCyanLightColor"], t["AccentPrimaryLightColor"]);
     }
 
     [Theory]

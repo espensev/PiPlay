@@ -268,7 +268,12 @@ deep-copy (pure-copy assertions added), and `HorizontalScrollBarVisibility=Disab
     directions), migration, invalid values, extension-data preservation, and catalog uniqueness.
   - Commit: `feat(theme): add compatible theme settings model`
 
-- [ ] **Task 9 - Introduce theme resources and compatibility aliases.**
+- [x] **Task 9 - Introduce theme resources and compatibility aliases.**
+  *(Landed 2026-06-11: `AccentPrimary`/`AccentPrimaryLight` accent tokens + staged corner-radius
+  tokens in `Theme/Colors.xaml`; `AccentButton`/`DarkTextBox`/`PinToggle`/`PresetToggle` repointed to
+  the accent token with `AccentCyan*` kept as compatibility aliases; `ThemeColors` (pure parse/lighten/
+  brush) + `ThemeResourceApplier` mutate the shared brushes in place at `App.OnStartup` via a
+  read-only settings load, before any window parses; 7 new tests.)*
   - Add theme-owned resource tokens for base colors, accent derivations, opacity/fade defaults, and
     staged radius values while keeping existing brush keys as aliases during migration.
   - Startup ordering: settings are currently loaded inside the `MainWindow` constructor — applying
