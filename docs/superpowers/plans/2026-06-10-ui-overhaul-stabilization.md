@@ -427,6 +427,12 @@ deep-copy (pure-copy assertions added), and `HorizontalScrollBarVisibility=Disab
     readability-driven palette realignment (DEVIATION from the plan's literal "muted cyan"/"steel blue
     #4D7EA8" — both failed the on-dark glyph floor; default is now the current shell cyan `#00D4FF`);
     fade delay kept on `Player.FadeIdleDelayMs`.
+  - Live smoke (dev Default channel beside the user's Stable b17): fresh launch booted clean —
+    `PiPlay starting` → `WebView2 environment created` → `Source browser initialized` with NO
+    "Failed to apply theme resources at startup" error, so the new `App.OnStartup` settings-load +
+    theme-apply path is healthy; the Auto/Compact popout rendered dark/themed (not blank). The
+    non-default-accent-at-startup visual remains owner manual QA (not run here to avoid touching the
+    user's settings.json).
   - Accent now applies LIVE: `App.OnStartup` + `MainWindow` (on accent change / reset) call the
     applier, so the open main window recolors live and new popouts inherit it (Unresolved decision 3
     delivered for accent tokens; broader base/surface live-switching still deferred). Manual
