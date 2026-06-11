@@ -6,7 +6,8 @@ Re-runnable manual test pass for each shareable build. Derived from spec section
 > `E:\Dev_test_implemenations\PiPlay\PiPlay.exe` (deployed via `scripts\Publish-Stable.ps1`) — never
 > against repo build output (`src\...\bin\...`, `bin\publish\...`); stale binaries are the classic
 > false pass. Before starting, run `.\scripts\Verify-StableDeploy.ps1` and copy its identity block
-> into the fields below.
+> into the fields below. The verifier must print `VERDICT: RELEASE VERIFIED`; diagnostic or dirty
+> deploys marked "not release evidence" are not valid for this checklist.
 
 - **Build / version:** ____________________
 - **Deployed exe (must be `E:\Dev_test_implemenations\PiPlay\PiPlay.exe`):** ____________________
@@ -114,7 +115,8 @@ captures and record the evidence per column, never write per-state procedures.
 
 ## 7. Packaging
 - [ ] `bin/` and `obj/` excluded from the repo / ZIP.
-- [ ] Release binaries signed with the SevIQ code-signing certificate.
+- [ ] Release binaries signed with the SevIQ code-signing certificate before manifest hashes are
+  written (`Publish-Stable.ps1 -SignScript <path>`), or explicitly recorded as unsigned/internal.
 - [ ] Release notes mention the WebView2 Evergreen runtime requirement.
 
 ## 8. Chrome / visual identity (REQ-UI-01, REQ-UI-02)

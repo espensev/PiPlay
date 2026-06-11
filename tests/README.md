@@ -39,8 +39,8 @@ Needs an interactive desktop, the WebView2 runtime, and network. As a release ga
 against the **deployed Stable copy**, not the repo tree (root `CLAUDE.md` / `docs/AGENTS.md`):
 
 ```powershell
-.\scripts\Publish-Stable.ps1                 # gate + build + deploy to E:\Dev_test_implemenations\PiPlay
-.\scripts\Verify-StableDeploy.ps1            # confirm version/build/commit + artifact hashes
+.\scripts\Publish-Stable.ps1                 # exact-source gate + build + deploy + verify + stable tag
+.\scripts\Verify-StableDeploy.ps1            # fail-closed release proof
 pwsh -File scripts/Test-UiSmoke.ps1 -ExePath E:\Dev_test_implemenations\PiPlay\PiPlay.exe
 ```
 
@@ -48,3 +48,5 @@ It launches the given exe, asserts the key UI elements exist via UI Automation, 
 window screenshot to `docs/evidence/`. Capture at a fractional DPI (e.g. 150%) — integer-scale
 captures hide the rounding/clipping class of bug (`docs/AGENTS.md`). This is the only lane that
 confirms true pixel rendering (the chrome `UI-CHK-*` gates in `docs/QA_Checklist.md` §8).
+For release-candidate QA, commit `VERSION`/`BUILD_NUMBER` and `CHANGELOG.md` before publishing; dirty
+or script-stamped deploys are diagnostic only and the verifier labels them as not release evidence.

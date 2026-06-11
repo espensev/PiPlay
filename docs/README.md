@@ -74,26 +74,32 @@ The pipeline uses `VERSION` as the semantic version source and `BUILD_NUMBER` as
 Stable publish (a differentiable, runnable copy deployed for side-by-side test use):
 
 ```powershell
-# Test-gate, build the Stable channel, validate metadata, and deploy a side-by-side copy.
-# Bumps the patch version by default; pass -Version minor|major|<semver> or -NoVersionBump.
+# Release-candidate path:
+# 1. Commit VERSION, BUILD_NUMBER, and CHANGELOG.md first.
+# 2. Test-gate, build the Stable channel from that exact commit, validate metadata,
+#    deploy a side-by-side copy, verify it, and create stable-vX.Y.Z-bN locally.
 .\scripts\Publish-Stable.ps1
 
-# If VERSION/BUILD_NUMBER were already committed for an exact source identity:
-.\scripts\Publish-Stable.ps1 -NoVersionBump -NoBuildNumberBump
+# Diagnostic only: allow a script-stamped or dirty deploy, marked NOT release evidence.
+.\scripts\Publish-Stable.ps1 -AllowVersionBump -Version patch
+.\scripts\Publish-Stable.ps1 -AllowDirty
 
-# Verify the deployed copy before testing it: re-hashes every artifact and prints the exact
-# deployed version/build/commit, including how far the deploy lags HEAD.
+# Verify the deployed copy before testing it: release verification fails unless
+# artifacts, manifest, marker, repo stamps, source commit, and stable tag agree.
 .\scripts\Verify-StableDeploy.ps1
 ```
 
-Normal publishes bump `VERSION`/`BUILD_NUMBER` but never commit them; after a deploy, commit the
-bumped stamps (with the CHANGELOG entry) and tag the source commit `stable-vX.Y.Z-bN`. For an exact
-current-HEAD deploy, pre-commit the stamps and publish with `-NoVersionBump -NoBuildNumberBump`.
-When to move minor/major vs patch vs no-bump: [Feature_Workflow.md](Feature_Workflow.md).
+`Publish-Stable.ps1` is exact-source by default. Choose the semantic version move before publishing,
+commit `VERSION`/`BUILD_NUMBER` with the changelog, run the stable publish from a clean tree, then push
+the commit and generated `stable-vX.Y.Z-bN` tag after verification. When to move minor/major vs patch:
+[Feature_Workflow.md](Feature_Workflow.md).
 
 A Stable build is **differentiable** from the dev app: its data lives beside the exe (`PiPlayData`, isolated from your dev profile), it has its own single-instance identity (so dev + stable run at once, each single-instance), and its title bar reads `PiPlay — Stable vX.Y.Z (bN)`. The channel is baked into the binary. See [adr/0007-stable-channel-and-portable-data.md](adr/0007-stable-channel-and-portable-data.md) and [Feature_Workflow.md](Feature_Workflow.md).
 
-Signing is intentionally not part of the local pipeline yet. Treat unsigned outputs as local/internal builds until signing is added for distribution.
+Signing is optional through `Build-PiPlay.ps1` / `Publish-Stable.ps1 -SignScript <path>`. The signing
+script runs before `build-info.json` hashes are written. Do not manually sign `PiPlay.exe` after
+manifest generation or deploy; that correctly invalidates verification until the build is republished
+through the signed path.
 
 Per-monitor DPI awareness (PerMonitorV2) belongs in `src\PiPlay\app.manifest`.
 

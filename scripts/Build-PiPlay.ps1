@@ -6,7 +6,8 @@
 .DESCRIPTION
   Builds the WPF .NET app, publishes versioned folders, writes SHA256 metadata,
   maintains VERSION_TABLE.json, creates release archives, and tracks a monotonic
-  BUILD_NUMBER. Code signing is intentionally not part of this script yet.
+  BUILD_NUMBER. Optional signing runs before metadata is written so manifest
+  hashes describe the final bytes.
 #>
 
 [CmdletBinding()]
@@ -46,7 +47,14 @@ param(
     [switch]$NoVersionTable,
     [switch]$NoArchive,
 
-    [string]$StopProcessName = "PiPlay"
+    [string]$StopProcessName = "PiPlay",
+
+    [string]$SignScript,
+
+    # When set, records this publish as NOT release evidence with this exact reason, independent of
+    # source-tree dirtiness. Publish-Stable.ps1 passes it for -AllowDirty / -AllowVersionBump
+    # diagnostic publishes so a clean-tree no-op can never mint release evidence.
+    [string]$NonReleaseReason
 )
 
 Set-StrictMode -Version Latest
@@ -264,6 +272,17 @@ function Get-SourceCommit {
     return $trimmed
 }
 
+function Get-SourceDirtyEntries {
+    param([Parameter(Mandatory = $true)][string]$RepositoryRoot)
+
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git) { return @() }
+
+    $status = @(& $git.Source -C $RepositoryRoot status --porcelain --untracked-files=all 2>$null)
+    if ($LASTEXITCODE -ne 0) { return @() }
+    return @($status | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
 function Get-HashEntries {
     param([Parameter(Mandatory = $true)][string]$Root)
 
@@ -393,12 +412,32 @@ function Write-BuildInfo {
         [string]$Framework,
         [string]$Runtime,
         [bool]$SelfContained,
+        [bool]$SigningEnabled = $false,
+        [string]$SignScript,
+        [string]$NonReleaseReason,
         [Parameter(Mandatory = $true)][string]$RepositoryRoot
     )
 
     $artifactHashes = @(Get-HashEntries -Root $VersionRoot)
     $publishedArtifacts = @(Get-PublishedArtifacts -VersionRoot $VersionRoot -ProjectName $ProjectName)
     $sourceCommit = Get-SourceCommit -RepositoryRoot $RepositoryRoot
+    $sourceDirtyEntries = @(Get-SourceDirtyEntries -RepositoryRoot $RepositoryRoot)
+    $sourceDirty = $sourceDirtyEntries.Count -gt 0
+    # Release evidence requires BOTH a clean source tree AND no explicit non-release reason. An
+    # explicit reason (a diagnostic escape hatch) forces non-release even from a clean tree, so a
+    # no-op diagnostic publish can never mint release evidence. sourceDirty / sourceDirtyEntries are
+    # still recorded independently below so the two signals never get conflated.
+    $explicitNonRelease = -not [string]::IsNullOrWhiteSpace($NonReleaseReason)
+    $releaseEvidence = (-not $sourceDirty) -and (-not $explicitNonRelease)
+    $releaseEvidenceReason = if ($explicitNonRelease -and $sourceDirty) {
+        "$NonReleaseReason; the source tree also had uncommitted or untracked changes when metadata was written"
+    } elseif ($explicitNonRelease) {
+        $NonReleaseReason
+    } elseif ($sourceDirty) {
+        "source tree had uncommitted or untracked changes when metadata was written"
+    } else {
+        "source commit, version stamps, and artifact hashes were captured from a clean tree"
+    }
 
     $primaryArtifact = $null
     foreach ($preferred in @("$ProjectName.exe", "$ProjectName.dll")) {
@@ -442,9 +481,22 @@ function Write-BuildInfo {
         size = if ($primaryHash) { $primaryHash.size } else { $null }
         artifactCount = $artifactHashes.Count
         artifactHashes = $artifactHashes
-        signing = [ordered]@{
-            enabled = $false
-            reason = "not configured"
+        releaseEvidence = $releaseEvidence
+        releaseEvidenceReason = $releaseEvidenceReason
+        sourceDirty = $sourceDirty
+        sourceDirtyEntries = $sourceDirtyEntries
+        signing = if ($SigningEnabled) {
+            [ordered]@{
+                enabled = $true
+                mode = "external-script"
+                signScript = $SignScript
+                timing = "before-manifest-hash"
+            }
+        } else {
+            [ordered]@{
+                enabled = $false
+                reason = "not configured"
+            }
         }
         builtUtc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
     }
@@ -479,6 +531,31 @@ function Update-BuildInfoArchive {
     Write-JsonNoBom -Path $BuildInfoPath -Value $buildInfo -Depth 12
     Write-JsonNoBom -Path (Join-Path (Split-Path -Parent $BuildInfoPath) "BUILDINFO.json") -Value $buildInfo -Depth 12
     return $BuildInfoPath
+}
+
+function Invoke-SignScript {
+    param(
+        [Parameter(Mandatory = $true)][string]$ScriptPath,
+        [Parameter(Mandatory = $true)][string]$VersionRoot,
+        [Parameter(Mandatory = $true)][string]$ProjectName,
+        [Parameter(Mandatory = $true)][string]$ProjectVersion,
+        [Parameter(Mandatory = $true)][int]$BuildNumber,
+        [Parameter(Mandatory = $true)][string]$Channel,
+        [Parameter(Mandatory = $true)][string]$Configuration
+    )
+
+    Write-Host "  > $ScriptPath -PublishRoot $VersionRoot -ProjectName $ProjectName -Version $ProjectVersion -BuildNumber $BuildNumber -Channel $Channel -Configuration $Configuration" -ForegroundColor DarkGray
+    $global:LASTEXITCODE = 0
+    & $ScriptPath `
+        -PublishRoot $VersionRoot `
+        -ProjectName $ProjectName `
+        -Version $ProjectVersion `
+        -BuildNumber $BuildNumber `
+        -Channel $Channel `
+        -Configuration $Configuration
+    if ($LASTEXITCODE -ne 0) {
+        throw "Signing script failed (exit code: $LASTEXITCODE)."
+    }
 }
 
 function Write-VersionTable {
@@ -670,9 +747,11 @@ if ($Help) {
     Write-Host "  -NoLatest               Skip bin\publish\latest"
     Write-Host "  -NoVersionTable         Skip VERSION_TABLE.json"
     Write-Host "  -NoArchive              Skip archive zip in Release stage"
+    Write-Host "  -SignScript <path>      Run this signing script after publish and before metadata hashes"
+    Write-Host "  -NonReleaseReason <s>   Force releaseEvidence=false with this reason (diagnostic publishes)"
     Write-Host ""
     Write-Host "SIGNING" -ForegroundColor Yellow
-    Write-Host "  Signing is intentionally not implemented in this pipeline yet."
+    Write-Host "  Optional -SignScript runs before build-info.json hashes are written."
     Write-Host ""
     Write-Host "EXAMPLES" -ForegroundColor Yellow
     Write-Host "  .\Build-PiPlay.ps1 -Stage Build -NoVersionBump"
@@ -711,12 +790,23 @@ $artifactProduced = $false
 $versionRoot = $null
 $versionRootCreated = $false
 $sourceCommit = Get-SourceCommit -RepositoryRoot $repoRoot
+$signScriptResolved = $null
+if ($SignScript) {
+    $signScriptResolved = Resolve-RepoPath -Root $repoRoot -Path $SignScript
+    if (-not (Test-Path -LiteralPath $signScriptResolved)) {
+        throw "SignScript not found: $signScriptResolved"
+    }
+}
 
 Write-Host "--- PiPlay pipeline: $Stage / $Configuration ---" -ForegroundColor Cyan
 Write-Host "Repo root      : $repoRoot"
 Write-Host "Project path   : $projectPath"
 Write-Host "Publish root   : $publishRootResolved"
-Write-Host "Signing        : not configured" -ForegroundColor DarkGray
+if ($signScriptResolved) {
+    Write-Host "Signing        : external script ($signScriptResolved)" -ForegroundColor Cyan
+} else {
+    Write-Host "Signing        : not configured" -ForegroundColor DarkGray
+}
 
 try {
     if ($ClearCache) {
@@ -848,6 +938,19 @@ try {
 
     Copy-PublishExtras -RepositoryRoot $repoRoot -VersionRoot $versionRoot -Extras $PublishExtras
 
+    if ($signScriptResolved) {
+        Write-Host ""
+        Write-Host "[4a] Signing publish output before metadata..." -ForegroundColor Yellow
+        Invoke-SignScript `
+            -ScriptPath $signScriptResolved `
+            -VersionRoot $versionRoot `
+            -ProjectName $ProjectName `
+            -ProjectVersion $resolvedVersion `
+            -BuildNumber $resolvedBuildNumber `
+            -Channel $Channel `
+            -Configuration $Configuration
+    }
+
     $buildInfoPath = Write-BuildInfo `
         -VersionRoot $versionRoot `
         -ProjectName $ProjectName `
@@ -859,6 +962,9 @@ try {
         -Framework $Framework `
         -Runtime $Runtime `
         -SelfContained ([bool]$SelfContained) `
+        -SigningEnabled ([bool]$signScriptResolved) `
+        -SignScript $signScriptResolved `
+        -NonReleaseReason $NonReleaseReason `
         -RepositoryRoot $repoRoot
 
     $archivePath = $null

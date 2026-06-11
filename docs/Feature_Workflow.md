@@ -106,8 +106,9 @@ Release candidates still need the manual lane — run it against the **deployed 
 the repo tree (stale repo binaries are the classic false pass; see `AGENTS.md` Conventions):
 
 ```powershell
-.\scripts\Publish-Stable.ps1                 # gate + build + deploy to E:\Dev_test_implemenations\PiPlay
-.\scripts\Verify-StableDeploy.ps1            # confirm WHAT you are about to test (version/build/commit + hashes)
+# Commit VERSION/BUILD_NUMBER/CHANGELOG first.
+.\scripts\Publish-Stable.ps1                 # exact-source gate + build + deploy + verify + local stable tag
+.\scripts\Verify-StableDeploy.ps1            # fail-closed release proof before testing
 pwsh -File scripts\Test-UiSmoke.ps1 -ExePath E:\Dev_test_implemenations\PiPlay\PiPlay.exe
 ```
 
@@ -130,28 +131,27 @@ To cut a **stable** copy that runs side by side with the dev app and deploy it f
 .\scripts\Publish-Stable.ps1            # deploys to E:\Dev_test_implemenations\PiPlay (override with -DeployRoot)
 ```
 
-This test-gates, builds the **Stable** channel (baked in via `-p:PiPlayChannel=Stable`), validates the
-publish metadata, bumps the patch version by default, and deploys a runnable copy — replacing binaries but **preserving** the `PiPlayData`
-runtime folder. A Stable copy is differentiable from dev: data beside the exe, its own single-instance
-identity, and a `PiPlay — Stable vX.Y.Z (bN)` title. After deploying, launch the deployed `PiPlay.exe` and
-confirm it opens its own window with an isolated `PiPlayData` folder beside it. Background and trade-offs:
-`docs/adr/0007-stable-channel-and-portable-data.md`.
+This test-gates, builds the **Stable** channel (baked in via `-p:PiPlayChannel=Stable`) from the
+already-committed `VERSION`/`BUILD_NUMBER`, validates publish metadata, deploys a runnable copy,
+creates/verifies the local `stable-vX.Y.Z-bN` tag, and replaces binaries while **preserving** the
+`PiPlayData` runtime folder. A Stable copy is differentiable from dev: data beside the exe, its own
+single-instance identity, and a `PiPlay — Stable vX.Y.Z (bN)` title. After deploying, launch the
+deployed `PiPlay.exe` and confirm it opens its own window with an isolated `PiPlayData` folder beside
+it. Background and trade-offs: `docs/adr/0007-stable-channel-and-portable-data.md`.
 
-**Choosing the version move** (`VERSION` is the semantic version; `BUILD_NUMBER` moves on every publish):
+**Choosing the version move** (`VERSION` is the semantic version; `BUILD_NUMBER` is monotonic):
 
-- New user-visible feature or behavior → `-Version minor`; breaking change / milestone → `-Version major`.
-- Fixes and small tweaks only → the default patch bump.
-- Rebuild of identical source (re-deploy, doc-only) → `-NoVersionBump` (build number still moves).
-- Exact pre-stamped source identity → commit `VERSION`/`BUILD_NUMBER` first, then publish with
-  `-NoVersionBump -NoBuildNumberBump`.
+- New user-visible feature or behavior → bump minor; breaking change / milestone → bump major.
+- Fixes and small tweaks only → bump patch.
+- Rebuild of identical source (re-deploy, doc-only) → keep `VERSION`, increment `BUILD_NUMBER`.
+- Commit `VERSION`/`BUILD_NUMBER` and `CHANGELOG.md` before running `Publish-Stable.ps1`.
 
-**After a normal deploy** — the scripts bump `VERSION`/`BUILD_NUMBER` in the working tree but never
-commit them: commit the bumped files together with the CHANGELOG entry and tag the source commit
-`stable-vX.Y.Z-bN`, so every deployed build maps back to a commit. For an exact current-HEAD deploy,
-pre-commit the stamps and publish with `-NoVersionBump -NoBuildNumberBump`; then tag that committed
-source after the deploy. Then (or any time you are about to test) run
-`.\scripts\Verify-StableDeploy.ps1` — it re-hashes the deployed artifacts and prints the deployed
-version/build/commit, including how far the deploy lags HEAD.
+`Publish-Stable.ps1` is exact-source by default and refuses a dirty working tree. It also creates the
+local `stable-vX.Y.Z-bN` tag after deploy and before final verification. Push the commit and tag only
+after the verifier prints `VERDICT: RELEASE VERIFIED`. `-AllowVersionBump` and `-AllowDirty` are
+diagnostic escape hatches; their manifests/verifier output are marked not release evidence and are
+not valid release-candidate QA inputs. If binaries must be signed, pass `-SignScript <path>` so
+signing happens before final hashes are written.
 
 ## 5. Open the PR
 

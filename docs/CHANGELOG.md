@@ -25,6 +25,10 @@ UI overhaul stabilization (plan `docs/superpowers/plans/2026-06-10-ui-overhaul-s
   settings file no longer drops the theme block.
 
 ### Changed
+- **Release provenance is fail-closed:** Stable release-candidate publishes now use committed
+  `VERSION`/`BUILD_NUMBER` by default, refuse dirty trees unless explicitly marked diagnostic,
+  create the matching `stable-vX.Y.Z-bN` tag locally, record source cleanliness in the manifest,
+  support pre-manifest signing hooks, and verify `FileVersion` plus `ProductVersion` before QA.
 - **One accent replaces separate Pin/Fade colors:** the Source Pin, Popout Pin, and Popout Fade
   glyphs share a single chosen accent instead of two independent color pickers.
 - **Video-aware return:** closing a popout that moved to a different video (recommendation

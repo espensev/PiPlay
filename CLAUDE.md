@@ -18,21 +18,19 @@ Full orientation: `docs/AGENTS.md` (terminology, quality bar, conventions) and t
   .\scripts\Verify-StableDeploy.ps1
   ```
 
-  One command: re-hashes every deployed artifact, confirms exe/marker/manifest agree, and prints
-  the exact version, build number, and source commit — including how far the deploy lags HEAD.
+  One command: re-hashes every deployed artifact, confirms exe/marker/manifest agree, and fails
+  closed unless the deployed version/build/source commit/tag match the clean repo state.
 
 ## 2. Version discipline
 
 - `VERSION` is the semantic version (what changed for users); `BUILD_NUMBER` is the monotonic
   counter (moves on every publish). Both live as plain files at the repo root.
-- Choosing the bump when publishing (`.\scripts\Publish-Stable.ps1`):
-  - New user-visible feature or behavior → `-Version minor` (breaking change / milestone → `-Version major`).
-  - Fixes and small tweaks only → default (patch bump).
-  - Rebuild of identical source (re-deploy, doc-only) → `-NoVersionBump` (build number still moves).
-  - Exact pre-stamped source identity → commit `VERSION`/`BUILD_NUMBER` first, then publish with
-    `-NoVersionBump -NoBuildNumberBump`.
-- Normal publishes bump `VERSION`/`BUILD_NUMBER` in the working tree but NEVER commit them. After a
-  stable deploy, commit the bumped files (with the CHANGELOG entry) and tag the source commit
-  `stable-vX.Y.Z-bN`. For an exact current-HEAD deploy, pre-commit the stamps and publish with
-  `-NoVersionBump -NoBuildNumberBump`; then tag that committed source. Without this, the deployed
-  version exists in no commit and provenance is lost.
+- Release-candidate publishes are exact-source by default:
+  1. Choose the version move first: feature → minor, fix → patch, breaking/milestone → major.
+  2. Edit `VERSION` and increment `BUILD_NUMBER`, update `CHANGELOG.md`, and commit those stamps.
+  3. Run `.\scripts\Publish-Stable.ps1` from a clean tree. The script uses the committed stamps,
+     refuses dirty release evidence, deploys Stable, verifies it, and creates the local tag
+     `stable-vX.Y.Z-bN` on that exact commit.
+  4. Push the commit and tag after verification.
+- `-AllowVersionBump` and `-AllowDirty` are diagnostic escape hatches only. Their manifests and
+  verifier output are marked **not release evidence**; do not use them for release-candidate QA.
