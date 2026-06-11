@@ -141,6 +141,21 @@ public class ThemeCatalogTests
             ThemeCatalog.DwmCornersFor(ThemeCatalog.PresetFor(ThemeCatalog.DefaultThemeId), ThemeCatalog.DefaultCornerStyle));
     }
 
+    // --- Accent switch rule (end-pass review §3.3, claim-response review R4) ---
+
+    [Theory]
+    [InlineData("#00D4FF", "sharp-dark", "soft-glass", "#A78BFA")]   // on previous default → adopt next default
+    [InlineData("#00d4ff", "sharp-dark", "soft-glass", "#A78BFA")]   // lowercase normalizes before comparison
+    [InlineData("#FFC857", "sharp-dark", "soft-glass", "#FFC857")]   // custom accent survives the switch
+    [InlineData("#ffc857", "sharp-dark", "soft-glass", "#FFC857")]   // …and comes back normalized
+    [InlineData("#A78BFA", "soft-glass", "sharp-dark", "#00D4FF")]   // works in both directions
+    public void Accent_for_theme_switch_preserves_custom_accents(
+        string current, string fromTheme, string toTheme, string expected)
+    {
+        Assert.Equal(expected, ThemeCatalog.AccentForThemeSwitch(
+            current, ThemeCatalog.PresetFor(fromTheme), ThemeCatalog.PresetFor(toTheme)));
+    }
+
     // --- Per-preset palette readability (review doc §7 + §8.8), same Wcag gates as the
     // Colors.xaml seed theories in XamlInvariantTests but across EVERY preset palette. ---
 

@@ -234,6 +234,21 @@ public static class ThemeCatalog
         return NormalizeHex6(fallback) ?? DefaultAccentColor;
     }
 
+    /// <summary>
+    /// Accent rule for an explicit theme switch (end-pass review §3.3): adopt the next preset's
+    /// default accent only when the current accent IS the previous preset's default — a
+    /// deliberately chosen custom accent survives theme switches. Pure so the rule is testable
+    /// without the Settings dialog and reusable once arbitrary (color-wheel) accents exist.
+    /// Inputs are normalized before comparison.
+    /// </summary>
+    public static string AccentForThemeSwitch(string? currentAccent, ThemePreset previousPreset, ThemePreset nextPreset)
+    {
+        var current = NormalizeAccentColor(currentAccent);
+        return current == NormalizeAccentColor(previousPreset.DefaultAccentColor)
+            ? NormalizeAccentColor(nextPreset.DefaultAccentColor)
+            : current;
+    }
+
     public static string NormalizeFadeDelayPreset(string? preset)
     {
         if (string.IsNullOrWhiteSpace(preset)) return DefaultFadeDelayPreset;

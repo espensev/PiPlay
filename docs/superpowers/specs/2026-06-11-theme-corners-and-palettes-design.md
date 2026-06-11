@@ -117,14 +117,31 @@ merged lineage. Disposition against current code:
   schema ≤2 theme blocks from the Player fields once on load (those files' nulls meant "use
   Player"; schema 3 nulls mean "use the preset default"). Raw-Player fallback remains only for
   a null theme block.
-- **§3.3** (accent preservation rule, wanted before any color wheel) — implemented: a preset
-  click adopts the new preset's default accent ONLY when the current accent is the previous
-  preset's default; a custom accent survives theme switches. (Refines §2.1 adoption, which
-  still applies to fade/strip/opacity/corners unconditionally.)
+  Evidence: `Theme/ThemePreferenceResolver.cs` (`PresetFor(theme.ThemeId).Default*` fallbacks),
+  `Models/AppSettings.cs` (`CurrentSchemaVersion = 3`, `FromLegacy` behavior copy),
+  `Services/SettingsService.cs` (`SchemaVersion < 3` backfill in `Sanitize`). Tests:
+  `ThemePreferenceResolverTests` (preset defaults / overrides win / invalid id / null block /
+  FromLegacy seed), `SettingsServiceTests.Schema2_theme_nulls_backfill_from_legacy_player_values`,
+  `SettingsServiceTests.Schema3_theme_nulls_resolve_to_preset_defaults`.
+- **§3.3** (accent preservation rule, wanted before any color wheel) — implemented as the pure
+  helper `ThemeCatalog.AccentForThemeSwitch(current, previousPreset, nextPreset)` (per the
+  claim-response review R4): a preset click adopts the new preset's default accent ONLY when
+  the current accent is the previous preset's default; a custom accent survives theme switches.
+  (Refines §2.1 adoption, which still applies to fade/strip/opacity/corners unconditionally.)
+  Tests: `ThemeCatalogTests.Accent_for_theme_switch_preserves_custom_accents` (incl. lowercase
+  normalization), `WpfRuntimeTests.SettingsWindow_preset_click_preserves_a_custom_accent`,
+  `WpfRuntimeTests.SettingsWindow_preset_click_adopts_the_preset_defaults`.
 - **§3.2** (override naming) — kept JSON-compatible names; fields are now documented as
-  overrides and the resolver enforces the semantics.
-- **§3.1** (generated chips), **§3.5** (MediaBackdrop token), **§3.7** (media-glow), color
+  overrides (`Models/AppSettings.cs` ThemeSettings xml-docs) and the resolver enforces the
+  semantics.
+- **§3.1** (generated chips), **§3.5** (per-theme media-backdrop variation; the current lineage
+  has no MediaBackdrop token — media surfaces use literal black), **§3.7** (media-glow), color
   wheel — still deferred by design, matching both review docs' ordering.
+
+Note for evidence checks: this work lives on the PR #19 branch (`claude/wizardly-cori-2997c3`).
+A review of a checkout that is not on this branch (or on main before PR #19 merges) will not
+find it — the claim-response review of 2026-06-11 audited the superseded draft `6e843a2` and
+correctly reported the changes absent THERE.
 
 ## Accepted residuals / next pass
 
