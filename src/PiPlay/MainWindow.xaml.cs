@@ -280,7 +280,7 @@ public partial class MainWindow : Window
     {
         // One theme accent drives the Source Pin (overhaul Task 10): the toggle's checked glyph and
         // the pinned hint share the accent brush built from Theme.AccentColor.
-        var pinBrush = ThemeColors.Brush(_settings.Theme.AccentColor);
+        var pinBrush = ThemeColors.Brush(EffectiveAccentColor);
         ToggleAccent.SetCheckedBrush(PinToggle, pinBrush);
         PinnedHint.Foreground = pinBrush;
     }
@@ -478,12 +478,12 @@ public partial class MainWindow : Window
         var dialog = new SettingsWindow(
             isBrowserReady: CanClearBrowserData,
             themeId: _settings.Theme.ThemeId,
-            accentColor: _settings.Theme.AccentColor,
-            fadeIdleDelayMs: _settings.Player.FadeIdleDelayMs,
+            accentColor: EffectiveAccentColor,
+            fadeIdleDelayMs: EffectiveFadeIdleDelayMs,
             compactMode: _settings.Player.CompactMode,
-            constantWindowOpacity: _settings.Player.ConstantWindowOpacity,
-            idleWindowOpacity: _settings.Player.IdleWindowOpacity,
-            stripAutoHide: _settings.Player.StripAutoHide)
+            constantWindowOpacity: EffectiveActiveWindowOpacity,
+            idleWindowOpacity: EffectiveIdleWindowOpacity,
+            stripAutoHide: EffectiveStripAutoHide)
         {
             Owner = this,
             Topmost = Topmost,
@@ -496,7 +496,7 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog() != true)
         {
             // Dismissed without applying: undo any live preview back to the persisted levels.
-            _player?.ApplyWindowOpacity(_settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity);
+            _player?.ApplyWindowOpacity(EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity);
             return;
         }
 
@@ -547,9 +547,7 @@ public partial class MainWindow : Window
         ApplyAuto(false);
         ThemeResourceApplier.Apply(Application.Current.Resources, _settings.Theme, _settings.Player);
         ApplySourceAppearance();
-        _player?.ApplyAppearance(_settings.Theme.AccentColor,
-            _settings.Player.FadeIdleDelayMs, _settings.Player.StripAutoHide);
-        _player?.ApplyWindowOpacity(_settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity);
+        ApplyOpenPlayerAppearance();
         UpdateAutoDetector();   // Auto is off after reset → stop the detector
         LoadProfilesIntoCombo();
     }
@@ -563,21 +561,51 @@ public partial class MainWindow : Window
         _settings.Theme.ThemeId = ThemeCatalog.NormalizeThemeId(themeId);
         _settings.Theme.AccentColor = ThemeCatalog.NormalizeAccentColor(accentColor);
         _settings.Player.FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
+        _settings.Theme.FadeDelayPreset = ThemeCatalog.FadeDelayPresetForMilliseconds(_settings.Player.FadeIdleDelayMs);
         // Global compact-mode default takes effect on the NEXT popout; an open player keeps its mode.
         _settings.Player.CompactMode = compactMode;
         _settings.Player.ConstantWindowOpacity = WindowOpacityPolicy.Normalize(constantWindowOpacity);
         _settings.Player.IdleWindowOpacity = WindowOpacityPolicy.Normalize(idleWindowOpacity);
         _settings.Player.StripAutoHide = stripAutoHide;
+        _settings.Theme.ActiveWindowOpacity = _settings.Player.ConstantWindowOpacity;
+        _settings.Theme.IdleWindowOpacity = _settings.Player.IdleWindowOpacity;
+        _settings.Theme.StripAutoHide = _settings.Player.StripAutoHide;
 
         // Recolor the accent-driven shell resources live (DynamicResource consumers re-resolve), then
         // the runtime-applied Pin/Fade glyphs, so the whole accent moves together on apply.
         ThemeResourceApplier.Apply(Application.Current.Resources, _settings.Theme, _settings.Player);
         ApplySourceAppearance();
-        _player?.ApplyAppearance(_settings.Theme.AccentColor,
-            _settings.Player.FadeIdleDelayMs, _settings.Player.StripAutoHide);
-        _player?.ApplyWindowOpacity(_settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity);
+        ApplyOpenPlayerAppearance();
         _settingsService.Save(_settings);
     }
+
+    private string EffectiveAccentColor =>
+        ThemePreferenceResolver.AccentColor(_settings.Theme, _settings.Player);
+
+    private int EffectiveFadeIdleDelayMs =>
+        ThemePreferenceResolver.FadeIdleDelayMs(_settings.Theme, _settings.Player);
+
+    private bool EffectiveStripAutoHide =>
+        ThemePreferenceResolver.StripAutoHide(_settings.Theme, _settings.Player);
+
+    private double EffectiveActiveWindowOpacity =>
+        ThemePreferenceResolver.ActiveWindowOpacity(_settings.Theme, _settings.Player);
+
+    private double EffectiveIdleWindowOpacity =>
+        ThemePreferenceResolver.IdleWindowOpacity(_settings.Theme, _settings.Player);
+
+    private void ApplyOpenPlayerAppearance()
+    {
+        _player?.ApplyAppearance(EffectiveAccentColor, EffectiveFadeIdleDelayMs, EffectiveStripAutoHide);
+        _player?.ApplyWindowOpacity(EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity);
+    }
+
+    internal void ReplaceSettingsForTests(AppSettings settings) => _settings = settings;
+
+    internal (string AccentColor, int FadeIdleDelayMs, double ActiveWindowOpacity, double IdleWindowOpacity,
+        bool StripAutoHide) EffectivePlayerPreferencesForTests =>
+        (EffectiveAccentColor, EffectiveFadeIdleDelayMs, EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity,
+            EffectiveStripAutoHide);
 
     private async Task PerformClearBrowserDataAsync()
     {
@@ -700,10 +728,10 @@ public partial class MainWindow : Window
             target.StartSeconds = seconds ?? target.StartSeconds;
             _player = new PlayerWindow(env, popoutUrl, _settings.Player.Topmost,
                 _settings.Player.Placement, _settings.Player.LastWidth, _settings.Player.LastHeight,
-                _settings.Player.FadeEnabled, _settings.Theme.AccentColor,
-                _settings.Player.FadeIdleDelayMs, mode, target,
-                _settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity,
-                _settings.Player.StripAutoHide);
+                _settings.Player.FadeEnabled, EffectiveAccentColor,
+                EffectiveFadeIdleDelayMs, mode, target,
+                EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity,
+                EffectiveStripAutoHide);
             _player.PlayerClosed += Player_OnClosed;
             _player.Show();
 

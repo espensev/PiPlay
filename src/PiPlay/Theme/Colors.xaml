@@ -22,9 +22,9 @@
   <Color x:Key="DangerPinColor">#FFFF4B55</Color>
 
   <!-- Theme accent (overhaul Task 9): the single, preset-driven accent. Defaults to the sharp-dark
-       cyan so the out-of-box look is unchanged; ThemeResourceApplier replaces the AccentPrimary
-       brushes below with the chosen accent. AccentCyan/AccentCyanLight remain defined as
-       compatibility aliases (the fixed cyan swatch + any markup that still names them). -->
+       cyan as a markup fallback; ThemeResourceApplier replaces the AccentPrimary brushes below with
+       the chosen accent and derived hover color at startup. AccentCyan/AccentCyanLight remain defined
+       as compatibility aliases (the fixed cyan swatch + any markup that still names them). -->
   <Color x:Key="AccentPrimaryColor">#FF00D4FF</Color>
   <Color x:Key="AccentPrimaryLightColor">#FF5BE6FF</Color>
 

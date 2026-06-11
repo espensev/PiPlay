@@ -410,9 +410,8 @@ public class XamlInvariantTests
     [Fact]
     public void Accent_primary_token_defaults_to_the_sharp_dark_cyan()
     {
-        // Overhaul Task 9: the theme accent token must default to the existing cyan so the
-        // out-of-box look is unchanged before ThemeResourceApplier runs. AccentCyan stays defined
-        // as a compatibility alias.
+        // Overhaul Task 9: the theme accent token defaults to the existing cyan as a markup fallback
+        // before ThemeResourceApplier runs. AccentCyan stays defined as a compatibility alias.
         var t = ColorTokens();
         Assert.Equal(t["AccentCyanColor"], t["AccentPrimaryColor"]);
         Assert.Equal(t["AccentCyanLightColor"], t["AccentPrimaryLightColor"]);
