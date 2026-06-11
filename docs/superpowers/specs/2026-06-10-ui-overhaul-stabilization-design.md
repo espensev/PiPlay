@@ -386,18 +386,23 @@ design decisions:
 
 Settled decisions for the theme-resource and theme-selector tasks:
 
-1. **Single accent token + in-place startup recolor (Task 9).** `Theme/Colors.xaml` gains
+1. **Single accent token + DynamicResource recolor (Task 9).** `Theme/Colors.xaml` gains
    `AccentPrimary`/`AccentPrimaryLight` brushes (plus `AccentPrimaryColor`/`AccentPrimaryLightColor`
-   and staged `ControlCornerRadius`/`ButtonCornerRadius`); `AccentButton`, the URL caret/focus, the
-   `PinToggle` default, and the Settings preset chips repoint to it. `AccentCyan*` stays defined as a
-   compatibility alias. `ThemeResourceApplier` (called from `App.OnStartup` after a read-only
-   `SettingsService.Load`, before the first window parses) MUTATES the shared, unfrozen accent
-   brushes' `Color` in place — `StaticResource` froze the lookup at parse time, but every consumer
-   holds the SAME brush instance, so the in-place swap reaches the already-parsed app styles and the
-   later-parsed windows alike, with no `StaticResource`→`DynamicResource` migration. Application this
-   pass is startup/next-window only; live switching of already-open windows stays the deferred
-   "Unresolved decision 3". Pure color math (`ThemeColors.ParseColor/Lighten/Brush`) is unit-tested;
-   the applier is STA-tested against a synthetic `ResourceDictionary`.
+   seeds and staged `ControlCornerRadius`/`ButtonCornerRadius`); `AccentButton` fill/hover, the URL
+   caret/selection/focus, the `PinToggle` default, and the Settings preset chips reference them via
+   **`DynamicResource`**. `AccentCyan*` stays defined as a compatibility alias.
+   `ThemeResourceApplier.Apply` **replaces** the two accent dictionary entries with frozen brushes for
+   the resolved accent; `DynamicResource` consumers re-resolve, including controls already realized in
+   open windows. **Mechanism note (verified by test):** the first cut MUTATED the seed brushes in
+   place, but compiled BAML FREEZES resource brushes, so `Application.Current.FindResource("AccentPrimary")`
+   is frozen and an in-place `Color` write silently no-ops — replace-the-entry + `DynamicResource` is
+   the mechanism that actually recolors. The applier runs at `App.OnStartup` (after a read-only
+   `SettingsService.Load`, before the first window) AND from `MainWindow` on every accent change /
+   reset, so the open main window recolors live and new popouts inherit it. This delivers
+   "Unresolved decision 3" for the accent tokens; live switching of the broader base/surface tokens
+   remains out of scope this pass. Pure color math (`ThemeColors.ParseColor/Lighten/Brush`) is
+   unit-tested; the live recolor of an already-realized consumer is STA-tested against the real app
+   resources.
 
 2. **One accent drives Source Pin, Popout Pin, and Popout Fade (Task 10).** `Theme.AccentColor` is
    now the single color source: `MainWindow.ApplySourceAppearance`, `PlayerWindow.ApplyAppearance`,

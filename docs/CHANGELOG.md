@@ -18,10 +18,10 @@ UI overhaul stabilization (plan `docs/superpowers/plans/2026-06-10-ui-overhaul-s
   the app; channels, search and non-YouTube links still open in the system browser. After such
   a move, the error bar's "Open normal page" reopens the video you are actually on.
 - **Theme presets and a single accent:** Settings → Appearance offers a theme preset (Sharp
-  Dark, Minimal, Soft Glass) and one accent color (cyan, steel blue, violet, green, amber).
-  The accent recolors the Pin and Fade controls right away and the rest of the shell the next
-  time PiPlay starts. Theme settings are stored additively and migration-safe — an older build
-  reading a newer settings file no longer drops the theme block.
+  Dark, Minimal, Soft Glass) and one accent color (cyan, steel blue, violet, green, amber). The
+  accent applies right away — the main window's primary button, URL field, and Pin/Fade controls
+  recolor live, and new Popout Players inherit it. Theme settings are stored additively and
+  migration-safe — an older build reading a newer settings file no longer drops the theme block.
 
 ### Changed
 - **One accent replaces separate Pin/Fade colors:** the Source Pin, Popout Pin, and Popout Fade

@@ -275,10 +275,12 @@ deep-copy (pure-copy assertions added), and `HorizontalScrollBarVisibility=Disab
 
 - [x] **Task 9 - Introduce theme resources and compatibility aliases.**
   *(Landed 2026-06-11: `AccentPrimary`/`AccentPrimaryLight` accent tokens + staged corner-radius
-  tokens in `Theme/Colors.xaml`; `AccentButton`/`DarkTextBox`/`PinToggle`/`PresetToggle` repointed to
-  the accent token with `AccentCyan*` kept as compatibility aliases; `ThemeColors` (pure parse/lighten/
-  brush) + `ThemeResourceApplier` mutate the shared brushes in place at `App.OnStartup` via a
-  read-only settings load, before any window parses; 7 new tests.)*
+  tokens in `Theme/Colors.xaml`; `AccentButton`/`DarkTextBox`/`PinToggle`/`PresetToggle` reference the
+  accent via `DynamicResource` with `AccentCyan*` kept as compatibility aliases; `ThemeColors` (pure
+  parse/lighten/brush) + `ThemeResourceApplier` REPLACE the accent entries (a verification test caught
+  that compiled BAML freezes the seed brushes, so in-place mutation no-ops) at `App.OnStartup` via a
+  read-only settings load and from `MainWindow` on every accent change/reset for a live recolor; tests
+  for the pure math, the entry replacement, and the live update of an already-realized consumer.)*
   - Add theme-owned resource tokens for base colors, accent derivations, opacity/fade defaults, and
     staged radius values while keeping existing brush keys as aliases during migration.
   - Startup ordering: settings are currently loaded inside the `MainWindow` constructor — applying
@@ -418,13 +420,17 @@ deep-copy (pure-copy assertions added), and `HorizontalScrollBarVisibility=Disab
     Task 8 (theme model/migration) merged the integrated base from PR #17 first; Tasks 9-10 build on
     it. Net theme-pass test growth: +20 over the post-merge 488 baseline (theme model, colors,
     applier, palette/sync, selector).
-  - Settled decisions recorded in the design "Theme pass addendum (Tasks 9-10)": in-place startup
-    recolor (no DynamicResource migration), single `Theme.AccentColor` driving Source/Popout
-    Pin+Fade, the readability-driven palette realignment (DEVIATION from the plan's literal "muted
-    cyan"/"steel blue #4D7EA8" — both failed the on-dark glyph floor; default is now the current
-    shell cyan `#00D4FF`), and fade delay kept on `Player.FadeIdleDelayMs`.
-  - Deferred, deliberate: live theme switching of already-open windows (Unresolved decision 3 —
-    startup/next-window only this pass); manual theme-preset + accent smoke and account-backed QA
-    (`docs/QA_Checklist.md` §3 accent row + Tasks 9-10 theme row). Legacy `BrushResourceKeyFor`/
-    `DisplayNameForAccent` are now unreferenced by production but kept (tested legacy-accent mapping);
-    candidate cleanup if the legacy `PinAccent`/`FadeAccent` fields are ever dropped.
+  - Settled decisions recorded in the design "Theme pass addendum (Tasks 9-10)": accent tokens use
+    `DynamicResource` and the applier REPLACES the entries (the first cut mutated the seed brushes in
+    place, but a verification test caught that compiled BAML freezes them, so mutation no-ops — see
+    the addendum's mechanism note); single `Theme.AccentColor` drives Source/Popout Pin+Fade; the
+    readability-driven palette realignment (DEVIATION from the plan's literal "muted cyan"/"steel blue
+    #4D7EA8" — both failed the on-dark glyph floor; default is now the current shell cyan `#00D4FF`);
+    fade delay kept on `Player.FadeIdleDelayMs`.
+  - Accent now applies LIVE: `App.OnStartup` + `MainWindow` (on accent change / reset) call the
+    applier, so the open main window recolors live and new popouts inherit it (Unresolved decision 3
+    delivered for accent tokens; broader base/surface live-switching still deferred). Manual
+    theme-preset + accent smoke and account-backed QA remain (`docs/QA_Checklist.md` §3 accent row +
+    Tasks 9-10 theme row). Legacy `BrushResourceKeyFor`/`DisplayNameForAccent` are now unreferenced by
+    production but kept (tested legacy-accent mapping); candidate cleanup if the legacy
+    `PinAccent`/`FadeAccent` fields are ever dropped.

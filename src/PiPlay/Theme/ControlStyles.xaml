@@ -55,7 +55,7 @@
 
   <!-- Primary action button (e.g. Pop out video) -->
   <Style TargetType="Button" x:Key="AccentButton" BasedOn="{StaticResource DarkButton}">
-    <Setter Property="Background" Value="{StaticResource AccentPrimary}" />
+    <Setter Property="Background" Value="{DynamicResource AccentPrimary}" />
     <Setter Property="Foreground" Value="#FF06141A" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="FontWeight" Value="SemiBold" />
@@ -68,7 +68,7 @@
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="bd" Property="Background" Value="{StaticResource AccentPrimaryLight}" />
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource AccentPrimaryLight}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter Property="Opacity" Value="0.4" />
@@ -177,7 +177,7 @@
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="ToolTip" Value="Pin (keep on top)" />
     <Setter Property="SnapsToDevicePixels" Value="True" />
-    <Setter Property="theme:ToggleAccent.CheckedBrush" Value="{StaticResource AccentPrimary}" />
+    <Setter Property="theme:ToggleAccent.CheckedBrush" Value="{DynamicResource AccentPrimary}" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="ToggleButton">
@@ -206,8 +206,8 @@
        not from this template. (UI-CHK-5) -->
   <Style TargetType="TextBox" x:Key="DarkTextBox">
     <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-    <Setter Property="CaretBrush" Value="{StaticResource AccentPrimary}" />
-    <Setter Property="SelectionBrush" Value="{StaticResource AccentPrimary}" />
+    <Setter Property="CaretBrush" Value="{DynamicResource AccentPrimary}" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource AccentPrimary}" />
     <Setter Property="Background" Value="{StaticResource SurfaceRaised}" />
     <Setter Property="BorderBrush" Value="{StaticResource BorderSubtle}" />
     <Setter Property="BorderThickness" Value="1" />
@@ -230,7 +230,7 @@
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
-              <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource AccentPrimary}" />
+              <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource AccentPrimary}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter Property="Opacity" Value="0.45" />

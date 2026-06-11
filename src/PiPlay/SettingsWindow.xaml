@@ -69,8 +69,8 @@
                 <Setter TargetName="bd" Property="Background" Value="{StaticResource SurfaceHover}" />
               </Trigger>
               <Trigger Property="IsChecked" Value="True">
-                <Setter Property="Foreground" Value="{StaticResource AccentPrimary}" />
-                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource AccentPrimary}" />
+                <Setter Property="Foreground" Value="{DynamicResource AccentPrimary}" />
+                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource AccentPrimary}" />
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -132,7 +132,7 @@
         <TextBlock Text="Theme" FontSize="12" Foreground="{StaticResource TextSecondary}"
                    Margin="0,0,0,6" />
         <TextBlock x:Name="ThemeHintText"
-                   Text="Accent changes recolor the pin and fade controls right away; theme presets fully apply the next time PiPlay starts."
+                   Text="Themes and the accent apply right away to the main window and to new Popout Players. A preset sets the accent; the chips fine-tune it."
                    TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextSecondary}"
                    Margin="0,0,0,8" />
         <StackPanel Orientation="Horizontal" Margin="0,0,0,14">

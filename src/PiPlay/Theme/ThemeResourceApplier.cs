@@ -5,13 +5,14 @@ using PiPlay.Models;
 namespace PiPlay.Theme;
 
 /// <summary>
-/// Applies the resolved theme accent to the app's shared resource brushes at startup (overhaul
-/// Task 9). The window XAML uses <c>StaticResource</c> throughout, which freezes the lookup at parse
-/// time — but a <see cref="SolidColorBrush"/> resource is a single shared, MUTABLE instance, so
-/// rewriting its <see cref="SolidColorBrush.Color"/> reaches every consumer that already resolved it
-/// (the app-level styles) AND every window parsed afterward. Call this BEFORE constructing the first
-/// window. Application this pass is startup/next-window only; live theme switching of open windows
-/// would need a <c>StaticResource</c>→<c>DynamicResource</c> migration (deferred — design §"Unresolved").
+/// Applies the resolved theme accent to the app's shared accent resources (overhaul Task 9). The
+/// accent consumers (AccentButton fill/hover, URL caret/selection/focus, the Pin toggle default, the
+/// Settings preset chips) reference <c>AccentPrimary</c>/<c>AccentPrimaryLight</c> via
+/// <c>DynamicResource</c>, so REPLACING those entries re-resolves every consumer — including controls
+/// already realized in open windows. (Compiled BAML freezes the seed brushes, so mutating them in
+/// place is a no-op; replacing the dictionary entry is the mechanism that actually works.) Call at
+/// <c>App.OnStartup</c> for the persisted accent and again whenever the accent changes for a live
+/// recolor.
 /// </summary>
 public static class ThemeResourceApplier
 {
@@ -20,20 +21,15 @@ public static class ThemeResourceApplier
 
     public static void Apply(ResourceDictionary resources, ThemeSettings? theme, PlayerSettings player)
     {
-        var accentHex = ThemePreferenceResolver.AccentColor(theme, player);
-        var accent = ThemeColors.ParseColor(accentHex);
-        var accentLight = ThemeColors.Lighten(accent, HoverLightenAmount);
-
-        SetBrushColor(resources, "AccentPrimary", accent);
-        SetBrushColor(resources, "AccentPrimaryLight", accentLight);
+        var accent = ThemeColors.ParseColor(ThemePreferenceResolver.AccentColor(theme, player));
+        resources["AccentPrimary"] = Frozen(accent);
+        resources["AccentPrimaryLight"] = Frozen(ThemeColors.Lighten(accent, HoverLightenAmount));
     }
 
-    // Mutate the shared brush in place; leave the (parse-time) Color tokens alone — they only seeded
-    // the brushes. If the key is missing or not a mutable SolidColorBrush, skip silently: the default
-    // (cyan) resource still renders, so a resource rename can never crash startup.
-    private static void SetBrushColor(ResourceDictionary resources, string key, Color color)
+    private static SolidColorBrush Frozen(Color color)
     {
-        if (resources[key] is SolidColorBrush { IsFrozen: false } brush)
-            brush.Color = color;
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();   // shareable + immutable; DynamicResource consumers hold it until the next Apply
+        return brush;
     }
 }

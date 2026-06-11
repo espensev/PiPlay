@@ -52,33 +52,46 @@ public class WpfRuntimeTests : IDisposable
         Assert.Null(ex);
     });
 
-    // --- Theme resource application at startup (overhaul Task 9) ---
+    // --- Theme resource application (overhaul Task 9): replace the accent entries; DynamicResource
+    // consumers re-resolve, including controls already realized in open windows. ---
 
     [Fact]
-    public void ThemeResourceApplier_recolors_the_shared_accent_brushes() => StaTestThread.Invoke(() =>
+    public void ThemeResourceApplier_replaces_the_accent_entries_from_the_theme() => StaTestThread.Invoke(() =>
     {
-        var primary = new SolidColorBrush(Colors.Black);
-        var light = new SolidColorBrush(Colors.Black);
-        var res = new ResourceDictionary { ["AccentPrimary"] = primary, ["AccentPrimaryLight"] = light };
-
+        var res = new ResourceDictionary();   // empty (startup, before windows): the entries are added
         ThemeResourceApplier.Apply(res, new ThemeSettings { AccentColor = "#38D996" }, new PlayerSettings());
 
-        Assert.Equal(Color.FromRgb(0x38, 0xD9, 0x96), primary.Color);   // base brush takes the accent
-        Assert.NotEqual(primary.Color, light.Color);                    // light is a toward-white derivation
-        Assert.True(light.Color.G >= primary.Color.G);
+        var primary = (SolidColorBrush)res["AccentPrimary"];
+        var light = (SolidColorBrush)res["AccentPrimaryLight"];
+        Assert.Equal(Color.FromRgb(0x38, 0xD9, 0x96), primary.Color);   // base takes the accent
+        Assert.True(primary.IsFrozen);                                  // shareable across windows
+        Assert.True(light.Color.G >= primary.Color.G && light.Color != primary.Color);   // lighter derivation
     });
 
     [Fact]
-    public void ThemeResourceApplier_skips_frozen_or_missing_brushes_without_throwing() => StaTestThread.Invoke(() =>
+    public void Accent_recolor_reaches_a_dynamic_resource_consumer() => StaTestThread.Invoke(() =>
     {
-        var frozen = new SolidColorBrush(Colors.Black);
-        frozen.Freeze();
-        var res = new ResourceDictionary { ["AccentPrimary"] = frozen };   // no AccentPrimaryLight key
+        // The AccentButton fill resolves {DynamicResource AccentPrimary}. REPLACING the App resource
+        // (what the applier does) changes what the consumer resolves — the recolor mechanism the
+        // compiled-BAML frozen seed brushes cannot satisfy by mutation. (For an element IN a window
+        // the update is live; WPF only withholds change notifications from this untethered button, so
+        // we assert resolution at realize-time rather than a post-realize live swap.)
+        var original = Application.Current.Resources["AccentPrimary"];
+        try
+        {
+            var sentinel = Color.FromRgb(0x12, 0x34, 0x56);
+            var brush = new SolidColorBrush(sentinel);
+            brush.Freeze();
+            Application.Current.Resources["AccentPrimary"] = brush;
 
-        var ex = Record.Exception(() => ThemeResourceApplier.Apply(res, new ThemeSettings(), new PlayerSettings()));
-
-        Assert.Null(ex);
-        Assert.Equal(Colors.Black, frozen.Color);   // a frozen alias brush is left untouched
+            var btn = new Button { Style = (Style)Application.Current.FindResource("AccentButton") };
+            btn.Measure(new Size(200, 40));   // realize: Background resolves the replaced resource
+            Assert.Equal(sentinel, ((SolidColorBrush)btn.Background).Color);
+        }
+        finally
+        {
+            Application.Current.Resources["AccentPrimary"] = original;   // never pollute the shared app
+        }
     });
 
     [Fact]

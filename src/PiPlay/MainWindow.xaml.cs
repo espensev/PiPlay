@@ -545,6 +545,7 @@ public partial class MainWindow : Window
         _settings = _settingsService.Reset();
         ApplyTopmost(false);
         ApplyAuto(false);
+        ThemeResourceApplier.Apply(Application.Current.Resources, _settings.Theme, _settings.Player);
         ApplySourceAppearance();
         _player?.ApplyAppearance(_settings.Theme.AccentColor,
             _settings.Player.FadeIdleDelayMs, _settings.Player.StripAutoHide);
@@ -568,6 +569,9 @@ public partial class MainWindow : Window
         _settings.Player.IdleWindowOpacity = WindowOpacityPolicy.Normalize(idleWindowOpacity);
         _settings.Player.StripAutoHide = stripAutoHide;
 
+        // Recolor the accent-driven shell resources live (DynamicResource consumers re-resolve), then
+        // the runtime-applied Pin/Fade glyphs, so the whole accent moves together on apply.
+        ThemeResourceApplier.Apply(Application.Current.Resources, _settings.Theme, _settings.Player);
         ApplySourceAppearance();
         _player?.ApplyAppearance(_settings.Theme.AccentColor,
             _settings.Player.FadeIdleDelayMs, _settings.Player.StripAutoHide);
