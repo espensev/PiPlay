@@ -11,15 +11,38 @@ manual code verification). Diagnoses for Tasks 1-4 are now settled against sourc
 routes are recorded as rule-outs so they are not re-litigated during implementation. See the spec's
 "Review addendum" for the evidence trail.
 
-**Result:** In progress (2026-06-11). Tasks 1, 3, 4, 5, 6, 7, 8, and
-9 landed; `dotnet test PiPlay.sln --configuration Debug --no-restore` = 507/507 and
+**Result:** In progress (2026-06-11). Tasks 1, 3, 4, 5, 6, 7, 8, 11, and 12 landed
+(Tasks 1-7, 11, 12 via merged PR #17 `claude/ecstatic-mclaren-b97f77`; Task 8 on the theme-resource
+branch `claude/determined-boyd-94fad8`). Post-merge gate: `dotnet test PiPlay.sln --configuration
+Debug --no-restore` = 476/476 and
 `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` clean (0 warnings). Task 1's
 inset band was live-verified by an HWND-rect probe (10 px left/right/bottom) AND owner-verified by
 manual drag resize. Task 2 was live-diagnosed (wheel focus-routing — click into the page, then
 scroll works, even at 86% opacity; layered opacity ruled out) and the fix deferred by owner
-decision. Task 4's maximize semantics were decided (keep current full-monitor maximize). Remaining:
-Task 10 (theme selector and accent chips), 11, 12; manual startup/theme smoke for Task 9 rides
-with Task 12's gate.
+decision. Task 4's maximize semantics were decided (keep current full-monitor maximize) and its
+affordance + reversibility landed 2026-06-10 (`feat(popout): add reliable expand path`). Task 3's
+implementation landed 2026-06-10 (`fix(compact): keep recommendations in piplay and return the
+current video`); its spec re-verification is recorded at the Task 3 entry. Task 5 landed
+(`refactor(settings): make settings scrollable and sectioned`). Task 11 landed (`docs(ui): refresh
+overhaul qa evidence`). Task 12 closed 2026-06-11 via PR #17 (`fix(player): harden return paths and
+expand latch after review`). Task 8 landed 2026-06-11 (`feat(theme): add compatible theme settings
+model`). Theme pass complete 2026-06-11: Task 9 (`feat(theme): apply preset resource tokens`) and
+Task 10 (`feat(settings): add theme and accent controls`) on the theme-resource branch
+`claude/determined-boyd-94fad8` (integrated onto post-PR-#17 main). **All tasks landed.** Final gate:
+`dotnet test PiPlay.sln --configuration Debug` = **508/508, 0 skipped**, build **0W/0E**. See the
+Self-review "Verified (theme pass)" entry and the design "Theme pass addendum" for the settled
+decisions (incl. the readability-driven palette realignment).
+
+**Reconciliation (2026-06-11):** main received a PARALLEL, smaller Task 4/5 landing (`b35c0dd`,
+`FullscreenButton` + DockPanel settings, 456/456 at its gate) while PR #17 carried the
+review-hardened superset. Resolved by merge: PR #17's implementation and names win
+(`ExpandButton` with the state-neutral UIA name, caused-by-element latch, Esc restore,
+launch-side placement normalization, protocol-parse id gate, `SettingsScroll` + `*SectionHeader`
+names); adopted FROM `b35c0dd`: the fixed-height Settings frame (520x680, `MinHeight` 360, launch
+Height clamped to the work area — replaces SizeToContent), `OnUserActivity()` on every expand
+path so an auto-hidden strip reveals and restore stays reachable (new test), the placement
+deep-copy (pure-copy assertions added), and `HorizontalScrollBarVisibility=Disabled` +
+`CanContentScroll=False` on the scroll viewer.
 
 ## Tasks
 
@@ -90,9 +113,17 @@ with Task 12's gate.
   - Commit: `fix(popout): allow scrolling in normal page player`
 
 - [x] **Task 3 - Keep compact navigation inside PiPlay and make return state video-aware (both modes).**
-  *(Landed `fix(compact): keep recommendations in piplay and return the current video`; merged into
-  `main` in `e11756a`; deterministic suite now includes the compact navigation, shell video-id, and
-  return-policy coverage.)*
+  *(Landed `fix(compact): keep recommendations in piplay and return the current video` (452/452);
+  adversarially re-verified against this spec 2026-06-11 — every bullet satisfied: TryParse-with-
+  VideoId gate, in-place retarget with full launch-state follow-up, protocol v3 additive videoId,
+  navigate-vs-seek with the Auto de-dup key armed first, SourceChanged tracking naturally compact-
+  excluded. Review hardening landed same day: explicit `IsVideoId` charset gate where the
+  shell-reported id enters the host (the downstream re-parse + allowlist already caught hostile
+  values; the gate makes it explicit), and the source-side return decision extracted to
+  `ApplyReturnActionAsync` with headless tests proving Navigate queues the returned video's watch
+  URL and arms the de-dup key. Accepted residual (documented at the code): a final state message
+  from a dying shell can race a retarget in a narrow window. Retarget→fallback→return end-to-end
+  is a live QA row, not headless-testable (fallback requires a live CoreWebView2).)*
   - New-window policy (reframed): WebView2's `NewWindowRequested` carries no window-open disposition,
     so "explicit external intent" is NOT distinguishable from a left-click. Use the URL-shape proxy,
     mirroring `MainWindow.Core_NewWindowRequested`: a parsed YouTube watch target with a `VideoId`
@@ -124,9 +155,12 @@ with Task 12's gate.
     `fix(player): return current video and timestamp on close` if landed separately)
 
 - [x] **Task 4 - Provide one reliable expand/fullview path (native strip affordance + gated event).**
-  *(Landed 2026-06-11: native popout expand/restore button, compact WebView2 fullscreen-element
-  event gated to compact mode, shared shell/native toggle path, restore affordance kept visible, and
-  maximized placement normalized so the next popout launches from normal bounds.)*
+  *(Landed `feat(popout): add reliable expand path`: native `ExpandButton` on the ChromeStrip
+  (state-neutral UIA name, glyph/tooltip flip), shell `fullscreenToggle` rerouted through the same
+  `ToggleExpandedState`, `ContainsFullScreenElementChanged` honored gated on live compact mode with
+  a caused-by-element latch, Esc restore (WPF-focus-only residual documented), and
+  `PlacementMath.ForNextLaunch` normalization on BOTH capture and launch so a popout never relaunches
+  expanded. Drag while expanded deliberately inert. 461/461 tests at commit.)*
   - Primary route (settled): a native WPF expand/restore button on the existing `ChromeStrip`,
     calling the same host handler `fullscreenToggle` already reaches. No protocol change is needed —
     the `fullscreenToggle` channel (protocol consts, dual allowlists, bridge event, host handler,
@@ -152,9 +186,11 @@ with Task 12's gate.
   - Commit: `feat(popout): add reliable expand path`
 
 - [x] **Task 5 - Make Settings scrollable and sectioned.**
-  *(Landed 2026-06-11: bounded Settings dialog with scrollable content, Privacy / Appearance /
-  Playback / Advanced section order, visible compact-mode "new popouts only" copy, and existing
-  control names preserved for Task 10.)*
+  *(Landed `refactor(settings): make settings scrollable and sectioned`: fixed title bar +
+  `SettingsScroll` ScrollViewer, work-area-derived `MaxHeight` (420 floor), sections
+  Privacy/Appearance/Playback/Advanced with fade delay + opacity + auto-hide under Advanced,
+  compact copy states "new Popout Players only", every `x:Name` and the opacity live-preview path
+  preserved, 5.6 stays deferred. 468/468 tests at commit.)*
   - Update `SettingsWindow.xaml` from a tall fixed dialog (`SizeToContent="Height"`, no scrolling) to
     a bounded layout: `MaxHeight` (work-area-derived) + `ScrollViewer` so it fits shorter displays.
   - Organize sections as Privacy, Appearance, Playback, and Advanced.
@@ -238,14 +274,13 @@ with Task 12's gate.
   - Commit: `feat(theme): add compatible theme settings model`
 
 - [x] **Task 9 - Introduce theme resources and compatibility aliases.**
-  *(Landed 2026-06-11: canonical `Theme.*`/`Radius.*` tokens in Colors.xaml with the original
-  brush keys as value-pinned compatibility aliases, `AccentPalette` derivation (hover/pressed/
-  dim/border + contrast-safe white/black foreground), `ThemeResourceApplier` replacement across
-  every defining merged dictionary wired in `App.OnStartup` via a new side-effect-free
-  `SettingsService.LoadReadOnly()`, staged radius wiring (buttons/dropdown/settings toggles;
-  windows stay 0/unwired), and `Theme.MediaBackdrop` for the window/media backdrops. 507/507
-  after +31 token/alias/derivation/read-only-load tests; mechanics recorded in the spec's
-  "Task 9 implementation record".)*
+  *(Landed 2026-06-11: `AccentPrimary`/`AccentPrimaryLight` accent tokens + staged corner-radius
+  tokens in `Theme/Colors.xaml`; `AccentButton`/`DarkTextBox`/`PinToggle`/`PresetToggle` reference the
+  accent via `DynamicResource` with `AccentCyan*` kept as compatibility aliases; `ThemeColors` (pure
+  parse/lighten/brush) + `ThemeResourceApplier` REPLACE the accent entries (a verification test caught
+  that compiled BAML freezes the seed brushes, so in-place mutation no-ops) at `App.OnStartup` via a
+  read-only settings load and from `MainWindow` on every accent change/reset for a live recolor; tests
+  for the pure math, the entry replacement, and the live update of an already-realized consumer.)*
   - Add theme-owned resource tokens for base colors, accent derivations, opacity/fade defaults, and
     staged radius values while keeping existing brush keys as aliases during migration.
   - Startup ordering: settings are currently loaded inside the `MainWindow` constructor — applying
@@ -261,7 +296,14 @@ with Task 12's gate.
     and a manual startup/theme smoke.
   - Commit: `feat(theme): apply preset resource tokens`
 
-- [ ] **Task 10 - Add theme selector and accent chips.**
+- [x] **Task 10 - Add theme selector and accent chips.**
+  *(Landed 2026-06-11: Settings "Theme" preset selector (Sharp Dark / Minimal / Soft Glass) + a single
+  "Accent color" chip row (cyan, steel blue, violet, green, amber) replace the separate Pin/Fade color
+  swatches; one `Theme.AccentColor` now drives Source Pin, Popout Pin, and Popout Fade. Catalog default
+  accent realigned to the current shell cyan `#00D4FF` and the palette chosen for on-dark readability
+  (new `Theme_accent_palette_is_readable` gate); `SettingsWindow`/`PlayerWindow` ctor + `ApplyAppearance`
+  surfaces migrated to the single accent; swatch-pinning tests rewritten to the preset/chip surface +
+  a catalog-sync test. Legacy `Player.PinAccent/FadeAccent` stay readable but drive no color.)*
   - Add Settings controls for theme preset selection and fixed accent chips: muted cyan, steel blue,
     violet, green, and amber. Store normalized hex from the start.
   - Replace separate Pin/Fade color controls only after the single accent path drives Source Window
@@ -275,7 +317,16 @@ with Task 12's gate.
     after replacement, and manual captures for Pin/Fade/accent consistency.
   - Commit: `feat(settings): add theme and accent controls`
 
-- [ ] **Task 11 - Refresh QA docs and discovery evidence.**
+- [x] **Task 11 - Refresh QA docs and discovery evidence.**
+  *(Landed `docs(ui): refresh overhaul qa evidence`: Phase-3 resize rows amended to pointer-over-
+  surface; new §2.1 dual-capture behavior table (click-then-scroll, band contract, expand/restore,
+  restore reachability, never-relaunch-expanded, reveal-then-resize beat); compact Task 3/4 rows;
+  Settings short-display + new-popouts-copy rows; UI-CHK-7 accessible names; theme-preset row
+  parked pending Tasks 8-10. CHANGELOG `[Unreleased]` opened; SPEC_GAPS Stage-4 claim corrected to
+  shipped; ui-state-notes State 03 renamed `Source Expanded Player` + post-fix addendum (fresh
+  captures deferred to the manual QA pass). Wording sweep clean: remaining "fullscreen" hits are
+  YouTube's own button, the W3C fullscreen-element API, protocol identifiers, or preserved pre-fix
+  capture notes. theme-system-overhaul-evaluation.md untouched — no theme decisions changed.)*
   - `docs/QA_Checklist.md`: AMEND the existing Phase-3 resize rows to require resize with the pointer
     OVER the player surface (the actual reported bug) rather than adding duplicate rows; add rows for
     scroll, compact recommendation navigation, compact expand/fullview (including
@@ -295,7 +346,10 @@ with Task 12's gate.
     protocol identifiers (`ActionFullscreenToggle`, `fullscreenToggle`) and compact-mode QA rows.
   - Commit: `docs(ui): refresh overhaul qa evidence`
 
-- [ ] **Task 12 - Run full gate and self-review.**
+- [x] **Task 12 - Run full gate and self-review (stabilization pass; theme Tasks 8-10 excluded).**
+  *(Landed `chore(ui): record overhaul stabilization verification`. Gate and review evidence in
+  the Self-review "Verified" section below. Tasks 8-10 are the deliberate later theme pass and get
+  their own gate when they land.)*
   - Run `dotnet test PiPlay.sln --configuration Debug`.
   - Run `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump`.
   - Landing note: prefer a single PR containing this spec; if the work splits across PRs, every
@@ -340,7 +394,49 @@ with Task 12's gate.
   - Settings/theme migration risk is concentrated in schema compatibility (mitigated by
     `[JsonExtensionData]`) and resource drift; Task 10's swatch replacement is a known test-rewrite.
   - Manual QA remains required for real YouTube scroll, expand behavior, and mixed-display resize.
-- Verified:
-  - Current merged checkpoint: `dotnet test PiPlay.sln --configuration Debug --no-restore` = 456/456,
-    and `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` succeeded with 0 warnings.
-    Fill this again after Tasks 4, 5, 8-12 and add manual QA evidence paths.
+- Verified (stabilization pass, 2026-06-11):
+  - Gates: `dotnet test PiPlay.sln --configuration Debug` = **472/472, 0 skipped**;
+    `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` = **0 warnings, 0 errors**.
+  - Focused review: two adversarial passes (spec-vs-code over the Task 3 commit; bug hunt over the
+    Task 4/5 commits). Findings: ONE real defect (OS un-maximize left the fullscreen-element latch
+    stale — fixed, StateChanged now syncs it) plus two hardening items on Task 3 (explicit shell-id
+    charset gate; source-side return tests for the Auto de-dup + queued navigate URL) — all landed
+    in `fix(player): harden return paths and expand latch after review`. Settings measure
+    semantics (SizeToContent + MaxHeight + star-row ScrollViewer), placement persistence loop,
+    x:Name survival, and the opacity live-preview path were each explicitly verified FINE.
+  - Live smoke (dev channel beside the user's Stable copy): popout `ExpandButton` exposes UIA name
+    "Expand or restore popout"; invoke → `WindowVisualState=Maximized`, full-bleed video across the
+    5120x2160 monitor (inset band correctly dropped); invoke → `Normal` restored. The Settings
+    dialog opened height-bounded at the work-area clamp (~917 DIP on this display). Captures under
+    `%TEMP%\piplay_run\`; fresh per-state screenshots remain the owner QA pass
+    (`docs/QA_Checklist.md` §2.1 dual-capture table + §3.5 compact rows).
+  - Deferred, deliberate: Task 2 scroll fix deferred by owner decision (click-then-scroll
+    documented); outline item 5.6 discoverability recorded deferral; retarget→fallback→return
+    end-to-end and account-backed playback rows are live QA (headless fallback requires a live
+    CoreWebView2).
+- Verified (theme pass, Tasks 8-10, 2026-06-11):
+  - Gates: `dotnet test PiPlay.sln --configuration Debug` = **508/508, 0 skipped**;
+    `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` = **0 warnings, 0 errors**.
+    Task 8 (theme model/migration) merged the integrated base from PR #17 first; Tasks 9-10 build on
+    it. Net theme-pass test growth: +20 over the post-merge 488 baseline (theme model, colors,
+    applier, palette/sync, selector).
+  - Settled decisions recorded in the design "Theme pass addendum (Tasks 9-10)": accent tokens use
+    `DynamicResource` and the applier REPLACES the entries (the first cut mutated the seed brushes in
+    place, but a verification test caught that compiled BAML freezes them, so mutation no-ops — see
+    the addendum's mechanism note); single `Theme.AccentColor` drives Source/Popout Pin+Fade; the
+    readability-driven palette realignment (DEVIATION from the plan's literal "muted cyan"/"steel blue
+    #4D7EA8" — both failed the on-dark glyph floor; default is now the current shell cyan `#00D4FF`);
+    fade delay kept on `Player.FadeIdleDelayMs`.
+  - Live smoke (dev Default channel beside the user's Stable b17): fresh launch booted clean —
+    `PiPlay starting` → `WebView2 environment created` → `Source browser initialized` with NO
+    "Failed to apply theme resources at startup" error, so the new `App.OnStartup` settings-load +
+    theme-apply path is healthy; the Auto/Compact popout rendered dark/themed (not blank). The
+    non-default-accent-at-startup visual remains owner manual QA (not run here to avoid touching the
+    user's settings.json).
+  - Accent now applies LIVE: `App.OnStartup` + `MainWindow` (on accent change / reset) call the
+    applier, so the open main window recolors live and new popouts inherit it (Unresolved decision 3
+    delivered for accent tokens; broader base/surface live-switching still deferred). Manual
+    theme-preset + accent smoke and account-backed QA remain (`docs/QA_Checklist.md` §3 accent row +
+    Tasks 9-10 theme row). Legacy `BrushResourceKeyFor`/`DisplayNameForAccent` are now unreferenced by
+    production but kept (tested legacy-accent mapping); candidate cleanup if the legacy
+    `PinAccent`/`FadeAccent` fields are ever dropped.

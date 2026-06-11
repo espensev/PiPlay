@@ -33,24 +33,41 @@ Mark each: pass / issue (link) / skipped.
 
 ## 2. Window quality (Q-7)
 - [ ] Player drags smoothly from the chrome area; video controls still work.
-- [ ] **Phase 3 — resize zones:** edge resize feels native on the Source Window and Popout Player: left/right/top/bottom resize cursors appear without pixel-perfect aiming, matching the 10 DIP target in `REQ-WINDOW-02`.
-- [ ] **Phase 3 — resize zones:** corner resize feels native on the Source Window and Popout Player: each corner gives diagonal resize over the first/last ~32 DIP along the edge band, and normal page-mode player remains usable at 320x180.
-- [ ] **Phase 3 — resize zones:** expanded resize zones do not swallow controls: Source caption buttons and Popout Fade/Pin/Close remain clickable outside the outer resize band.
+- [ ] **Phase 3 — resize zones:** edge resize feels native on the Source Window and Popout Player **with the pointer over the video/page surface itself** (the WebView2 area — the originally reported dead zone), not only over the chrome strip/toolbar: left/right/bottom resize cursors appear without pixel-perfect aiming on the 10 DIP inset band (`REQ-WINDOW-02`; the visible band is the accepted Task 1 trade-off).
+- [ ] **Phase 3 — resize zones:** corner resize feels native on the Source Window and Popout Player **including corners reached over the player surface**: each corner gives diagonal resize over the first/last ~32 DIP along the edge band, and normal page-mode player remains usable at 320x180.
+- [ ] **Phase 3 — resize zones:** expanded resize zones do not swallow controls: Source caption buttons and Popout Fade/Pin/Expand/Close remain clickable outside the outer resize band.
 - [ ] Pin/topmost is obvious and independent for the player and the Source Window.
 - [ ] Player remembers size and position across restarts.
 - [ ] Player restores onto a visible monitor after a monitor is removed.
 - [ ] Crisp at 100%, 125%, 150%, and mixed-monitor DPI. **(Q-7)**
 - [ ] App does not steal focus unexpectedly.
 
+### 2.1 Popout behaviors, two captures (overhaul stabilization 2026-06-10)
+
+Popout Standard and Popout Fullview Faded are ONE normal-page `PlayerWindow` path captured twice
+(spec settled decision 3): each row below is one behavior and one procedure — run it in both
+captures and record the evidence per column, never write per-state procedures.
+
+| Behavior (one procedure) | Popout Standard | Fullview Faded |
+|---|---|---|
+| Wheel scroll needs one click into the page first (wheel focus-routing; documented owner decision 2026-06-10), then wheel/touchpad/page-scrollbar scroll works — including at reduced opacity. | | |
+| Wheel over the 10 DIP resize band is inert by design (the band belongs to the window, not the page); in-page scroll just inside the band is unaffected. | | |
+| Expand button on the strip toggles full-monitor expand and back; glyph and tooltip flip Expand/Restore together. | | |
+| Restore stays reachable while expanded: the strip (or its top-edge reveal under auto-hide) exposes the restore button; Esc restores after clicking the strip once (WPF focus). | | |
+| Close while expanded, pop out again: the next popout launches at the prior normal bounds, never expanded. | | |
+| Auto-hide reveal-then-resize beat (Task 1 residual): with the strip collapsed, the TOP edge band is dead until the top-edge hover reveals the strip; after the reveal, top-edge resize works. | | |
+
 ## 3. Fade and appearance (Q-8)
 - [ ] Popout controls fade after idle and restore on hover / mouse-move.
-- [ ] Settings → Appearance Pin color changes the active Pin color on the Source Window and Popout Player, and persists across restart.
-- [ ] Settings → Appearance Fade color changes the active Fade toggle color in the Popout Player, independent of Pin.
+- [ ] Settings → Appearance Accent color: picking a chip recolors the Source Pin, Popout Pin, AND Popout Fade glyphs to the SAME accent (one accent, not separate Pin/Fade colors), live on the open popout, and persists across restart.
 - [ ] Settings → Appearance fade delay Short / Normal / Long changes the controls-fade idle timing; Normal is the default 2.5 s behavior.
 - [ ] The player stays clickable at all times — clicks do **not** pass through. **(Q-8)**
 - [ ] Whole-window opacity: Active and When-idle sliders apply live to the open popout; idle dims after the fade delay and movement over the player restores it.
 - [ ] Whole-window opacity cannot drop below the 45% floor from the UI; the player stays fully interactable at every opacity. **(Q-8)**
 - [ ] Auto-hide top bar (with Fade on): the strip collapses after the fade and the video fills the window; hovering the top edge reveals it.
+- [ ] **Overhaul Task 5 — Settings fits short displays:** on (or simulating) a ~768 px work area, the Settings window caps at the work area, the sections scroll, the title-bar close button never scrolls away, and all four sections are reachable in order: Privacy, Appearance, Playback, Advanced.
+- [ ] Settings → Playback copy states the Compact player applies to NEW Popout Players only; an already-open popout is unaffected by toggling it.
+- [ ] **Overhaul Tasks 9-10 — Theme preset + accent smoke:** Settings → Appearance shows a Theme row (Sharp Dark / Minimal / Soft Glass) and a single Accent color chip row. Selecting a preset checks it and adopts that preset's default accent. The chosen accent recolors the primary "Pop out video" button, the URL caret/focus, and the Pin/Fade glyphs LIVE on the open main window (DynamicResource); a newly launched Popout Player also uses it. Restart and confirm the accent persists and is applied at startup. A hand-edited invalid `theme.themeId`/`accentColor` in settings.json falls back to Sharp Dark / cyan without crashing.
 
 ## 3.5 Compact player (Phase 3)
 - [ ] Global Settings compact-player preference defaults off; when enabled, new popouts use compact mode.
@@ -61,6 +78,10 @@ Mark each: pass / issue (link) / skipped.
 - [ ] Compact mode fallback is clear for unavailable/restricted/embed-disabled videos and can reopen the same target in normal mode.
 - [ ] Compact error bar also appears on a failed shell load and on an IFrame API that never responds (watchdog timeout); it auto-dismisses if playback recovers (e.g. playlist advance), and the fallback lands at the best-known timestamp.
 - [ ] Compact mode keeps YouTube controls/branding visible; no click-through or transparent WebView2 behavior is introduced.
+- [ ] **Overhaul Task 3 — recommendations stay in PiPlay:** clicking a recommendation or end-screen video inside the compact player retargets THIS popout in compact mode (no second window, no external browser); channel/search/non-YouTube targets still open in the system browser.
+- [ ] **Overhaul Task 3 — retargeted fallback:** after a recommendation retarget, force the error path (e.g. an embed-disabled video) — the error bar's "Open normal page" reopens the NEW video, not the launch video.
+- [ ] **Overhaul Task 3 — video-aware return (both modes):** let the popout move to a different video (compact recommendation click, playlist auto-advance, or normal-page in-page navigation), then close it — the source NAVIGATES to that video at the popout's timestamp instead of seeking the original video; with Auto on, the returned video does not instantly re-pop.
+- [ ] **Overhaul Task 4 — compact YouTube fullscreen:** the YouTube fullscreen button inside the compact player expands the popout window; exiting restores it; it does NOT un-expand a window the user expanded with the strip button first.
 
 ## 4. Recovery / errors (Q-6)
 - [ ] Missing WebView2 runtime: friendly message, no crash.
@@ -103,3 +124,4 @@ Binary pass/fail (spec section 22.2 Chrome acceptance). Prefer ChatGPT-operated 
 
 - [ ] **UI-CHK-5** Address/URL field text is legible at 100/125/150 % DPI — no clipping or faint text.
 - [ ] **UI-CHK-6** Icons share weight, corner style, and active-color behavior across the chrome.
+- [ ] **UI-CHK-7** Accessible names (overhaul Task 7, REQ-UI-02): a screen reader (Narrator / Accessibility Insights) announces real names for every icon-only control — main chrome (Settings/Minimize/Maximize/Close), navigation (Back/Reload/Home), URL box, profiles combo + Save/Edit/Delete, Pin, Auto, the popout action (name flips with "Pop out video"/"Show popout"), popout Fade/Pin/Expand/Close, Settings close, and the Prompt dialog close.

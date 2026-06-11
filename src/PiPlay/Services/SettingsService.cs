@@ -56,33 +56,6 @@ public sealed class SettingsService
         }
     }
 
-    /// <summary>
-    /// Read-only settings load for startup theming (UI overhaul Task 9): same parse, legacy
-    /// theme seeding, and sanitize rules as <see cref="Load"/>, but with ZERO settings-store
-    /// side effects — no directory creation, no corrupt-file quarantine, no stale-quarantine
-    /// cleanup, no logging. The theme applier only reads; <see cref="MainWindow"/> still owns
-    /// the real <see cref="Load"/> and any repair shortly after.
-    /// </summary>
-    public AppSettings LoadReadOnly()
-    {
-        try
-        {
-            if (!File.Exists(_path))
-                return Sanitize(new AppSettings());
-
-            var json = File.ReadAllText(_path);
-            var seedThemeFromLegacy = !HasThemeBlock(json);
-            var settings = JsonSerializer.Deserialize<AppSettings>(json, Options);
-            return settings is null
-                ? Sanitize(new AppSettings())
-                : Sanitize(settings, seedThemeFromLegacy);
-        }
-        catch
-        {
-            return Sanitize(new AppSettings());
-        }
-    }
-
     public void Save(AppSettings settings)
     {
         try

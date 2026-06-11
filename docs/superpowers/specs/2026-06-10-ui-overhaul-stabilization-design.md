@@ -355,33 +355,76 @@ Popout Standard / Popout Fullview Faded divergence. Guardrails added where imple
 accidentally create it: route-B mode gating (Task 4), fade-state-agnostic fixes (Tasks 1-2), and the
 source-side fallback note placement (Task 6).
 
-## Task 9 implementation record (2026-06-11)
+## Implementation reconciliation addendum (2026-06-11)
 
-Settled mechanics for the theme-resource pass, recorded because two of them are non-obvious:
+Two parallel implementations of Tasks 4-5 existed briefly: this branch's review-hardened pass and
+a smaller direct landing on main (`b35c0dd`). The reconciliation merge settled the following as
+design decisions:
 
-- **Startup ordering.** `App.OnStartup` applies theme tokens via a new side-effect-free
-  `SettingsService.LoadReadOnly()` (no directory creation, no quarantine, no cleanup, no logging)
-  before `MainWindow` is constructed; `MainWindow` still owns the real `Load()` and any repair.
-  `ThemeResourceApplier.Apply` never throws — theming cannot break startup.
-- **Replace every defining dictionary, don't root-only replace.** `Theme/ControlStyles.xaml` parses
-  during `App.InitializeComponent`, BEFORE `OnStartup`, and app-owned `Freezable` resources may be
-  frozen. The applier therefore replaces each `Theme.Accent*` entry in every merged dictionary that
-  defines it, so deferred styles resolve against their local dictionary scope and still see the
-  themed value. Only the accent family and the `Theme.*WindowOpacity`/`Theme.FadeIdleDelayMs` value
-  tokens vary at runtime this pass; base palette tokens are static.
-- **Alias mechanics (BAML limitation).** `<StaticResource x:Key=... ResourceKey=.../>` alias
-  ENTRIES do not resolve from a BAML-compiled merged dictionary (deferred-resource realization
-  fails with "Cannot find resource"). Legacy brush keys are therefore real brushes taking `Color`
-  from the `Theme.*Color` tokens; legacy `*Color` keys duplicate the hex literally and
-  `XamlInvariantTests.Compatibility_aliases_match_their_theme_tokens` pins the duplicates equal.
-  Instance identity is not required: the applier never mutates an aliased key.
-- **Accent derivation.** `AccentPalette.Derive` produces hover/pressed/dim/border deterministically
-  (sRGB mixes) and picks the foreground as white-or-black by WCAG contrast — the two ratios against
-  any color multiply to 21, so the winner is always >= sqrt(21) ~ 4.58:1, which also holds for any
-  future color-wheel accent. The fixed `AccentCyan*` chips and `PinToggle`'s checked accent are NOT
-  theme-derived; they stay until Task 10 lands the single-accent path.
-- **Staged radius scope.** `Radius.MainWindow`/`Radius.Popout` are defined at 0 but UNWIRED:
-  `WindowChrome.CornerRadius` stays a pinned literal (hit testing/DWM/airspace risk). Wired this
-  pass, value-preserving: `Radius.Button` (text buttons, 10), `Radius.Panel` (combo dropdown, 8),
-  `Radius.Settings` (swatch/preset toggles, 8). Icon buttons/textbox/combo (8), tooltip/combo item
-  (6), and scrollbar (5) keep literals until the radius taxonomy names them.
+1. **Settings frame model: fixed launch height, not SizeToContent.** The dialog declares
+   `Width=520 Height=680 MinHeight=360`; the constructor clamps `MaxHeight` to the primary work
+   area less a 48 DIP margin (floor 420 for misreported work areas) and clamps the launch Height
+   under it. Rationale: the dialog must not grow with future sections — the scroll viewer absorbs
+   content growth instead. Pinned by a XAML invariant (no `SizeToContent`, `Height`/`MinHeight`
+   present, horizontal scrolling disabled) and runtime asserts on the exact clamp derivation.
+2. **Expand affordance: `ExpandButton`, state-neutral UIA name** ("Expand or restore popout",
+   MaximizeButton precedent); glyph and tooltip flip in code. One toggle path serves the native
+   button, the shell `fullscreenToggle` request, and (gated on live compact mode) the WebView2
+   fullscreen element, with a caused-by-element latch so an element exit never undoes a posture
+   the user chose; the latch self-syncs on `StateChanged` for OS-driven exits.
+3. **Every expand path counts as user activity** (adopted from `b35c0dd`): an auto-hidden strip
+   un-collapses on expand/restore so the restore affordance is immediately reachable without the
+   top-edge reveal.
+4. **Placement normalization is a pure copy** (`PlacementMath.ForNextLaunch`): applied on BOTH
+   capture and launch (a popout never launches expanded, including from pre-fix settings files),
+   never mutates its input, and deep-copies `MonitorWorkArea` so snapshots share no mutable state.
+5. **Shell-reported video ids are validated at protocol parse** (`PlayerShellProtocol.Parse`):
+   a malformed id is wire-level malformed input and parses as absent, protecting every consumer —
+   the host turns this string into a source navigation target on close.
+
+## Theme pass addendum (Tasks 9-10, 2026-06-11)
+
+Settled decisions for the theme-resource and theme-selector tasks:
+
+1. **Single accent token + DynamicResource recolor (Task 9).** `Theme/Colors.xaml` gains
+   `AccentPrimary`/`AccentPrimaryLight` brushes (plus `AccentPrimaryColor`/`AccentPrimaryLightColor`
+   seeds and staged `ControlCornerRadius`/`ButtonCornerRadius`); `AccentButton` fill/hover, the URL
+   caret/selection/focus, the `PinToggle` default, and the Settings preset chips reference them via
+   **`DynamicResource`**. `AccentCyan*` stays defined as a compatibility alias.
+   `ThemeResourceApplier.Apply` **replaces** the two accent dictionary entries with frozen brushes for
+   the resolved accent; `DynamicResource` consumers re-resolve, including controls already realized in
+   open windows. **Mechanism note (verified by test):** the first cut MUTATED the seed brushes in
+   place, but compiled BAML FREEZES resource brushes, so `Application.Current.FindResource("AccentPrimary")`
+   is frozen and an in-place `Color` write silently no-ops — replace-the-entry + `DynamicResource` is
+   the mechanism that actually recolors. The applier runs at `App.OnStartup` (after a read-only
+   `SettingsService.Load`, before the first window) AND from `MainWindow` on every accent change /
+   reset, so the open main window recolors live and new popouts inherit it. This delivers
+   "Unresolved decision 3" for the accent tokens; live switching of the broader base/surface tokens
+   remains out of scope this pass. Pure color math (`ThemeColors.ParseColor/Lighten/Brush`) is
+   unit-tested; the live recolor of an already-realized consumer is STA-tested against the real app
+   resources.
+
+2. **One accent drives Source Pin, Popout Pin, and Popout Fade (Task 10).** `Theme.AccentColor` is
+   now the single color source: `MainWindow.ApplySourceAppearance`, `PlayerWindow.ApplyAppearance`,
+   and the popout launch all resolve it via `ThemeColors.Brush` (one frozen brush shared by the two
+   popout toggles). The `SettingsWindow`/`PlayerWindow` ctor + `ApplyAppearance` surfaces collapsed
+   from `pinAccent`+`fadeAccent` to one `accentColor`. Legacy `Player.PinAccent`/`FadeAccent` (and
+   `PlayerAppearancePolicy` accent mapping) stay readable for back-compat and migration seeding but
+   drive no color.
+
+3. **Palette realigned for readability and "sharp-dark = current shell" (deviation from the plan's
+   literal chip wording).** The plan named the first two chips "muted cyan" (`#2D6F8F`) and "steel
+   blue" (`#4D7EA8`); both measured BELOW the on-dark glyph contrast floor (2.33:1 and ~2.99:1 on the
+   hover surface). To keep the default look identical to today and guarantee readability, the catalog
+   default accent is the current shell cyan `#00D4FF` (so a fresh install and the migrated legacy
+   "cyan" seed agree), and the chips are Cyan `#00D4FF`, Steel blue `#5AA9E6`, Violet `#A78BFA`,
+   Green `#38D996`, Amber `#FFC857`. The `Minimal` preset's default accent moved to the brighter
+   steel blue `#5AA9E6`. Every offered accent is gated by `Theme_accent_palette_is_readable`
+   (≥3:1 as an on-dark glyph, ≥4.5:1 under the dark `AccentButton` text); a XAML↔catalog sync test
+   keeps the hand-written chips aligned with `ThemeCatalog`. Task 8's only consequent test change was
+   the two invalid-accent fallback rows (now `#00D4FF`).
+
+4. **Fade delay stays `Player.FadeIdleDelayMs`-driven.** The theme model carries `FadeDelayPreset`
+   (Task 8 migration artifact, resolver-backed) but the live Advanced "Fade delay" control and the
+   popout idle timer keep using `Player.FadeIdleDelayMs` this pass — no behavior change, no dormant
+   divergence wired into the runtime path.

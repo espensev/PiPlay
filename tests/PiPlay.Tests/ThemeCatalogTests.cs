@@ -34,8 +34,8 @@ public class ThemeCatalogTests
     [Theory]
     [InlineData("#a78bfa", "#A78BFA")]
     [InlineData("38d996", "#38D996")]
-    [InlineData("not-a-color", "#2D6F8F")]
-    [InlineData("#12345", "#2D6F8F")]
+    [InlineData("not-a-color", "#00D4FF")]
+    [InlineData("#12345", "#00D4FF")]
     public void Accent_hex_is_normalized_or_reset_to_default(string input, string expected)
     {
         Assert.Equal(expected, ThemeCatalog.NormalizeAccentColor(input));

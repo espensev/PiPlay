@@ -52,6 +52,48 @@ public class WpfRuntimeTests : IDisposable
         Assert.Null(ex);
     });
 
+    // --- Theme resource application (overhaul Task 9): replace the accent entries; DynamicResource
+    // consumers re-resolve, including controls already realized in open windows. ---
+
+    [Fact]
+    public void ThemeResourceApplier_replaces_the_accent_entries_from_the_theme() => StaTestThread.Invoke(() =>
+    {
+        var res = new ResourceDictionary();   // empty (startup, before windows): the entries are added
+        ThemeResourceApplier.Apply(res, new ThemeSettings { AccentColor = "#38D996" }, new PlayerSettings());
+
+        var primary = (SolidColorBrush)res["AccentPrimary"];
+        var light = (SolidColorBrush)res["AccentPrimaryLight"];
+        Assert.Equal(Color.FromRgb(0x38, 0xD9, 0x96), primary.Color);   // base takes the accent
+        Assert.True(primary.IsFrozen);                                  // shareable across windows
+        Assert.True(light.Color.G >= primary.Color.G && light.Color != primary.Color);   // lighter derivation
+    });
+
+    [Fact]
+    public void Accent_recolor_reaches_a_dynamic_resource_consumer() => StaTestThread.Invoke(() =>
+    {
+        // The AccentButton fill resolves {DynamicResource AccentPrimary}. REPLACING the App resource
+        // (what the applier does) changes what the consumer resolves — the recolor mechanism the
+        // compiled-BAML frozen seed brushes cannot satisfy by mutation. (For an element IN a window
+        // the update is live; WPF only withholds change notifications from this untethered button, so
+        // we assert resolution at realize-time rather than a post-realize live swap.)
+        var original = Application.Current.Resources["AccentPrimary"];
+        try
+        {
+            var sentinel = Color.FromRgb(0x12, 0x34, 0x56);
+            var brush = new SolidColorBrush(sentinel);
+            brush.Freeze();
+            Application.Current.Resources["AccentPrimary"] = brush;
+
+            var btn = new Button { Style = (Style)Application.Current.FindResource("AccentButton") };
+            btn.Measure(new Size(200, 40));   // realize: Background resolves the replaced resource
+            Assert.Equal(sentinel, ((SolidColorBrush)btn.Background).Color);
+        }
+        finally
+        {
+            Application.Current.Resources["AccentPrimary"] = original;   // never pollute the shared app
+        }
+    });
+
     [Fact]
     public void SettingsWindow_shows_the_tested_privacy_wording() => StaTestThread.Invoke(() =>
     {
@@ -92,28 +134,35 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void SettingsWindow_reflects_and_updates_player_appearance_input() => StaTestThread.Invoke(() =>
+    public void SettingsWindow_reflects_and_updates_theme_and_accent_input() => StaTestThread.Invoke(() =>
     {
-        var w = new SettingsWindow(isBrowserReady: true, pinAccent: "green", fadeAccent: "amber", fadeIdleDelayMs: 4000);
+        var w = new SettingsWindow(isBrowserReady: true, themeId: "soft-glass", accentColor: "#38D996",
+            fadeIdleDelayMs: 4000);
 
-        Assert.Equal("green", w.PinAccent);
-        Assert.Equal("amber", w.FadeAccent);
+        Assert.Equal("soft-glass", w.ThemeId);
+        Assert.Equal("#38D996", w.AccentColor);
         Assert.Equal(4000, w.FadeIdleDelayMs);
-        Assert.True(((ToggleButton)w.FindName("PinAccentGreenSwatch")!).IsChecked);
-        Assert.True(((ToggleButton)w.FindName("FadeAccentAmberSwatch")!).IsChecked);
+        Assert.True(((ToggleButton)w.FindName("ThemeSoftGlassPreset")!).IsChecked);
+        Assert.True(((ToggleButton)w.FindName("AccentChipGreen")!).IsChecked);
         Assert.True(((ToggleButton)w.FindName("FadeDelayLongPreset")!).IsChecked);
 
-        ((ToggleButton)w.FindName("PinAccentVioletSwatch")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-        ((ToggleButton)w.FindName("FadeAccentCyanSwatch")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        // Picking a single accent chip retargets the one accent and checks only that chip.
+        ((ToggleButton)w.FindName("AccentChipViolet")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
         ((ToggleButton)w.FindName("FadeDelayShortPreset")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
 
         Assert.True(w.AppearanceChanged);
-        Assert.Equal("violet", w.PinAccent);
-        Assert.Equal("cyan", w.FadeAccent);
+        Assert.Equal("#A78BFA", w.AccentColor);
         Assert.Equal(1500, w.FadeIdleDelayMs);
-        Assert.True(((ToggleButton)w.FindName("PinAccentVioletSwatch")!).IsChecked);
-        Assert.True(((ToggleButton)w.FindName("FadeAccentCyanSwatch")!).IsChecked);
+        Assert.True(((ToggleButton)w.FindName("AccentChipViolet")!).IsChecked);
+        Assert.False(((ToggleButton)w.FindName("AccentChipGreen")!).IsChecked);
         Assert.True(((ToggleButton)w.FindName("FadeDelayShortPreset")!).IsChecked);
+
+        // Picking a preset adopts that preset's default accent (Sharp Dark -> cyan) and re-checks it.
+        ((ToggleButton)w.FindName("ThemeSharpDarkPreset")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        Assert.Equal("sharp-dark", w.ThemeId);
+        Assert.Equal(ThemeCatalog.DefaultAccentColor, w.AccentColor);
+        Assert.True(((ToggleButton)w.FindName("AccentChipCyan")!).IsChecked);
+        Assert.False(((ToggleButton)w.FindName("AccentChipViolet")!).IsChecked);
     });
 
     // --- Resolved DependencyProperty invariants (runtime counterpart to Layer 1) ---
@@ -188,15 +237,56 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void MainWindow_source_pin_uses_configurable_accent_behavior() => StaTestThread.Invoke(() =>
+    public void MainWindow_source_pin_uses_the_theme_accent() => StaTestThread.Invoke(() =>
     {
         var w = new MainWindow();
         var pin = (ToggleButton)w.FindName("PinToggle")!;
-        Assert.Same(Application.Current.FindResource("AccentCyan"), ToggleAccent.GetCheckedBrush(pin));
+        var hint = (TextBlock)w.FindName("PinnedHint")!;
+
+        // The source Pin glyph and the pinned hint share one accent brush built from Theme.AccentColor
+        // (overhaul Task 10); default settings resolve to the sharp-dark cyan.
+        var accent = (SolidColorBrush)ToggleAccent.GetCheckedBrush(pin)!;
+        Assert.Equal(ThemeColors.ParseColor(ThemeCatalog.DefaultAccentColor), accent.Color);
+        Assert.Equal(accent.Color, ((SolidColorBrush)hint.Foreground).Color);
     });
 
     [Fact]
-    public void PlayerWindow_applies_configurable_pin_fade_accents_and_delay() => StaTestThread.Invoke(() =>
+    public void MainWindow_resolves_popout_preferences_from_theme_overrides() => StaTestThread.Invoke(() =>
+    {
+        // Regression for PR #18 review: the ThemePreferenceResolver tests were correct, but
+        // MainWindow still fed new/reapplied popouts from the stale legacy PlayerSettings fields.
+        var w = new MainWindow();
+        w.ReplaceSettingsForTests(new AppSettings
+        {
+            Player = new PlayerSettings
+            {
+                PinAccent = "amber",
+                FadeIdleDelayMs = 4000,
+                ConstantWindowOpacity = 0.9,
+                IdleWindowOpacity = 0.7,
+                StripAutoHide = true,
+            },
+            Theme = new ThemeSettings
+            {
+                AccentColor = "#A78BFA",
+                FadeDelayPreset = "short",
+                ActiveWindowOpacity = 0.6,
+                IdleWindowOpacity = 0.4,
+                StripAutoHide = false,
+            },
+        });
+
+        var prefs = w.EffectivePlayerPreferencesForTests;
+
+        Assert.Equal("#A78BFA", prefs.AccentColor);
+        Assert.Equal(1500, prefs.FadeIdleDelayMs);
+        Assert.Equal(0.6, prefs.ActiveWindowOpacity);
+        Assert.Equal(0.4, prefs.IdleWindowOpacity);
+        Assert.False(prefs.StripAutoHide);
+    });
+
+    [Fact]
+    public void PlayerWindow_applies_one_accent_to_pin_and_fade_and_the_delay() => StaTestThread.Invoke(() =>
     {
         var w = new PlayerWindow(
             environment: null!,
@@ -206,20 +296,20 @@ public class WpfRuntimeTests : IDisposable
             defaultWidth: 960,
             defaultHeight: 540,
             fadeEnabled: true,
-            pinAccent: "green",
-            fadeAccent: "amber",
+            accentColor: "#38D996",
             fadeIdleDelayMs: 4000);
 
-        Assert.Same(Application.Current.FindResource("AccentGreen"),
-            ToggleAccent.GetCheckedBrush((ToggleButton)w.FindName("PinToggle")!));
-        Assert.Same(Application.Current.FindResource("AccentAmber"),
-            ToggleAccent.GetCheckedBrush((ToggleButton)w.FindName("FadeToggle")!));
+        var pin = (ToggleButton)w.FindName("PinToggle")!;
+        var fade = (ToggleButton)w.FindName("FadeToggle")!;
 
-        w.ApplyAppearance("violet", "cyan", 1500);
-        Assert.Same(Application.Current.FindResource("AccentViolet"),
-            ToggleAccent.GetCheckedBrush((ToggleButton)w.FindName("PinToggle")!));
-        Assert.Same(Application.Current.FindResource("AccentCyan"),
-            ToggleAccent.GetCheckedBrush((ToggleButton)w.FindName("FadeToggle")!));
+        // One accent brush drives BOTH toggles (overhaul Task 10): the same frozen instance, colored
+        // from Theme.AccentColor.
+        Assert.Same(ToggleAccent.GetCheckedBrush(pin), ToggleAccent.GetCheckedBrush(fade));
+        Assert.Equal(Color.FromRgb(0x38, 0xD9, 0x96), ((SolidColorBrush)ToggleAccent.GetCheckedBrush(pin)!).Color);
+
+        w.ApplyAppearance("#A78BFA", 1500);
+        Assert.Equal(Color.FromRgb(0xA7, 0x8B, 0xFA), ((SolidColorBrush)ToggleAccent.GetCheckedBrush(pin)!).Color);
+        Assert.Equal(Color.FromRgb(0xA7, 0x8B, 0xFA), ((SolidColorBrush)ToggleAccent.GetCheckedBrush(fade)!).Color);
         Assert.Equal(TimeSpan.FromMilliseconds(1500), w.FadeIdleDelayForTests);
     });
 
@@ -268,85 +358,11 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void SettingsWindow_uses_bounded_scroll_layout_and_visible_compact_scope_copy() => StaTestThread.Invoke(() =>
-    {
-        var w = new SettingsWindow(isBrowserReady: true);
-
-        Assert.IsType<ScrollViewer>(w.FindName("SettingsScrollViewer"));
-        Assert.True(w.MaxHeight >= w.MinHeight);
-        Assert.True(w.Height <= w.MaxHeight);
-        Assert.Contains("new popouts only",
-            ((TextBlock)w.FindName("CompactModeDescriptionText")!).Text,
-            StringComparison.OrdinalIgnoreCase);
-    });
-
-    [Fact]
     public void DangerButton_style_resolves_at_runtime() => StaTestThread.Invoke(() =>
     {
         // The destructive confirm resolves DangerButton from code (Prompt.AskConfirm), not XAML,
         // so the markup StaticResource sweep misses it — prove it resolves to a Style at runtime.
         Assert.IsType<Style>(Application.Current.TryFindResource("DangerButton"));
-    });
-
-    [Fact]
-    public void Theme_tokens_resolve_at_runtime() => StaTestThread.Invoke(() =>
-    {
-        // Overhaul Task 9: the canonical theme tokens and the typed value tokens resolve from
-        // the merged dictionaries, and a compatibility alias carries its theme token's color.
-        Assert.IsType<SolidColorBrush>(Application.Current.TryFindResource("Theme.Accent"));
-        Assert.IsType<SolidColorBrush>(Application.Current.TryFindResource("Theme.AccentForeground"));
-        Assert.IsType<SolidColorBrush>(Application.Current.TryFindResource("Theme.MediaBackdrop"));
-        Assert.Equal(new CornerRadius(10), Application.Current.TryFindResource("Radius.Button"));
-        Assert.Equal(new CornerRadius(0), Application.Current.TryFindResource("Radius.Popout"));
-        Assert.Equal(1.0, Application.Current.TryFindResource("Theme.ActiveWindowOpacity"));
-        Assert.Equal(2500, Application.Current.TryFindResource("Theme.FadeIdleDelayMs"));
-
-        var alias = Assert.IsType<SolidColorBrush>(Application.Current.TryFindResource("SurfaceBase"));
-        var token = Assert.IsType<SolidColorBrush>(Application.Current.TryFindResource("Theme.SurfaceBase"));
-        Assert.Equal(token.Color, alias.Color);
-    });
-
-    [Fact]
-    public void Theme_applier_rederives_accent_family_from_settings() => StaTestThread.Invoke(() =>
-    {
-        // Apply against a FRESH dictionary instance, not the shared test Application's resources,
-        // so the mutation cannot leak into other tests.
-        var resources = new ResourceDictionary
-        {
-            Source = new Uri("/PiPlay;component/Theme/Colors.xaml", UriKind.Relative),
-        };
-        var before = Assert.IsType<SolidColorBrush>(resources["Theme.Accent"]);
-
-        var settings = new AppSettings();
-        settings.Theme.AccentColor = "#A78BFA";
-        settings.Theme.FadeDelayPreset = "short";
-        settings.Theme.ActiveWindowOpacity = 0.82;
-        settings.Theme.IdleWindowOpacity = 0.5;
-        ThemeResourceApplier.Apply(resources, settings);
-
-        var palette = AccentPalette.Derive("#A78BFA");
-        // Replaced in every dictionary defining the key: app-owned resources may be frozen, and
-        // deferred styles resolve StaticResource against their own dictionary scope.
-        Assert.NotSame(before, resources["Theme.Accent"]);
-        Assert.Equal(palette.Accent, ((SolidColorBrush)resources["Theme.Accent"]).Color);
-        Assert.Equal(palette.Hover, ((SolidColorBrush)resources["Theme.AccentHover"]).Color);
-        Assert.Equal(palette.Pressed, ((SolidColorBrush)resources["Theme.AccentPressed"]).Color);
-        Assert.Equal(palette.Foreground, ((SolidColorBrush)resources["Theme.AccentForeground"]).Color);
-        Assert.Equal(palette.Accent, (Color)resources["Theme.AccentColor"]);
-        Assert.Equal(0.82, resources["Theme.ActiveWindowOpacity"]);
-        Assert.Equal(0.5, resources["Theme.IdleWindowOpacity"]);
-        Assert.Equal(1500, resources["Theme.FadeIdleDelayMs"]);
-    });
-
-    [Fact]
-    public void Theme_applier_is_safe_on_a_dictionary_without_tokens() => StaTestThread.Invoke(() =>
-    {
-        // Theming must never break startup: on a dictionary with no tokens the applier creates
-        // the brush entries instead of throwing.
-        var resources = new ResourceDictionary();
-        var ex = Record.Exception(() => ThemeResourceApplier.Apply(resources, new AppSettings()));
-        Assert.Null(ex);
-        Assert.IsType<SolidColorBrush>(resources["Theme.Accent"]);
     });
 
     [Fact]
@@ -570,6 +586,32 @@ public class WpfRuntimeTests : IDisposable
         Assert.True(w.AppearanceChanged);   // any persisted player preference change is flagged
     });
 
+    // --- Settings is bounded + scrollable (overhaul Task 5) ---
+
+    [Fact]
+    public void SettingsWindow_height_is_bounded_by_the_work_area() => StaTestThread.Invoke(() =>
+    {
+        var w = new SettingsWindow(isBrowserReady: true);
+
+        // Pin the exact clamp derivation: work area less the margin, with the usability floor —
+        // the floor WINS on a sub-468px work area, so asserting "<= work area" outright would
+        // self-contradict the floor there (review finding 2026-06-11).
+        Assert.True(double.IsFinite(w.MaxHeight), "Settings MaxHeight must be bounded.");
+        Assert.Equal(Math.Max(420, SystemParameters.WorkArea.Height - 48), w.MaxHeight);
+        // Frame model reconciled with the b35c0dd landing: fixed launch Height under the clamp.
+        Assert.True(w.Height <= w.MaxHeight, $"Launch Height {w.Height} exceeds the clamp {w.MaxHeight}.");
+        Assert.True(w.MinHeight > 0, "The dialog must declare a usable MinHeight.");
+        Assert.IsType<ScrollViewer>(w.FindName("SettingsScroll"));
+    });
+
+    [Fact]
+    public void SettingsWindow_states_that_compact_applies_to_new_popouts() => StaTestThread.Invoke(() =>
+    {
+        // Spec acceptance: "Settings copy states that Compact player applies to new popouts only."
+        var hint = (TextBlock)new SettingsWindow(isBrowserReady: true).FindName("CompactModeHintText")!;
+        Assert.Contains("new Popout Players", hint.Text);
+    });
+
     // --- Whole-window opacity (spec 7.3, Phase 4) ---
 
     [Fact]
@@ -787,69 +829,147 @@ public class WpfRuntimeTests : IDisposable
     public void Shell_fullscreen_request_toggles_maximized() => StaTestThread.Invoke(() =>
     {
         var w = NewCompactPlayer();
-        var button = (Button)w.FindName("FullscreenButton")!;
         Assert.Equal(WindowState.Normal, w.WindowState);
-        Assert.Equal("Expand popout", System.Windows.Automation.AutomationProperties.GetName(button));
 
         w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionFullscreenToggle));
         Assert.Equal(WindowState.Maximized, w.WindowState);
-        Assert.Equal("Restore popout", System.Windows.Automation.AutomationProperties.GetName(button));
 
         w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionFullscreenToggle));
         Assert.Equal(WindowState.Normal, w.WindowState);
-        Assert.Equal("Expand popout", System.Windows.Automation.AutomationProperties.GetName(button));
+    });
+
+    // --- Expand / restore affordance (overhaul Task 4) ---
+
+    private const string GlyphMaximize = "";
+    private const string GlyphRestore = "";
+
+    private static void ClickExpand(PlayerWindow w) =>
+        ((Button)w.FindName("ExpandButton")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+
+    [Fact]
+    public void Expand_button_toggles_maximized_in_normal_mode_and_keeps_the_affordance_honest() =>
+        StaTestThread.Invoke(() =>
+        {
+            // Normal mode deliberately: the native button must serve BOTH playback modes.
+            var w = NewPlayer();
+            Assert.Equal(GlyphMaximize, w.ExpandGlyphForTests);
+            Assert.Equal("Expand popout", w.ExpandToolTipForTests);
+
+            ClickExpand(w);
+            Assert.Equal(WindowState.Maximized, w.WindowState);
+            Assert.Equal(GlyphRestore, w.ExpandGlyphForTests);
+            Assert.Equal("Restore popout", w.ExpandToolTipForTests);
+
+            ClickExpand(w);
+            Assert.Equal(WindowState.Normal, w.WindowState);
+            Assert.Equal(GlyphMaximize, w.ExpandGlyphForTests);
+            Assert.Equal("Expand popout", w.ExpandToolTipForTests);
+        });
+
+    [Fact]
+    public void Shell_fullscreen_request_updates_the_expand_affordance() => StaTestThread.Invoke(() =>
+    {
+        // The shell request and the native button are ONE path; the glyph follows either caller.
+        var w = NewCompactPlayer();
+        w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionFullscreenToggle));
+        Assert.Equal(GlyphRestore, w.ExpandGlyphForTests);
     });
 
     [Fact]
-    public void Native_fullscreen_button_toggles_maximized_and_keeps_restore_visible() => StaTestThread.Invoke(() =>
+    public void Fullscreen_element_expands_compact_and_exit_restores() => StaTestThread.Invoke(() =>
     {
-        var w = NewCompactAutoHidePlayer();
-        var button = (Button)w.FindName("FullscreenButton")!;
+        var w = NewCompactPlayer();
 
+        w.ApplyFullScreenElementStateForTests(contains: true);
+        Assert.Equal(WindowState.Maximized, w.WindowState);
+        Assert.Equal(GlyphRestore, w.ExpandGlyphForTests);
+
+        w.ApplyFullScreenElementStateForTests(contains: false);
+        Assert.Equal(WindowState.Normal, w.WindowState);
+        Assert.Equal(GlyphMaximize, w.ExpandGlyphForTests);
+    });
+
+    [Fact]
+    public void Fullscreen_element_is_ignored_in_normal_mode() => StaTestThread.Invoke(() =>
+    {
+        // The gate is the LIVE mode (Popout Standard / Fullview Faded must not gain a new
+        // fullscreen invariant) — same gate the compact→normal fallback relies on.
+        var w = NewPlayer();
+        w.ApplyFullScreenElementStateForTests(contains: true);
+        Assert.Equal(WindowState.Normal, w.WindowState);
+    });
+
+    [Fact]
+    public void Fullscreen_element_exit_keeps_a_user_expanded_window() => StaTestThread.Invoke(() =>
+    {
+        var w = NewCompactPlayer();
+        ClickExpand(w);   // the user's own posture, not the element's
+        Assert.Equal(WindowState.Maximized, w.WindowState);
+
+        w.ApplyFullScreenElementStateForTests(contains: true);
+        w.ApplyFullScreenElementStateForTests(contains: false);
+        Assert.Equal(WindowState.Maximized, w.WindowState);
+    });
+
+    [Fact]
+    public void Expand_toggle_reveals_a_collapsed_strip_so_restore_stays_reachable() => StaTestThread.Invoke(() =>
+    {
+        // Adopted from the parallel b35c0dd landing: any expand path counts as activity, so an
+        // auto-hidden strip un-collapses and the restore affordance is reachable in the new state
+        // without waiting for the top-edge reveal (Task 4 reversibility).
+        var w = NewCompactAutoHidePlayer();
         w.HideControlsForTests();
         w.CompleteHideFadeForTests();
         Assert.True(w.IsChromeStripCollapsedForTests);
 
-        button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-
+        ClickExpand(w);
         Assert.Equal(WindowState.Maximized, w.WindowState);
         Assert.False(w.IsChromeStripCollapsedForTests);
         Assert.True(w.IsChromeStripHitTestVisibleForTests);
-        Assert.Equal("Restore popout", System.Windows.Automation.AutomationProperties.GetName(button));
-
-        button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-
-        Assert.Equal(WindowState.Normal, w.WindowState);
-        Assert.Equal("Expand popout", System.Windows.Automation.AutomationProperties.GetName(button));
     });
 
     [Fact]
-    public void PlayerWindow_return_placement_never_persists_maximized() => StaTestThread.Invoke(() =>
+    public void Os_restore_clears_the_fullscreen_element_latch() => StaTestThread.Invoke(() =>
     {
-        var placement = new PlacementData
-        {
-            X = 20,
-            Y = 30,
-            Width = 960,
-            Height = 540,
-            Maximized = true,
-            MonitorDeviceName = @"\\.\DISPLAY1",
-            MonitorWorkArea = new RectData { X = 0, Y = 0, Width = 1920, Height = 1040 },
-            DpiScale = 1.25,
-        };
+        var w = NewCompactPlayer();
+        w.ApplyFullScreenElementStateForTests(contains: true);
+        Assert.True(w.IsMaximizedForFullScreenElementForTests);
 
-        var normalized = PlayerWindow.NormalizeReturnPlacementForTests(placement)!;
+        // The OS path our toggles never see (Win+Down, aero snap): the state changes, then
+        // StateChanged runs the sync — the expansion the latch described no longer exists.
+        w.WindowState = WindowState.Normal;
+        w.HandleWindowStateChangedForTests();
+        Assert.False(w.IsMaximizedForFullScreenElementForTests);
 
-        Assert.False(normalized.Maximized);
-        Assert.True(placement.Maximized);   // pure copy: callers cannot mutate the saved input by accident
-        Assert.Equal(placement.X, normalized.X);
-        Assert.Equal(placement.Y, normalized.Y);
-        Assert.Equal(placement.Width, normalized.Width);
-        Assert.Equal(placement.Height, normalized.Height);
-        Assert.Equal(placement.MonitorDeviceName, normalized.MonitorDeviceName);
-        Assert.NotSame(placement.MonitorWorkArea, normalized.MonitorWorkArea);
-        Assert.Equal(placement.MonitorWorkArea!.Width, normalized.MonitorWorkArea!.Width);
-        Assert.Equal(placement.DpiScale, normalized.DpiScale);
+        // The element's later exit must not disturb the state the user chose via the OS.
+        w.ApplyFullScreenElementStateForTests(contains: false);
+        Assert.Equal(WindowState.Normal, w.WindowState);
+    });
+
+    [Fact]
+    public void Escape_restores_an_expanded_popout_and_is_inert_otherwise() => StaTestThread.Invoke(() =>
+    {
+        var w = NewPlayer();
+        Assert.False(w.HandleEscapeForTests());
+
+        ClickExpand(w);
+        Assert.True(w.HandleEscapeForTests());
+        Assert.Equal(WindowState.Normal, w.WindowState);
+        Assert.Equal(GlyphMaximize, w.ExpandGlyphForTests);
+    });
+
+    [Fact]
+    public void Popout_never_launches_expanded_even_from_a_maximized_capture() => StaTestThread.Invoke(() =>
+    {
+        // Pre-fix settings files can carry Maximized=true; the ctor normalizes it away.
+        var w = new PlayerWindow(environment: null!, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            topmost: false,
+            placement: new PlacementData { X = 20, Y = 20, Width = 900, Height = 560, Maximized = true },
+            defaultWidth: 960, defaultHeight: 540, fadeEnabled: true);
+
+        Assert.NotNull(w.LaunchPlacementForTests);
+        Assert.False(w.LaunchPlacementForTests!.Maximized);
+        Assert.Equal(900, w.LaunchPlacementForTests.Width);   // bounds survive the normalization
     });
 
     // --- In-place retarget + video-aware return state (overhaul Task 3) ---
@@ -874,6 +994,20 @@ public class WpfRuntimeTests : IDisposable
         w.HandleShellStateForTests(new InboundShellMessage(ShellMessageKind.State, CurrentTime: 50));
         Assert.Equal("autoAdvVid1", w.ReturnVideoIdForTests);
         Assert.Equal(50, w.ReturnSecondsForTests);
+    });
+
+    [Fact]
+    public void Hostile_shell_video_ids_never_become_the_return_target() => StaTestThread.Invoke(() =>
+    {
+        // End-to-end through the REAL wire path: the shell string later becomes a SOURCE
+        // navigation target on close, and PlayerShellProtocol.Parse (the trust boundary) must
+        // reject the malformed id before the host ever sees it.
+        var w = NewCompactPlayer();
+        w.HandleShellStateForTests(PlayerShellProtocol.Parse(
+            "{\"v\":3,\"type\":\"state\",\"currentTime\":5,\"playerState\":1,\"videoId\":\"abc&evil=1//\"}"));
+
+        Assert.Equal("dQw4w9WgXcQ", w.ReturnVideoIdForTests);   // launch id kept
+        Assert.Equal(5, w.ReturnSecondsForTests);               // the timestamp itself still lands
     });
 
     [Fact]
@@ -913,6 +1047,37 @@ public class WpfRuntimeTests : IDisposable
 
         Assert.Equal(urlBefore, w.CurrentUrlForTests);
         Assert.Equal("dQw4w9WgXcQ", w.ReturnVideoIdForTests);   // launch state untouched
+    });
+
+    // --- Video-aware return on the SOURCE side (overhaul Task 3) ---
+
+    [Fact]
+    public void Return_to_a_different_video_navigates_and_arms_the_auto_dedup_key() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        w.SeedPopoutReturnForTests(sourceVideoId: "AAAAAAAAAAA");
+
+        w.ApplyReturnActionAsync(new PlayerReturnState { VideoId = "BBBBBBBBBBB", LastKnownSeconds = 42 })
+            .GetAwaiter().GetResult();   // Navigate completes synchronously (no core to script)
+
+        // The browser never initializes in the test lane, so the navigation queues — the queued
+        // URL IS the assertion: the source heads to the RETURNED video at its timestamp.
+        Assert.Equal("https://www.youtube.com/watch?v=BBBBBBBBBBB&t=42s", w.PendingUrlForTests);
+        // De-dup key armed before navigating: Auto must not instantly re-pop the returned video.
+        Assert.Equal("BBBBBBBBBBB", w.AutoLastHandledVideoIdForTests);
+    });
+
+    [Fact]
+    public void Return_on_the_same_video_seeks_rather_than_navigates() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        w.SeedPopoutReturnForTests(sourceVideoId: "AAAAAAAAAAA");
+
+        w.ApplyReturnActionAsync(new PlayerReturnState { VideoId = "AAAAAAAAAAA", LastKnownSeconds = 42 })
+            .GetAwaiter().GetResult();
+
+        Assert.Null(w.PendingUrlForTests);               // the seek path scripts a live core instead
+        Assert.Null(w.AutoLastHandledVideoIdForTests);   // de-dup key untouched on a plain return
     });
 
     [Fact]
@@ -976,7 +1141,7 @@ public class WpfRuntimeTests : IDisposable
         Assert.True(w.IsChromeStripCollapsedForTests);   // precondition: collapsed
 
         // The settings path (MainWindow live re-apply) turns the behavior off mid-collapse.
-        w.ApplyAppearance("cyan", "cyan", 2500, stripAutoHide: false);
+        w.ApplyAppearance("#00D4FF", 2500, stripAutoHide: false);
 
         Assert.False(w.StripAutoHideForTests);
         Assert.False(w.IsChromeStripCollapsedForTests);

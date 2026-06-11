@@ -100,63 +100,6 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal(0.5, loaded.Theme.IdleWindowOpacity);
     }
 
-    // --- LoadReadOnly: the App.OnStartup theme load (overhaul Task 9) must not touch disk ---
-
-    [Fact]
-    public void LoadReadOnly_matches_load_for_a_valid_file()
-    {
-        var svc = new SettingsService(_path);
-        var settings = new AppSettings();
-        settings.Theme.ThemeId = "soft-glass";
-        settings.Theme.AccentColor = "#a78bfa";
-        svc.Save(settings);
-
-        var ro = svc.LoadReadOnly();
-
-        Assert.Equal("soft-glass", ro.Theme.ThemeId);
-        Assert.Equal("#A78BFA", ro.Theme.AccentColor);
-    }
-
-    [Fact]
-    public void LoadReadOnly_does_not_create_the_settings_directory()
-    {
-        var dir = Path.Combine(_dir, "missing");
-        var svc = new SettingsService(Path.Combine(dir, "settings.json"));
-
-        var ro = svc.LoadReadOnly();
-
-        Assert.Equal(ThemeCatalog.DefaultThemeId, ro.Theme.ThemeId);
-        Assert.False(Directory.Exists(dir), "LoadReadOnly must not create directories.");
-    }
-
-    [Fact]
-    public void LoadReadOnly_does_not_quarantine_a_corrupt_file()
-    {
-        File.WriteAllText(_path, "{ not json !!");
-        var svc = new SettingsService(_path);
-
-        var ro = svc.LoadReadOnly();
-
-        Assert.Equal(ThemeCatalog.DefaultThemeId, ro.Theme.ThemeId);
-        Assert.True(File.Exists(_path), "The corrupt file must stay in place for Load to repair.");
-        Assert.Empty(Directory.GetFiles(_dir, "*.corrupt.*.json"));
-    }
-
-    [Fact]
-    public void LoadReadOnly_seeds_theme_from_legacy_without_writing()
-    {
-        File.WriteAllText(_path,
-            "{\"schemaVersion\":2,\"player\":{\"pinAccent\":\"green\",\"fadeIdleDelayMs\":4000}}");
-        var before = File.ReadAllText(_path);
-        var svc = new SettingsService(_path);
-
-        var ro = svc.LoadReadOnly();
-
-        Assert.Equal("#38D996", ro.Theme.AccentColor);   // seeded from the green pin accent
-        Assert.Equal("long", ro.Theme.FadeDelayPreset);  // seeded from 4000 ms
-        Assert.Equal(before, File.ReadAllText(_path));   // file untouched on disk
-    }
-
     [Fact]
     public void Legacy_settings_without_theme_seed_theme_from_player_preferences()
     {

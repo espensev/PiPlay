@@ -130,7 +130,12 @@ Current change candidates for this state:
 - Consider whether saving a profile from an `RD...` mix URL should preserve the original mix URL, normalize to the current watch video, or warn that the playlist portion will not drive popout.
 - If the intended product behavior is "pop out the selected YouTube queue item," this state is the baseline for testing that `PopOutButton` resolves the current video and does not accidentally attempt to preserve the unsupported mix playlist.
 
-## State 03 - Source Fullscreen, YouTube Expanded Player
+## State 03 - Source Expanded Player
+
+*(Heading renamed 2026-06-10 per the stabilization spec: this is YouTube's expanded player inside
+the Source Window with PiPlay chrome still visible — "Source Expanded Player" is the product term;
+"fullscreen" is reserved for a PiPlay-owned chrome/window state. The screenshot filename keeps its
+original capture name.)*
 
 Capture:
 
@@ -452,3 +457,33 @@ Current change candidates for this state:
 - The visible `Compact player` copy does not say "new popouts only" on the button itself. The tooltip does, but the earlier transition showed this is easy to miss.
 - Consider grouping opacity and top-bar controls into a denser layout if more player settings are added.
 - `CloseButton` likely needs an explicit `AutomationProperties.Name`, matching the accessibility cleanup noted for other icon-only controls.
+
+## Post-fix addendum (overhaul stabilization, 2026-06-10)
+
+The captures above are the PRE-fix discovery evidence; they are kept verbatim as the baseline. The
+stabilization pass (plan `docs/superpowers/plans/2026-06-10-ui-overhaul-stabilization.md`) changed
+the following against those states. Fresh post-fix captures are part of the release-candidate
+manual QA pass (run-piplay procedure), not this docs refresh; record them here when taken.
+
+- **States 01-03 (Source Window):** all icon-only chrome/toolbar controls now carry accessible
+  names (Task 7). `PopOutButton` reads "Show popout" with a matching tooltip and UIA name while a
+  popout is open, and restores a minimized popout instead of opening a second one (Task 6).
+  Edge/corner resize works with the pointer over the `Browser` surface via the 10 DIP inset band
+  (Task 1). State 03's product term is **Source Expanded Player** (heading renamed above).
+- **States 04-05 (Popout Standard / Fullview Faded — one path, two captures):** the chrome strip
+  gains `ExpandButton` (expand/restore, glyph+tooltip flip, state-neutral UIA name) between Pin
+  and Close (Task 4). Edge/corner resize works over the player surface; the visible inset band is
+  the accepted trade-off (Task 1). Wheel scroll still needs one click into the page first —
+  documented owner decision, QA row in `docs/QA_Checklist.md` §2.1 (Task 2 deferral). Closing the
+  popout after it moved to another video now returns the source to THAT video (Task 3).
+- **State 06 (Compact Popout):** recommendation/end-screen clicks retarget this popout in place
+  (compact shell rebuild) instead of opening externally; the error-bar fallback follows the LIVE
+  video after a retarget; the shell reports `videoId` (protocol v3) so playlist auto-advance is
+  return-correct (Task 3). The YouTube fullscreen button now expands the popout window, gated to
+  compact mode, with exit restoring only an element-caused expansion (Task 4).
+- **State 07 (Settings):** the dialog is height-bounded (work-area-derived `MaxHeight`) with a
+  fixed title bar and scrolling sections in spec order Privacy / Appearance / Playback / Advanced;
+  fade delay, window opacity, and top-bar auto-hide moved under Advanced; the compact copy states
+  it applies to new Popout Players only; `CloseButton` is named (Tasks 5/7). All four
+  change candidates listed under State 07 above are resolved except the denser-layout idea, which
+  is superseded by the sectioned scroll layout.

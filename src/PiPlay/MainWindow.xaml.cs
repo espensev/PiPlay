@@ -278,13 +278,12 @@ public partial class MainWindow : Window
 
     private void ApplySourceAppearance()
     {
-        var pinBrush = ResolveAccentBrush(_settings.Player.PinAccent);
+        // One theme accent drives the Source Pin (overhaul Task 10): the toggle's checked glyph and
+        // the pinned hint share the accent brush built from Theme.AccentColor.
+        var pinBrush = ThemeColors.Brush(EffectiveAccentColor);
         ToggleAccent.SetCheckedBrush(PinToggle, pinBrush);
         PinnedHint.Foreground = pinBrush;
     }
-
-    private Brush ResolveAccentBrush(string? accentKey) =>
-        (Brush)FindResource(PlayerAppearancePolicy.BrushResourceKeyFor(accentKey));
 
     // --- Auto: auto-popout on playback (spec §6.1) ---
 
@@ -478,13 +477,13 @@ public partial class MainWindow : Window
 
         var dialog = new SettingsWindow(
             isBrowserReady: CanClearBrowserData,
-            pinAccent: _settings.Player.PinAccent,
-            fadeAccent: _settings.Player.FadeAccent,
-            fadeIdleDelayMs: _settings.Player.FadeIdleDelayMs,
+            themeId: _settings.Theme.ThemeId,
+            accentColor: EffectiveAccentColor,
+            fadeIdleDelayMs: EffectiveFadeIdleDelayMs,
             compactMode: _settings.Player.CompactMode,
-            constantWindowOpacity: _settings.Player.ConstantWindowOpacity,
-            idleWindowOpacity: _settings.Player.IdleWindowOpacity,
-            stripAutoHide: _settings.Player.StripAutoHide)
+            constantWindowOpacity: EffectiveActiveWindowOpacity,
+            idleWindowOpacity: EffectiveIdleWindowOpacity,
+            stripAutoHide: EffectiveStripAutoHide)
         {
             Owner = this,
             Topmost = Topmost,
@@ -497,7 +496,7 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog() != true)
         {
             // Dismissed without applying: undo any live preview back to the persisted levels.
-            _player?.ApplyWindowOpacity(_settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity);
+            _player?.ApplyWindowOpacity(EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity);
             return;
         }
 
@@ -509,7 +508,7 @@ public partial class MainWindow : Window
 
         if (dialog.AppearanceChanged)
         {
-            ApplyPlayerPreferences(dialog.PinAccent, dialog.FadeAccent, dialog.FadeIdleDelayMs, dialog.CompactMode,
+            ApplyPlayerPreferences(dialog.ThemeId, dialog.AccentColor, dialog.FadeIdleDelayMs, dialog.CompactMode,
                 dialog.ConstantWindowOpacity, dialog.IdleWindowOpacity, dialog.StripAutoHide);
         }
 
@@ -546,32 +545,67 @@ public partial class MainWindow : Window
         _settings = _settingsService.Reset();
         ApplyTopmost(false);
         ApplyAuto(false);
+        ThemeResourceApplier.Apply(Application.Current.Resources, _settings.Theme, _settings.Player);
         ApplySourceAppearance();
-        _player?.ApplyAppearance(_settings.Player.PinAccent, _settings.Player.FadeAccent,
-            _settings.Player.FadeIdleDelayMs, _settings.Player.StripAutoHide);
-        _player?.ApplyWindowOpacity(_settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity);
+        ApplyOpenPlayerAppearance();
         UpdateAutoDetector();   // Auto is off after reset → stop the detector
         LoadProfilesIntoCombo();
     }
 
-    private void ApplyPlayerPreferences(string pinAccent, string fadeAccent, int fadeIdleDelayMs, bool compactMode,
+    private void ApplyPlayerPreferences(string themeId, string accentColor, int fadeIdleDelayMs, bool compactMode,
         double constantWindowOpacity, double idleWindowOpacity, bool stripAutoHide)
     {
-        _settings.Player.PinAccent = PlayerAppearancePolicy.NormalizeAccent(pinAccent);
-        _settings.Player.FadeAccent = PlayerAppearancePolicy.NormalizeAccent(fadeAccent);
+        // Theme accent is the single source of truth for Pin/Fade color now (overhaul Task 10). The
+        // legacy Player.PinAccent/FadeAccent stay at their persisted values (readable for back-compat)
+        // but no longer drive any color.
+        _settings.Theme.ThemeId = ThemeCatalog.NormalizeThemeId(themeId);
+        _settings.Theme.AccentColor = ThemeCatalog.NormalizeAccentColor(accentColor);
         _settings.Player.FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
+        _settings.Theme.FadeDelayPreset = ThemeCatalog.FadeDelayPresetForMilliseconds(_settings.Player.FadeIdleDelayMs);
         // Global compact-mode default takes effect on the NEXT popout; an open player keeps its mode.
         _settings.Player.CompactMode = compactMode;
         _settings.Player.ConstantWindowOpacity = WindowOpacityPolicy.Normalize(constantWindowOpacity);
         _settings.Player.IdleWindowOpacity = WindowOpacityPolicy.Normalize(idleWindowOpacity);
         _settings.Player.StripAutoHide = stripAutoHide;
+        _settings.Theme.ActiveWindowOpacity = _settings.Player.ConstantWindowOpacity;
+        _settings.Theme.IdleWindowOpacity = _settings.Player.IdleWindowOpacity;
+        _settings.Theme.StripAutoHide = _settings.Player.StripAutoHide;
 
+        // Recolor the accent-driven shell resources live (DynamicResource consumers re-resolve), then
+        // the runtime-applied Pin/Fade glyphs, so the whole accent moves together on apply.
+        ThemeResourceApplier.Apply(Application.Current.Resources, _settings.Theme, _settings.Player);
         ApplySourceAppearance();
-        _player?.ApplyAppearance(_settings.Player.PinAccent, _settings.Player.FadeAccent,
-            _settings.Player.FadeIdleDelayMs, _settings.Player.StripAutoHide);
-        _player?.ApplyWindowOpacity(_settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity);
+        ApplyOpenPlayerAppearance();
         _settingsService.Save(_settings);
     }
+
+    private string EffectiveAccentColor =>
+        ThemePreferenceResolver.AccentColor(_settings.Theme, _settings.Player);
+
+    private int EffectiveFadeIdleDelayMs =>
+        ThemePreferenceResolver.FadeIdleDelayMs(_settings.Theme, _settings.Player);
+
+    private bool EffectiveStripAutoHide =>
+        ThemePreferenceResolver.StripAutoHide(_settings.Theme, _settings.Player);
+
+    private double EffectiveActiveWindowOpacity =>
+        ThemePreferenceResolver.ActiveWindowOpacity(_settings.Theme, _settings.Player);
+
+    private double EffectiveIdleWindowOpacity =>
+        ThemePreferenceResolver.IdleWindowOpacity(_settings.Theme, _settings.Player);
+
+    private void ApplyOpenPlayerAppearance()
+    {
+        _player?.ApplyAppearance(EffectiveAccentColor, EffectiveFadeIdleDelayMs, EffectiveStripAutoHide);
+        _player?.ApplyWindowOpacity(EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity);
+    }
+
+    internal void ReplaceSettingsForTests(AppSettings settings) => _settings = settings;
+
+    internal (string AccentColor, int FadeIdleDelayMs, double ActiveWindowOpacity, double IdleWindowOpacity,
+        bool StripAutoHide) EffectivePlayerPreferencesForTests =>
+        (EffectiveAccentColor, EffectiveFadeIdleDelayMs, EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity,
+            EffectiveStripAutoHide);
 
     private async Task PerformClearBrowserDataAsync()
     {
@@ -694,10 +728,10 @@ public partial class MainWindow : Window
             target.StartSeconds = seconds ?? target.StartSeconds;
             _player = new PlayerWindow(env, popoutUrl, _settings.Player.Topmost,
                 _settings.Player.Placement, _settings.Player.LastWidth, _settings.Player.LastHeight,
-                _settings.Player.FadeEnabled, _settings.Player.PinAccent, _settings.Player.FadeAccent,
-                _settings.Player.FadeIdleDelayMs, mode, target,
-                _settings.Player.ConstantWindowOpacity, _settings.Player.IdleWindowOpacity,
-                _settings.Player.StripAutoHide);
+                _settings.Player.FadeEnabled, EffectiveAccentColor,
+                EffectiveFadeIdleDelayMs, mode, target,
+                EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity,
+                EffectiveStripAutoHide);
             _player.PlayerClosed += Player_OnClosed;
             _player.Show();
 
@@ -812,38 +846,7 @@ public partial class MainWindow : Window
 
             // Return to the source (spec 14). LastKnownSeconds is nullable; 0 is a valid timestamp.
             ShowSourcePlaceholder(false);
-            var core = Browser.CoreWebView2;
-            // Skip driving source playback when a Clear browser data is wiping the session — the
-            // page is about to be cleared/navigated, so seek/play scripts would be wasted or race.
-            if (core is not null && !_clearingBrowserData)
-            {
-                // REQ-RETURN-01: resume only if the source was playing when popout started;
-                // 0 is a valid timestamp distinct from unknown. Decision lives in ReturnPolicy.
-                switch (ReturnPolicy.Decide(state.LastKnownSeconds, _sourceWasPlayingAtPopout,
-                            state.VideoId, _popoutSourceVideoId))
-                {
-                    case ReturnAction.Navigate:
-                        // The popout ended on a DIFFERENT video (recommendation click, playlist
-                        // auto-advance, SPA navigation): bring the source to where the user
-                        // actually is. The timestamp rides the watch URL; Auto's de-dup key
-                        // updates FIRST so the returned video is not instantly re-popped.
-                        _autoLastHandledVideoId = state.VideoId;
-                        NavigateInternal(YouTubeUrlHelper.BuildWatchUrl(
-                            new YouTubeTarget { VideoId = state.VideoId }, state.LastKnownSeconds));
-                        break;
-                    case ReturnAction.SeekAndPlay:
-                        await YouTubeDomBridge.SeekAndPlayAsync(core, state.LastKnownSeconds!.Value);
-                        break;
-                    case ReturnAction.Seek:
-                        await YouTubeDomBridge.SeekAsync(core, state.LastKnownSeconds!.Value);
-                        break;
-                    case ReturnAction.Play:
-                        await YouTubeDomBridge.PlayAsync(core);
-                        break;
-                    case ReturnAction.None:
-                        break;
-                }
-            }
+            await ApplyReturnActionAsync(state);
 
             _settingsService.Save(_settings);
             Log.Info("Returned from Video Popout.");
@@ -853,6 +856,50 @@ public partial class MainWindow : Window
             Log.Error("Error returning from Video Popout.", ex);
         }
     }
+
+    /// <summary>
+    /// The return decision of <see cref="Player_OnClosed"/> (REQ-RETURN-01), separate from the
+    /// persistence half so the WPF lane can drive it without writing real settings. Skipped
+    /// entirely while Clear browser data is wiping the session — the page is about to be
+    /// cleared/navigated, so driving it would be wasted or race. Navigate needs no live core
+    /// (<see cref="NavigateInternal"/> queues until the browser is ready); the script-driven
+    /// cases do, and fall through silently without one.
+    /// </summary>
+    internal async Task ApplyReturnActionAsync(PlayerReturnState state)
+    {
+        if (_clearingBrowserData) return;
+        var core = Browser.CoreWebView2;
+
+        // REQ-RETURN-01: resume only if the source was playing when popout started;
+        // 0 is a valid timestamp distinct from unknown. Decision lives in ReturnPolicy.
+        switch (ReturnPolicy.Decide(state.LastKnownSeconds, _sourceWasPlayingAtPopout,
+                    state.VideoId, _popoutSourceVideoId))
+        {
+            case ReturnAction.Navigate:
+                // The popout ended on a DIFFERENT video (recommendation click, playlist
+                // auto-advance, SPA navigation): bring the source to where the user
+                // actually is. The timestamp rides the watch URL; Auto's de-dup key
+                // updates FIRST so the returned video is not instantly re-popped.
+                _autoLastHandledVideoId = state.VideoId;
+                NavigateInternal(YouTubeUrlHelper.BuildWatchUrl(
+                    new YouTubeTarget { VideoId = state.VideoId }, state.LastKnownSeconds));
+                break;
+            case ReturnAction.SeekAndPlay when core is not null:
+                await YouTubeDomBridge.SeekAndPlayAsync(core, state.LastKnownSeconds!.Value);
+                break;
+            case ReturnAction.Seek when core is not null:
+                await YouTubeDomBridge.SeekAsync(core, state.LastKnownSeconds!.Value);
+                break;
+            case ReturnAction.Play when core is not null:
+                await YouTubeDomBridge.PlayAsync(core);
+                break;
+        }
+    }
+
+    // Return seams (overhaul Task 3, WPF lane): drive the navigate-vs-seek return decision
+    // headlessly — the queued pending URL is the observable for the Navigate case.
+    internal void SeedPopoutReturnForTests(string sourceVideoId) => _popoutSourceVideoId = sourceVideoId;
+    internal string? AutoLastHandledVideoIdForTests => _autoLastHandledVideoId;
 
     // --- Single-instance activation (REQ-APP-01) ---
 

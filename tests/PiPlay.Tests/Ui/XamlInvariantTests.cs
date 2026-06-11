@@ -109,23 +109,87 @@ public class XamlInvariantTests
         }},
         new object[] { "PlayerWindow.xaml", new[]
         {
-            "ChromeStrip", "FadeToggle", "PinToggle", "FullscreenButton", "CloseButton", "Player",
+            "ChromeStrip", "FadeToggle", "PinToggle", "ExpandButton", "CloseButton", "Player",
             "ErrorBar", "ErrorText", "FallbackButton", "ErrorDismissButton",
         }},
         new object[] { "SettingsWindow.xaml", new[]
         {
-            "SettingsScrollViewer",
-            "PrivacySectionHeading", "AppearanceSectionHeading", "PlaybackSectionHeading", "AdvancedSectionHeading",
+            "SettingsScroll",
+            "PrivacySectionHeader", "AppearanceSectionHeader", "PlaybackSectionHeader", "AdvancedSectionHeader",
             "ResetAppStateButton", "ResetDescriptionText",
             "ClearBrowserDataButton", "ClearDescriptionText", "CloseButton",
-            "PinAccentCyanSwatch", "PinAccentVioletSwatch", "PinAccentGreenSwatch", "PinAccentAmberSwatch",
-            "FadeAccentCyanSwatch", "FadeAccentVioletSwatch", "FadeAccentGreenSwatch", "FadeAccentAmberSwatch",
+            "ThemeSharpDarkPreset", "ThemeMinimalPreset", "ThemeSoftGlassPreset",
+            "AccentChipCyan", "AccentChipSteelBlue", "AccentChipViolet", "AccentChipGreen", "AccentChipAmber",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
             "ActiveOpacitySlider", "ActiveOpacityValueText", "IdleOpacitySlider", "IdleOpacityValueText",
             "StripAutoHideToggle",
-            "CompactModeDescriptionText", "CompactModeToggle",
+            "CompactModeToggle", "CompactModeHintText",
         }},
     };
+
+    // --- Settings is scrollable and sectioned (overhaul Task 5) ---
+
+    [Fact]
+    public void Settings_sections_live_inside_the_scroll_viewer_in_order()
+    {
+        var doc = XamlTestFiles.Load("SettingsWindow.xaml");
+        var scroll = doc.Descendants(XamlTestFiles.Pres + "ScrollViewer")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "SettingsScroll");
+
+        // Every section header scrolls; the order is the spec's Privacy/Appearance/Playback/Advanced.
+        var headers = scroll.Descendants()
+            .Select(e => e.Attribute(XamlTestFiles.X + "Name")?.Value)
+            .Where(n => n is not null && n.EndsWith("SectionHeader"))
+            .ToArray();
+        Assert.Equal(new[]
+        {
+            "PrivacySectionHeader", "AppearanceSectionHeader", "PlaybackSectionHeader", "AdvancedSectionHeader",
+        }, headers);
+
+        // The title bar must NOT scroll away (CloseButton stays reachable at any content height).
+        Assert.DoesNotContain(scroll.Descendants(),
+            e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "CloseButton");
+    }
+
+    [Fact]
+    public void Settings_window_uses_the_fixed_height_frame()
+    {
+        // Frame model reconciled with the parallel main landing (b35c0dd): a fixed launch Height
+        // (clamped to the work area in code) instead of SizeToContent, so the dialog cannot grow
+        // with future sections; the scroll viewer never scrolls sideways.
+        var doc = XamlTestFiles.Load("SettingsWindow.xaml");
+        var root = doc.Root!;
+        Assert.Null(root.Attribute("SizeToContent"));
+        Assert.NotNull(root.Attribute("Height"));
+        Assert.NotNull(root.Attribute("MinHeight"));
+
+        var scroll = doc.Descendants(XamlTestFiles.Pres + "ScrollViewer")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "SettingsScroll");
+        Assert.Equal("Disabled", scroll.Attribute("HorizontalScrollBarVisibility")?.Value);
+    }
+
+    [Theory]
+    [InlineData("CompactModeToggle", "PlaybackSectionHeader", "AdvancedSectionHeader")]   // Playback owns compact
+    [InlineData("FadeDelayShortPreset", "AdvancedSectionHeader", null)]                   // Advanced owns fade delay
+    [InlineData("ActiveOpacitySlider", "AdvancedSectionHeader", null)]                    // Advanced owns opacity
+    [InlineData("StripAutoHideToggle", "AdvancedSectionHeader", null)]                    // Advanced owns auto-hide
+    public void Settings_controls_sit_under_their_section(string control, string after, string? before)
+    {
+        // Document order stands in for section membership: the sections share one StackPanel, so
+        // "after its own header (and before the next)" is the structural invariant.
+        var ordered = XamlTestFiles.Load("SettingsWindow.xaml").Descendants()
+            .Select(e => e.Attribute(XamlTestFiles.X + "Name")?.Value)
+            .Where(n => n is not null)
+            .ToList();
+
+        Assert.True(ordered.IndexOf(control) > ordered.IndexOf(after),
+            $"{control} must follow {after}.");
+        if (before is not null)
+        {
+            Assert.True(ordered.IndexOf(control) < ordered.IndexOf(before),
+                $"{control} must precede {before}.");
+        }
+    }
 
     // --- Glyph icon-font fallback (REQ-UI-02: no .notdef boxes) + tooltips (UI-CHK-4) ---
 
@@ -187,6 +251,8 @@ public class XamlInvariantTests
         // MaximizeButton's name is deliberately state-neutral ("Maximize or restore"): its glyph
         // flips in code on StateChanged. PopOutButton's static name is its launch-state action;
         // the Task 6 show-popout state change must update it in the same code path as the label.
+        // PlayerWindow's ExpandButton follows the MaximizeButton precedent (state-neutral name,
+        // glyph/tooltip flip in code).
         new object[] { "MainWindow.xaml", new[]
         {
             "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton",
@@ -194,7 +260,7 @@ public class XamlInvariantTests
             "SaveProfileButton", "EditProfileButton", "DeleteProfileButton",
             "PinToggle", "AutoToggle", "PopOutButton",
         }},
-        new object[] { "PlayerWindow.xaml", new[] { "FadeToggle", "PinToggle", "FullscreenButton", "CloseButton" } },
+        new object[] { "PlayerWindow.xaml", new[] { "FadeToggle", "PinToggle", "ExpandButton", "CloseButton" } },
         new object[] { "SettingsWindow.xaml", new[] { "CloseButton" } },
     };
 
@@ -325,10 +391,6 @@ public class XamlInvariantTests
     [InlineData("TextPrimaryColor", "AppBackgroundColor", 4.5)]
     [InlineData("TextPrimaryColor", "SurfaceBaseColor", 4.5)]
     [InlineData("TextSecondaryColor", "SurfaceBaseColor", 4.5)]   // secondary text / empty state
-    [InlineData("Theme.AccentForegroundColor", "Theme.AccentColor", 4.5)]   // derived accent fg (Task 9)
-    [InlineData("AccentCyanForegroundColor", "AccentCyanColor", 4.5)]       // AccentButton fill
-    [InlineData("AccentCyanForegroundColor", "AccentCyanLightColor", 4.5)]  // AccentButton hover fill
-    [InlineData("Theme.TextOnDangerColor", "Theme.DangerColor", 3.0)]       // DangerButton (bold UI text)
     public void Theme_contrast_meets_minimum(string fg, string bg, double min)
     {
         var t = ColorTokens();
@@ -339,11 +401,20 @@ public class XamlInvariantTests
     [Fact]
     public void Accent_button_text_is_readable_on_accent_fill()
     {
-        // AccentButton: AccentCyanForeground token on AccentCyan fill (was a #FF06141A literal
-        // in ControlStyles.xaml until overhaul Task 9 moved it into Colors.xaml).
-        var t = ColorTokens();
-        var ratio = Wcag.ContrastRatio(t["AccentCyanForegroundColor"], t["AccentCyanColor"]);
+        // AccentButton: foreground #FF06141A literal on the AccentPrimary fill (ControlStyles.xaml).
+        // This is the DEFAULT (cyan) token; user accents are gated by the contrast theory below.
+        var ratio = Wcag.ContrastRatio("#FF06141A", ColorTokens()["AccentPrimaryColor"]);
         Assert.True(ratio >= 4.5, $"Accent button text contrast = {ratio:F2}:1.");
+    }
+
+    [Fact]
+    public void Accent_primary_token_defaults_to_the_sharp_dark_cyan()
+    {
+        // Overhaul Task 9: the theme accent token defaults to the existing cyan as a markup fallback
+        // before ThemeResourceApplier runs. AccentCyan stays defined as a compatibility alias.
+        var t = ColorTokens();
+        Assert.Equal(t["AccentCyanColor"], t["AccentPrimaryColor"]);
+        Assert.Equal(t["AccentCyanLightColor"], t["AccentPrimaryLightColor"]);
     }
 
     [Theory]
@@ -359,6 +430,44 @@ public class XamlInvariantTests
     }
 
     [Fact]
+    public void Theme_accent_palette_is_readable()
+    {
+        // Every OFFERED accent chip (ThemeCatalog) must read as an on-dark glyph (>=3:1 on the hover
+        // surface) AND carry the dark AccentButton text (>=4.5:1) — the gate behind the Task 10
+        // single-accent palette and the Task 9 startup recolor of the primary button.
+        var hover = ColorTokens()["SurfaceHoverColor"];
+        foreach (var option in ThemeCatalog.AccentOptions)
+        {
+            var glyph = Wcag.ContrastRatio(option.HexColor, hover);
+            Assert.True(glyph >= 3.0, $"Accent {option.Key} ({option.HexColor}) on hover surface = {glyph:F2}:1.");
+
+            var text = Wcag.ContrastRatio("#FF06141A", option.HexColor);
+            Assert.True(text >= 4.5, $"Dark button text on accent {option.Key} ({option.HexColor}) = {text:F2}:1.");
+        }
+    }
+
+    [Fact]
+    public void Settings_theme_and_accent_controls_match_the_catalog()
+    {
+        var controls = XamlTestFiles.Load("SettingsWindow.xaml").Descendants()
+            .Where(e => e.Attribute(XamlTestFiles.X + "Name") is not null)
+            .ToList();
+
+        string? Tag(string name) => controls
+            .First(e => e.Attribute(XamlTestFiles.X + "Name")!.Value == name).Attribute("Tag")?.Value;
+        IEnumerable<string> NamesWhere(Func<string, bool> pred) => controls
+            .Select(e => e.Attribute(XamlTestFiles.X + "Name")!.Value).Where(pred);
+
+        // Preset chip Tags are the catalog preset ids; accent chip Tags are the catalog hex colors.
+        // Order-independent so the hand-written markup and the catalog cannot drift apart.
+        var presetTags = NamesWhere(n => n.StartsWith("Theme") && n.EndsWith("Preset")).Select(Tag).ToHashSet();
+        Assert.Equal(ThemeCatalog.Presets.Select(p => p.Id).ToHashSet(), presetTags!);
+
+        var accentTags = NamesWhere(n => n.StartsWith("AccentChip")).Select(Tag).ToHashSet();
+        Assert.Equal(ThemeCatalog.AccentOptions.Select(o => o.HexColor).ToHashSet(), accentTags!);
+    }
+
+    [Fact]
     public void Settings_appearance_controls_have_tooltips_and_accessible_names()
     {
         var byName = XamlTestFiles.Load("SettingsWindow.xaml").Descendants()
@@ -368,8 +477,8 @@ public class XamlInvariantTests
 
         foreach (var name in new[]
         {
-            "PinAccentCyanSwatch", "PinAccentVioletSwatch", "PinAccentGreenSwatch", "PinAccentAmberSwatch",
-            "FadeAccentCyanSwatch", "FadeAccentVioletSwatch", "FadeAccentGreenSwatch", "FadeAccentAmberSwatch",
+            "ThemeSharpDarkPreset", "ThemeMinimalPreset", "ThemeSoftGlassPreset",
+            "AccentChipCyan", "AccentChipSteelBlue", "AccentChipViolet", "AccentChipGreen", "AccentChipAmber",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
             "ActiveOpacitySlider", "IdleOpacitySlider",
             "StripAutoHideToggle",
@@ -392,133 +501,12 @@ public class XamlInvariantTests
     }
 
     [Fact]
-    public void SettingsWindow_is_bounded_scrollable_and_sectioned()
-    {
-        var doc = XamlTestFiles.Load("SettingsWindow.xaml");
-        var root = doc.Root!;
-        Assert.NotEqual("Height", root.Attribute("SizeToContent")?.Value);
-        Assert.NotNull(root.Attribute("Height"));
-
-        var byName = doc.Descendants()
-            .Where(e => e.Attribute(XamlTestFiles.X + "Name") is not null)
-            .GroupBy(e => e.Attribute(XamlTestFiles.X + "Name")!.Value)
-            .ToDictionary(g => g.Key, g => g.First());
-
-        var scroll = byName["SettingsScrollViewer"];
-        Assert.Equal("Auto", scroll.Attribute("VerticalScrollBarVisibility")?.Value);
-        Assert.Equal("Disabled", scroll.Attribute("HorizontalScrollBarVisibility")?.Value);
-
-        var orderedNames = doc.Descendants()
-            .Select(e => e.Attribute(XamlTestFiles.X + "Name")?.Value)
-            .Where(n => n is "PrivacySectionHeading" or "AppearanceSectionHeading" or
-                "PlaybackSectionHeading" or "AdvancedSectionHeading")
-            .ToArray();
-        Assert.Equal(new[]
-        {
-            "PrivacySectionHeading", "AppearanceSectionHeading", "PlaybackSectionHeading", "AdvancedSectionHeading",
-        }, orderedNames);
-
-        Assert.Contains("new popouts only", byName["CompactModeDescriptionText"].Attribute("Text")?.Value ?? "",
-            StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
     public void DangerButton_style_is_defined()
     {
         var keys = XamlTestFiles.Load("Theme/ControlStyles.xaml").Descendants()
             .Select(e => e.Attribute(XamlTestFiles.X + "Key")?.Value)
             .Where(k => k is not null);
         Assert.Contains("DangerButton", keys);
-    }
-
-    // --- Theme tokens, compatibility aliases, and staged radius values (overhaul Task 9) ---
-
-    private static Dictionary<string, XElement> KeyedElements(string file) =>
-        XamlTestFiles.Load(file).Descendants()
-            .Where(e => e.Attribute(XamlTestFiles.X + "Key") is not null)
-            .ToDictionary(e => e.Attribute(XamlTestFiles.X + "Key")!.Value, e => e);
-
-    [Fact]
-    public void Theme_tokens_are_defined()
-    {
-        var keys = KeyedElements("Theme/Colors.xaml").Keys.ToHashSet();
-
-        foreach (var brushToken in new[]
-        {
-            "Theme.AppBackground", "Theme.SurfaceBase", "Theme.SurfaceRaised", "Theme.SurfaceHover",
-            "Theme.BorderSubtle", "Theme.TextPrimary", "Theme.TextSecondary", "Theme.Danger",
-            "Theme.TextOnDanger", "Theme.MediaBackdrop",
-            "Theme.Accent", "Theme.AccentHover", "Theme.AccentPressed", "Theme.AccentDim",
-            "Theme.AccentBorder", "Theme.AccentForeground",
-            "AccentCyanForeground",
-        })
-        {
-            Assert.True(keys.Contains(brushToken), $"Missing brush token {brushToken}.");
-            Assert.True(keys.Contains(brushToken + "Color"), $"Missing color token {brushToken}Color.");
-        }
-
-        foreach (var token in new[]
-        {
-            "Theme.ActiveWindowOpacity", "Theme.IdleWindowOpacity", "Theme.FadeIdleDelayMs",
-        })
-        {
-            Assert.True(keys.Contains(token), $"Missing token {token}.");
-        }
-    }
-
-    [Theory]
-    [InlineData("AppBackgroundColor", "Theme.AppBackgroundColor", "AppBackground")]
-    [InlineData("SurfaceBaseColor", "Theme.SurfaceBaseColor", "SurfaceBase")]
-    [InlineData("SurfaceRaisedColor", "Theme.SurfaceRaisedColor", "SurfaceRaised")]
-    [InlineData("SurfaceHoverColor", "Theme.SurfaceHoverColor", "SurfaceHover")]
-    [InlineData("BorderSubtleColor", "Theme.BorderSubtleColor", "BorderSubtle")]
-    [InlineData("TextPrimaryColor", "Theme.TextPrimaryColor", "TextPrimary")]
-    [InlineData("TextSecondaryColor", "Theme.TextSecondaryColor", "TextSecondary")]
-    [InlineData("DangerPinColor", "Theme.DangerColor", "DangerPin")]
-    public void Compatibility_aliases_match_their_theme_tokens(
-        string legacyColor, string themeColor, string legacyBrush)
-    {
-        // Alias COLOR keys must duplicate the hex literally (a StaticResource alias ENTRY does
-        // not resolve from a BAML-compiled merged dictionary), so pin the duplicate here.
-        var t = ColorTokens();
-        Assert.Equal(t[themeColor], t[legacyColor]);
-
-        // Alias BRUSHES take their Color from the Theme token (single source).
-        var brush = KeyedElements("Theme/Colors.xaml")[legacyBrush];
-        Assert.Equal($"{{StaticResource {themeColor}}}", brush.Attribute("Color")?.Value);
-    }
-
-    [Fact]
-    public void Accent_derivation_defaults_match_palette()
-    {
-        // The Theme.Accent* XAML defaults are hand-authored; keep them equal to what
-        // ThemeResourceApplier derives for the default accent so a launch with no settings file
-        // and a launch with default settings render identically.
-        var t = ColorTokens();
-        var p = AccentPalette.Derive(ThemeCatalog.DefaultAccentColor);
-        Assert.Equal(p.Accent.ToString(), t["Theme.AccentColor"]);
-        Assert.Equal(p.Hover.ToString(), t["Theme.AccentHoverColor"]);
-        Assert.Equal(p.Pressed.ToString(), t["Theme.AccentPressedColor"]);
-        Assert.Equal(p.Dim.ToString(), t["Theme.AccentDimColor"]);
-        Assert.Equal(p.Border.ToString(), t["Theme.AccentBorderColor"]);
-        Assert.Equal(p.Foreground.ToString(), t["Theme.AccentForegroundColor"]);
-    }
-
-    [Theory]
-    [InlineData("Radius.MainWindow", "0")]
-    [InlineData("Radius.Popout", "0")]
-    [InlineData("Radius.Button", "10")]
-    [InlineData("Radius.Panel", "8")]
-    [InlineData("Radius.Thumbnail", "8")]
-    [InlineData("Radius.Settings", "8")]
-    public void Radius_tokens_are_defined_with_staged_values(string key, string value)
-    {
-        // Staged values (outline 7.5): tokens exist app-wide, but Radius.MainWindow/Radius.Popout
-        // stay 0 and unwired — WindowChrome CornerRadius is pinned to 0 above and rounding the
-        // windows touches hit testing/DWM/airspace, which is a later, separately-QA'd stage.
-        var el = KeyedElements("Theme/Colors.xaml")[key];
-        Assert.Equal("CornerRadius", el.Name.LocalName);
-        Assert.Equal(value, el.Value.Trim());
     }
 
     // --- App manifest declares per-monitor-v2 DPI awareness (REQ-WINDOW-01, Q-7) ---
