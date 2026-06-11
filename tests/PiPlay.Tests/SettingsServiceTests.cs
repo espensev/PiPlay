@@ -1,6 +1,8 @@
 using System.IO;
+using System.Text.Json;
 using PiPlay.Models;
 using PiPlay.Services;
+using PiPlay.Theme;
 
 namespace PiPlay.Tests;
 
@@ -35,6 +37,12 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal("cyan", settings.Player.PinAccent);
         Assert.Equal("cyan", settings.Player.FadeAccent);
         Assert.Equal(2500, settings.Player.FadeIdleDelayMs);
+        Assert.Equal(ThemeCatalog.DefaultThemeId, settings.Theme.ThemeId);
+        Assert.Equal(ThemeCatalog.DefaultAccentColor, settings.Theme.AccentColor);
+        Assert.Equal(ThemeCatalog.DefaultFadeDelayPreset, settings.Theme.FadeDelayPreset);
+        Assert.Null(settings.Theme.StripAutoHide);
+        Assert.Null(settings.Theme.ActiveWindowOpacity);
+        Assert.Null(settings.Theme.IdleWindowOpacity);
     }
 
     [Fact]
@@ -58,6 +66,117 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal(4000, loaded.Player.FadeIdleDelayMs);
         Assert.Single(loaded.Profiles);
         Assert.Equal("Lo-fi", loaded.Profiles[0].Name);
+    }
+
+    [Fact]
+    public void Theme_settings_roundtrip_without_dropping_legacy_player_fields()
+    {
+        var svc = new SettingsService(_path);
+        var settings = new AppSettings();
+        settings.Player.PinAccent = "green";
+        settings.Player.FadeAccent = "amber";
+        settings.Player.FadeIdleDelayMs = 4000;
+        settings.Theme = new ThemeSettings
+        {
+            ThemeId = "soft-glass",
+            AccentColor = "#a78bfa",
+            FadeDelayPreset = "short",
+            StripAutoHide = true,
+            ActiveWindowOpacity = 0.82,
+            IdleWindowOpacity = 0.5,
+        };
+
+        svc.Save(settings);
+        var loaded = svc.Load();
+
+        Assert.Equal("green", loaded.Player.PinAccent);
+        Assert.Equal("amber", loaded.Player.FadeAccent);
+        Assert.Equal(4000, loaded.Player.FadeIdleDelayMs);
+        Assert.Equal("soft-glass", loaded.Theme.ThemeId);
+        Assert.Equal("#A78BFA", loaded.Theme.AccentColor);
+        Assert.Equal("short", loaded.Theme.FadeDelayPreset);
+        Assert.True(loaded.Theme.StripAutoHide);
+        Assert.Equal(0.82, loaded.Theme.ActiveWindowOpacity);
+        Assert.Equal(0.5, loaded.Theme.IdleWindowOpacity);
+    }
+
+    [Fact]
+    public void Legacy_settings_without_theme_seed_theme_from_player_preferences()
+    {
+        File.WriteAllText(_path,
+            "{\"schemaVersion\":2,\"player\":{\"pinAccent\":\"green\",\"fadeAccent\":\"amber\",\"fadeIdleDelayMs\":4000," +
+            "\"stripAutoHide\":true,\"constantWindowOpacity\":0.82,\"idleWindowOpacity\":0.44}}");
+        var svc = new SettingsService(_path);
+
+        var loaded = svc.Load();
+
+        Assert.Equal("#38D996", loaded.Theme.AccentColor);
+        Assert.Equal("long", loaded.Theme.FadeDelayPreset);
+        Assert.Null(loaded.Theme.StripAutoHide);
+        Assert.Null(loaded.Theme.ActiveWindowOpacity);
+        Assert.Null(loaded.Theme.IdleWindowOpacity);
+        Assert.Equal(4000, ThemePreferenceResolver.FadeIdleDelayMs(loaded.Theme, loaded.Player));
+        Assert.True(ThemePreferenceResolver.StripAutoHide(loaded.Theme, loaded.Player));
+        Assert.Equal(0.82, ThemePreferenceResolver.ActiveWindowOpacity(loaded.Theme, loaded.Player));
+        Assert.Equal(0.44, ThemePreferenceResolver.IdleWindowOpacity(loaded.Theme, loaded.Player));
+
+        svc.Save(loaded);
+        using var doc = JsonDocument.Parse(File.ReadAllText(_path));
+        Assert.True(doc.RootElement.TryGetProperty("theme", out _));
+    }
+
+    [Fact]
+    public void Theme_settings_override_legacy_fields_when_present()
+    {
+        File.WriteAllText(_path,
+            "{\"player\":{\"pinAccent\":\"amber\",\"fadeIdleDelayMs\":4000,\"stripAutoHide\":true," +
+            "\"constantWindowOpacity\":0.9,\"idleWindowOpacity\":0.7}," +
+            "\"theme\":{\"themeId\":\"minimal\",\"accentColor\":\"4d7ea8\",\"fadeDelayPreset\":\"short\"," +
+            "\"stripAutoHide\":false,\"activeWindowOpacity\":0.6,\"idleWindowOpacity\":0.4}}");
+        var svc = new SettingsService(_path);
+
+        var loaded = svc.Load();
+
+        Assert.Equal("#4D7EA8", ThemePreferenceResolver.AccentColor(loaded.Theme, loaded.Player));
+        Assert.Equal(1500, ThemePreferenceResolver.FadeIdleDelayMs(loaded.Theme, loaded.Player));
+        Assert.False(ThemePreferenceResolver.StripAutoHide(loaded.Theme, loaded.Player));
+        Assert.Equal(0.6, ThemePreferenceResolver.ActiveWindowOpacity(loaded.Theme, loaded.Player));
+        Assert.Equal(0.4, ThemePreferenceResolver.IdleWindowOpacity(loaded.Theme, loaded.Player));
+    }
+
+    [Fact]
+    public void Invalid_theme_values_fall_back_to_safe_defaults()
+    {
+        File.WriteAllText(_path,
+            "{\"theme\":{\"themeId\":\"hologram\",\"accentColor\":\"not-a-color\",\"fadeDelayPreset\":\"forever\"," +
+            "\"activeWindowOpacity\":5.0,\"idleWindowOpacity\":-1.0}}");
+        var svc = new SettingsService(_path);
+
+        var loaded = svc.Load();
+
+        Assert.Equal(ThemeCatalog.DefaultThemeId, loaded.Theme.ThemeId);
+        Assert.Equal(ThemeCatalog.DefaultAccentColor, loaded.Theme.AccentColor);
+        Assert.Equal(ThemeCatalog.DefaultFadeDelayPreset, loaded.Theme.FadeDelayPreset);
+        Assert.Null(loaded.Theme.ActiveWindowOpacity);
+        Assert.Null(loaded.Theme.IdleWindowOpacity);
+    }
+
+    [Fact]
+    public void Unknown_settings_json_is_preserved_across_save()
+    {
+        File.WriteAllText(_path,
+            "{\"schemaVersion\":2,\"futureRoot\":{\"enabled\":true},\"player\":{\"pinAccent\":\"cyan\",\"futurePlayer\":42}," +
+            "\"theme\":{\"themeId\":\"sharp-dark\",\"accentColor\":\"#2D6F8F\",\"futureTheme\":\"kept\"}}");
+        var svc = new SettingsService(_path);
+
+        var loaded = svc.Load();
+        svc.Save(loaded);
+
+        using var doc = JsonDocument.Parse(File.ReadAllText(_path));
+        Assert.True(doc.RootElement.TryGetProperty("futureRoot", out var root));
+        Assert.True(root.GetProperty("enabled").GetBoolean());
+        Assert.Equal(42, doc.RootElement.GetProperty("player").GetProperty("futurePlayer").GetInt32());
+        Assert.Equal("kept", doc.RootElement.GetProperty("theme").GetProperty("futureTheme").GetString());
     }
 
     [Fact]

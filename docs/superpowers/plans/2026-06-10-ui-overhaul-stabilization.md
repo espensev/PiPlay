@@ -11,14 +11,14 @@ manual code verification). Diagnoses for Tasks 1-4 are now settled against sourc
 routes are recorded as rule-outs so they are not re-litigated during implementation. See the spec's
 "Review addendum" for the evidence trail.
 
-**Result:** In progress (2026-06-11). Tasks 1, 3, 4, 5, 6, and
-7 landed; `dotnet test PiPlay.sln --configuration Debug --no-restore` = 456/456 and
+**Result:** In progress (2026-06-11). Tasks 1, 3, 4, 5, 6, 7, and
+8 landed; `dotnet test PiPlay.sln --configuration Debug --no-restore` = 476/476 and
 `.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` clean (0 warnings). Task 1's
 inset band was live-verified by an HWND-rect probe (10 px left/right/bottom) AND owner-verified by
 manual drag resize. Task 2 was live-diagnosed (wheel focus-routing — click into the page, then
 scroll works, even at 86% opacity; layered opacity ruled out) and the fix deferred by owner
 decision. Task 4's maximize semantics were decided (keep current full-monitor maximize). Remaining:
-Tasks 8-10 (theme pass), 11, 12.
+Tasks 9-10 (theme resources and Settings UI), 11, 12.
 
 ## Tasks
 
@@ -215,7 +215,10 @@ Tasks 8-10 (theme pass), 11, 12.
   - Verify by extending `XamlInvariantTests` required-name rows and running existing WPF runtime tests.
   - Commit: `fix(a11y): name icon controls`
 
-- [ ] **Task 8 - Add theme settings model and migration.**
+- [x] **Task 8 - Add theme settings model and migration.**
+  *(Landed 2026-06-11: additive `AppSettings.Theme`, theme catalog/resolver seam, missing-theme
+  migration from legacy player preferences, invalid theme-value recovery, and root/player/theme
+  `[JsonExtensionData]` round-trip protection.)*
   - Add `ThemeSettings` to `src/PiPlay/Models/AppSettings.cs` with default `ThemeId`,
     `AccentColor`, `FadeDelayPreset`, and nullable overrides for strip auto-hide and active/idle
     opacity. Pin the precedence rules (ThemeSettings override vs legacy field) in tests.
