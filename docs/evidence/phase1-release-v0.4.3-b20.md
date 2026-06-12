@@ -29,6 +29,50 @@
 | focused main-chrome UIA/screenshot follow-up | pass | UI Automation verified main chrome names for Settings, Minimize, Maximize/restore, Close, Back, Reload, YouTube home, URL/search, Profiles, Save profile, Pin, Auto, and Pop out video. Screenshot: `docs\evidence\phase1-release-v0.4.3-b20-main-chrome.png`. |
 | Settings/Privacy UI follow-up | blocked | The Settings button was found and main chrome captured, but the Settings window did not open under UI Automation invoke or foreground coordinate click in this non-interactive run. No destructive privacy action was run. |
 
+## Direct-Observation Follow-Up
+
+Tester/date: Codex, 2026-06-12 Europe/Berlin
+
+Environment: Windows 11 Pro 10.0.26200; deployed target only `E:\Dev_test_implemenations\PiPlay\PiPlay.exe`; two detected video outputs 3840x2160 and 1920x1080; two Generic PnP monitors reported 144 logical DPI; `settings.json` recorded `dpiScale=1.5`, `player.compactMode=false`, `autoPopout=false`, and no saved profiles.
+
+| Area | Scenario | Result | Evidence / notes |
+|---|---|---|---|
+| Release identity | deployed candidate identity | pass | `Test-Path` returned `True`. SHA256 was `F6D491E96D7DC6D9D338796C60F12E46C97C88037ADC8D37BDD329E184FDB3FA`, matching the archived evidence and `build-info.json`. |
+| Release identity | source/tag/build metadata | pass | `build-info.json` reports v0.4.3 b20, publish label `20260612-015827-v0.4.3-b20-stable`, source commit `d628f27c6e07788bbd01d641480a5d4f0a516c5c`, and `releaseEvidence=true`; `stable-v0.4.3-b20` resolves to that source commit. |
+| Signing | public distribution decision | blocked | `Get-AuthenticodeSignature` returned `NotSigned`. This candidate remains usable only as an unsigned internal QA build; public distribution needs a new signed publish before the manifest hash is captured. |
+| Chrome | main chrome visual rendering | pass | `docs\evidence\phase1-release-v0.4.3-b20-main-chrome.png` shows the deployed main window with toolbar icons, caption buttons, URL box, Profiles control, Pin/Auto controls, Pop out video button, and WebView content rendered without empty icon boxes. |
+| Chrome | main chrome accessibility names | pass | UI Automation exposed names for Settings, Minimize, Maximize/restore, Close, Back, Reload, YouTube home, URL/search, Profiles, Save profile, Pin, Auto, and Pop out video. |
+| Chrome | URL/address field at current DPI | pass | Main-chrome screenshot at the recorded 144 logical DPI / `dpiScale=1.5` shows the URL/search field text and toolbar spacing legible within the deployed window. |
+| Chrome | Profiles closed dropdown appearance | pass | Main-chrome screenshot shows the closed Profiles control rendered in the dark toolbar without a light-theme rectangle. |
+| Chrome | Profiles open dropdown appearance | blocked | UI Automation ExpandCollapse was attempted and `docs\evidence\phase1-release-v0.4.3-b20-profiles-dropdown.png` was captured, but the screenshot still showed the control closed or an empty list not directly visible; the open dropdown state was not proven. |
+| Chrome | UI-CHK-1 through UI-CHK-7 full review | blocked | Partial visual/UIA coverage passed for the main chrome, but tooltip timing, full screen-reader review, and every reachable focus/visual state were not completed under direct human observation. |
+| Settings | Settings opens from deployed Stable | blocked | Settings button was visible, enabled, and keyboard-focusable, but UIA InvokePattern, keyboard Enter/Space, and foreground coordinate click did not open the Settings window in this synthetic/non-interactive run. No human click path was available. |
+| Privacy | Reset app state clears app settings without signing out YouTube | blocked | Requires Settings access plus a controlled signed-in YouTube state. Settings did not open through the available synthetic interaction path, and no destructive reset was run. |
+| Privacy | Clear browser data signs out YouTube | blocked | Requires Settings access, a controlled signed-in YouTube state, and consent to run the destructive browser-data action. These dependencies were unavailable. |
+| Privacy | Reset app state and Clear browser data are clearly distinct | blocked | Requires opening Settings and observing both confirmation/action surfaces. Settings could not be opened in this environment. |
+| Persistence | settings changes persist across restart | blocked | Requires interactive settings mutation and restart observation. Settings could not be opened, and runtime `settings.json` was not hand-edited for QA. |
+| Compact | compact mode entry state | blocked | Deployed `settings.json` records `player.compactMode=false`; Settings could not be opened to enable compact mode, and no config hand-edit was performed. |
+| Compact | recommendation/end-screen click retargets same popout | blocked | Requires compact-player mode plus live YouTube recommendation/end-screen interaction and timestamp observation. These dependencies were unavailable. |
+| Compact | retargeted fallback opens the new target | blocked | Requires compact-player mode and a known restricted/embed-disabled or fallback target to induce the retargeted fallback path. No suitable controlled media was available. |
+| Compact | video-aware return navigates source to current popout URL/timestamp | blocked | Requires compact-player popout playback, source/popout URL capture, and direct timestamp observation before and after return. Compact mode was unavailable. |
+| Compact | compact YouTube fullscreen expands/restores | blocked | Requires compact-player mode, live playback, and direct fullscreen/restore observation. Compact mode was unavailable. |
+| Compact | playlist and playlist-only URL behavior | blocked | Requires compact-player mode and controlled playlist/playlist-only YouTube URLs. Compact mode and controlled media were unavailable. |
+| Compact | restricted/embed-disabled fallback clarity | blocked | Requires known restricted/embed-disabled media to induce fallback. No controlled test media was available. |
+| Compact | watchdog timeout/error bar behavior | blocked | Requires inducing IFrame API timeout or recovery, likely through special media or network control. No safe induction path was available. |
+| Compact | timestamp-carrying fallback | blocked | Requires compact-player mode, fallback induction, and direct timestamp comparison. Compact mode and controlled fallback media were unavailable. |
+| Playback/account | logged-out playback | blocked | Requires a controlled logged-out WebView2/browser state and direct playback observation. Browser/account state was not reset for this pass. |
+| Playback/account | logged-in playback | blocked | Requires controlled credentials/session and direct playback observation. No credentialed test account was supplied. |
+| Playback/account | autoplay allowed | blocked | Requires controlled browser policy/user gesture/account state and direct playback observation. These dependencies were unavailable. |
+| Playback/account | autoplay blocked | blocked | Requires controlled browser policy/user gesture/account state and a reproducible blocked-autoplay condition. These dependencies were unavailable. |
+| Playback/account | returning from Auto does not immediately re-pop same video | blocked | Requires live playback with Auto enabled and direct source/popout observation. This was not run. |
+| DPI/resize | current-DPI main chrome smoke | pass | Main-chrome screenshot was captured at the current environment's 144 logical DPI / `dpiScale=1.5`, with main controls visible and not overlapping. |
+| DPI/resize | 100/125/150 percent and mixed-monitor matrix | blocked | The environment exposed current 144 logical DPI and two outputs, but system DPI switching and mixed-monitor movement were not performed. |
+| DPI/resize | auto-hide reveal then resize | blocked | Requires direct pointer/resize observation against the deployed app. Synthetic QA did not provide a reliable interactive pointer path for this row. |
+| DPI/resize | source window resize over WebView2 | blocked | Requires direct interactive resizing and hit-testing over WebView2 content. This was not run. |
+| DPI/resize | popout resize over WebView2 | blocked | Requires opening popout playback and directly resizing over WebView2 content. Popout/compact playback was not established in this pass. |
+| DPI/resize | resize zones do not swallow caption buttons or popout controls | blocked | Requires direct pointer hit-test observation across caption and popout controls. This was not run. |
+| Diagnostics | Settings-attempt log check | pass | Tail of `E:\Dev_test_implemenations\PiPlay\PiPlayData\logs\piplay.log` during the synthetic Settings attempts showed startup/source-browser initialization lines and no recorded exception for Settings. |
+
 ## Focused Manual QA
 
 | Area | Scenario | Result | Evidence / notes |
@@ -62,7 +106,8 @@
 
 - UI smoke screenshot: `docs\evidence\phase1-release-v0.4.3-b20-ui-smoke.png`
 - Main chrome screenshot: `docs\evidence\phase1-release-v0.4.3-b20-main-chrome.png`
-- Chrome screenshots: UI smoke and main chrome screenshots only.
+- Profiles dropdown attempt screenshot: `docs\evidence\phase1-release-v0.4.3-b20-profiles-dropdown.png` (inconclusive for open-dropdown state).
+- Chrome screenshots: UI smoke, main chrome, and profiles dropdown attempt screenshots only.
 - DPI screenshots: not produced.
 - Compact fallback screenshots: not produced.
 - Redacted logs: none produced.
