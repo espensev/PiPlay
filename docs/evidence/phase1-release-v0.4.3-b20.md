@@ -73,6 +73,29 @@ Environment: Windows 11 Pro 10.0.26200; deployed target only `E:\Dev_test_implem
 | DPI/resize | resize zones do not swallow caption buttons or popout controls | blocked | Requires direct pointer hit-test observation across caption and popout controls. This was not run. |
 | Diagnostics | Settings-attempt log check | pass | Tail of `E:\Dev_test_implemenations\PiPlay\PiPlayData\logs\piplay.log` during the synthetic Settings attempts showed startup/source-browser initialization lines and no recorded exception for Settings. |
 
+## Human-Assisted QA Follow-Up
+
+Tester/date: Human tester coordinated by Codex, 2026-06-12 Europe/Berlin
+
+Environment: deployed target only `E:\Dev_test_implemenations\PiPlay\PiPlay.exe`; archived SHA256 rechecked as `F6D491E96D7DC6D9D338796C60F12E46C97C88037ADC8D37BDD329E184FDB3FA`; signature remained `NotSigned`; current run used the visible deployed Stable window.
+
+| Area | Scenario | Result | Evidence / notes |
+|---|---|---|---|
+| Release identity | deployed candidate still matches archived SHA256 | pass | `Test-Path` returned `True`; SHA256 matched `F6D491E96D7DC6D9D338796C60F12E46C97C88037ADC8D37BDD329E184FDB3FA`; `Get-AuthenticodeSignature` returned `NotSigned`. |
+| Settings | Settings opens from deployed Stable by real click | pass | Human tester clicked the Settings gear in the visible deployed Stable window and Settings opened. Screenshot was observed during the pass but not retained at tester request. |
+| Privacy | Reset app state and Clear browser data are visibly distinct | pass | Human-observed Settings view showed separate `Reset app state` and `Clear browser data` actions with distinct explanatory text: reset clears PiPlay settings/profiles/placement while staying signed in, and clear browser data signs out of YouTube and clears browsing data. |
+| Privacy | Reset app state clears app settings without signing out YouTube | not run | Destructive reset action was not performed in this pass. Requires explicit tester consent plus a controlled signed-in YouTube state and post-action observation. |
+| Privacy | Clear browser data signs out YouTube | not run | Destructive browser-data action was not performed in this pass. Requires explicit tester consent plus a controlled signed-in YouTube state and post-action observation. |
+| Persistence | settings changes persist across restart | not run | A harmless setting change and restart cycle were not performed yet. |
+| Profiles | open Profiles dropdown by hand | pass | Human tester opened the Profiles dropdown from the visible deployed Stable window. The open menu used the dark theme, was readable, and showed `No saved profiles yet`. Screenshot was observed during the pass but not retained at tester request. |
+| Chrome | UI-CHK-4 main chrome tooltips | pass | Human tester hovered the main icon buttons and confirmed tooltips appeared with expected labels. |
+| Chrome | profile edit/delete icon meaning and enabled state | pass | Code labels confirm the pencil icon is `Edit profile` and the trash can icon is `Delete profile`. Human tester observed the profile action icons become active after a profile was added. |
+| Chrome | UI-CHK-1 through UI-CHK-7 full human review | blocked | Tooltip observation is complete, but full screen-reader/accessibility review for every icon-only control is still pending. |
+| Compact | compact-player live rows | not run | Compact mode and live YouTube compact-player scenarios have not been exercised in the human-assisted pass. |
+| Playback/account | logged-in/logged-out/autoplay matrix | not run | Controlled account/browser/autoplay states have not been established in the human-assisted pass. |
+| DPI/resize | DPI, mixed-monitor, resize, and hit-test rows | not run | DPI switching, mixed-monitor movement, and direct resize/hit-test checks have not been performed in the human-assisted pass. |
+| Signing | public distribution decision | blocked | Candidate remains unsigned/internal. Public distribution requires a new signed publish with `.\scripts\Publish-Stable.ps1 -SignScript <path>` before manifest hashes are written. |
+
 ## Focused Manual QA
 
 | Area | Scenario | Result | Evidence / notes |
