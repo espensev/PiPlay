@@ -19,7 +19,7 @@ UI overhaul stabilization (plan `docs/superpowers/plans/2026-06-10-ui-overhaul-s
   a move, the error bar's "Open normal page" reopens the video you are actually on.
 - **Theme presets, corners, and a single accent:** Settings → Appearance offers a theme preset
   (Sharp Dark, Minimal, Soft Glass), a corner profile, and one accent color (cyan, steel blue,
-  violet, green, amber). Theme, accent, and corners apply to every open window when Settings
+  steel, violet, green, amber). Theme, accent, and corners apply to every open window when Settings
   closes, with no restart needed; opacity sliders still live-preview on the open Popout Player.
   Theme settings are stored additively and migration-safe — an older build reading a newer
   settings file no longer drops the theme block.

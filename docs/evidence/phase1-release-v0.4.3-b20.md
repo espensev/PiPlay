@@ -21,7 +21,7 @@
 |---|---|---|
 | git clean before publish | pass | `git status --short --branch` showed only `## main...origin/main [ahead 2]` before publish, with no dirty paths. |
 | stable tag collision check | pass | Existing `stable-v0.4.3-b19` pointed at an older commit; `stable-v0.4.3-b20` did not exist before publish. `BUILD_NUMBER` was bumped to `20` and committed instead of moving an existing tag. |
-| signing path available/used | unsigned/internal | `signtool` was not found in PATH; no signing script was present. Build manifest records `signing.enabled=false`. |
+| signing path available/used | blocked | Unsigned/internal: `signtool` was not found in PATH; no signing script was present. Build manifest records `signing.enabled=false`. Blocked for public distribution until signed (see lines below and Signing rows). |
 | `Publish-Stable.ps1` final verifier | pass | Exit 0. Final verifier printed `VERDICT: RELEASE VERIFIED`; v0.4.3 b20; commit `d628f27c6e07788bbd01d641480a5d4f0a516c5c`; tag `stable-v0.4.3-b20`; deploy root `E:\Dev_test_implemenations\PiPlay`. |
 | `Verify-StableDeploy.ps1` rerun | pass | Exit 0. Printed `VERDICT: RELEASE VERIFIED`; artifact hashes, manifest, marker, `FileVersion`, `ProductVersion`, clean repo, source commit, and stable tag all agreed. Follow-up rerun was performed from clean release-source `HEAD` after temporarily moving untracked evidence out of the checkout. |
 | `Test-UiSmoke.ps1` deployed exe | pass | Exit 0. UI Automation found Pop out video, URL/address box, Close caption button, Profiles dropdown, and Settings gear. Curated screenshot: `docs\evidence\phase1-release-v0.4.3-b20-ui-smoke.png`. |
@@ -125,12 +125,49 @@ Environment: deployed target only `E:\Dev_test_implemenations\PiPlay\PiPlay.exe`
 | Privacy | reset vs clear browser data | blocked | Settings/Privacy could not be opened under UI automation in this run; controlled signed-in YouTube state and destructive browser-data action were also unavailable. |
 | Persistence | settings persist across restart | blocked | Requires interactive settings changes and restart observation; not executed by automation in this pass. |
 
+## Automation Re-Verification
+
+Tester/date: Claude Code (automation), 2026-06-13 Europe/Berlin
+
+Environment: deployed target only `E:\Dev_test_implemenations\PiPlay\PiPlay.exe`, the same byte-identical
+release candidate (SHA256 re-confirmed below). Installed WebView2 Evergreen runtime `149.0.4022.69`
+(distinct from the bundled SDK DLL `1.0.3967.48` recorded under Identity — both expected). Reused the
+`run-piplay` UIAutomation scripts against the running deployed instance; no destructive action, no
+account login, no setting changed (Settings was opened read-only and closed without persisting).
+
+This pass re-verifies integrity and the automated gate, and **retains the Settings/Appearance
+screenshot the human-assisted pass observed but did not keep** (see the `not retained at tester
+request` notes above) — closing that evidence gap on the theme feature surface for this version.
+
+| Area | Scenario | Result | Evidence / notes |
+|---|---|---|---|
+| Release identity | deployed exe still matches archived SHA256 | pass | `Get-FileHash` = `F6D491E96D7DC6D9D338796C60F12E46C97C88037ADC8D37BDD329E184FDB3FA`; signature `NotSigned`; marker version 0.4.3 / build 20 / commit `d628f27` / channel Stable / releaseEvidence=true / sourceDirty=false. |
+| Release identity | `Verify-StableDeploy.ps1` from main HEAD | pass (binary) | All 21 deployed artifacts re-hash clean; identity checks pass; commit carries tag `stable-v0.4.3-b20`. The verifier's overall `FAIL` here is the documented source-drift only (HEAD ahead of the tag — doc/evidence archival, empty `src/`/`*.xaml`/`VERSION`/`BUILD_NUMBER` diff — plus a dirty tree of evidence/QA docs); not a deployed-binary failure (handoff lines 56-63). |
+| Release identity | `Verify-StableDeploy.ps1` from clean tag worktree | pass | Re-run from a detached worktree at `stable-v0.4.3-b20` (the handoff's pristine-proof path): every check OK incl. "built from the CURRENT HEAD (d628f27)" and "working tree is clean" → `VERDICT: RELEASE VERIFIED — you are testing v0.4.3 b20 @ d628f27…, current with HEAD and tagged.` Confirms the main-HEAD `FAIL` was purely source-drift. |
+| Test gate | `dotnet test` on HEAD | pass | 561 passed, 0 failed, 0 skipped (same source the binary was built from). |
+| Functional | youtube.com loads and a watch video plays | pass | `phase1-release-v0.4.3-b20-deployed-main-reverify.png` shows the deployed main window with a YouTube video actively playing in WebView2, URL box reading youtube.com, no crash. |
+| Chrome | main chrome renders, zero empty icon boxes (UI-CHK-1) | pass | Same screenshot: all caption/nav/profile/Pin/Auto/Pop-out icons present and rendered; closed Profiles combo dark (UI-CHK-2); consistent icon weight/style (UI-CHK-6). |
+| Settings | Settings opens from deployed Stable under UIAutomation | pass | Opened via UIAutomation InvokePattern on the deployed instance (advances the direct-observation row that had blocked on synthetic input). `phase1-release-v0.4.3-b20-deployed-settings.png` retained. |
+| Appearance | theme preset row renders (Sharp Dark / Minimal / Soft Glass) | pass | Settings screenshot shows the three named presets; Minimal selected. |
+| Appearance | single accent row with six chips incl. steel #4A8FAB | pass | Six chips: cyan, steel blue, steel (muted #4A8FAB), violet, green, amber (amber selected/active). |
+| Appearance | corner-style override row (Theme/Square/Small/Soft/Round) | pass | All five options render; Theme selected (default). |
+| Appearance | close-to-apply hint copy is accurate (PR P3 fix) | pass | Reads "Theme, accent, and corners apply to every open window when you close Settings - no restart needed. A preset sets the accent; the chips fine-tune it." |
+| Appearance | custom accent preserved across theme state | pass | Active accent is amber while Minimal's own default is steel blue — the custom-accent-preservation rule holds live on the deployed binary. |
+| Privacy | Reset app state and Clear browser data render distinct/worded | pass | Both actions present with their distinct explanatory text; no destructive action run. |
+| Settings | section order + scrollability | pass | Privacy → Appearance → Playback order; vertical scrollbar present. |
+
+Not advanced by this pass (still require interactive/account/env conditions, see Release Readiness):
+live popout-player rows, destructive Privacy execution, Auto/compact matrix, account/autoplay matrix,
+DPI sweep, recovery/durability rows, and the full screen-reader (UI-CHK-7) review.
+
 ## Screenshots And Logs
 
 - UI smoke screenshot: `docs\evidence\phase1-release-v0.4.3-b20-ui-smoke.png`
 - Main chrome screenshot: `docs\evidence\phase1-release-v0.4.3-b20-main-chrome.png`
 - Profiles dropdown attempt screenshot: `docs\evidence\phase1-release-v0.4.3-b20-profiles-dropdown.png` (inconclusive for open-dropdown state).
-- Chrome screenshots: UI smoke, main chrome, and profiles dropdown attempt screenshots only.
+- Automation re-verify — deployed main (video playing): `docs\evidence\phase1-release-v0.4.3-b20-deployed-main-reverify.png`
+- Automation re-verify — deployed Settings/Appearance (theme surface, retained): `docs\evidence\phase1-release-v0.4.3-b20-deployed-settings.png`
+- Chrome screenshots: UI smoke, main chrome, profiles dropdown attempt, deployed main re-verify, deployed Settings.
 - DPI screenshots: not produced.
 - Compact fallback screenshots: not produced.
 - Redacted logs: none produced.
