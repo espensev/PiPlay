@@ -15,6 +15,7 @@ a real desktop tool.
 | [AGENTS.md](AGENTS.md) | Contributor guide and repository working rules. |
 | [Feature_Workflow.md](Feature_Workflow.md) | How to add features, write change notes, run gates, and open PRs. |
 | [CHANGELOG.md](CHANGELOG.md) | Product/app release notes. |
+| [Theme_Preset_Differences.md](Theme_Preset_Differences.md) | Current code-backed comparison of the shipped theme presets. |
 | [SPEC_GAPS_AND_OWNERSHIP.md](SPEC_GAPS_AND_OWNERSHIP.md) | Missing/unclear spec items and ownership boundaries to resolve. |
 | [adr/](adr/) | Architecture Decision Records - why the big choices were made. |
 | [reviews/](reviews/) | Completed review artifacts and provenance; not current source-of-truth docs. |
@@ -30,6 +31,15 @@ compliance policy, privacy map, feature workflow, and spec gaps/ownership notes.
 Dated specs, plans, and worklogs under `docs/superpowers/` are immutable change-pass records.
 Completed review artifacts live under `docs/reviews/`. Raw screenshots and release evidence live
 under `docs/evidence/`; discovery folders are evidence, not current-state contracts.
+
+## Current Theme Flow
+
+The next theme-system pass is tracked by
+[`docs/superpowers/specs/2026-06-14-theme-v2-tight-scope-design.md`](superpowers/specs/2026-06-14-theme-v2-tight-scope-design.md)
+and
+[`docs/superpowers/plans/2026-06-14-theme-v2-tight-scope.md`](superpowers/plans/2026-06-14-theme-v2-tight-scope.md).
+`Theme_Preset_Differences.md` remains the current-code reference until implementation changes land,
+and it must be refreshed in the same PR as any theme catalog value changes.
 
 ## Requirements
 
