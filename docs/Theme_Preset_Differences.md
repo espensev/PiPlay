@@ -2,6 +2,11 @@
 
 This document compares the current implementation of `Sharp Dark`, `Minimal`, and `Soft Glass` from the code, not from an older design note or a screenshot.
 
+For the next theme-system implementation flow, use
+`docs/superpowers/specs/2026-06-14-theme-v2-tight-scope-design.md` and
+`docs/superpowers/plans/2026-06-14-theme-v2-tight-scope.md`. This file remains the current-code
+reference and must be regenerated in the same PR as any theme catalog value changes.
+
 Source of truth:
 
 - `src/PiPlay/Theme/ThemeCatalog.cs`
@@ -22,9 +27,9 @@ Terminology:
 
 | Preset | Intent | Main difference |
 |---|---|---|
-| Sharp Dark | Utility-first PiPlay dark shell | Darkest base palette, cyan default accent, tightest radii, fully opaque popout defaults. |
-| Minimal | Low-distraction daily browsing | Slightly lighter pre-theme shared palette, steel-blue default accent, moderate radii, fully opaque popout defaults. |
-| Soft Glass | Desktop overlay / floating popout style | Cooler blue palette, violet default accent, largest radii, rounded native window corners, translucent popout defaults. |
+| Sharp Dark | Utility-first PiPlay dark shell | Darkest cool-black palette, cyan default accent, tightest radii, pristine native corners, normal fade, fully opaque popout defaults. |
+| Minimal | Low-distraction daily browsing | Warm charcoal palette, steel-blue default accent, moderate radii, small native corners, long fade, fully opaque popout defaults. |
+| Soft Glass | Desktop overlay / floating popout style | Cool blue palette, violet default accent, largest radii, rounded native corners, short fade, auto-hiding strip, translucent popout defaults. |
 
 ## Preset Identity
 
@@ -60,9 +65,9 @@ Preset switching rule:
 
 | Field | Sharp Dark | Minimal | Soft Glass | Difference |
 |---|---|---|---|---|
-| Default fade delay preset | `normal` | `normal` | `normal` | No difference. |
-| Default fade delay milliseconds | `2500` | `2500` | `2500` | No difference. |
-| Default popout top-bar auto-hide | `false` | `false` | `false` | No difference. |
+| Default fade delay preset | `normal` | `long` | `short` | All three differ. Minimal lets the strip linger; Soft Glass hides it quickly. |
+| Default fade delay milliseconds | `2500` | `4000` | `1500` | Derived from the preset (`short`/`normal`/`long` = `1500`/`2500`/`4000`). |
+| Default popout top-bar auto-hide | `false` | `false` | `true` | Soft Glass auto-hides the popout strip by default; Sharp and Minimal keep it pinned. |
 | Default active window opacity | `1.0` | `1.0` | `0.92` | Soft Glass is translucent while active; Sharp and Minimal are opaque. |
 | Default idle window opacity | `1.0` | `1.0` | `0.78` | Soft Glass fades down while idle; Sharp and Minimal stay opaque. |
 | Active alpha byte | `255` / `0xFF` | `255` / `0xFF` | `235` / `0xEB` | Soft Glass engages layered-window opacity by default. |
@@ -83,23 +88,23 @@ These are the exact `ThemePalette` tokens applied to the shared resource diction
 
 | Token | Sharp Dark | Minimal | Soft Glass |
 |---|---|---|
-| `AppBackground` | `#07090B` | `#0B0D0E` | `#090B0F` |
-| `SurfaceBase` | `#0D1014` | `#111316` | `#10141B` |
-| `SurfaceRaised` | `#141920` | `#1A1E22` | `#171C26` |
-| `SurfaceHover` | `#202833` | `#252B31` | `#242B38` |
-| `BorderSubtle` | `#2A3441` | `#30363D` | `#384255` |
-| `BorderStrong` | `#3A4655` | `#414A55` | `#526179` |
-| `TextPrimary` | `#F2F5F7` | `#F3F5F7` | `#F7F8FA` |
-| `TextSecondary` | `#A8B0BA` | `#A7ADB4` | `#C0C6CF` |
-| `Danger` / `DangerPin` | `#E45D75` | `#FF4B55` | `#E45D75` |
+| `AppBackground` | `#050609` | `#14120F` | `#0B1018` |
+| `SurfaceBase` | `#0B0E12` | `#1C1A16` | `#121A26` |
+| `SurfaceRaised` | `#131820` | `#26231E` | `#1B2738` |
+| `SurfaceHover` | `#1E2630` | `#312D27` | `#26354B` |
+| `BorderSubtle` | `#2B3645` | `#3C372F` | `#44526E` |
+| `BorderStrong` | `#3E4B5C` | `#50493E` | `#66799E` |
+| `TextPrimary` | `#F4F7FA` | `#F4F1EC` | `#F6F8FC` |
+| `TextSecondary` | `#9AA2AD` | `#B0A99E` | `#C4CEDC` |
+| `Danger` / `DangerPin` | `#E45D75` | `#E8564C` | `#E45D75` |
 
 Palette interpretation:
 
-- Sharp Dark is the darkest and most compact-looking palette.
-- Minimal preserves the earlier pre-theme shared palette tones.
-- Soft Glass is cooler and bluer, with brighter borders and secondary text.
-- Sharp Dark and Soft Glass share the same danger color.
-- Minimal uses a hotter red danger color.
+- Sharp Dark is the darkest, coolest, most compact-looking palette (near-black with cool slate borders).
+- Minimal is a warm charcoal palette: its surfaces are warmer (more red, less blue) than Sharp Dark.
+- Soft Glass is cooler and bluer, with the brightest borders and secondary text.
+- Sharp Dark and Soft Glass share the same danger color `#E45D75`.
+- Minimal uses a warmer red-orange danger color `#E8564C`.
 
 ## Palette RGB Deltas
 
@@ -107,15 +112,15 @@ Positive values mean the target preset channel is brighter than the source prese
 
 | Token | Minimal minus Sharp | Soft Glass minus Sharp | Soft Glass minus Minimal |
 |---|---:|---:|---:|
-| `AppBackground` | `R+4 G+4 B+3` | `R+2 G+2 B+4` | `R-2 G-2 B+1` |
-| `SurfaceBase` | `R+4 G+3 B+2` | `R+3 G+4 B+7` | `R-1 G+1 B+5` |
-| `SurfaceRaised` | `R+6 G+5 B+2` | `R+3 G+3 B+6` | `R-3 G-2 B+4` |
-| `SurfaceHover` | `R+5 G+3 B-2` | `R+4 G+3 B+5` | `R-1 G0 B+7` |
-| `BorderSubtle` | `R+6 G+2 B-4` | `R+14 G+14 B+20` | `R+8 G+12 B+24` |
-| `BorderStrong` | `R+7 G+4 B0` | `R+24 G+27 B+36` | `R+17 G+23 B+36` |
-| `TextPrimary` | `R+1 G0 B0` | `R+5 G+3 B+3` | `R+4 G+3 B+3` |
-| `TextSecondary` | `R-1 G-3 B-6` | `R+24 G+22 B+21` | `R+25 G+25 B+27` |
-| `Danger` / `DangerPin` | `R+27 G-18 B-32` | `R0 G0 B0` | `R-27 G+18 B+32` |
+| `AppBackground` | `R+15 G+12 B+6` | `R+6 G+10 B+15` | `R-9 G-2 B+9` |
+| `SurfaceBase` | `R+17 G+12 B+4` | `R+7 G+12 B+20` | `R-10 G0 B+16` |
+| `SurfaceRaised` | `R+19 G+11 B-2` | `R+8 G+15 B+24` | `R-11 G+4 B+26` |
+| `SurfaceHover` | `R+19 G+7 B-9` | `R+8 G+15 B+27` | `R-11 G+8 B+36` |
+| `BorderSubtle` | `R+17 G+1 B-22` | `R+25 G+28 B+41` | `R+8 G+27 B+63` |
+| `BorderStrong` | `R+18 G-2 B-30` | `R+40 G+46 B+66` | `R+22 G+48 B+96` |
+| `TextPrimary` | `R0 G-6 B-14` | `R+2 G+1 B+2` | `R+2 G+7 B+16` |
+| `TextSecondary` | `R+22 G+7 B-15` | `R+42 G+44 B+47` | `R+20 G+37 B+62` |
+| `Danger` / `DangerPin` | `R+4 G-7 B-41` | `R0 G0 B0` | `R-4 G+7 B+41` |
 
 ## Corner Radii
 
@@ -123,51 +128,50 @@ All values are device-independent pixels. These are semantic radii, not one univ
 
 | Radius token | Sharp Dark | Minimal | Soft Glass |
 |---|---:|---:|---:|
-| `MainWindowFrame` | `4` | `6` | `10` |
-| `PopoutFrame` | `4` | `8` | `16` |
-| `TitleBar` | `4` | `6` | `10` |
-| `Button` | `5` | `6` | `10` |
-| `IconButton` | `5` | `6` | `10` |
-| `Input` | `5` | `6` | `10` |
-| `Panel` | `4` | `8` | `14` |
-| `Popup` | `6` | `8` | `14` |
-| `Thumbnail` | `3` | `4` | `8` |
-| `Swatch` | `6` | `8` | `10` |
-| `ScrollbarThumb` | `4` | `5` | `5` |
-| `ToolTip` | `6` | `6` | `8` |
+| `MainWindowFrame` | `2` | `8` | `14` |
+| `PopoutFrame` | `2` | `12` | `22` |
+| `TitleBar` | `2` | `8` | `14` |
+| `Button` | `3` | `8` | `12` |
+| `IconButton` | `3` | `8` | `12` |
+| `Input` | `3` | `8` | `12` |
+| `Panel` | `2` | `10` | `16` |
+| `Popup` | `4` | `10` | `16` |
+| `Thumbnail` | `2` | `6` | `10` |
+| `Swatch` | `4` | `8` | `12` |
+| `ScrollbarThumb` | `3` | `5` | `6` |
+| `ToolTip` | `4` | `8` | `10` |
 
 Radii interpretation:
 
-- Sharp Dark has the tightest corners.
-- Minimal is slightly softer than Sharp Dark.
+- Sharp Dark has the tightest corners (intentionally tight, not accidentally unrounded).
+- Minimal is visibly softer than Sharp Dark.
 - Soft Glass has the largest overlay-style corners.
-- The biggest Soft Glass difference is `PopoutFrame`: `16`, which is `+12` over Sharp Dark and `+8` over Minimal.
-- `ScrollbarThumb` is identical for Minimal and Soft Glass at `5`.
-- `ToolTip` is identical for Sharp Dark and Minimal at `6`.
+- The biggest Soft Glass difference is `PopoutFrame`: `22`, which is `+20` over Sharp Dark and `+10` over Minimal.
+- Every radius token now differs across all three presets — there are no cross-preset ties.
 
 ## Radius Deltas
 
 | Radius token | Minimal minus Sharp | Soft Glass minus Sharp | Soft Glass minus Minimal |
 |---|---:|---:|---:|
-| `MainWindowFrame` | `+2` | `+6` | `+4` |
-| `PopoutFrame` | `+4` | `+12` | `+8` |
-| `TitleBar` | `+2` | `+6` | `+4` |
-| `Button` | `+1` | `+5` | `+4` |
-| `IconButton` | `+1` | `+5` | `+4` |
-| `Input` | `+1` | `+5` | `+4` |
-| `Panel` | `+4` | `+10` | `+6` |
-| `Popup` | `+2` | `+8` | `+6` |
-| `Thumbnail` | `+1` | `+5` | `+4` |
-| `Swatch` | `+2` | `+4` | `+2` |
-| `ScrollbarThumb` | `+1` | `+1` | `0` |
-| `ToolTip` | `0` | `+2` | `+2` |
+| `MainWindowFrame` | `+6` | `+12` | `+6` |
+| `PopoutFrame` | `+10` | `+20` | `+10` |
+| `TitleBar` | `+6` | `+12` | `+6` |
+| `Button` | `+5` | `+9` | `+4` |
+| `IconButton` | `+5` | `+9` | `+4` |
+| `Input` | `+5` | `+9` | `+4` |
+| `Panel` | `+8` | `+14` | `+6` |
+| `Popup` | `+6` | `+12` | `+6` |
+| `Thumbnail` | `+4` | `+8` | `+4` |
+| `Swatch` | `+4` | `+8` | `+4` |
+| `ScrollbarThumb` | `+2` | `+3` | `+1` |
+| `ToolTip` | `+4` | `+6` | `+2` |
 
 ## Native DWM Window Corners
 
 | Field | Sharp Dark | Minimal | Soft Glass | Difference |
 |---|---|---|---|---|
-| Preset DWM corner mode | `Default` | `Default` | `Round` | Soft Glass requests rounded native outer corners; Sharp and Minimal leave the HWND corner preference untouched. |
-| Default-theme pristine guarantee | Yes | Yes | No | Sharp Dark and Minimal do not force a DWM corner write from the preset. Soft Glass intentionally does. |
+| Preset DWM corner mode | `Default` | `SmallRound` | `Round` | All three differ. Sharp leaves the HWND corner preference untouched; Minimal requests small native rounding; Soft Glass requests full rounding. |
+| Default-theme pristine guarantee | Yes | No | No | Only Sharp Dark leaves the window DWM-pristine. Minimal and Soft Glass intentionally write a native corner preference. |
 | Relationship to opacity | Independent | Independent | Independent | Corner mode is explicit preset data, not inferred from opacity. |
 
 ## Corner Style Overrides
@@ -253,12 +257,14 @@ When a preset button is clicked in Settings:
 9. Opacity preview fires for the displayed active/idle opacity values.
 10. Theme, accent, and corners apply to every open window when Settings closes.
 
-Because all three presets currently use `DefaultFadeDelayPreset = normal` and `DefaultStripAutoHide = false`, the visible behavioral jump on preset click is mainly:
+The visible behavioral jump on preset click now spans every preset-owned axis:
 
 - default accent,
 - palette,
 - radii,
-- native DWM corner mode,
+- native DWM corner mode (`Default` / `SmallRound` / `Round`),
+- fade delay preset (`normal` / `long` / `short`),
+- popout strip auto-hide (Soft Glass on, others off),
 - Soft Glass active/idle opacity.
 
 ## Persistence Fields
@@ -269,7 +275,7 @@ Current schema stores:
 |---|---|
 | `theme.themeId` | One of `sharp-dark`, `minimal`, `soft-glass`; invalid values normalize to `sharp-dark`. |
 | `theme.accentColor` | Normalized `#RRGGBB`; invalid values normalize to Sharp Dark cyan or a legacy fallback. |
-| `theme.fadeDelayPreset` | `short`, `normal`, or `long`; all three presets default to `normal`. |
+| `theme.fadeDelayPreset` | `short`, `normal`, or `long`; preset defaults are Sharp Dark `normal`, Minimal `long`, Soft Glass `short`. |
 | `theme.cornerStyle` | `theme`, `square`, `small`, `soft`, or `round`; invalid values normalize to `theme`. |
 | `theme.stripAutoHide` | Nullable behavior override; `null` means follow preset. |
 | `theme.activeWindowOpacity` | Nullable behavior override; `null` means follow preset. |
@@ -311,8 +317,10 @@ Every current preset-level difference falls into one of these buckets:
 1. Identity: id, display name, Settings control name, automation name, description.
 2. Default accent: preset default hex and derived runtime hover/light accent.
 3. Palette: nine surface/text/danger tokens.
-4. Radii: twelve semantic radius tokens.
-5. Native DWM corner mode: Soft Glass differs from Sharp Dark and Minimal.
-6. Popout opacity defaults: Soft Glass differs from Sharp Dark and Minimal.
+4. Radii: twelve semantic radius tokens (all distinct across the three presets).
+5. Native DWM corner mode: all three differ (`Default` / `SmallRound` / `Round`).
+6. Fade delay preset: all three differ (`normal` / `long` / `short`).
+7. Popout strip auto-hide: Soft Glass differs from Sharp Dark and Minimal.
+8. Popout opacity defaults: Soft Glass differs from Sharp Dark and Minimal.
 
 Everything else is currently shared by all three presets or controlled by user overrides rather than by the preset itself.

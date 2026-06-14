@@ -93,10 +93,12 @@ public class WpfRuntimeTests : IDisposable
         }
 
         // Radius tokens follow the preset's ThemeRadii; the title bar rounds only its top corners;
-        // the compatibility aliases ride Input/Button.
-        Assert.Equal(new CornerRadius(16), res["RadiusPopoutFrame"]);
-        Assert.Equal(new CornerRadius(10, 10, 0, 0), res["RadiusTitleBar"]);
-        Assert.Equal(new CornerRadius(10), res["RadiusButton"]);
+        // the compatibility aliases ride Input/Button. Expected values derive from the catalog so
+        // this apply-mechanism test never re-pins literal radii when the preset profile changes.
+        var radii = ThemeCatalog.PresetFor("soft-glass").Radii;
+        Assert.Equal(new CornerRadius(radii.PopoutFrame), res["RadiusPopoutFrame"]);
+        Assert.Equal(new CornerRadius(radii.TitleBar, radii.TitleBar, 0, 0), res["RadiusTitleBar"]);
+        Assert.Equal(new CornerRadius(radii.Button), res["RadiusButton"]);
         Assert.Equal(res["RadiusInput"], res["ControlCornerRadius"]);
         Assert.Equal(res["RadiusButton"], res["ButtonCornerRadius"]);
 

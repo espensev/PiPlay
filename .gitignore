@@ -25,6 +25,10 @@ x86/
 
 ## Stray local archives (release zips live under bin\publish\archive, which is ignored)
 docs.zip
+piplay-theme-v2-tight-scope-docs.zip
+
+## Transient agent check scripts (throwaway re-derivation / verification helpers, never shared)
+.tmp_*
 
 ## Transient UI-smoke captures (Test-UiSmoke.ps1 writes a timestamped shot per run).
 ## Curated, stable-named evidence is committed deliberately; these raw runs are not.
