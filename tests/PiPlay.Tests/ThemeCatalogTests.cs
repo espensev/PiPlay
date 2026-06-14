@@ -174,8 +174,8 @@ public class ThemeCatalogTests
         Assert.True(Wcag.ContrastRatio(p.TextSecondary, p.SurfaceBase) >= 4.5, $"{presetId}: TextSecondary on SurfaceBase.");
 
         // DangerButton renders white text on the Danger fill. Gated at the 3.0:1 UI-component
-        // level: the white-on-red ratio has never met 4.5:1 (the pre-theme #FF4B55 was 3.29:1;
-        // the rose #E45D75 is 3.43:1 — a slight improvement) and the button is a large bold CTA.
+        // level: white-on-red has never met 4.5:1 (the rose #E45D75 used by sharp-dark/soft-glass
+        // is 3.43:1; minimal's warmer #E8564C is 3.58:1) and the button is a large bold CTA.
         Assert.True(Wcag.ContrastRatio("#FFFFFF", p.Danger) >= 3.0, $"{presetId}: white text on Danger.");
 
         // Every offered accent stays readable on every preset's hover surface (glyph gate) and
@@ -187,5 +187,148 @@ public class ThemeCatalogTests
             var text = Wcag.ContrastRatio("#FF06141A", option.HexColor);
             Assert.True(text >= 4.5, $"{presetId}: dark button text on accent {option.Key} = {text:F2}:1.");
         }
+    }
+
+    // --- TG-2 / TG-10: spec-literal exact-value gates (theme-v2 tight-scope, 2026-06-14) ---
+    // These pin the spec's target tables as HARDCODED literals, NOT derived from the catalog. The
+    // existing XamlInvariantTests seed test only proves Colors.xaml ↔ catalog consistency; changing
+    // the catalog and that test together stays green and enforces nothing against the spec. These
+    // gates fail if any shipped catalog value drifts from the agreed v2 target, independently.
+
+    private static void AssertPresetMatchesSpec(
+        string id, string displayName, string defaultAccent, string fadeDelay, bool stripAutoHide,
+        double activeOpacity, double idleOpacity, DwmCornerMode dwm, ThemePalette palette, ThemeRadii radii)
+    {
+        var p = ThemeCatalog.PresetFor(id);
+        Assert.Equal(id, p.Id);
+        Assert.Equal(displayName, p.DisplayName);
+        Assert.Equal(defaultAccent, p.DefaultAccentColor);
+        Assert.Equal(fadeDelay, p.DefaultFadeDelayPreset);
+        Assert.Equal(stripAutoHide, p.DefaultStripAutoHide);
+        Assert.Equal(activeOpacity, p.DefaultActiveWindowOpacity);
+        Assert.Equal(idleOpacity, p.DefaultIdleWindowOpacity);
+        Assert.Equal(dwm, p.DwmCorners);
+        Assert.Equal(palette, p.Palette);   // record equality covers all nine surface/text tokens
+        Assert.Equal(radii, p.Radii);       // record equality covers all twelve semantic radii
+    }
+
+    [Fact]
+    public void Sharp_dark_matches_the_v2_spec_literals() => AssertPresetMatchesSpec(
+        "sharp-dark", "Sharp Dark", "#00D4FF", "normal", stripAutoHide: false,
+        activeOpacity: 1.0, idleOpacity: 1.0, DwmCornerMode.Default,
+        new ThemePalette(
+            AppBackground: "#050609", SurfaceBase: "#0B0E12", SurfaceRaised: "#131820",
+            SurfaceHover: "#1E2630", BorderSubtle: "#2B3645", BorderStrong: "#3E4B5C",
+            TextPrimary: "#F4F7FA", TextSecondary: "#9AA2AD", Danger: "#E45D75"),
+        new ThemeRadii(
+            MainWindowFrame: 2, PopoutFrame: 2, TitleBar: 2, Button: 3, IconButton: 3, Input: 3,
+            Panel: 2, Popup: 4, Thumbnail: 2, Swatch: 4, ScrollbarThumb: 3, ToolTip: 4));
+
+    [Fact]
+    public void Minimal_matches_the_v2_spec_literals() => AssertPresetMatchesSpec(
+        "minimal", "Minimal", "#5AA9E6", "long", stripAutoHide: false,
+        activeOpacity: 1.0, idleOpacity: 1.0, DwmCornerMode.SmallRound,
+        new ThemePalette(
+            AppBackground: "#14120F", SurfaceBase: "#1C1A16", SurfaceRaised: "#26231E",
+            SurfaceHover: "#312D27", BorderSubtle: "#3C372F", BorderStrong: "#50493E",
+            TextPrimary: "#F4F1EC", TextSecondary: "#B0A99E", Danger: "#E8564C"),
+        new ThemeRadii(
+            MainWindowFrame: 8, PopoutFrame: 12, TitleBar: 8, Button: 8, IconButton: 8, Input: 8,
+            Panel: 10, Popup: 10, Thumbnail: 6, Swatch: 8, ScrollbarThumb: 5, ToolTip: 8));
+
+    [Fact]
+    public void Soft_glass_matches_the_v2_spec_literals() => AssertPresetMatchesSpec(
+        "soft-glass", "Soft Glass", "#A78BFA", "short", stripAutoHide: true,
+        activeOpacity: 0.92, idleOpacity: 0.78, DwmCornerMode.Round,
+        new ThemePalette(
+            AppBackground: "#0B1018", SurfaceBase: "#121A26", SurfaceRaised: "#1B2738",
+            SurfaceHover: "#26354B", BorderSubtle: "#44526E", BorderStrong: "#66799E",
+            TextPrimary: "#F6F8FC", TextSecondary: "#C4CEDC", Danger: "#E45D75"),
+        new ThemeRadii(
+            MainWindowFrame: 14, PopoutFrame: 22, TitleBar: 14, Button: 12, IconButton: 12, Input: 12,
+            Panel: 16, Popup: 16, Thumbnail: 10, Swatch: 12, ScrollbarThumb: 6, ToolTip: 10));
+
+    [Fact]
+    public void Theme_palette_and_radii_use_structural_equality()
+    {
+        // The *_matches_the_v2_spec_literals gates above pin all nine palette tokens and twelve radii
+        // through Assert.Equal(expectedRecord, preset.Palette/Radii) — which only compares per-field
+        // because ThemePalette/ThemeRadii are records. If either were ever refactored to a class,
+        // those asserts would silently degrade to reference equality and stop enforcing the literals.
+        // This guard turns that refactor red instead of letting it gut the spec gates unnoticed.
+        Assert.Equal(
+            new ThemePalette("#1", "#2", "#3", "#4", "#5", "#6", "#7", "#8", "#9"),
+            new ThemePalette("#1", "#2", "#3", "#4", "#5", "#6", "#7", "#8", "#9"));
+        Assert.NotEqual(
+            new ThemePalette("#1", "#2", "#3", "#4", "#5", "#6", "#7", "#8", "#9"),
+            new ThemePalette("#0", "#2", "#3", "#4", "#5", "#6", "#7", "#8", "#9"));
+        Assert.Equal(
+            new ThemeRadii(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12),
+            new ThemeRadii(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12));
+        Assert.NotEqual(
+            new ThemeRadii(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12),
+            new ThemeRadii(0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12));
+    }
+
+    // --- Task 2 / TG-1: anti-collapse identity gates. The ordering test guarantees only <=, which a
+    // regression collapsing presets back to near-identical values would still pass. These assert the
+    // presets stay visibly distinct on the axes v2 newly diverges. ---
+
+    [Fact]
+    public void Preset_identities_stay_visually_distinct()
+    {
+        var sharp = ThemeCatalog.PresetFor("sharp-dark");
+        var minimal = ThemeCatalog.PresetFor("minimal");
+        var soft = ThemeCatalog.PresetFor("soft-glass");
+
+        // Popout-frame rounding strictly increases sharp < minimal < soft-glass.
+        Assert.True(sharp.Radii.PopoutFrame < minimal.Radii.PopoutFrame,
+            $"sharp PopoutFrame {sharp.Radii.PopoutFrame} not below minimal {minimal.Radii.PopoutFrame}.");
+        Assert.True(minimal.Radii.PopoutFrame < soft.Radii.PopoutFrame,
+            $"minimal PopoutFrame {minimal.Radii.PopoutFrame} not below soft-glass {soft.Radii.PopoutFrame}.");
+
+        // Soft Glass popout reads as the overlay-soft shape: at least 16 DIP rounder than Sharp.
+        Assert.True(soft.Radii.PopoutFrame - sharp.Radii.PopoutFrame >= 16,
+            $"soft-glass PopoutFrame only {soft.Radii.PopoutFrame - sharp.Radii.PopoutFrame} DIP above sharp.");
+
+        // Native corner mode is distinct per preset: Sharp pristine, Minimal small, Soft Glass round.
+        Assert.Equal(DwmCornerMode.Default, sharp.DwmCorners);
+        Assert.Equal(DwmCornerMode.SmallRound, minimal.DwmCorners);
+        Assert.Equal(DwmCornerMode.Round, soft.DwmCorners);
+        Assert.Equal(3, new[] { sharp.DwmCorners, minimal.DwmCorners, soft.DwmCorners }.Distinct().Count());
+
+        // Each preset ships a distinct default accent identity.
+        Assert.Equal(3, new[]
+        {
+            sharp.DefaultAccentColor, minimal.DefaultAccentColor, soft.DefaultAccentColor,
+        }.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
+
+    [Fact]
+    public void Preset_behavior_defaults_stay_differentiated()
+    {
+        var sharp = ThemeCatalog.PresetFor("sharp-dark");
+        var minimal = ThemeCatalog.PresetFor("minimal");
+        var soft = ThemeCatalog.PresetFor("soft-glass");
+
+        // Fade delay diverges across all three. It is NON-MONOTONIC (normal/long/short =
+        // 2500/4000/1500), so an ordering inequality would be wrong — assert pairwise distinctness.
+        Assert.Equal(3, new[]
+        {
+            sharp.DefaultFadeDelayPreset, minimal.DefaultFadeDelayPreset, soft.DefaultFadeDelayPreset,
+        }.Distinct(StringComparer.Ordinal).Count());
+
+        // Soft Glass auto-hides its popout strip by default; Sharp and Minimal do not.
+        Assert.True(soft.DefaultStripAutoHide);
+        Assert.False(sharp.DefaultStripAutoHide);
+        Assert.False(minimal.DefaultStripAutoHide);
+
+        // Soft Glass is the only translucent shell; Sharp and Minimal stay fully opaque.
+        Assert.True(soft.DefaultActiveWindowOpacity < 1.0 && soft.DefaultIdleWindowOpacity < 1.0,
+            "soft-glass should default to translucent active and idle opacity.");
+        Assert.Equal(1.0, sharp.DefaultActiveWindowOpacity);
+        Assert.Equal(1.0, sharp.DefaultIdleWindowOpacity);
+        Assert.Equal(1.0, minimal.DefaultActiveWindowOpacity);
+        Assert.Equal(1.0, minimal.DefaultIdleWindowOpacity);
     }
 }
