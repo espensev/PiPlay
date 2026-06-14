@@ -362,6 +362,26 @@ Derived-token contrast rules:
 - `AccentSubtle` and `AccentGlow` are alpha overlays; test them in their composited consumer
   contexts before placing text on top of them.
 
+> **Phase B implementation status (Task 3 — landed `feat(theme): derive accent state tokens`).**
+> `ThemeColors.DeriveAccentSet` + `AccentProfileFor` + fail-closed `PickReadableForeground` are in
+> `src`, gated by `ThemeCatalogTests.Derived_accent_tokens_meet_contrast_minimums` (every offered
+> accent × every theme profile) for the three rules that have a Task-4 consumer: `OnAccent`,
+> `OnAccentPressed`, `AccentBorder`. All pass on the v2 chips. **CON-1 `AccentPressed` is resolved**:
+> re-picking the foreground against the pressed fill flips the dim steel chip from 3.82/3.98/4.14:1
+> (naive `OnAccent` reuse) to 4.89/4.70/4.52:1 (white) — soft-glass steel at **4.52:1** is the razor
+> margin the gate guards.
+>
+> **OPEN — `AccentMuted` is NOT yet WCAG-safe as one universal token (design decision owed).** With
+> the spec mixes, the two pinned pairings trade off inversely and neither holds across all six chips ×
+> three profiles: muted-as-glyph (`>= 3.0` vs `SurfaceBase`) fails the dim chips (steel 2.05–2.76,
+> most sharp/minimal chips `< 3.0`), and muted-as-backing (`TextPrimary >= 4.5`) fails the bright
+> chips on minimal/soft-glass (amber 3.18, cyan 3.55, green 3.62). Every chip×profile has *at least
+> one* safe pairing, but no single use is universally safe — so the review's "muted rides light text"
+> fix is insufficient. `AccentMuted` (and the alpha `AccentSubtle`/`AccentGlow`) are therefore derived
+> but **un-gated and unwired** this pass; before `AccentMuted` ships, raise `MutedSurfaceMix` so muted
+> is reliably dark (and re-confirm `TextPrimary >= 4.5`), or pin it to one constrained use and gate
+> that exact pairing. Owner call.
+
 For the first color wheel, avoid arbitrary saturation/value controls. Ship a hue wheel or hue chips
 that generate accents on a pre-validated accessible lane, and add a dense hue-sweep invariant before
 free-form hex or arbitrary value/saturation controls are allowed.
