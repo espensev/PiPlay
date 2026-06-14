@@ -1,3 +1,4 @@
+using System.Windows.Media;
 using PiPlay.Theme;
 
 namespace PiPlay.Tests;
@@ -330,5 +331,48 @@ public class ThemeCatalogTests
         Assert.Equal(1.0, sharp.DefaultIdleWindowOpacity);
         Assert.Equal(1.0, minimal.DefaultActiveWindowOpacity);
         Assert.Equal(1.0, minimal.DefaultIdleWindowOpacity);
+    }
+
+    // --- CON-1 (theme-v2 Phase B): derived accent tokens stay WCAG-safe in their PINNED pairings,
+    // across every offered accent x every theme profile (review docs/reviews/2026-06-14-theme-v2-spec-eval.md).
+    // The naive derivation reused OnAccent on the darker pressed fill, dropping the dim steel chip to
+    // 3.82:1; OnAccentPressed is re-picked against the pressed fill so it stays readable. Uses the
+    // independent Wcag oracle (not the production ContrastRatio it polices). AccentMuted/Subtle/Glow
+    // are contextual/alpha tokens with no consumer in this pass — gated when a consumer lands, per the
+    // spec's conditional-on-use rule (and AccentMuted has a known light-text gap on bright minimal/
+    // soft-glass chips that needs a design decision before it ships). ---
+
+    public static IEnumerable<object[]> AccentByPreset() =>
+        from preset in ThemeCatalog.Presets
+        from accent in ThemeCatalog.AccentOptions
+        select new object[] { preset.Id, accent.Key };
+
+    private static string Hex(Color c) => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+
+    [Theory]
+    [MemberData(nameof(AccentByPreset))]
+    public void Derived_accent_tokens_meet_contrast_minimums(string presetId, string accentKey)
+    {
+        var preset = ThemeCatalog.PresetFor(presetId);
+        var accent = ThemeCatalog.AccentOptions.Single(o => o.Key == accentKey).HexColor;
+        var set = ThemeColors.DeriveAccentSet(accent, preset);
+
+        // OnAccent must read on both the primary fill and the (lighter) hover fill.
+        var onPrimary = Wcag.ContrastRatio(Hex(set.OnAccent), Hex(set.Primary));
+        Assert.True(onPrimary >= 4.5, $"{presetId}/{accentKey}: OnAccent on AccentPrimary = {onPrimary:F2}:1.");
+        var onHover = Wcag.ContrastRatio(Hex(set.OnAccent), Hex(set.Hover));
+        Assert.True(onHover >= 4.5, $"{presetId}/{accentKey}: OnAccent on AccentHover = {onHover:F2}:1.");
+
+        // CON-1: OnAccentPressed must read on the DARKER pressed fill. Steel on soft-glass is the
+        // tightest pair at 4.52:1 (white foreground) — only ~0.02 above the floor — so a future
+        // PressedBlackMix increase for any dim accent must not silently push it under 4.5 here.
+        var onPressed = Wcag.ContrastRatio(Hex(set.OnAccentPressed), Hex(set.Pressed));
+        Assert.True(onPressed >= 4.5, $"{presetId}/{accentKey}: OnAccentPressed on AccentPressed = {onPressed:F2}:1 (CON-1).");
+
+        // AccentBorder is a focus/checked outline drawn on the dark surfaces: UI-component 3.0:1.
+        var borderOnBase = Wcag.ContrastRatio(Hex(set.Border), preset.Palette.SurfaceBase);
+        Assert.True(borderOnBase >= 3.0, $"{presetId}/{accentKey}: AccentBorder on SurfaceBase = {borderOnBase:F2}:1.");
+        var borderOnRaised = Wcag.ContrastRatio(Hex(set.Border), preset.Palette.SurfaceRaised);
+        Assert.True(borderOnRaised >= 3.0, $"{presetId}/{accentKey}: AccentBorder on SurfaceRaised = {borderOnRaised:F2}:1.");
     }
 }
