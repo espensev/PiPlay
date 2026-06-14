@@ -4,7 +4,9 @@ Canonical theme-flow contract: this supersedes
 `docs/superpowers/specs/2026-06-14-theme-differentiation-design.md`.
 
 Status: implementation spec. Imported from `piplay-theme-v2-tight-scope-docs.zip`, then checked
-against the local source tree on 2026-06-14. Focused validation passed:
+against the local source tree on 2026-06-14. Phase A (theme identity values, exact gates, and
+`docs/Theme_Preset_Differences.md`) is now reflected in the current checkout. Phases B-E remain
+pending. The original focused validation at import time passed:
 `dotnet test PiPlay.sln --configuration Debug --filter "FullyQualifiedName~ThemeCatalogTests|FullyQualifiedName~ThemeColorsTests|FullyQualifiedName~ThemePreferenceResolverTests|FullyQualifiedName~ThemeSettingsWriterTests|FullyQualifiedName~XamlInvariantTests"` = 97 passed.
 
 ## Goals
@@ -26,24 +28,26 @@ Already in place:
 
 - `ThemeCatalog` has `sharp-dark`, `minimal`, and `soft-glass`.
 - `ThemePalette`, `ThemeRadii`, and `DwmCornerMode` exist.
+- Phase A target palette, radius, native corner, default accent, fade/top-bar, and opacity values are in the current catalog.
+- `ThemeCatalogTests` contains spec-literal gates for display names, target values, and behavior-default identity deltas.
 - Settings has theme chips, accent chips, and corner-style chips.
 - `ThemeResourceApplier` replaces palette brushes, companion colors, accent brushes, and radius resources.
 - The nullable behavior override model exists: `null` means “follow the selected preset default”.
 - Accent-preservation on theme switch exists: a custom accent survives, while a previous preset default adopts the next preset default.
 - XAML now uses semantic `Radius*` resources for control `CornerRadius` values.
+- `docs/Theme_Preset_Differences.md` reflects the current Phase A catalog values.
 
 Remaining gap:
 
-- The presets still do not feel far enough apart visually. The current palettes and radii are more differentiated than the older draft, but still conservative.
 - Only two accent tokens are live today: `AccentPrimary` and `AccentPrimaryLight`.
 - Primary button foreground is still hardcoded to `#FF06141A`; this blocks a safe full color wheel.
 - Density is still hardcoded in multiple style values: button padding, text box height/padding, combo box height, combo item padding, chip heights, swatch sizes, scrollbar thickness, and tooltip padding.
 - Inner elevation/shadow is not theme-owned yet.
 - `Media Glow` should remain deferred until the base three themes are actually distinct.
 
-The current-code reference remains `docs/Theme_Preset_Differences.md` until implementation changes
-land. This spec describes target behavior; do not present its target values as shipped values before
-the matching code PR and preset-difference refresh land together.
+The current-code reference is `docs/Theme_Preset_Differences.md`. It already reflects Phase A and
+must be refreshed again in the same PR as later catalog, density, or effective preset-comparison
+changes.
 
 ## Requirements served
 
@@ -301,11 +305,12 @@ The app stores one base accent only. Runtime derives the following tokens:
 | `AccentPrimary` / `AccentPrimaryColor` | Main chosen accent | primary actions, active glyphs. |
 | `AccentHover` / `AccentHoverColor` | Lighter hover fill | primary button hover, selected chip hover. |
 | `AccentPressed` / `AccentPressedColor` | Darker pressed fill | primary button pressed. |
-| `AccentMuted` / `AccentMutedColor` | Theme-muted accent | restrained sharp buttons, secondary active state. |
+| `AccentMuted` / `AccentMutedColor` | Theme-muted accent | restrained sharp glyphs/borders and dark selected surfaces; not a dark-text primary-button fill. |
 | `AccentSubtle` / `AccentSubtleColor` | Transparent/subtle accent wash | selected rows, focus backgrounds. |
 | `AccentBorder` / `AccentBorderColor` | Accent outline | focus border, checked chip border. |
 | `AccentGlow` / `AccentGlowColor` | Transparent glow/accent shadow brush | Soft Glass/Media Glow inner effects only. |
-| `OnAccent` / `OnAccentColor` | Foreground on accent fill | primary button text/icons. |
+| `OnAccent` / `OnAccentColor` | Foreground on `AccentPrimary` / `AccentHover` fill | primary button text/icons. |
+| `OnAccentPressed` / `OnAccentPressedColor` | Foreground on `AccentPressed` fill | primary button pressed text/icons. |
 | `AccentPrimaryLight` | Compatibility alias | Alias to `AccentHover` for one migration pass. |
 
 ### Derivation algorithm
@@ -331,6 +336,7 @@ var border = Mix(primary, White, profile.BorderWhiteMix);
 var subtle = WithAlpha(primary, profile.SubtleAlpha);
 var glow = WithAlpha(primary, profile.GlowAlpha);
 var onAccent = PickReadableForeground(primary);
+var onAccentPressed = PickReadableForeground(pressed);
 ```
 
 `PickReadableForeground`:
@@ -340,10 +346,25 @@ var dark = Color.FromRgb(0x06, 0x14, 0x1A);
 var white = Colors.White;
 if (ContrastRatio(dark, primary) >= 4.5) return dark;
 if (ContrastRatio(white, primary) >= 4.5) return white;
-return ContrastRatio(dark, primary) >= ContrastRatio(white, primary) ? dark : white;
+throw new InvalidOperationException("Accent is outside the readable foreground lane.");
 ```
 
-For the first color wheel, avoid arbitrary saturation/value controls. Ship a hue wheel or hue chips that generate accents on the accessible lane, then add free-form hex later if wanted.
+Derived-token contrast rules:
+
+- `OnAccent` must contrast at `>= 4.5:1` against both `AccentPrimary` and `AccentHover`.
+- `OnAccentPressed` must contrast at `>= 4.5:1` against `AccentPressed`. If a dim accent fails,
+  reduce that theme's `PressedBlackMix` or pick the readable foreground for the pressed fill; do
+  not reuse `OnAccent` blindly.
+- `AccentBorder` must contrast at `>= 3.0:1` against `SurfaceBase` and `SurfaceRaised`.
+- `AccentMuted` is a dark, restrained accent token. It may be used as a glyph/border on dark
+  surfaces, or as a dark selected backing paired with `TextPrimary`. It must not be used as a
+  fill under `OnAccent`/dark text unless that exact pair is separately gated at `>= 4.5:1`.
+- `AccentSubtle` and `AccentGlow` are alpha overlays; test them in their composited consumer
+  contexts before placing text on top of them.
+
+For the first color wheel, avoid arbitrary saturation/value controls. Ship a hue wheel or hue chips
+that generate accents on a pre-validated accessible lane, and add a dense hue-sweep invariant before
+free-form hex or arbitrary value/saturation controls are allowed.
 
 ### Theme-agnostic variant examples
 
@@ -373,6 +394,7 @@ AccentSubtle / AccentSubtleColor
 AccentBorder / AccentBorderColor
 AccentGlow / AccentGlowColor
 OnAccent / OnAccentColor
+OnAccentPressed / OnAccentPressedColor
 ```
 
 Density:
@@ -413,7 +435,8 @@ Migrate only the listed sites in the density pass. Leave row heights and WebView
 | `Theme/ControlStyles.xaml` | `DarkButton` `Padding="12,6"` | `{DynamicResource DensityButtonPadding}` |
 | `Theme/ControlStyles.xaml` | `DarkButton` `BorderThickness="1"` | `{DynamicResource BorderThicknessDefault}` |
 | `Theme/ControlStyles.xaml` | `AccentButton` foreground `#FF06141A` | `{DynamicResource OnAccent}` |
-| `Theme/ControlStyles.xaml` | `AccentButton` hover uses `AccentPrimaryLight` | `{DynamicResource AccentHover}` |
+| `Theme/ControlStyles.xaml` | `AccentButton` hover uses `AccentPrimaryLight` | `{DynamicResource AccentHover}` with `{DynamicResource OnAccent}` |
+| `Theme/ControlStyles.xaml` | `AccentButton` pressed state absent | `{DynamicResource AccentPressed}` with `{DynamicResource OnAccentPressed}` |
 | `Theme/ControlStyles.xaml` | `DarkTextBox` `MinHeight="32"` | `{DynamicResource DensityControlHeight}` |
 | `Theme/ControlStyles.xaml` | `DarkTextBox` `Padding="10,0"` | `{DynamicResource DensityInputPadding}` |
 | `Theme/ControlStyles.xaml` | `DarkTextBox` `BorderThickness="1"` | `{DynamicResource BorderThicknessDefault}` |
@@ -443,6 +466,8 @@ Do not migrate:
 
 ### Phase A — Theme identity value pass
 
+Status: complete in the current checkout.
+
 Scope:
 
 - Update `ThemeCatalog` palette/radius/default behavior values to this spec.
@@ -460,20 +485,25 @@ Done when:
 
 ### Phase B — Accent variant pass
 
+Status: pending.
+
 Scope:
 
 - Add `ThemeAccentProfile` and `ThemeAccentSet` generation.
-- Add new accent resource keys.
+- Add new accent resource keys and their companion `*Color` entries.
 - Replace hardcoded `AccentButton` foreground with `OnAccent`.
-- Migrate focus/hover/pressed states to semantic accent tokens.
+- Migrate focus/hover/pressed states to semantic accent tokens, including `OnAccentPressed` for the pressed fill.
 - Keep `AccentPrimaryLight` as alias to `AccentHover` for one migration pass.
 
 Done when:
 
 - Every offered accent chip can drive primary buttons, glyph states, focus rings, and subtle fills without manual per-color tweaks.
+- All six offered accents pass the derived-token contrast gates above across all three theme profiles.
 - A future hue wheel can store only one base accent.
 
 ### Phase C — Density and elevation pass
+
+Status: pending.
 
 Scope:
 
@@ -487,6 +517,9 @@ Done when:
 - Sharp feels compact.
 - Minimal feels normal/calm.
 - Soft Glass feels airy and overlay-like.
+- Exact per-preset density values are gated, with distinctness checks on the axes that should diverge.
+- The URL/search clipping test arranges a real dense-end field (or size-to-content host) so `DensityControlHeight`
+  actually affects measured height.
 - No clipping regression in the URL/search field.
 
 ### Phase D — Settings polish pass
@@ -539,6 +572,10 @@ Logic tests:
   - every preset palette meets text contrast gates.
   - every offered accent meets glyph contrast on every preset `SurfaceHover`.
   - every offered accent supports `OnAccent` contrast.
+  - every offered accent supports `OnAccentPressed` contrast against `AccentPressed`.
+  - `AccentMuted` is gated only in its pinned light-on-muted or glyph/border pairing.
+  - density values are exact literals from this spec, not only sane ranges.
+  - diverging density axes remain distinct while intentionally tied axes remain exact.
   - accent switch preserves custom accents.
 
 Markup tests:
@@ -547,17 +584,18 @@ Markup tests:
   - all new resource keys exist in `Colors.xaml` seeds.
   - every `{DynamicResource}` key resolves from its scope.
   - no hardcoded `CornerRadius` except `WindowChrome.CornerRadius="0"`.
-  - listed density sites use `DynamicResource` after Phase C.
+  - listed density sites use `DynamicResource` after Phase C, asserted by named style and Setter property so literals cannot survive silently.
   - `Colors.xaml` seeds match `Sharp Dark` catalog values.
 
 Runtime tests:
 
 - `WpfRuntimeTests`
   - applying each preset updates existing controls.
-  - `AccentButton` foreground updates through `OnAccent`.
+  - `AccentButton` foreground updates through `OnAccent`; pressed foreground updates through `OnAccentPressed`.
+  - realized consumers re-resolve density, border, and elevation tokens.
   - `SettingsWindow` preset click shows selected theme/accent/corner state correctly.
   - opacity preview/rollback behavior is unchanged.
-  - URL/search box remains unclipped at 150% DPI.
+  - URL/search box remains unclipped at 150% DPI using a host where `DensityControlHeight` drives the arranged height.
 
 Manual smoke:
 
@@ -574,15 +612,15 @@ Manual smoke:
 |---|---|
 | `src/PiPlay/Theme/ThemeCatalog.cs` | Update target palettes/radii/defaults. Add `ThemeDensity`, `ThemeElevation`, `ThemeAccentProfile`. |
 | `src/PiPlay/Theme/ThemeColors.cs` | Add mix, alpha, contrast, `PickReadableForeground`, and accent set generation. |
-| `src/PiPlay/Theme/ThemeResourceApplier.cs` | Apply new accent, density, elevation, and border resources. Keep compatibility aliases for one pass. |
+| `src/PiPlay/Theme/ThemeResourceApplier.cs` | Apply new accent, density, elevation, and border resources, including companion `*Color` entries. Keep compatibility aliases for one pass. |
 | `src/PiPlay/Theme/Colors.xaml` | Seed Sharp Dark palette/radii plus new accent/density/elevation resource keys. |
 | `src/PiPlay/Theme/ControlStyles.xaml` | Migrate accent foreground/hover/pressed/focus and listed density sites to dynamic tokens. |
 | `src/PiPlay/SettingsWindow.xaml` | Keep existing chips first; later add accent reset and preview card. |
 | `src/PiPlay/SettingsWindow.xaml.cs` | Keep current custom-accent preservation; add accent reset handler if UI lands. |
 | `tests/PiPlay.Tests/ThemeCatalogTests.cs` | Add exact target gates, density/elevation gates, and accent-set contrast gates. |
-| `tests/PiPlay.Tests/ThemeColorsTests.cs` | Add derivation, alpha, mix, and `OnAccent` tests. |
-| `tests/PiPlay.Tests/Ui/XamlInvariantTests.cs` | Add density/elevation resource definedness and hardcoded-value bans after migration. |
-| `tests/PiPlay.Tests/Ui/WpfRuntimeTests.cs` | Add live re-resolution checks for new resources and settings preview/apply behavior. |
+| `tests/PiPlay.Tests/ThemeColorsTests.cs` | Add derivation, alpha, mix, `OnAccent`, `OnAccentPressed`, and hue-lane tests. |
+| `tests/PiPlay.Tests/Ui/XamlInvariantTests.cs` | Add density/elevation resource definedness and positive migrated-site DynamicResource assertions after migration. |
+| `tests/PiPlay.Tests/Ui/WpfRuntimeTests.cs` | Add live re-resolution checks for new resources, settings preview/apply behavior, and a density-driven URL clipping test. |
 | `docs/Theme_Preset_Differences.md` | Regenerate after Phase A and again after Phase C. |
 | `docs/CHANGELOG.md` | Add a user-visible theme-system entry after each shipped PR. |
 
@@ -591,8 +629,7 @@ Manual smoke:
 - `docs/Theme_Preset_Differences.md` is the current-code preset reference. Refresh it in the same
   PR as any catalog value change; do not defer that refresh to a later screenshot/evidence pass.
 - `docs/README.md` points contributors to this spec and plan as the next theme-system flow.
-- `docs/CHANGELOG.md` gets a user-visible entry when implementation ships, not for this planning-only
-  import.
+- `docs/CHANGELOG.md` gets user-visible entries when implementation phases ship.
 - Stable-deploy screenshots belong under `docs/evidence/` after the implementation is deployed and
   manually smoked.
 

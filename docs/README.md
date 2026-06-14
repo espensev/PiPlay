@@ -34,12 +34,13 @@ under `docs/evidence/`; discovery folders are evidence, not current-state contra
 
 ## Current Theme Flow
 
-The next theme-system pass is tracked by
+The current theme-system flow is tracked by
 [`docs/superpowers/specs/2026-06-14-theme-v2-tight-scope-design.md`](superpowers/specs/2026-06-14-theme-v2-tight-scope-design.md)
 and
 [`docs/superpowers/plans/2026-06-14-theme-v2-tight-scope.md`](superpowers/plans/2026-06-14-theme-v2-tight-scope.md).
-`Theme_Preset_Differences.md` remains the current-code reference until implementation changes land,
-and it must be refreshed in the same PR as any theme catalog value changes.
+Phase A identity values are reflected in the current code. `Theme_Preset_Differences.md` remains the
+current-code reference and must be refreshed in the same PR as any later theme catalog or effective
+preset-comparison changes.
 
 ## Requirements
 
