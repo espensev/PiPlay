@@ -1,0 +1,149 @@
+# PiPlay — skill configuration (read by /qa, /smart-test, /build-gate, /ship)
+#
+# PiPlay is a Windows WPF (.NET 10) app hosting WebView2 — a GUI, not a CLI or HTTP server.
+# Its QA discipline (root CLAUDE.md, docs/AGENTS.md, docs/Regression_Test_Suite_Design.md,
+# docs/QA_Checklist.md) has two hard rules the qa skill must honor:
+#   1. Manual testing happens OUTSIDE the repo — against the DEPLOYED Stable copy, never repo
+#      build output (src\...\bin\..., bin\publish\...). Stale binaries are the classic false pass.
+#   2. The qa skill VERIFIES what is deployed; it never PUBLISHES. Publish/retag/version-bump are
+#      owner-gated release actions (Publish-Stable.ps1) — out of scope for testing.
+
+[project]
+name        = "PiPlay"
+conventions = "docs/AGENTS.md"                              # test patterns, quality bar, terminology
+spec        = "docs/PiPlay_Product_Engineering_Spec.md"     # authoritative requirements (Q-*, REQ-*)
+
+[commands]
+# Lane A — the fast, deterministic, headless gate. No WebView2, no network, no visible desktop.
+# This is exactly what .github/workflows/ci.yml runs. xUnit, serial (Infrastructure/AssemblyConfig.cs).
+test  = "dotnet test PiPlay.sln --configuration Debug"
+# The non-mutating release BUILD gate CI also runs after the tests (does NOT bump version/build).
+build = ".\\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump"
+# KNOWN LIMITATION: /qa understands dotnet scoping (--filter, via [qa].framework) but /smart-test
+# does NOT — it appends .cs file paths to `test`, which mis-scopes dotnet (e.g.
+# `dotnet test PiPlay.sln ... tests/.../FooTests.cs`). For scoped dotnet runs prefer `/qa run <lane>`;
+# /smart-test is reliable here only for files covered by the explicit [smart-test.mappings] below.
+#
+# Per-file dotnet targeting recipe (use this instead of passing .cs paths to `test`): map the changed
+# source -> its test CLASS -> a --filter expression, then run `test` WITH that filter. dotnet scopes by
+# --filter (FullyQualifiedName / Category), never by file path.
+#   1. A source `src/PiPlay/.../Foo.cs` is proven by the test class `FooTests` (the FooTests.cs -> type
+#      Foo convention from [qa].framework; non-convention files are in [smart-test.mappings] below).
+#   2. Target that class family with `--filter "FullyQualifiedName~Foo"`. `~` is a SUBSTRING match, so
+#      the stem `Foo` selects FooTests (and is greedy: `~NavigationPolicy` also catches
+#      PopoutNavigationPolicyTests — harmless extra passing tests; use the full class name if exactness
+#      matters). Several classes: join with `|`, e.g.
+#      `--filter "FullyQualifiedName~ThemeCatalog|FullyQualifiedName~ThemeColors"`.
+#   3. Append the filter to the headless `test` command above. Worked examples:
+#        changed src/PiPlay/Services/NavigationPolicy.cs ->
+#          dotnet test PiPlay.sln --configuration Debug --filter "FullyQualifiedName~NavigationPolicy"
+#        changed src/PiPlay/Theme/ThemeCatalog.cs ->
+#          dotnet test PiPlay.sln --configuration Debug --filter "FullyQualifiedName~ThemeCatalog"
+# To scope by LAYER instead of by class, use the [qa.lanes] Category= filters below. This recipe is
+# Lane A only (headless `dotnet test`); it never touches the deployed Stable copy.
+
+# ----------------------------------------------------------------------------------------------
+# [qa] — drives /qa for this project. Tells the skill this is a dotnet/xUnit project whose test
+# lanes are filtered by [Trait] (NOT by file path), and wires the provenance/evidence discipline.
+# ----------------------------------------------------------------------------------------------
+[qa]
+framework    = "dotnet"            # use dotnet idioms: --filter to scope, --list-tests to count,
+                                   # and class-name mapping (FooTests -> type Foo), not import greps.
+evidence-dir = "docs/evidence"     # append pass/fail/blocked/not-run results + screenshots here
+checklist    = "docs/QA_Checklist.md"   # the re-runnable manual pass (spec section 22)
+
+# Provenance — the deployed-copy rule (root CLAUDE.md / docs/AGENTS.md).
+manual-target            = "E:\\Dev_test_implemenations\\PiPlay\\PiPlay.exe"
+never-test-build-output  = true    # /qa smoke must refuse repo build output as a manual-QA target
+provenance-verify        = ".\\scripts\\Verify-StableDeploy.ps1"   # run FIRST; surface its verdict
+
+# Hard guardrail — /qa must NEVER run these (owner-gated release actions). If a row needs one, STOP
+# and report; do not republish, retag, or bump VERSION/BUILD_NUMBER (handoff "Hard rules").
+forbidden-actions = [
+  ".\\scripts\\Publish-Stable.ps1",
+  "Build-PiPlay.ps1 -Stage Publish|Release",
+  "VERSION / BUILD_NUMBER bump",
+  "git tag stable-*",
+  "-AllowDirty", "-AllowVersionBump",
+]
+
+[qa.lanes]
+# `/qa run <lane>` resolves a bare name to `dotnet test ... --filter "<expr>"`.
+# See tests/README.md and tests/PiPlay.Tests/Infrastructure/TestCategories.cs.
+all    = ""                  # full Lane A suite (no filter)
+markup = "Category=Markup"   # Layer 1 — XAML parsed as XML, no WPF runtime (the rounding/clip guard)
+logic  = "Category=Logic"    # Layer 2 — pure services (NavigationPolicy, YouTubeUrlHelper, ...)
+wpf    = "Category=Wpf"      # Layer 3 — live WPF on a shared STA thread (resource resolution, DP invariants)
+
+# On-demand WCAG contrast calculator/report (tests/PiPlay.Tests/ContrastReportTests.cs). It REUSES the
+# canonical Wcag.cs formula (never reimplements it), so the ratios it prints are the exact ratios the
+# catalog/markup gates enforce. Edit its [InlineData] rows with a candidate fg/bg/floor, then run:
+#   dotnet test PiPlay.sln --filter "FullyQualifiedName~ContrastReportTests" --logger "console;verbosity=detailed"
+# Every row prints its computed ratio; rows below their floor fail. No new lane key — it rides
+# Category=Logic, so the bare suite already runs it as a gate; the --logger flag just surfaces the numbers.
+
+# ----------------------------------------------------------------------------------------------
+# [smoke-test] — PiPlay has NO HTTP endpoints. `mode = "gui"` makes /qa smoke a UI-Automation pass
+# (Lane B) against the DEPLOYED Stable copy, gated on the provenance verifier. It NEVER deploys.
+# target / verify / evidence intentionally mirror [qa].manual-target / provenance-verify /
+# evidence-dir (the skill reads [smoke-test] first, [qa] as fallback) — keep the pairs in sync.
+# ----------------------------------------------------------------------------------------------
+[smoke-test]
+mode = "gui"
+
+# 1. Provenance gate — run first. A non-FAIL verdict is required to proceed.
+#    "RELEASE VERIFIED" => release evidence. "VERIFIED FOR DIAGNOSTICS ONLY" => smoke may run but is
+#    NOT release evidence (e.g. main is ahead of the stable tag). "FAIL" => stop and report.
+verify                    = ".\\scripts\\Verify-StableDeploy.ps1"
+verify-pass-pattern       = "RELEASE VERIFIED"
+verify-diagnostic-pattern = "VERIFIED FOR DIAGNOSTICS ONLY"
+
+# 2. The exe under test — the ONLY valid manual-QA target (deployed via Publish-Stable.ps1).
+target = "E:\\Dev_test_implemenations\\PiPlay\\PiPlay.exe"
+
+# 3. The UIA smoke driver (Lane B, scripts/Test-UiSmoke.ps1): launches the exe, asserts the named
+#    controls exist, and saves a window screenshot to docs/evidence/. Needs pwsh 7 + a desktop +
+#    the WebView2 runtime + network. Capture at fractional DPI (150%) to expose the clipping class.
+start        = "pwsh -File scripts/Test-UiSmoke.ps1 -ExePath E:\\Dev_test_implemenations\\PiPlay\\PiPlay.exe"
+pass-pattern = "SMOKE PASS"
+evidence     = "docs/evidence"
+
+# 4. Destructive / induced-fault rows (corrupt-settings recovery, clear-data, network loss) run on a
+#    THROWAWAY copy of the app data, never the live session — and need explicit owner consent first
+#    (handoff "Hard rules"). PiPlay honors this env var as its data-root override (AppPaths;
+#    Regression suite seam 1), so the driver can be pointed at a scratch dir instead of %LOCALAPPDATA%:
+#    $env:PIPLAY_DATA_ROOT = "<temp>\PiPlayData-scratch".
+data-root-env = "PIPLAY_DATA_ROOT"
+
+# ----------------------------------------------------------------------------------------------
+# [modules] — logical source units for /qa coverage and /smart-test. For dotnet, the test<->source
+# link is by TYPE NAME (FooTests.cs proves type Foo), not import statements (see [qa].framework).
+# ----------------------------------------------------------------------------------------------
+[modules]
+navigation   = ["src/PiPlay/Services/NavigationPolicy.cs", "src/PiPlay/Services/PopoutNavigationPolicy.cs"]
+url          = ["src/PiPlay/Services/YouTubeUrlHelper.cs"]
+settings     = ["src/PiPlay/Services/SettingsService.cs"]
+profiles     = ["src/PiPlay/Services/ProfileService.cs"]
+placement    = ["src/PiPlay/Services/PlacementMath.cs", "src/PiPlay/Services/WindowPlacementService.cs"]
+return       = ["src/PiPlay/Services/ReturnPolicy.cs"]
+autopopout   = ["src/PiPlay/Services/AutoPopoutPolicy.cs"]
+appearance   = ["src/PiPlay/Services/PlayerAppearancePolicy.cs", "src/PiPlay/Services/WindowOpacityPolicy.cs"]
+resize       = ["src/PiPlay/Services/BorderlessResizeHitTestPolicy.cs"]
+playback     = ["src/PiPlay/Services/PlaybackModePolicy.cs"]
+playershell  = ["src/PiPlay/Services/PlayerShellErrorPolicy.cs", "src/PiPlay/Services/PlayerShellProtocol.cs"]
+fade         = ["src/PiPlay/Services/FadePolicy.cs"]
+privacy      = ["src/PiPlay/Services/PrivacyService.cs"]
+logging      = ["src/PiPlay/Services/LoggingService.cs"]
+appinfo      = ["src/PiPlay/Services/AppInfo.cs", "src/PiPlay/Services/AppChannel.cs", "src/PiPlay/Services/AppPaths.cs"]
+theme        = ["src/PiPlay/Theme/ThemeCatalog.cs", "src/PiPlay/Theme/ThemeColors.cs", "src/PiPlay/Theme/ThemePreferenceResolver.cs", "src/PiPlay/Theme/ThemeSettingsWriter.cs"]
+
+[smart-test.mappings]
+# Non-obvious source->test links that name-convention discovery would miss.
+"src/PiPlay/**/*.xaml"             = ["tests/PiPlay.Tests/Ui/XamlInvariantTests.cs"]          # Layer 1 (Markup)
+"src/PiPlay/Theme/*.xaml"          = ["tests/PiPlay.Tests/Ui/XamlInvariantTests.cs", "tests/PiPlay.Tests/Ui/WpfRuntimeTests.cs"]
+"src/PiPlay/PlayerShell/*"         = ["tests/PiPlay.Tests/PlayerShellAssetTests.cs"]           # html/js shell assets
+"scripts/*.ps1"                    = ["tests/PiPlay.Tests/ReleaseScriptPolicyTests.cs"]        # the release scripts are themselves tested
+
+[smart-test.cross-cutting]
+# Changing these re-runs the full Lane A suite.
+paths = ["PiPlay.sln", "Directory.Build.props", "global.json", "tests/PiPlay.Tests/Infrastructure/AssemblyConfig.cs"]

@@ -78,6 +78,65 @@ Video Popout started at t=<n>s, wasPlaying=<bool>
 Popout Player initialized
 ```
 
+## 4. Drive Settings (optional)
+
+Once PiPlay is up, the Settings dialog can be opened scripted. Run under the same
+`powershell.exe -STA` host as the other drivers (UIAutomation needs STA):
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File `
+  .claude\skills\run-piplay\scripts\open-settings.ps1
+```
+
+It finds the main PiPlay window (the `PiPlay*` window that is **not** the Popout), locates the
+**`SettingsButton`** AutomationId, and invokes it. Output tokens:
+
+- `SETTINGS|INVOKED` — the click landed and the call returned. **This is the usual result.**
+- `SETTINGS|INVOKED-WITH-TIMEOUT|<ExceptionType>` — **also success.** The dialog is modal
+  (`ShowDialog`), so the UIA `Invoke()` can block while the dialog stays open and time out; the click
+  still landed. Treat a timeout-family exception here as "Settings is open," not a failure. The
+  disabled-button case is *not* routed here (it goes to `FAIL`, below), so this token always means the
+  dialog opened.
+- `SETTINGS|FAIL|...` — a real failure: main window or `SettingsButton` not found, **or** the button
+  was disabled when invoked (the script pre-checks `IsEnabled` and also catches
+  `ElementNotEnabledException`, so a disabled-button click reports `FAIL`, never a false success).
+
+Pass `-ProcessId <pid>` to disambiguate if more than one PiPlay is running. Two caveats: the modal
+dialog blocks the WPF UI thread while open (close it before driving the main window again), and
+`SettingsButton` is briefly disabled while a privacy action is awaiting (`IsEnabled` flips false→true).
+An invoke fired during that window does **not** open Settings — `Invoke()` throws
+`ElementNotEnabledException`, which the script reports as `SETTINGS|FAIL` (not a silent no-op, not a
+false success) — so let the source page settle first, then retry.
+
+Then **capture and read the shot literally** — a blank/all-black dialog frame is a failure, not a pass.
+Use the passive `capture.ps1` (no focus steal):
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File `
+  .claude\skills\run-piplay\scripts\capture.ps1
+```
+
+The Settings dialog is a **modal window centred over the main window**, so `capture.ps1` does *not*
+enumerate it as its own window — it shows up **inside the `name=PiPlay` main-window shot**
+(positional index: `live-win0.png` when no Popout is open, otherwise the higher-numbered
+`name=PiPlay` shot), and that window is reported `occluded=true`, which here is **expected** (the dialog
+is sitting on top of it). Read the `name=PiPlay` shot — not the `PiPlay Video Popout` one — to see
+Settings. (Verified live: `open-settings.ps1` → `SETTINGS|INVOKED`, then this shot shows the dialog.)
+
+`capture-hwnd.ps1 -Hwnd <hwnd>` is the general single-window capture helper (same DWM-bounds +
+`CopyFromScreen` recipe) when you already hold a window handle — e.g. the `handle=` from
+`launch-and-capture.ps1`'s `MAINWIN|...` line. It raises only via `SetForegroundWindow`, which (see
+Gotchas) is blocked from a background process, so it does **not** reliably bring an occluded window to
+front; for the modal Settings dialog prefer `capture.ps1` and read the main-window shot.
+
+> **Verify this path against a live instance before treating it as the recipe** — don't edit step 4
+> from the script source alone. Bring a source window up (`launch-and-capture.ps1 -NoPopout`), run
+> `open-settings.ps1`, capture, and confirm the PNG actually shows the Settings dialog. Here the
+> `name=PiPlay` shot is *expected* to read `occluded=true` (the dialog itself is the occluder), so read
+> that shot — don't reject it. The real failure is a frame showing the **bare main window with no
+> dialog**, or one whose occluder is something **other** than Settings (another app on top); `capture.ps1`
+> can't tell those apart from the dialog, so confirm by eye that the dialog is what rendered.
+
 ## Gotchas (all verified, all real PiPlay behaviors)
 
 - **Single-instance per channel.** A second launch hands its URL to the running instance and
@@ -114,5 +173,6 @@ Popout Player initialized
 ## What this exercises / doesn't
 
 Exercises: launch, WebView2 + live YouTube, pop-**out** to the floating player and the source
-"Playing in Video Popout" placeholder. Not exercised: return-to-source (close the popout), Pin,
-Fade, profiles, Settings — drive those manually if the change touches them.
+"Playing in Video Popout" placeholder, and **opening Settings** (scripted, modal — see step 4; read
+the dialog shot literally). Not exercised: return-to-source (close the popout), Pin, Fade, profiles,
+and the controls *inside* Settings — drive those manually if the change touches them.
