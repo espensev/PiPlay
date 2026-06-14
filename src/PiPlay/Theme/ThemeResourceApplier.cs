@@ -16,9 +16,6 @@ namespace PiPlay.Theme;
 /// </summary>
 public static class ThemeResourceApplier
 {
-    /// <summary>The lighter hover derivation blends the accent this far toward white.</summary>
-    public const double HoverLightenAmount = 0.30;
-
     /// <summary>
     /// The native corner preference of the last applied theme, for windows built outside the
     /// settings flow (the Prompt dialogs) — they have no ThemeSettings at hand but must wear the
@@ -36,14 +33,37 @@ public static class ThemeResourceApplier
 
     public static void Apply(ResourceDictionary resources, ThemeSettings? theme, PlayerSettings player)
     {
-        var accent = ThemeColors.ParseColor(ThemePreferenceResolver.AccentColor(theme, player));
-        resources["AccentPrimary"] = Frozen(accent);
-        resources["AccentPrimaryLight"] = Frozen(ThemeColors.Lighten(accent, HoverLightenAmount));
-
         var preset = ThemeCatalog.PresetFor(theme?.ThemeId);
+        ApplyAccent(resources, ThemePreferenceResolver.AccentColor(theme, player), preset);
         ApplyPalette(resources, preset.Palette);
         ApplyRadii(resources, ThemeCatalog.RadiiFor(preset, theme?.CornerStyle));
         CurrentDwmCorners = ThemeCatalog.DwmCornersFor(preset, theme?.CornerStyle);
+    }
+
+    /// <summary>
+    /// Derive the accent state set for the resolved (accent x theme) and replace every accent token
+    /// AND its companion <c>*Color</c> entry (review BL-09 — the companions used to go stale). Each
+    /// consumer references these via <c>DynamicResource</c>, so replacing the entries re-resolves
+    /// them. OnAccentPressed carries the CON-1 fix: a dim accent's pressed fill gets a readable
+    /// foreground rather than the reused OnAccent.
+    /// </summary>
+    private static void ApplyAccent(ResourceDictionary resources, string accentColor, ThemePreset preset)
+    {
+        var set = ThemeColors.DeriveAccentSet(accentColor, preset);
+        SetColorPair(resources, "AccentPrimary", set.Primary);
+        SetColorPair(resources, "AccentHover", set.Hover);
+        SetColorPair(resources, "AccentPressed", set.Pressed);
+        SetColorPair(resources, "AccentBorder", set.Border);
+        SetColorPair(resources, "OnAccent", set.OnAccent);
+        SetColorPair(resources, "OnAccentPressed", set.OnAccentPressed);
+        // Keep AccentPrimaryLight defined as an alias to AccentHover for one migration pass.
+        SetColorPair(resources, "AccentPrimaryLight", set.Hover);
+    }
+
+    private static void SetColorPair(ResourceDictionary resources, string key, Color color)
+    {
+        resources[key] = Frozen(color);
+        resources[key + "Color"] = color;   // companion Color token, kept in step
     }
 
     private static void ApplyPalette(ResourceDictionary resources, ThemePalette palette)

@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Windows.Media;
 using System.Xml.Linq;
 using PiPlay.Services;
 using PiPlay.Theme;
@@ -529,9 +530,11 @@ public class XamlInvariantTests
     [Fact]
     public void Accent_button_text_is_readable_on_accent_fill()
     {
-        // AccentButton: foreground #FF06141A literal on the AccentPrimary fill (ControlStyles.xaml).
-        // This is the DEFAULT (cyan) token; user accents are gated by the contrast theory below.
-        var ratio = Wcag.ContrastRatio("#FF06141A", ColorTokens()["AccentPrimaryColor"]);
+        // AccentButton foreground is {DynamicResource OnAccent} on the AccentPrimary fill
+        // (ControlStyles.xaml). This is the DEFAULT (cyan) seed; user accents are gated by the
+        // derived-token contrast gate (ThemeCatalogTests) across all chips x profiles.
+        var t = ColorTokens();
+        var ratio = Wcag.ContrastRatio(t["OnAccentColor"], t["AccentPrimaryColor"]);
         Assert.True(ratio >= 4.5, $"Accent button text contrast = {ratio:F2}:1.");
     }
 
@@ -539,10 +542,30 @@ public class XamlInvariantTests
     public void Accent_primary_token_defaults_to_the_sharp_dark_cyan()
     {
         // Overhaul Task 9: the theme accent token defaults to the existing cyan as a markup fallback
-        // before ThemeResourceApplier runs. AccentCyan stays defined as a compatibility alias.
+        // before ThemeResourceApplier runs. AccentCyan stays defined as a compatibility alias; the
+        // hover companion AccentPrimaryLight now aliases the v2 AccentHover (Task 4).
         var t = ColorTokens();
         Assert.Equal(t["AccentCyanColor"], t["AccentPrimaryColor"]);
-        Assert.Equal(t["AccentCyanLightColor"], t["AccentPrimaryLightColor"]);
+        Assert.Equal(t["AccentHoverColor"], t["AccentPrimaryLightColor"]);
+    }
+
+    [Fact]
+    public void Colors_xaml_accent_seeds_match_the_default_derived_set()
+    {
+        // The design-time / pre-Apply accent seeds must BE the derived set for the default accent
+        // (cyan) under the default theme (sharp-dark), or a fresh launch flashes wrong accents before
+        // ThemeResourceApplier runs. Pinned to ThemeColors.DeriveAccentSet so they cannot drift.
+        var set = ThemeColors.DeriveAccentSet(ThemeCatalog.DefaultAccentColor, ThemeCatalog.PresetFor("sharp-dark"));
+        var t = ColorTokens();
+        static string Hex(Color c) => $"#{c.A:X2}{c.R:X2}{c.G:X2}{c.B:X2}";
+
+        Assert.Equal(Hex(set.Primary), t["AccentPrimaryColor"]);
+        Assert.Equal(Hex(set.Hover), t["AccentHoverColor"]);
+        Assert.Equal(Hex(set.Hover), t["AccentPrimaryLightColor"]);   // alias to AccentHover
+        Assert.Equal(Hex(set.Pressed), t["AccentPressedColor"]);
+        Assert.Equal(Hex(set.Border), t["AccentBorderColor"]);
+        Assert.Equal(Hex(set.OnAccent), t["OnAccentColor"]);
+        Assert.Equal(Hex(set.OnAccentPressed), t["OnAccentPressedColor"]);
     }
 
     [Theory]

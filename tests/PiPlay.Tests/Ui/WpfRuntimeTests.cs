@@ -119,6 +119,36 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void ThemeResourceApplier_derives_and_applies_the_accent_state_tokens() => StaTestThread.Invoke(() =>
+    {
+        // Phase B / Task 4: the applier derives the accent state set for the resolved (accent x theme)
+        // and replaces every token + its Color companion, so DynamicResource consumers re-resolve.
+        // Uses dim steel on soft-glass — the CON-1 case whose pressed foreground must flip to white.
+        var res = new ResourceDictionary();
+        ThemeResourceApplier.Apply(res, new ThemeSettings { ThemeId = "soft-glass", AccentColor = "#4A8FAB" }, new PlayerSettings());
+
+        var expected = ThemeColors.DeriveAccentSet("#4A8FAB", ThemeCatalog.PresetFor("soft-glass"));
+        void AssertToken(string key, Color color)
+        {
+            var brush = Assert.IsType<SolidColorBrush>(res[key]);
+            Assert.True(brush.IsFrozen, $"{key} brush not frozen.");
+            Assert.Equal(color, brush.Color);
+            Assert.Equal(color, (Color)res[key + "Color"]);   // companion Color in step
+        }
+        AssertToken("OnAccent", expected.OnAccent);
+        AssertToken("AccentHover", expected.Hover);
+        AssertToken("AccentPressed", expected.Pressed);
+        AssertToken("OnAccentPressed", expected.OnAccentPressed);
+        AssertToken("AccentBorder", expected.Border);
+
+        // CON-1 made visible at runtime: on the dim steel pressed fill the foreground is WHITE.
+        Assert.Equal(Colors.White, ((SolidColorBrush)res["OnAccentPressed"]).Color);
+
+        // AccentPrimaryLight is kept as an alias to AccentHover for one migration pass.
+        Assert.Equal(expected.Hover, ((SolidColorBrush)res["AccentPrimaryLight"]).Color);
+    });
+
+    [Fact]
     public void Theme_restyle_reaches_dynamic_surface_and_radius_consumers() => StaTestThread.Invoke(() =>
     {
         // The PR #18 replace-not-mutate mechanism, applied verbatim to the new tokens: a DarkButton
@@ -170,6 +200,29 @@ public class WpfRuntimeTests : IDisposable
         finally
         {
             Application.Current.Resources["AccentPrimary"] = original;   // never pollute the shared app
+        }
+    });
+
+    [Fact]
+    public void AccentButton_foreground_resolves_the_on_accent_token() => StaTestThread.Invoke(() =>
+    {
+        // Task 4: the AccentButton foreground migrated from a hardcoded #FF06141A to
+        // {DynamicResource OnAccent}, so replacing the app token recolors the button text at realize.
+        var original = Application.Current.Resources["OnAccent"];
+        try
+        {
+            var sentinel = Color.FromRgb(0xAB, 0xCD, 0xEF);
+            var brush = new SolidColorBrush(sentinel);
+            brush.Freeze();
+            Application.Current.Resources["OnAccent"] = brush;
+
+            var btn = new Button { Style = (Style)Application.Current.FindResource("AccentButton") };
+            btn.Measure(new Size(200, 40));   // realize: Foreground resolves the replaced resource
+            Assert.Equal(sentinel, ((SolidColorBrush)btn.Foreground).Color);
+        }
+        finally
+        {
+            Application.Current.Resources["OnAccent"] = original;   // never pollute the shared app
         }
     });
 
