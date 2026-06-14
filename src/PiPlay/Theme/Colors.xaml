@@ -12,16 +12,16 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-  <!-- Sharp Dark palette seeds (review doc §7.1): darker than the pre-theme shared palette,
-       which now lives on as the Minimal preset. -->
-  <Color x:Key="AppBackgroundColor">#FF07090B</Color>
-  <Color x:Key="SurfaceBaseColor">#FF0D1014</Color>
-  <Color x:Key="SurfaceRaisedColor">#FF141920</Color>
-  <Color x:Key="SurfaceHoverColor">#FF202833</Color>
-  <Color x:Key="BorderSubtleColor">#FF2A3441</Color>
-  <Color x:Key="BorderStrongColor">#FF3A4655</Color>
-  <Color x:Key="TextPrimaryColor">#FFF2F5F7</Color>
-  <Color x:Key="TextSecondaryColor">#FFA8B0BA</Color>
+  <!-- Sharp Dark palette seeds (theme-v2 tight-scope spec §"Palette targets"): the darkest, coolest
+       base. The warmer pre-theme tones now live on as the Minimal preset. -->
+  <Color x:Key="AppBackgroundColor">#FF050609</Color>
+  <Color x:Key="SurfaceBaseColor">#FF0B0E12</Color>
+  <Color x:Key="SurfaceRaisedColor">#FF131820</Color>
+  <Color x:Key="SurfaceHoverColor">#FF1E2630</Color>
+  <Color x:Key="BorderSubtleColor">#FF2B3645</Color>
+  <Color x:Key="BorderStrongColor">#FF3E4B5C</Color>
+  <Color x:Key="TextPrimaryColor">#FFF4F7FA</Color>
+  <Color x:Key="TextSecondaryColor">#FF9AA2AD</Color>
   <Color x:Key="AccentCyanColor">#FF00D4FF</Color>
   <Color x:Key="AccentCyanLightColor">#FF5BE6FF</Color>
   <Color x:Key="AccentPurpleColor">#FF6D3BFF</Color>
@@ -66,23 +66,23 @@
        tooltip, and a scrollbar thumb do not want the same shape. The frame/title-bar/thumbnail
        tokens are forward-looking seams with no consumer yet: real outer window corners are
        DWM-owned (review doc §2.6), so they wait for internal shell border styling. -->
-  <CornerRadius x:Key="RadiusMainWindowFrame">4</CornerRadius>
-  <CornerRadius x:Key="RadiusPopoutFrame">4</CornerRadius>
-  <CornerRadius x:Key="RadiusTitleBar">4,4,0,0</CornerRadius>
-  <CornerRadius x:Key="RadiusButton">5</CornerRadius>
-  <CornerRadius x:Key="RadiusIconButton">5</CornerRadius>
-  <CornerRadius x:Key="RadiusInput">5</CornerRadius>
-  <CornerRadius x:Key="RadiusPanel">4</CornerRadius>
-  <CornerRadius x:Key="RadiusPopup">6</CornerRadius>
-  <CornerRadius x:Key="RadiusThumbnail">3</CornerRadius>
-  <CornerRadius x:Key="RadiusSwatch">6</CornerRadius>
-  <CornerRadius x:Key="RadiusScrollbarThumb">4</CornerRadius>
-  <CornerRadius x:Key="RadiusToolTip">6</CornerRadius>
+  <CornerRadius x:Key="RadiusMainWindowFrame">2</CornerRadius>
+  <CornerRadius x:Key="RadiusPopoutFrame">2</CornerRadius>
+  <CornerRadius x:Key="RadiusTitleBar">2,2,0,0</CornerRadius>
+  <CornerRadius x:Key="RadiusButton">3</CornerRadius>
+  <CornerRadius x:Key="RadiusIconButton">3</CornerRadius>
+  <CornerRadius x:Key="RadiusInput">3</CornerRadius>
+  <CornerRadius x:Key="RadiusPanel">2</CornerRadius>
+  <CornerRadius x:Key="RadiusPopup">4</CornerRadius>
+  <CornerRadius x:Key="RadiusThumbnail">2</CornerRadius>
+  <CornerRadius x:Key="RadiusSwatch">4</CornerRadius>
+  <CornerRadius x:Key="RadiusScrollbarThumb">3</CornerRadius>
+  <CornerRadius x:Key="RadiusToolTip">4</CornerRadius>
 
   <!-- Temporary compatibility aliases while styles migrate (review doc §8.4): kept as separate
        entries (NOT resource-to-resource references) and updated by ThemeResourceApplier alongside
        the semantic tokens (Control follows Input, Button follows Button). -->
-  <CornerRadius x:Key="ControlCornerRadius">5</CornerRadius>
-  <CornerRadius x:Key="ButtonCornerRadius">5</CornerRadius>
+  <CornerRadius x:Key="ControlCornerRadius">3</CornerRadius>
+  <CornerRadius x:Key="ButtonCornerRadius">3</CornerRadius>
 
 </ResourceDictionary>

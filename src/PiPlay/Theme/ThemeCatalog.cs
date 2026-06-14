@@ -81,22 +81,23 @@ public static class ThemeCatalog
     /// corner profile (radius set + native corner mode), never individual per-control values.</summary>
     public const string DefaultCornerStyle = "theme";
 
-    // Corner profiles (review doc §8.2). Sharp keeps tiny rounding (modern without going soft),
-    // soft-glass gets the largest popout radius because it is the floating overlay theme.
+    // Corner profiles (theme-v2 tight-scope spec §"Rounding targets"). Sharp is intentionally tight
+    // (modern without going soft); minimal is visibly softer; soft-glass gets the largest popout
+    // radius because it is the floating overlay theme. Ordered sharp ≤ minimal ≤ soft-glass per token.
     private static readonly ThemeRadii SharpRadii = new(
-        MainWindowFrame: 4, PopoutFrame: 4, TitleBar: 4,
-        Button: 5, IconButton: 5, Input: 5, Panel: 4,
-        Popup: 6, Thumbnail: 3, Swatch: 6, ScrollbarThumb: 4, ToolTip: 6);
+        MainWindowFrame: 2, PopoutFrame: 2, TitleBar: 2,
+        Button: 3, IconButton: 3, Input: 3, Panel: 2,
+        Popup: 4, Thumbnail: 2, Swatch: 4, ScrollbarThumb: 3, ToolTip: 4);
 
     private static readonly ThemeRadii MinimalRadii = new(
-        MainWindowFrame: 6, PopoutFrame: 8, TitleBar: 6,
-        Button: 6, IconButton: 6, Input: 6, Panel: 8,
-        Popup: 8, Thumbnail: 4, Swatch: 8, ScrollbarThumb: 5, ToolTip: 6);
+        MainWindowFrame: 8, PopoutFrame: 12, TitleBar: 8,
+        Button: 8, IconButton: 8, Input: 8, Panel: 10,
+        Popup: 10, Thumbnail: 6, Swatch: 8, ScrollbarThumb: 5, ToolTip: 8);
 
     private static readonly ThemeRadii SoftGlassRadii = new(
-        MainWindowFrame: 10, PopoutFrame: 16, TitleBar: 10,
-        Button: 10, IconButton: 10, Input: 10, Panel: 14,
-        Popup: 14, Thumbnail: 8, Swatch: 10, ScrollbarThumb: 5, ToolTip: 8);
+        MainWindowFrame: 14, PopoutFrame: 22, TitleBar: 14,
+        Button: 12, IconButton: 12, Input: 12, Panel: 16,
+        Popup: 16, Thumbnail: 10, Swatch: 12, ScrollbarThumb: 6, ToolTip: 10);
 
     private static readonly ThemeRadii SquareRadii = new(
         MainWindowFrame: 0, PopoutFrame: 0, TitleBar: 0,
@@ -114,13 +115,13 @@ public static class ThemeCatalog
             DefaultStripAutoHide: false,
             DefaultActiveWindowOpacity: WindowOpacityPolicy.Default,
             DefaultIdleWindowOpacity: WindowOpacityPolicy.Default,
-            // Darker than the previous shared palette (review doc §7.1): near-black base with
-            // cool slate borders. The Colors.xaml seeds mirror these values.
+            // Near-black and cool (theme-v2 tight-scope spec §"Palette targets"): the darkest base
+            // with cool slate borders. The Colors.xaml seeds mirror these values.
             Palette: new(
-                AppBackground: "#07090B", SurfaceBase: "#0D1014",
-                SurfaceRaised: "#141920", SurfaceHover: "#202833",
-                BorderSubtle: "#2A3441", BorderStrong: "#3A4655",
-                TextPrimary: "#F2F5F7", TextSecondary: "#A8B0BA",
+                AppBackground: "#050609", SurfaceBase: "#0B0E12",
+                SurfaceRaised: "#131820", SurfaceHover: "#1E2630",
+                BorderSubtle: "#2B3645", BorderStrong: "#3E4B5C",
+                TextPrimary: "#F4F7FA", TextSecondary: "#9AA2AD",
                 Danger: "#E45D75"),
             Radii: SharpRadii,
             // Default, not SmallRound: the default theme must leave windows DWM-pristine.
@@ -130,34 +131,40 @@ public static class ThemeCatalog
             "Minimal",
             "A quieter preset for daily browsing and low-distraction popouts.",
             "#5AA9E6",
-            DefaultFadeDelayPreset,
+            // Calmer daily shell: longer fade delay so the strip lingers (theme-v2 spec §"behavior
+            // defaults"); strip stays pinned and the window stays opaque.
+            DefaultFadeDelayPreset: "long",
             DefaultStripAutoHide: false,
             DefaultActiveWindowOpacity: WindowOpacityPolicy.Default,
             DefaultIdleWindowOpacity: WindowOpacityPolicy.Default,
-            // The pre-theme shared palette tones (review doc §7.2) — minimal IS today's look.
+            // Warm charcoal palette (theme-v2 tight-scope spec §"Palette targets").
             Palette: new(
-                AppBackground: "#0B0D0E", SurfaceBase: "#111316",
-                SurfaceRaised: "#1A1E22", SurfaceHover: "#252B31",
-                BorderSubtle: "#30363D", BorderStrong: "#414A55",
-                TextPrimary: "#F3F5F7", TextSecondary: "#A7ADB4",
-                Danger: "#FF4B55"),
+                AppBackground: "#14120F", SurfaceBase: "#1C1A16",
+                SurfaceRaised: "#26231E", SurfaceHover: "#312D27",
+                BorderSubtle: "#3C372F", BorderStrong: "#50493E",
+                TextPrimary: "#F4F1EC", TextSecondary: "#B0A99E",
+                Danger: "#E8564C"),
             Radii: MinimalRadii,
-            DwmCorners: DwmCornerMode.Default),
+            // Small native rounding: softer than Sharp's pristine HWND, calmer than Soft Glass.
+            DwmCorners: DwmCornerMode.SmallRound),
         new(
             "soft-glass",
             "Soft Glass",
             "A softer overlay-friendly preset for desktop popouts.",
             "#A78BFA",
-            DefaultFadeDelayPreset,
-            DefaultStripAutoHide: false,
+            // Floating overlay shell: a short fade and auto-hiding strip keep the surface clean, and
+            // the window is translucent active/idle (theme-v2 tight-scope spec §"behavior defaults").
+            DefaultFadeDelayPreset: "short",
+            DefaultStripAutoHide: true,
             DefaultActiveWindowOpacity: 0.92,
             DefaultIdleWindowOpacity: 0.78,
-            // Cooler, bluer translucent-overlay palette (review doc §7.3).
+            // Blue/cool translucent-overlay palette with brighter borders and secondary text
+            // (theme-v2 tight-scope spec §"Palette targets").
             Palette: new(
-                AppBackground: "#090B0F", SurfaceBase: "#10141B",
-                SurfaceRaised: "#171C26", SurfaceHover: "#242B38",
-                BorderSubtle: "#384255", BorderStrong: "#526179",
-                TextPrimary: "#F7F8FA", TextSecondary: "#C0C6CF",
+                AppBackground: "#0B1018", SurfaceBase: "#121A26",
+                SurfaceRaised: "#1B2738", SurfaceHover: "#26354B",
+                BorderSubtle: "#44526E", BorderStrong: "#66799E",
+                TextPrimary: "#F6F8FC", TextSecondary: "#C4CEDC",
                 Danger: "#E45D75"),
             Radii: SoftGlassRadii,
             DwmCorners: DwmCornerMode.Round),
