@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using PiPlay.Models;
 
 namespace PiPlay.Theme;
@@ -37,6 +38,8 @@ public static class ThemeResourceApplier
         ApplyAccent(resources, ThemePreferenceResolver.AccentColor(theme, player), preset);
         ApplyPalette(resources, preset.Palette);
         ApplyRadii(resources, ThemeCatalog.RadiiFor(preset, theme?.CornerStyle));
+        ApplyDensity(resources, preset.Density);
+        ApplyElevation(resources, preset.Elevation);
         CurrentDwmCorners = ThemeCatalog.DwmCornersFor(preset, theme?.CornerStyle);
     }
 
@@ -102,6 +105,56 @@ public static class ThemeResourceApplier
         // entries, not resource-to-resource references.
         resources["ControlCornerRadius"] = new CornerRadius(radii.Input);
         resources["ButtonCornerRadius"] = new CornerRadius(radii.Button);
+    }
+
+    /// <summary>
+    /// Replace the density resources from the preset's <see cref="ThemeDensity"/>. Heights/sizes land
+    /// as <see cref="double"/>; paddings and the uniform default border land as <see cref="Thickness"/>
+    /// (the struct type Padding/BorderThickness DynamicResource consumers expect — a double/string there
+    /// hits the .NET 10 DynamicResource type-mismatch crash class). Replaced, not mutated, like the
+    /// palette/radius/accent entries above.
+    /// </summary>
+    private static void ApplyDensity(ResourceDictionary resources, ThemeDensity density)
+    {
+        resources["DensityControlHeight"] = density.ControlHeight;
+        resources["DensityIconButtonSize"] = density.IconButtonSize;
+        resources["DensityScrollbarThickness"] = density.ScrollbarThickness;
+        resources["DensityButtonPadding"] = density.ButtonPadding;
+        resources["DensityInputPadding"] = density.InputPadding;
+        resources["DensityMenuItemPadding"] = density.MenuItemPadding;
+        resources["DensityPresetChipPadding"] = density.PresetChipPadding;
+        resources["DensityToolTipPadding"] = density.ToolTipPadding;
+        resources["BorderThicknessDefault"] = density.BorderThicknessDefault;
+    }
+
+    /// <summary>
+    /// Replace the inner-elevation effects from the preset's <see cref="ThemeElevation"/>. A null
+    /// <paramref name="elevation"/> (Sharp Dark) writes a null Effect so popup/panel consumers render
+    /// flat — NOT a no-op DropShadowEffect, which would still cost per-frame raster. Minimal and Soft
+    /// Glass get frozen <see cref="DropShadowEffect"/>s. Inner-only: these feed popup/menu/panel Effects,
+    /// never an outer window (the windows host WebView2 by HWND and stay AllowsTransparency=False).
+    /// </summary>
+    private static void ApplyElevation(ResourceDictionary resources, ThemeElevation? elevation)
+    {
+        resources["ElevationPopup"] = elevation is null
+            ? null
+            : FrozenShadow(elevation.PopupBlurRadius, elevation.PopupShadowDepth, elevation.PopupOpacity);
+        resources["ElevationPanel"] = elevation is null
+            ? null
+            : FrozenShadow(elevation.PanelBlurRadius, elevation.PanelShadowDepth, elevation.PanelOpacity);
+    }
+
+    private static DropShadowEffect FrozenShadow(double blurRadius, double shadowDepth, double opacity)
+    {
+        var effect = new DropShadowEffect
+        {
+            BlurRadius = blurRadius,
+            ShadowDepth = shadowDepth,
+            Opacity = opacity,
+            Color = Colors.Black,   // neutral inner shadow; Direction stays the WPF default (315°)
+        };
+        effect.Freeze();   // shareable + immutable across windows, like the brushes above
+        return effect;
     }
 
     private static SolidColorBrush Frozen(Color color)

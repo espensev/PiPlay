@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Windows;
 using System.Windows.Media;
 using System.Xml.Linq;
 using PiPlay.Services;
@@ -501,6 +502,50 @@ public class XamlInvariantTests
         {
             Assert.Equal(expected, radiusTokens[key]);
         }
+    }
+
+    [Fact]
+    public void Colors_xaml_density_and_elevation_seeds_match_the_sharp_dark_preset()
+    {
+        // The Colors.xaml density/border/elevation seeds cover design time and the pre-Apply instant;
+        // sharp-dark is the default theme, so the seeds must BE its ThemeDensity (and its null inner
+        // elevation) or a fresh launch would render different control sizes/paddings/shadows before
+        // ThemeResourceApplier runs. Pinned to the catalog so the seeds and ThemeDensity cannot drift.
+        var doc = XamlTestFiles.Load("Theme/Colors.xaml");
+        var density = ThemeCatalog.PresetFor("sharp-dark").Density;
+        string Inv(double v) => v.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        string Hv(Thickness t) => $"{Inv(t.Left)},{Inv(t.Top)}";   // the "horizontal,vertical" seed shorthand
+
+        // Double seeds (heights / icon size / scrollbar thickness): matched by local name because the
+        // `sys` (clr-namespace:System) namespace prefix is test-irrelevant.
+        var doubles = doc.Descendants()
+            .Where(e => e.Name.LocalName == "Double" && e.Attribute(XamlTestFiles.X + "Key") is not null)
+            .ToDictionary(e => e.Attribute(XamlTestFiles.X + "Key")!.Value, e => e.Value.Trim());
+        Assert.Equal(Inv(density.ControlHeight), doubles["DensityControlHeight"]);
+        Assert.Equal(Inv(density.IconButtonSize), doubles["DensityIconButtonSize"]);
+        Assert.Equal(Inv(density.ScrollbarThickness), doubles["DensityScrollbarThickness"]);
+
+        // Thickness seeds (paddings + the uniform default border). BorderThicknessDefault MUST be a
+        // <Thickness> resource (a double/string would crash the .NET 10 DynamicResource consumer), and
+        // its uniform 1 seeds as the single-value "1" shorthand.
+        var thicknesses = doc.Descendants(XamlTestFiles.Pres + "Thickness")
+            .ToDictionary(e => e.Attribute(XamlTestFiles.X + "Key")!.Value, e => e.Value.Trim());
+        Assert.Equal(Hv(density.ButtonPadding), thicknesses["DensityButtonPadding"]);
+        Assert.Equal(Hv(density.InputPadding), thicknesses["DensityInputPadding"]);
+        Assert.Equal(Hv(density.MenuItemPadding), thicknesses["DensityMenuItemPadding"]);
+        Assert.Equal(Hv(density.PresetChipPadding), thicknesses["DensityPresetChipPadding"]);
+        Assert.Equal(Hv(density.ToolTipPadding), thicknesses["DensityToolTipPadding"]);
+        Assert.Equal(new Thickness(1), density.BorderThicknessDefault);   // catalog stays uniform 1...
+        Assert.Equal("1", thicknesses["BorderThicknessDefault"]);          // ...and seeds as the "1" shorthand
+
+        // Sharp Dark has a null inner elevation: both keys exist as x:Null seeds, so the design-time /
+        // pre-Apply Effect is null (flat) — exactly the applied value for the default theme.
+        var nullKeys = doc.Descendants(XamlTestFiles.X + "Null")
+            .Select(e => e.Attribute(XamlTestFiles.X + "Key")?.Value)
+            .Where(k => k is not null)
+            .ToHashSet();
+        Assert.Contains("ElevationPopup", nullKeys);
+        Assert.Contains("ElevationPanel", nullKeys);
     }
 
     // --- Theme contrast (WCAG) computed from the actual Colors.xaml tokens ---

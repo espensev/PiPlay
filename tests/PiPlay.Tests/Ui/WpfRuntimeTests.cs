@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Shell;
 using System.Windows.Threading;
@@ -146,6 +147,63 @@ public class WpfRuntimeTests : IDisposable
 
         // AccentPrimaryLight is kept as an alias to AccentHover for one migration pass.
         Assert.Equal(expected.Hover, ((SolidColorBrush)res["AccentPrimaryLight"]).Color);
+    });
+
+    [Fact]
+    public void ThemeResourceApplier_applies_density_and_border_tokens_from_the_preset() => StaTestThread.Invoke(() =>
+    {
+        // Task 5: the applier replaces the density doubles + padding/border Thicknesses from the
+        // preset's ThemeDensity, so DynamicResource consumers re-resolve. Soft Glass is the airy end.
+        var res = new ResourceDictionary();
+        ThemeResourceApplier.Apply(res, new ThemeSettings { ThemeId = "soft-glass" }, new PlayerSettings());
+
+        var density = ThemeCatalog.PresetFor("soft-glass").Density;
+        Assert.Equal(density.ControlHeight, (double)res["DensityControlHeight"]);
+        Assert.Equal(density.IconButtonSize, (double)res["DensityIconButtonSize"]);
+        Assert.Equal(density.ScrollbarThickness, (double)res["DensityScrollbarThickness"]);
+        Assert.Equal(density.ButtonPadding, (Thickness)res["DensityButtonPadding"]);
+        Assert.Equal(density.InputPadding, (Thickness)res["DensityInputPadding"]);
+        Assert.Equal(density.MenuItemPadding, (Thickness)res["DensityMenuItemPadding"]);
+        Assert.Equal(density.PresetChipPadding, (Thickness)res["DensityPresetChipPadding"]);
+        Assert.Equal(density.ToolTipPadding, (Thickness)res["DensityToolTipPadding"]);
+        // BorderThicknessDefault resolves as a Thickness struct (a double/string would crash the
+        // .NET 10 DynamicResource BorderThickness consumer).
+        Assert.Equal(density.BorderThicknessDefault, (Thickness)res["BorderThicknessDefault"]);
+
+        // An unknown theme id falls back to sharp-dark density end to end (the compact profile).
+        var fallback = new ResourceDictionary();
+        ThemeResourceApplier.Apply(fallback, new ThemeSettings { ThemeId = "no-such-theme" }, new PlayerSettings());
+        Assert.Equal(ThemeCatalog.PresetFor("sharp-dark").Density.ControlHeight, (double)fallback["DensityControlHeight"]);
+        Assert.Equal(ThemeCatalog.PresetFor("sharp-dark").Density.ButtonPadding, (Thickness)fallback["DensityButtonPadding"]);
+    });
+
+    [Fact]
+    public void ThemeResourceApplier_sets_inner_elevation_effects_and_clears_them_for_sharp() => StaTestThread.Invoke(() =>
+    {
+        // Soft Glass gets frozen DropShadowEffects whose blur/depth/opacity match the preset's
+        // ThemeElevation (ElevationPopup feeds popups; ElevationPanel raised inner panels).
+        var res = new ResourceDictionary();
+        ThemeResourceApplier.Apply(res, new ThemeSettings { ThemeId = "soft-glass" }, new PlayerSettings());
+
+        var elevation = ThemeCatalog.PresetFor("soft-glass").Elevation!;
+        var popup = Assert.IsType<DropShadowEffect>(res["ElevationPopup"]);
+        Assert.True(popup.IsFrozen, "ElevationPopup effect must be frozen (shareable across windows).");
+        Assert.Equal(elevation.PopupBlurRadius, popup.BlurRadius);
+        Assert.Equal(elevation.PopupShadowDepth, popup.ShadowDepth);
+        Assert.Equal(elevation.PopupOpacity, popup.Opacity);
+        var panel = Assert.IsType<DropShadowEffect>(res["ElevationPanel"]);
+        Assert.True(panel.IsFrozen);
+        Assert.Equal(elevation.PanelBlurRadius, panel.BlurRadius);
+        Assert.Equal(elevation.PanelShadowDepth, panel.ShadowDepth);
+        Assert.Equal(elevation.PanelOpacity, panel.Opacity);
+
+        // Switching to Sharp Dark CLEARS the inner shadow: the applier overwrites the prior effect with
+        // a literal null (Sharp is flat; a no-op DropShadowEffect would still cost per-frame raster).
+        // Re-applying onto the same dict proves the null write actively lands — stronger than a
+        // Contains() check on an empty dictionary, and it mirrors a real soft-glass -> sharp switch.
+        ThemeResourceApplier.Apply(res, new ThemeSettings { ThemeId = "sharp-dark" }, new PlayerSettings());
+        Assert.Null(res["ElevationPopup"]);
+        Assert.Null(res["ElevationPanel"]);
     });
 
     [Fact]

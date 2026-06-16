@@ -1,3 +1,4 @@
+using System.Windows;
 using System.Windows.Media;
 using PiPlay.Theme;
 
@@ -374,5 +375,153 @@ public class ThemeCatalogTests
         Assert.True(borderOnBase >= 3.0, $"{presetId}/{accentKey}: AccentBorder on SurfaceBase = {borderOnBase:F2}:1.");
         var borderOnRaised = Wcag.ContrastRatio(Hex(set.Border), preset.Palette.SurfaceRaised);
         Assert.True(borderOnRaised >= 3.0, $"{presetId}/{accentKey}: AccentBorder on SurfaceRaised = {borderOnRaised:F2}:1.");
+    }
+
+    // --- Task 5 / TG-3: density + elevation spec-literal gates (theme-v2 tight-scope §"Density
+    // targets" / §"Elevation targets"). Like the palette/radii literals above, these pin the spec's
+    // target tables as HARDCODED literals, independent of the catalog. TG-3: a <= ordering gate is NOT
+    // enough — it passes when all three presets collapse to the identical "Safe fallback" column, the
+    // exact "Sharp compact / Soft Glass airy" regression the density pass exists to prevent — and
+    // strict < is wrong because several axes legitimately tie (ScrollbarThickness 8/10/10,
+    // BorderThicknessDefault 1/1/1, several padding components). So: exact literals per preset PLUS a
+    // strict-distinctness check on ONLY the axes the spec actually diverges. ---
+
+    private static void AssertDensityMatchesSpec(
+        string id, double controlHeight, double iconButtonSize, double scrollbarThickness,
+        Thickness buttonPadding, Thickness inputPadding, Thickness menuItemPadding,
+        Thickness presetChipPadding, Thickness toolTipPadding, Thickness borderThicknessDefault)
+    {
+        var d = ThemeCatalog.PresetFor(id).Density;
+        Assert.Equal(controlHeight, d.ControlHeight);
+        Assert.Equal(iconButtonSize, d.IconButtonSize);
+        Assert.Equal(scrollbarThickness, d.ScrollbarThickness);
+        Assert.Equal(buttonPadding, d.ButtonPadding);
+        Assert.Equal(inputPadding, d.InputPadding);
+        Assert.Equal(menuItemPadding, d.MenuItemPadding);
+        Assert.Equal(presetChipPadding, d.PresetChipPadding);
+        Assert.Equal(toolTipPadding, d.ToolTipPadding);
+        Assert.Equal(borderThicknessDefault, d.BorderThicknessDefault);
+    }
+
+    [Fact]
+    public void Sharp_dark_density_matches_the_v2_spec_literals() => AssertDensityMatchesSpec(
+        "sharp-dark", controlHeight: 30, iconButtonSize: 30, scrollbarThickness: 8,
+        buttonPadding: new Thickness(10, 5, 10, 5), inputPadding: new Thickness(8, 0, 8, 0),
+        menuItemPadding: new Thickness(8, 5, 8, 5), presetChipPadding: new Thickness(8, 0, 8, 0),
+        toolTipPadding: new Thickness(7, 4, 7, 4), borderThicknessDefault: new Thickness(1));
+
+    [Fact]
+    public void Minimal_density_matches_the_v2_spec_literals() => AssertDensityMatchesSpec(
+        "minimal", controlHeight: 34, iconButtonSize: 32, scrollbarThickness: 10,
+        buttonPadding: new Thickness(12, 6, 12, 6), inputPadding: new Thickness(10, 0, 10, 0),
+        menuItemPadding: new Thickness(10, 6, 10, 6), presetChipPadding: new Thickness(10, 0, 10, 0),
+        toolTipPadding: new Thickness(8, 5, 8, 5), borderThicknessDefault: new Thickness(1));
+
+    [Fact]
+    public void Soft_glass_density_matches_the_v2_spec_literals() => AssertDensityMatchesSpec(
+        "soft-glass", controlHeight: 38, iconButtonSize: 36, scrollbarThickness: 10,
+        buttonPadding: new Thickness(16, 9, 16, 9), inputPadding: new Thickness(14, 2, 14, 2),
+        menuItemPadding: new Thickness(14, 9, 14, 9), presetChipPadding: new Thickness(14, 0, 14, 0),
+        toolTipPadding: new Thickness(10, 7, 10, 7), borderThicknessDefault: new Thickness(1));
+
+    [Fact]
+    public void Density_diverges_on_the_axes_that_must_and_ties_the_uniform_axes()
+    {
+        var sharp = ThemeCatalog.PresetFor("sharp-dark").Density;
+        var minimal = ThemeCatalog.PresetFor("minimal").Density;
+        var soft = ThemeCatalog.PresetFor("soft-glass").Density;
+
+        // The "compact -> airy" axes increase STRICTLY (Sharp compact, Soft Glass airy). A <= gate
+        // would pass on a collapse to one shared value, so assert strict < on the axes that diverge.
+        Assert.True(sharp.ControlHeight < minimal.ControlHeight && minimal.ControlHeight < soft.ControlHeight,
+            $"ControlHeight not strictly increasing: {sharp.ControlHeight}/{minimal.ControlHeight}/{soft.ControlHeight}.");
+        Assert.True(sharp.IconButtonSize < minimal.IconButtonSize && minimal.IconButtonSize < soft.IconButtonSize,
+            $"IconButtonSize not strictly increasing: {sharp.IconButtonSize}/{minimal.IconButtonSize}/{soft.IconButtonSize}.");
+        // Horizontal button padding (the most visible control) opens up Sharp < Minimal < Soft Glass.
+        Assert.True(sharp.ButtonPadding.Left < minimal.ButtonPadding.Left && minimal.ButtonPadding.Left < soft.ButtonPadding.Left,
+            $"ButtonPadding horizontal not strictly increasing: {sharp.ButtonPadding.Left}/{minimal.ButtonPadding.Left}/{soft.ButtonPadding.Left}.");
+
+        // Scrollbar thickens off Sharp but Minimal/Soft Glass intentionally TIE (8/10/10): assert that
+        // exact shape, never an ordering a collapse could satisfy.
+        Assert.True(sharp.ScrollbarThickness < minimal.ScrollbarThickness, "Scrollbar must thicken off Sharp.");
+        Assert.Equal(minimal.ScrollbarThickness, soft.ScrollbarThickness);
+
+        // BorderThicknessDefault is a uniform 1 across all three this pass: border weight is not a v2
+        // differentiation axis until pixel-snapping/layout-rounding risk has its own gate.
+        Assert.Equal(new Thickness(1), sharp.BorderThicknessDefault);
+        Assert.Equal(sharp.BorderThicknessDefault, minimal.BorderThicknessDefault);
+        Assert.Equal(minimal.BorderThicknessDefault, soft.BorderThicknessDefault);
+    }
+
+    [Fact]
+    public void Sharp_dark_has_no_inner_elevation()
+    {
+        // Sharp is the flat utility shell: no inner popup/panel shadow at all. The applier writes a
+        // literal null Effect, never a no-op DropShadowEffect (which would still cost per-frame raster).
+        Assert.Null(ThemeCatalog.PresetFor("sharp-dark").Elevation);
+    }
+
+    [Fact]
+    public void Minimal_elevation_matches_the_v2_spec_literals()
+    {
+        var e = ThemeCatalog.PresetFor("minimal").Elevation;
+        Assert.NotNull(e);
+        Assert.Equal(8, e!.PopupBlurRadius);
+        Assert.Equal(1, e.PopupShadowDepth);
+        Assert.Equal(0.22, e.PopupOpacity);
+        Assert.Equal(6, e.PanelBlurRadius);
+        Assert.Equal(1, e.PanelShadowDepth);
+        Assert.Equal(0.16, e.PanelOpacity);
+    }
+
+    [Fact]
+    public void Soft_glass_elevation_matches_the_v2_spec_literals()
+    {
+        var e = ThemeCatalog.PresetFor("soft-glass").Elevation;
+        Assert.NotNull(e);
+        Assert.Equal(16, e!.PopupBlurRadius);
+        Assert.Equal(2, e.PopupShadowDepth);
+        Assert.Equal(0.34, e.PopupOpacity);
+        Assert.Equal(12, e.PanelBlurRadius);
+        Assert.Equal(2, e.PanelShadowDepth);
+        Assert.Equal(0.26, e.PanelOpacity);
+    }
+
+    [Fact]
+    public void Inner_elevation_strengthens_from_minimal_to_soft_glass()
+    {
+        // Sharp has none; Soft Glass is the airy overlay shell, so every elevation axis is at least as
+        // strong as Minimal's and the blur (the most visible axis) is strictly stronger.
+        var minimal = ThemeCatalog.PresetFor("minimal").Elevation!;
+        var soft = ThemeCatalog.PresetFor("soft-glass").Elevation!;
+        Assert.True(soft.PopupBlurRadius > minimal.PopupBlurRadius, "Soft Glass popup blur must exceed Minimal.");
+        Assert.True(soft.PanelBlurRadius > minimal.PanelBlurRadius, "Soft Glass panel blur must exceed Minimal.");
+        Assert.True(soft.PopupOpacity > minimal.PopupOpacity && soft.PanelOpacity > minimal.PanelOpacity,
+            "Soft Glass shadow opacity must exceed Minimal.");
+    }
+
+    [Fact]
+    public void Theme_density_and_elevation_use_structural_equality()
+    {
+        // The same guard as Theme_palette_and_radii_use_structural_equality: the density/elevation
+        // *_matches_the_v2_spec_literals gates lean on per-field record equality. If ThemeDensity or
+        // ThemeElevation were refactored to a class, Assert.Equal would silently degrade to reference
+        // equality and stop enforcing the literals. Keep that refactor red.
+        Assert.Equal(
+            new ThemeDensity(30, 30, 8, new Thickness(10, 5, 10, 5), new Thickness(8, 0, 8, 0),
+                new Thickness(8, 5, 8, 5), new Thickness(8, 0, 8, 0), new Thickness(7, 4, 7, 4), new Thickness(1)),
+            new ThemeDensity(30, 30, 8, new Thickness(10, 5, 10, 5), new Thickness(8, 0, 8, 0),
+                new Thickness(8, 5, 8, 5), new Thickness(8, 0, 8, 0), new Thickness(7, 4, 7, 4), new Thickness(1)));
+        Assert.NotEqual(
+            new ThemeDensity(30, 30, 8, new Thickness(10, 5, 10, 5), new Thickness(8, 0, 8, 0),
+                new Thickness(8, 5, 8, 5), new Thickness(8, 0, 8, 0), new Thickness(7, 4, 7, 4), new Thickness(1)),
+            new ThemeDensity(34, 30, 8, new Thickness(10, 5, 10, 5), new Thickness(8, 0, 8, 0),
+                new Thickness(8, 5, 8, 5), new Thickness(8, 0, 8, 0), new Thickness(7, 4, 7, 4), new Thickness(1)));
+        Assert.Equal(
+            new ThemeElevation(8, 1, 0.22, 6, 1, 0.16),
+            new ThemeElevation(8, 1, 0.22, 6, 1, 0.16));
+        Assert.NotEqual(
+            new ThemeElevation(8, 1, 0.22, 6, 1, 0.16),
+            new ThemeElevation(16, 1, 0.22, 6, 1, 0.16));
     }
 }
