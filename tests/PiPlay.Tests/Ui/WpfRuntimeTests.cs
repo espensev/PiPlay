@@ -207,6 +207,40 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void ComboBox_dropdown_consumes_the_inner_elevation_token() => StaTestThread.Invoke(() =>
+    {
+        // Task 7: the ComboBox dropdown surface (DropDownBorder, hosted in a real Popup HWND) carries the
+        // inner elevation via {DynamicResource ElevationPopup} — a frozen DropShadowEffect for Soft Glass /
+        // Minimal, and a null Effect (flat) for Sharp. Replacing the app token restyles the realized
+        // border, the same replace-not-mutate path proven for palette/radius/density.
+        var original = Application.Current.Resources["ElevationPopup"];
+        try
+        {
+            var sentinel = new DropShadowEffect { BlurRadius = 17, ShadowDepth = 2, Opacity = 0.3, Color = Colors.Black };
+            sentinel.Freeze();
+            Application.Current.Resources["ElevationPopup"] = sentinel;
+
+            var combo = new ComboBox { Style = (Style)Application.Current.FindResource("DarkComboBox") };
+            combo.Measure(new Size(200, 32));
+            combo.ApplyTemplate();
+            var dropDownBorder = (Border)combo.Template.FindName("DropDownBorder", combo)!;
+            Assert.Same(sentinel, dropDownBorder.Effect);
+
+            // Sharp Dark resolves ElevationPopup to null → the dropdown is flat (no inner shadow).
+            Application.Current.Resources["ElevationPopup"] = null;
+            var sharpCombo = new ComboBox { Style = (Style)Application.Current.FindResource("DarkComboBox") };
+            sharpCombo.Measure(new Size(200, 32));
+            sharpCombo.ApplyTemplate();
+            var sharpBorder = (Border)sharpCombo.Template.FindName("DropDownBorder", sharpCombo)!;
+            Assert.Null(sharpBorder.Effect);
+        }
+        finally
+        {
+            Application.Current.Resources["ElevationPopup"] = original;   // never pollute the shared app
+        }
+    });
+
+    [Fact]
     public void Theme_restyle_reaches_dynamic_surface_and_radius_consumers() => StaTestThread.Invoke(() =>
     {
         // The PR #18 replace-not-mutate mechanism, applied verbatim to the new tokens: a DarkButton

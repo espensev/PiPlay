@@ -399,10 +399,16 @@
 
             <Popup x:Name="Popup" Placement="Bottom" Focusable="False" AllowsTransparency="True"
                    IsOpen="{TemplateBinding IsDropDownOpen}" PopupAnimation="Slide">
+              <!-- Inner elevation (theme-v2 Task 7): the dropdown lives in a real Popup HWND (no WebView2),
+                   so a DropShadowEffect here is airspace-safe (FEAS-04). The right/bottom margin gives the
+                   315-degree shadow inset room inside the transparent popup so it is not clipped flush; that
+                   room is transparent and invisible under Sharp Dark's null elevation. Exact inset is
+                   PROVISIONAL pending deployed-Stable visual QA. -->
               <Border x:Name="DropDownBorder" MinWidth="{Binding ActualWidth, ElementName=ToggleButton}"
-                      MaxHeight="{TemplateBinding MaxDropDownHeight}" Margin="0,4,0,0"
+                      MaxHeight="{TemplateBinding MaxDropDownHeight}" Margin="0,4,20,20"
                       Background="{DynamicResource SurfaceBase}" BorderBrush="{DynamicResource BorderSubtle}"
-                      BorderThickness="{DynamicResource BorderThicknessDefault}" CornerRadius="{DynamicResource RadiusPopup}">
+                      BorderThickness="{DynamicResource BorderThicknessDefault}" CornerRadius="{DynamicResource RadiusPopup}"
+                      Effect="{DynamicResource ElevationPopup}">
                 <Grid>
                   <ScrollViewer x:Name="DropDownScroll" Margin="4"
                                 VerticalScrollBarVisibility="Auto"
