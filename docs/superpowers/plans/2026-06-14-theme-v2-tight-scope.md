@@ -38,7 +38,7 @@ Each task should leave the tree green and committable. Do not merge the color wh
   - Verification: `dotnet test PiPlay.sln --configuration Debug --filter ThemeCatalogTests`.
   - Commit: `test(theme): gate preset differentiation`
 
-- [ ] **Task 3 — Add accent variant generation.**
+- [x] **Task 3 — Add accent variant generation.** (landed, PR #24)
   - Add `ThemeAccentProfile` and a generated accent set in `ThemeColors.cs`.
   - Add `AccentHover`, `AccentPressed`, `AccentMuted`, `AccentSubtle`, `AccentBorder`,
     `AccentGlow`, `OnAccent`, and `OnAccentPressed` resource keys.
@@ -59,7 +59,7 @@ Each task should leave the tree green and committable. Do not merge the color wh
       derived-token pairing across all three theme profiles.
   - Commit: `feat(theme): derive accent state tokens`
 
-- [ ] **Task 4 — Migrate first accent consumers.**
+- [x] **Task 4 — Migrate first accent consumers.** (landed, PR #25)
   - In `ControlStyles.xaml`:
     - `AccentButton.Foreground` → `{DynamicResource OnAccent}`.
     - `AccentButton` hover → `{DynamicResource AccentHover}`.
@@ -73,7 +73,7 @@ Each task should leave the tree green and committable. Do not merge the color wh
       after theme/accent apply.
   - Commit: `refactor(theme): use semantic accent resources`
 
-- [ ] **Task 5 — Add density/elevation model and resources.**
+- [x] **Task 5 — Add density/elevation model and resources.** (landed, PR3)
   - Add `ThemeDensity` and `ThemeElevation` records to `ThemeCatalog.cs`.
   - Add per-preset values from the spec.
   - Include `BorderThicknessDefault` on `ThemeDensity` as a uniform WPF `Thickness`; keep it `1`
@@ -101,7 +101,7 @@ Each task should leave the tree green and committable. Do not merge the color wh
       popup/panel effects for Minimal and Soft Glass.
   - Commit: `feat(theme): add density and elevation tokens`
 
-- [ ] **Task 6 — Migrate density consumers.**
+- [x] **Task 6 — Migrate density consumers.** (landed, PR3; density tokens consumed, elevation consumers deferred to Task 7)
   - Migrate only the scoped sites:
     - `DarkButton` padding/border.
     - `DarkTextBox` min height/padding/border.
