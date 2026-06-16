@@ -585,6 +585,9 @@ public class XamlInvariantTests
         AssertSetter(controls, "DarkComboBox", "Height", "DensityControlHeight");
         AssertSetter(controls, "DarkComboBox", "BorderThickness", "BorderThicknessDefault");
         AssertSetter(controls, "ScrollBar", "Width", "DensityScrollbarThickness");
+        // MinWidth rides the same token — WPF coerces rendered width to >= MinWidth, so a literal here
+        // would silently oversize the Sharp scrollbar; lock it too (review feas08-misses-scrollbar-minwidth).
+        AssertSetter(controls, "ScrollBar", "MinWidth", "DensityScrollbarThickness");
         AssertSetter(controls, "ToolTip", "BorderThickness", "BorderThicknessDefault");
         AssertSetter(settings, "PresetToggle", "Height", "DensityControlHeight");
     }
