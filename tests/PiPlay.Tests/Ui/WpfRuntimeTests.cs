@@ -236,6 +236,38 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void Theme_restyle_reaches_dynamic_density_consumers() => StaTestThread.Invoke(() =>
+    {
+        // TG-8: a realized DarkButton/DarkTextBox re-resolves the new density/border tokens via
+        // DynamicResource — the same replace-not-mutate mechanism proven for surface/radius above, now
+        // for Padding/BorderThickness/MinHeight. Replacing the app entries restyles realized consumers.
+        var originalPad = Application.Current.Resources["DensityButtonPadding"];
+        var originalBorder = Application.Current.Resources["BorderThicknessDefault"];
+        var originalHeight = Application.Current.Resources["DensityControlHeight"];
+        try
+        {
+            Application.Current.Resources["DensityButtonPadding"] = new Thickness(7, 3, 7, 3);
+            Application.Current.Resources["BorderThicknessDefault"] = new Thickness(4);
+            Application.Current.Resources["DensityControlHeight"] = 41.0;
+
+            var btn = new Button { Style = (Style)Application.Current.FindResource("DarkButton") };
+            btn.Measure(new Size(200, 60));   // realize: style setters resolve the replaced entries
+            Assert.Equal(new Thickness(7, 3, 7, 3), btn.Padding);
+            Assert.Equal(new Thickness(4), btn.BorderThickness);
+
+            var box = new TextBox { Style = (Style)Application.Current.FindResource("DarkTextBox") };
+            box.Measure(new Size(200, 60));
+            Assert.Equal(41.0, box.MinHeight);
+        }
+        finally
+        {
+            Application.Current.Resources["DensityButtonPadding"] = originalPad;   // never pollute the shared app
+            Application.Current.Resources["BorderThicknessDefault"] = originalBorder;
+            Application.Current.Resources["DensityControlHeight"] = originalHeight;
+        }
+    });
+
+    [Fact]
     public void Accent_recolor_reaches_a_dynamic_resource_consumer() => StaTestThread.Invoke(() =>
     {
         // The AccentButton fill resolves {DynamicResource AccentPrimary}. REPLACING the App resource
@@ -1599,25 +1631,32 @@ public class WpfRuntimeTests : IDisposable
     public void UrlText_is_not_clipped_to_a_band_at_150pct_dpi() => StaTestThread.Invoke(() =>
     {
         const double dpi = 144; // 150%
-        var host = new Border
+        // FEAS-01: measure the host UNCONSTRAINED vertically so the arranged field height is DRIVEN by
+        // DarkTextBox.MinHeight = DensityControlHeight — the dense end (30 DIP, below the old hardcoded
+        // 32). A fixed-height host masked clipping by re-stretching the field to 32 regardless of the
+        // token, so lowering DensityControlHeight rendered an identical 32 px field — the gate was
+        // invariant to the value it claimed to police.
+        var expectedHeight = (double)Application.Current.Resources["DensityControlHeight"];
+        var box = new TextBox
         {
+            Text = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
             Width = 320,
-            Height = 32,
-            UseLayoutRounding = false, // production setting
-            Background = Brushes.Black,
-            Child = new TextBox
-            {
-                Text = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-                Style = (Style)Application.Current.FindResource("DarkTextBox"),
-            },
+            Style = (Style)Application.Current.FindResource("DarkTextBox"),
         };
+        var host = new Border { Background = Brushes.Black, Child = box, UseLayoutRounding = false };
 
-        host.Measure(new Size(320, 32));
-        host.Arrange(new Rect(0, 0, 320, 32));
+        host.Measure(new Size(320, double.PositiveInfinity));   // unconstrained height: MinHeight drives it
+        var h = host.DesiredSize.Height;
+        host.Arrange(new Rect(0, 0, 320, h));
         host.UpdateLayout();
 
+        // The arranged field height now IS the density token — proving the gate exercises it (not a
+        // fixed 32 px box). If a future DensityControlHeight regression shrank the field, the inked-row
+        // check below would catch the clipping at this real dense height.
+        Assert.Equal(expectedHeight, box.ActualHeight);
+
         var rtb = new RenderTargetBitmap(
-            (int)Math.Ceiling(320 * dpi / 96), (int)Math.Ceiling(32 * dpi / 96), dpi, dpi, PixelFormats.Pbgra32);
+            (int)Math.Ceiling(320 * dpi / 96), (int)Math.Ceiling(h * dpi / 96), dpi, dpi, PixelFormats.Pbgra32);
         rtb.Render(host);
 
         var inkedRows = CountInkedRows(rtb);

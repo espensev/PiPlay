@@ -548,6 +548,47 @@ public class XamlInvariantTests
         Assert.Contains("ElevationPanel", nullKeys);
     }
 
+    [Fact]
+    public void Migrated_density_setters_reference_the_density_tokens()
+    {
+        // FEAS-08: the No_hardcoded_corner_radii sweep is CornerRadius-only; it cannot catch a residual
+        // literal left at a migrated Padding/Height/BorderThickness site (the DynamicResource sweep
+        // passes vacuously for a site that kept its literal). Positively assert each migration-list
+        // top-level Setter references the expected Density*/BorderThicknessDefault DynamicResource key,
+        // by style (x:Key or implicit TargetType) and property — so a literal cannot survive silently.
+        var controls = XamlTestFiles.Load("Theme/ControlStyles.xaml");
+        var settings = XamlTestFiles.Load("SettingsWindow.xaml");
+
+        void AssertSetter(XDocument doc, string styleKeyOrType, string property, string expectedKey)
+        {
+            var style = doc.Descendants(XamlTestFiles.Pres + "Style").Single(s =>
+                s.Attribute(XamlTestFiles.X + "Key")?.Value == styleKeyOrType ||
+                (s.Attribute(XamlTestFiles.X + "Key") is null && s.Attribute("TargetType")?.Value == styleKeyOrType));
+            // Only the style's OWN (direct-child) Setters — never the template/trigger Setters nested
+            // deep inside the Template setter — so e.g. an intentionally-0 borderless override elsewhere
+            // can't be mistaken for the migrated base value.
+            var setter = style.Elements(XamlTestFiles.Pres + "Setter")
+                .Single(s => s.Attribute("Property")?.Value == property);
+            Assert.Equal($"{{DynamicResource {expectedKey}}}", setter.Attribute("Value")?.Value);
+        }
+
+        AssertSetter(controls, "DarkButton", "Padding", "DensityButtonPadding");
+        AssertSetter(controls, "DarkButton", "BorderThickness", "BorderThicknessDefault");
+        AssertSetter(controls, "DarkTextBox", "MinHeight", "DensityControlHeight");
+        AssertSetter(controls, "DarkTextBox", "Padding", "DensityInputPadding");
+        AssertSetter(controls, "DarkTextBox", "BorderThickness", "BorderThicknessDefault");
+        AssertSetter(controls, "IconButton", "Width", "DensityIconButtonSize");
+        AssertSetter(controls, "IconButton", "Height", "DensityIconButtonSize");
+        AssertSetter(controls, "PinToggle", "Width", "DensityIconButtonSize");
+        AssertSetter(controls, "PinToggle", "Height", "DensityIconButtonSize");
+        AssertSetter(controls, "DarkComboBoxItem", "Padding", "DensityMenuItemPadding");
+        AssertSetter(controls, "DarkComboBox", "Height", "DensityControlHeight");
+        AssertSetter(controls, "DarkComboBox", "BorderThickness", "BorderThicknessDefault");
+        AssertSetter(controls, "ScrollBar", "Width", "DensityScrollbarThickness");
+        AssertSetter(controls, "ToolTip", "BorderThickness", "BorderThicknessDefault");
+        AssertSetter(settings, "PresetToggle", "Height", "DensityControlHeight");
+    }
+
     // --- Theme contrast (WCAG) computed from the actual Colors.xaml tokens ---
 
     private static Dictionary<string, string> ColorTokens()
