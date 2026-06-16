@@ -630,6 +630,27 @@ Manual smoke:
   - `theme-soft-glass-popout-idle.png`
   - `theme-sharp-dark-steel-variant.png`
 
+> **Note — two-layer visual verification (added 2026-06-16, from the Phase C density/elevation
+> landing).** The "manual smoke" above is really two separable layers; keep them distinct so neither
+> masquerades as the other:
+>
+> 1. **Automatable render-smoke (dev build).** Driving the repo Debug build via the `run-piplay` skill
+>    confirms a theme change *renders as coded* — chrome legible, the soft-glass combo-dropdown
+>    `ElevationPopup` shadow appears and is **not clipped flush**, and the URL/search field is unclipped
+>    at 150% DPI. This is repeatable, but it is **change-verification, not release evidence, and never an
+>    aesthetic sign-off** (record it as "renders as coded", per the QA-recording convention). Verified
+>    on 2026-06-16 for Phase C: the soft-glass dropdown shadow renders unclipped with the inset margin,
+>    and the density chrome is legible — on the Debug build, not the deployed copy.
+> 2. **Owner-gated visual sign-off (deployed Stable).** The aesthetic acceptance — shadow intensity /
+>    inset amount, whether Sharp feels appropriately tight — and the check on the actual release binary
+>    require a `Publish-Stable.ps1` deploy first (the dev build is not release evidence). Only the owner
+>    signs this off; the screenshots above belong under `docs/evidence/` after that deploy.
+>
+> **Suggested tooling:** add a `capture-dropdown` / popup-capture helper to the `run-piplay` skill
+> (expand a control by `AutomationId` → screenshot the transient popup HWND, DPI-aware) so the
+> elevation/dropdown render-smoke — and any future popup/menu surface — is one command across all three
+> presets rather than an ad-hoc script. A working one-off proved this is feasible on 2026-06-16.
+
 ## Changes by file
 
 | File | Change |
