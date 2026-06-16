@@ -35,7 +35,17 @@
        the chosen accent and derived hover color at startup. AccentCyan/AccentCyanLight remain defined
        as compatibility aliases (the fixed cyan swatch + any markup that still names them). -->
   <Color x:Key="AccentPrimaryColor">#FF00D4FF</Color>
-  <Color x:Key="AccentPrimaryLightColor">#FF5BE6FF</Color>
+  <Color x:Key="AccentPrimaryLightColor">#FF2EDCFF</Color>
+
+  <!-- Derived accent state seeds (theme-v2 Phase B / Task 4): cyan under the sharp-dark profile, the
+       default theme. ThemeResourceApplier replaces these from ThemeColors.DeriveAccentSet at startup
+       and on accent change. OnAccentPressed re-picks the foreground for the darker pressed fill (CON-1)
+       — dark here because cyan's pressed stays bright. AccentPrimaryLight aliases AccentHover. -->
+  <Color x:Key="AccentHoverColor">#FF2EDCFF</Color>
+  <Color x:Key="AccentPressedColor">#FF00B2D6</Color>
+  <Color x:Key="AccentBorderColor">#FF1AD8FF</Color>
+  <Color x:Key="OnAccentColor">#FF06141A</Color>
+  <Color x:Key="OnAccentPressedColor">#FF06141A</Color>
 
   <SolidColorBrush x:Key="AppBackground" Color="{StaticResource AppBackgroundColor}" />
   <SolidColorBrush x:Key="SurfaceBase" Color="{StaticResource SurfaceBaseColor}" />
@@ -58,6 +68,11 @@
        re-resolves. The seeds keep the design-time look correct and cover the pre-Apply instant. -->
   <SolidColorBrush x:Key="AccentPrimary" Color="{StaticResource AccentPrimaryColor}" />
   <SolidColorBrush x:Key="AccentPrimaryLight" Color="{StaticResource AccentPrimaryLightColor}" />
+  <SolidColorBrush x:Key="AccentHover" Color="{StaticResource AccentHoverColor}" />
+  <SolidColorBrush x:Key="AccentPressed" Color="{StaticResource AccentPressedColor}" />
+  <SolidColorBrush x:Key="AccentBorder" Color="{StaticResource AccentBorderColor}" />
+  <SolidColorBrush x:Key="OnAccent" Color="{StaticResource OnAccentColor}" />
+  <SolidColorBrush x:Key="OnAccentPressed" Color="{StaticResource OnAccentPressedColor}" />
 
   <!-- Semantic corner-radius tokens (review doc §8.4): theme-owned rounding, seeded with the
        sharp-dark profile. ThemeResourceApplier replaces every entry from the active preset's

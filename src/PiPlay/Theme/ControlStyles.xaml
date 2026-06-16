@@ -60,7 +60,7 @@
   <!-- Primary action button (e.g. Pop out video) -->
   <Style TargetType="Button" x:Key="AccentButton" BasedOn="{StaticResource DarkButton}">
     <Setter Property="Background" Value="{DynamicResource AccentPrimary}" />
-    <Setter Property="Foreground" Value="#FF06141A" />
+    <Setter Property="Foreground" Value="{DynamicResource OnAccent}" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="Template">
@@ -72,7 +72,13 @@
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="bd" Property="Background" Value="{DynamicResource AccentPrimaryLight}" />
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource AccentHover}" />
+            </Trigger>
+            <!-- Pressed wins over hover (IsPressed implies IsMouseOver): darker fill + a foreground
+                 re-picked for that fill so a dim accent's pressed state stays readable (CON-1). -->
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource AccentPressed}" />
+              <Setter Property="Foreground" Value="{DynamicResource OnAccentPressed}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter Property="Opacity" Value="0.4" />
@@ -234,7 +240,7 @@
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
-              <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource AccentPrimary}" />
+              <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource AccentBorder}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter Property="Opacity" Value="0.45" />

@@ -362,11 +362,15 @@ Derived-token contrast rules:
 - `AccentSubtle` and `AccentGlow` are alpha overlays; test them in their composited consumer
   contexts before placing text on top of them.
 
-> **Phase B implementation status (Task 3 — landed `feat(theme): derive accent state tokens`).**
-> `ThemeColors.DeriveAccentSet` + `AccentProfileFor` + fail-closed `PickReadableForeground` are in
-> `src`, gated by `ThemeCatalogTests.Derived_accent_tokens_meet_contrast_minimums` (every offered
-> accent × every theme profile) for the three rules that have a Task-4 consumer: `OnAccent`,
-> `OnAccentPressed`, `AccentBorder`. All pass on the v2 chips. **CON-1 `AccentPressed` is resolved**:
+> **Phase B implementation status (Tasks 3–4 landed).** Task 3 (`feat(theme): derive accent state
+> tokens`): `ThemeColors.DeriveAccentSet` + `AccentProfileFor` + fail-closed `PickReadableForeground`
+> are in `src`, gated by `ThemeCatalogTests.Derived_accent_tokens_meet_contrast_minimums` (every
+> offered accent × every theme profile) for the three rules that have a consumer: `OnAccent`,
+> `OnAccentPressed`, `AccentBorder`. All pass on the v2 chips. Task 4 (`feat(theme): apply derived
+> accent tokens and migrate accent consumers`): `ThemeResourceApplier` now derives + applies every
+> token and its companion `*Color` (review BL-09 fixed); `AccentButton` uses `OnAccent` / `AccentHover`
+> / a new `AccentPressed`+`OnAccentPressed` pressed trigger, and `DarkTextBox` focus uses
+> `AccentBorder`; `AccentPrimaryLight` aliases `AccentHover`. **CON-1 `AccentPressed` is resolved**:
 > re-picking the foreground against the pressed fill flips the dim steel chip from 3.82/3.98/4.14:1
 > (naive `OnAccent` reuse) to 4.89/4.70/4.52:1 (white) — soft-glass steel at **4.52:1** is the razor
 > margin the gate guards.
