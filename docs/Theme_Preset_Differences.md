@@ -206,7 +206,7 @@ Elevation interpretation:
 
 - Sharp Dark is flat (`Elevation = null`); Minimal is subtle; Soft Glass is the softest.
 - The applier replaces `ElevationPopup` / `ElevationPanel` with frozen `DropShadowEffect`s for Minimal and Soft Glass, and a `null` Effect for Sharp Dark.
-- The inner-elevation CONSUMERS (applying these effects to popup/panel surfaces) are a later pass; the tokens are derived and applied to the resource dictionary but not yet consumed by any control.
+- `ElevationPopup` is consumed by the ComboBox dropdown (`DropDownBorder`) — a real Popup HWND, so the shadow is airspace-safe (FEAS-04): null/flat under Sharp Dark, the soft frozen shadow under Minimal/Soft Glass. `ElevationPanel` is applied to the dictionary but not yet consumed: there is no airspace-safe raised panel for it yet (the Settings sections are one flat StackPanel; the source placeholder and popout error bar sit over the WebView2 HWND, where a WPF shadow would not composite).
 
 ## Native DWM Window Corners
 
@@ -326,7 +326,7 @@ The visible behavioral jump on preset click now spans every preset-owned axis:
 - popout strip auto-hide (Soft Glass on, others off),
 - Soft Glass active/idle opacity,
 - control density (Sharp compact, Soft Glass airy),
-- inner elevation tokens (Sharp none, Minimal subtle, Soft Glass soft; consumers land in a later pass).
+- inner elevation (Sharp none, Minimal subtle, Soft Glass soft; the ComboBox dropdown consumes `ElevationPopup`, `ElevationPanel` awaits a safe raised surface).
 
 ## Persistence Fields
 
@@ -384,6 +384,6 @@ Every current preset-level difference falls into one of these buckets:
 7. Popout strip auto-hide: Soft Glass differs from Sharp Dark and Minimal.
 8. Popout opacity defaults: Soft Glass differs from Sharp Dark and Minimal.
 9. Control density: heights, icon-button size, scrollbar thickness, and paddings (Sharp compact, Soft Glass airy; scrollbar ties between Minimal and Soft Glass; the default border is a uniform `1`).
-10. Inner elevation: popup/panel drop-shadow (Sharp none, Minimal subtle, Soft Glass soft; consumers land in a later pass).
+10. Inner elevation: popup/panel drop-shadow (Sharp none, Minimal subtle, Soft Glass soft). The ComboBox dropdown consumes `ElevationPopup`; `ElevationPanel` awaits a safe raised surface.
 
 Everything else is currently shared by all three presets or controlled by user overrides rather than by the preset itself.

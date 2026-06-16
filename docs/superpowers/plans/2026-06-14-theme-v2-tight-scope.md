@@ -123,7 +123,7 @@ Each task should leave the tree green and committable. Do not merge the color wh
       field). Then keep the 150% DPI clipping test green.
   - Commit: `refactor(theme): migrate control density to resources`
 
-- [ ] **Task 7 — Add inner elevation consumers.**
+- [x] **Task 7 — Add inner elevation consumers.** (landed, PR #27 — `ElevationPopup` → combo dropdown; `ElevationPanel` awaits an airspace-safe raised surface; deployed-Stable visual QA of the shadow still owed)
   - Apply `ElevationPopup` to combo/popup borders.
   - Apply `ElevationPanel` only to raised internal panels where it does not affect WebView2 airspace.
   - No outer window glow.
