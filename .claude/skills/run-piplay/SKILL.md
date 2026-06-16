@@ -137,6 +137,41 @@ front; for the modal Settings dialog prefer `capture.ps1` and read the main-wind
 > dialog**, or one whose occluder is something **other** than Settings (another app on top); `capture.ps1`
 > can't tell those apart from the dialog, so confirm by eye that the dialog is what rendered.
 
+## 5. Drive a dropdown / popup (optional — theme shadow + popup render-smoke)
+
+To inspect a control's **dropdown popup** — the ComboBox inner-elevation shadow (theme-v2 Phase C),
+dropdown rounding, or item rendering — expand it by `AutomationId` and screenshot the opened popup.
+Same `powershell.exe -STA` host (UIAutomation needs STA):
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File `
+  .claude\skills\run-piplay\scripts\capture-dropdown.ps1 -AutomationId ProfilesCombo
+```
+
+It finds the PiPlay main window, finds the control by `AutomationId`, raises the window
+(minimize→restore — `SetForegroundWindow` is blocked from a background process), invokes its
+`ExpandCollapsePattern.Expand()`, and captures the region around it (control + opened dropdown +
+shadow margin) to `%TEMP%\piplay_run\dropdown-<AutomationId>.png`. Output tokens:
+
+- `DROPDOWN|OK|rect=…|cap=…|<png>` — expanded and captured; **read the PNG literally**.
+- `DROPDOWN|FAIL|<reason>` — main window / control not found, or the control has no
+  `ExpandCollapsePattern` (not an expandable control).
+
+Switches: **`-AutomationId`** (any expandable control; default `ProfilesCombo`), **`-ProcessId`**
+(disambiguate), **`-Out`**, and `-PadX`/`-PadTop`/`-Height` to widen the capture window.
+
+The **`ElevationPopup` shadow only shows under a theme that has inner elevation** — Soft Glass (blur 16)
+or Minimal (blur 8); **Sharp Dark is intentionally flat** (`Elevation = null`). To see the shadow, put
+the dev profile on Soft Glass first (Settings → Soft Glass, or set `theme.themeId="soft-glass"` in
+`%LOCALAPPDATA%\PiPlay\settings.json` before launch). The empty profiles dropdown ("No saved profiles
+yet") still renders the bordered popup + shadow, so no saved profile is needed.
+
+> **Scope reminder (the two-layer split — see the spec's Manual-smoke note):** this is
+> **change-verification only** — it proves the popup *renders as coded* (shadow present + not clipped
+> flush, rounding, legibility), **never an aesthetic sign-off** and **not** the deployed-Stable binary.
+> Record it "renders as coded". **Verified live 2026-06-16:** soft-glass `ProfilesCombo` dropdown shows
+> the `ElevationPopup` shadow, unclipped, with the inset margin.
+
 ## Gotchas (all verified, all real PiPlay behaviors)
 
 - **Single-instance per channel.** A second launch hands its URL to the running instance and
@@ -173,6 +208,7 @@ front; for the modal Settings dialog prefer `capture.ps1` and read the main-wind
 ## What this exercises / doesn't
 
 Exercises: launch, WebView2 + live YouTube, pop-**out** to the floating player and the source
-"Playing in Video Popout" placeholder, and **opening Settings** (scripted, modal — see step 4; read
-the dialog shot literally). Not exercised: return-to-source (close the popout), Pin, Fade, profiles,
-and the controls *inside* Settings — drive those manually if the change touches them.
+"Playing in Video Popout" placeholder, **opening Settings** (scripted, modal — see step 4; read the
+dialog shot literally), and **expanding the profiles dropdown** to render-smoke its popup/elevation
+shadow (step 5). Not exercised: return-to-source (close the popout), Pin, Fade, picking/saving a
+profile, and the controls *inside* Settings — drive those manually if the change touches them.
