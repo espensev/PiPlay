@@ -1,3 +1,4 @@
+using System.Windows;
 using PiPlay.Services;
 
 namespace PiPlay.Theme;
@@ -50,6 +51,38 @@ public sealed record ThemePalette(
     string TextSecondary,
     string Danger);
 
+/// <summary>
+/// Per-theme control density in DIPs (theme-v2 tight-scope spec §"Density targets"): the heights,
+/// paddings, and uniform default border weight that make Sharp feel compact and Soft Glass airy.
+/// Heights/sizes are plain doubles; paddings and the default border are WPF <see cref="Thickness"/>
+/// so the applier replaces Padding/BorderThickness DynamicResource entries with the struct type those
+/// consumers expect (a double/string there hits the .NET 10 DynamicResource type-mismatch crash class).
+/// </summary>
+public sealed record ThemeDensity(
+    double ControlHeight,
+    double IconButtonSize,
+    double ScrollbarThickness,
+    Thickness ButtonPadding,
+    Thickness InputPadding,
+    Thickness MenuItemPadding,
+    Thickness PresetChipPadding,
+    Thickness ToolTipPadding,
+    Thickness BorderThicknessDefault);
+
+/// <summary>
+/// Per-theme INNER elevation (theme-v2 tight-scope spec §"Elevation targets"): the drop-shadow on
+/// popups/menus and raised internal panels. Inner-only — never an outer-window glow (the windows stay
+/// AllowsTransparency=False and host WebView2 by HWND). A preset with a <c>null</c> Elevation has no
+/// inner shadow at all (Sharp Dark): the applier writes a null Effect, not a no-op DropShadowEffect.
+/// </summary>
+public sealed record ThemeElevation(
+    double PopupBlurRadius,
+    double PopupShadowDepth,
+    double PopupOpacity,
+    double PanelBlurRadius,
+    double PanelShadowDepth,
+    double PanelOpacity);
+
 public sealed record ThemePreset(
     string Id,
     string DisplayName,
@@ -61,7 +94,9 @@ public sealed record ThemePreset(
     double DefaultIdleWindowOpacity,
     ThemePalette Palette,
     ThemeRadii Radii,
-    DwmCornerMode DwmCorners);
+    DwmCornerMode DwmCorners,
+    ThemeDensity Density,
+    ThemeElevation? Elevation);
 
 public sealed record ThemeAccentOption(string Key, string DisplayName, string HexColor);
 
@@ -104,6 +139,41 @@ public static class ThemeCatalog
         Button: 0, IconButton: 0, Input: 0, Panel: 0,
         Popup: 0, Thumbnail: 0, Swatch: 0, ScrollbarThumb: 0, ToolTip: 0);
 
+    // Per-preset control density (theme-v2 tight-scope spec §"Density targets"): Sharp compact,
+    // Minimal normal, Soft Glass airy. ControlHeight/IconButtonSize climb strictly sharp<minimal<soft;
+    // ScrollbarThickness thickens off Sharp then ties (8/10/10); BorderThicknessDefault is a uniform 1
+    // across all three this pass (border weight is not a v2 differentiation axis yet). The applier
+    // replaces the Density* / BorderThicknessDefault resources from these; control consumers migrate to
+    // the tokens in the density-consumer pass.
+    private static readonly ThemeDensity SharpDensity = new(
+        ControlHeight: 30, IconButtonSize: 30, ScrollbarThickness: 8,
+        ButtonPadding: new Thickness(10, 5, 10, 5), InputPadding: new Thickness(8, 0, 8, 0),
+        MenuItemPadding: new Thickness(8, 5, 8, 5), PresetChipPadding: new Thickness(8, 0, 8, 0),
+        ToolTipPadding: new Thickness(7, 4, 7, 4), BorderThicknessDefault: new Thickness(1));
+
+    private static readonly ThemeDensity MinimalDensity = new(
+        ControlHeight: 34, IconButtonSize: 32, ScrollbarThickness: 10,
+        ButtonPadding: new Thickness(12, 6, 12, 6), InputPadding: new Thickness(10, 0, 10, 0),
+        MenuItemPadding: new Thickness(10, 6, 10, 6), PresetChipPadding: new Thickness(10, 0, 10, 0),
+        ToolTipPadding: new Thickness(8, 5, 8, 5), BorderThicknessDefault: new Thickness(1));
+
+    private static readonly ThemeDensity SoftGlassDensity = new(
+        ControlHeight: 38, IconButtonSize: 36, ScrollbarThickness: 10,
+        ButtonPadding: new Thickness(16, 9, 16, 9), InputPadding: new Thickness(14, 2, 14, 2),
+        MenuItemPadding: new Thickness(14, 9, 14, 9), PresetChipPadding: new Thickness(14, 0, 14, 0),
+        ToolTipPadding: new Thickness(10, 7, 10, 7), BorderThicknessDefault: new Thickness(1));
+
+    // Inner elevation (theme-v2 tight-scope spec §"Elevation targets"): Sharp Dark gets a null
+    // Elevation (flat — no inner shadow); Minimal is subtle, Soft Glass soft. Every axis is at least as
+    // strong on Soft Glass as on Minimal, blur strictly stronger.
+    private static readonly ThemeElevation MinimalElevation = new(
+        PopupBlurRadius: 8, PopupShadowDepth: 1, PopupOpacity: 0.22,
+        PanelBlurRadius: 6, PanelShadowDepth: 1, PanelOpacity: 0.16);
+
+    private static readonly ThemeElevation SoftGlassElevation = new(
+        PopupBlurRadius: 16, PopupShadowDepth: 2, PopupOpacity: 0.34,
+        PanelBlurRadius: 12, PanelShadowDepth: 2, PanelOpacity: 0.26);
+
     private static readonly ThemePreset[] PresetsValue =
     [
         new(
@@ -125,7 +195,10 @@ public static class ThemeCatalog
                 Danger: "#E45D75"),
             Radii: SharpRadii,
             // Default, not SmallRound: the default theme must leave windows DWM-pristine.
-            DwmCorners: DwmCornerMode.Default),
+            DwmCorners: DwmCornerMode.Default,
+            // Compact, flat: the tightest density and no inner elevation (the utility shell).
+            Density: SharpDensity,
+            Elevation: null),
         new(
             "minimal",
             "Minimal",
@@ -146,7 +219,10 @@ public static class ThemeCatalog
                 Danger: "#E8564C"),
             Radii: MinimalRadii,
             // Small native rounding: softer than Sharp's pristine HWND, calmer than Soft Glass.
-            DwmCorners: DwmCornerMode.SmallRound),
+            DwmCorners: DwmCornerMode.SmallRound,
+            // Normal density and a subtle inner elevation on popups/panels.
+            Density: MinimalDensity,
+            Elevation: MinimalElevation),
         new(
             "soft-glass",
             "Soft Glass",
@@ -167,7 +243,10 @@ public static class ThemeCatalog
                 TextPrimary: "#F6F8FC", TextSecondary: "#C4CEDC",
                 Danger: "#E45D75"),
             Radii: SoftGlassRadii,
-            DwmCorners: DwmCornerMode.Round),
+            DwmCorners: DwmCornerMode.Round,
+            // Airy density and the softest inner elevation (the floating overlay shell).
+            Density: SoftGlassDensity,
+            Elevation: SoftGlassElevation),
     ];
 
     private static readonly ThemeAccentOption[] AccentOptionsValue =

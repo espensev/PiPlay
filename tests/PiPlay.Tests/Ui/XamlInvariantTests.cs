@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Windows;
 using System.Windows.Media;
 using System.Xml.Linq;
 using PiPlay.Services;
@@ -501,6 +502,94 @@ public class XamlInvariantTests
         {
             Assert.Equal(expected, radiusTokens[key]);
         }
+    }
+
+    [Fact]
+    public void Colors_xaml_density_and_elevation_seeds_match_the_sharp_dark_preset()
+    {
+        // The Colors.xaml density/border/elevation seeds cover design time and the pre-Apply instant;
+        // sharp-dark is the default theme, so the seeds must BE its ThemeDensity (and its null inner
+        // elevation) or a fresh launch would render different control sizes/paddings/shadows before
+        // ThemeResourceApplier runs. Pinned to the catalog so the seeds and ThemeDensity cannot drift.
+        var doc = XamlTestFiles.Load("Theme/Colors.xaml");
+        var density = ThemeCatalog.PresetFor("sharp-dark").Density;
+        string Inv(double v) => v.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        string Hv(Thickness t) => $"{Inv(t.Left)},{Inv(t.Top)}";   // the "horizontal,vertical" seed shorthand
+
+        // Double seeds (heights / icon size / scrollbar thickness): matched by local name because the
+        // `sys` (clr-namespace:System) namespace prefix is test-irrelevant.
+        var doubles = doc.Descendants()
+            .Where(e => e.Name.LocalName == "Double" && e.Attribute(XamlTestFiles.X + "Key") is not null)
+            .ToDictionary(e => e.Attribute(XamlTestFiles.X + "Key")!.Value, e => e.Value.Trim());
+        Assert.Equal(Inv(density.ControlHeight), doubles["DensityControlHeight"]);
+        Assert.Equal(Inv(density.IconButtonSize), doubles["DensityIconButtonSize"]);
+        Assert.Equal(Inv(density.ScrollbarThickness), doubles["DensityScrollbarThickness"]);
+
+        // Thickness seeds (paddings + the uniform default border). BorderThicknessDefault MUST be a
+        // <Thickness> resource (a double/string would crash the .NET 10 DynamicResource consumer), and
+        // its uniform 1 seeds as the single-value "1" shorthand.
+        var thicknesses = doc.Descendants(XamlTestFiles.Pres + "Thickness")
+            .ToDictionary(e => e.Attribute(XamlTestFiles.X + "Key")!.Value, e => e.Value.Trim());
+        Assert.Equal(Hv(density.ButtonPadding), thicknesses["DensityButtonPadding"]);
+        Assert.Equal(Hv(density.InputPadding), thicknesses["DensityInputPadding"]);
+        Assert.Equal(Hv(density.MenuItemPadding), thicknesses["DensityMenuItemPadding"]);
+        Assert.Equal(Hv(density.PresetChipPadding), thicknesses["DensityPresetChipPadding"]);
+        Assert.Equal(Hv(density.ToolTipPadding), thicknesses["DensityToolTipPadding"]);
+        Assert.Equal(new Thickness(1), density.BorderThicknessDefault);   // catalog stays uniform 1...
+        Assert.Equal("1", thicknesses["BorderThicknessDefault"]);          // ...and seeds as the "1" shorthand
+
+        // Sharp Dark has a null inner elevation: both keys exist as x:Null seeds, so the design-time /
+        // pre-Apply Effect is null (flat) — exactly the applied value for the default theme.
+        var nullKeys = doc.Descendants(XamlTestFiles.X + "Null")
+            .Select(e => e.Attribute(XamlTestFiles.X + "Key")?.Value)
+            .Where(k => k is not null)
+            .ToHashSet();
+        Assert.Contains("ElevationPopup", nullKeys);
+        Assert.Contains("ElevationPanel", nullKeys);
+    }
+
+    [Fact]
+    public void Migrated_density_setters_reference_the_density_tokens()
+    {
+        // FEAS-08: the No_hardcoded_corner_radii sweep is CornerRadius-only; it cannot catch a residual
+        // literal left at a migrated Padding/Height/BorderThickness site (the DynamicResource sweep
+        // passes vacuously for a site that kept its literal). Positively assert each migration-list
+        // top-level Setter references the expected Density*/BorderThicknessDefault DynamicResource key,
+        // by style (x:Key or implicit TargetType) and property — so a literal cannot survive silently.
+        var controls = XamlTestFiles.Load("Theme/ControlStyles.xaml");
+        var settings = XamlTestFiles.Load("SettingsWindow.xaml");
+
+        void AssertSetter(XDocument doc, string styleKeyOrType, string property, string expectedKey)
+        {
+            var style = doc.Descendants(XamlTestFiles.Pres + "Style").Single(s =>
+                s.Attribute(XamlTestFiles.X + "Key")?.Value == styleKeyOrType ||
+                (s.Attribute(XamlTestFiles.X + "Key") is null && s.Attribute("TargetType")?.Value == styleKeyOrType));
+            // Only the style's OWN (direct-child) Setters — never the template/trigger Setters nested
+            // deep inside the Template setter — so e.g. an intentionally-0 borderless override elsewhere
+            // can't be mistaken for the migrated base value.
+            var setter = style.Elements(XamlTestFiles.Pres + "Setter")
+                .Single(s => s.Attribute("Property")?.Value == property);
+            Assert.Equal($"{{DynamicResource {expectedKey}}}", setter.Attribute("Value")?.Value);
+        }
+
+        AssertSetter(controls, "DarkButton", "Padding", "DensityButtonPadding");
+        AssertSetter(controls, "DarkButton", "BorderThickness", "BorderThicknessDefault");
+        AssertSetter(controls, "DarkTextBox", "MinHeight", "DensityControlHeight");
+        AssertSetter(controls, "DarkTextBox", "Padding", "DensityInputPadding");
+        AssertSetter(controls, "DarkTextBox", "BorderThickness", "BorderThicknessDefault");
+        AssertSetter(controls, "IconButton", "Width", "DensityIconButtonSize");
+        AssertSetter(controls, "IconButton", "Height", "DensityIconButtonSize");
+        AssertSetter(controls, "PinToggle", "Width", "DensityIconButtonSize");
+        AssertSetter(controls, "PinToggle", "Height", "DensityIconButtonSize");
+        AssertSetter(controls, "DarkComboBoxItem", "Padding", "DensityMenuItemPadding");
+        AssertSetter(controls, "DarkComboBox", "Height", "DensityControlHeight");
+        AssertSetter(controls, "DarkComboBox", "BorderThickness", "BorderThicknessDefault");
+        AssertSetter(controls, "ScrollBar", "Width", "DensityScrollbarThickness");
+        // MinWidth rides the same token — WPF coerces rendered width to >= MinWidth, so a literal here
+        // would silently oversize the Sharp scrollbar; lock it too (review feas08-misses-scrollbar-minwidth).
+        AssertSetter(controls, "ScrollBar", "MinWidth", "DensityScrollbarThickness");
+        AssertSetter(controls, "ToolTip", "BorderThickness", "BorderThicknessDefault");
+        AssertSetter(settings, "PresetToggle", "Height", "DensityControlHeight");
     }
 
     // --- Theme contrast (WCAG) computed from the actual Colors.xaml tokens ---

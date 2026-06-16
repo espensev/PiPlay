@@ -44,7 +44,7 @@
 
     <Style x:Key="PresetToggle" TargetType="ToggleButton">
       <Setter Property="MinWidth" Value="76" />
-      <Setter Property="Height" Value="30" />
+      <Setter Property="Height" Value="{DynamicResource DensityControlHeight}" />
       <Setter Property="Margin" Value="0,0,8,0" />
       <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
       <Setter Property="Background" Value="{DynamicResource SurfaceRaised}" />
@@ -60,7 +60,7 @@
             <Border x:Name="bd" Background="{TemplateBinding Background}"
                     BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="{TemplateBinding BorderThickness}"
-                    CornerRadius="{DynamicResource RadiusPanel}" Padding="10,0">
+                    CornerRadius="{DynamicResource RadiusPanel}" Padding="{DynamicResource DensityPresetChipPadding}">
               <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                                 TextElement.Foreground="{TemplateBinding Foreground}" />
             </Border>

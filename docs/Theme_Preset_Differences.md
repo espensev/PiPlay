@@ -27,9 +27,9 @@ Terminology:
 
 | Preset | Intent | Main difference |
 |---|---|---|
-| Sharp Dark | Utility-first PiPlay dark shell | Darkest cool-black palette, cyan default accent, tightest radii, pristine native corners, normal fade, fully opaque popout defaults. |
-| Minimal | Low-distraction daily browsing | Warm charcoal palette, steel-blue default accent, moderate radii, small native corners, long fade, fully opaque popout defaults. |
-| Soft Glass | Desktop overlay / floating popout style | Cool blue palette, violet default accent, largest radii, rounded native corners, short fade, auto-hiding strip, translucent popout defaults. |
+| Sharp Dark | Utility-first PiPlay dark shell | Darkest cool-black palette, cyan default accent, tightest radii, pristine native corners, normal fade, fully opaque popout defaults, compact density, no inner shadow. |
+| Minimal | Low-distraction daily browsing | Warm charcoal palette, steel-blue default accent, moderate radii, small native corners, long fade, fully opaque popout defaults, normal density, subtle inner shadow. |
+| Soft Glass | Desktop overlay / floating popout style | Cool blue palette, violet default accent, largest radii, rounded native corners, short fade, auto-hiding strip, translucent popout defaults, airy density, soft inner shadow. |
 
 ## Preset Identity
 
@@ -166,6 +166,48 @@ Radii interpretation:
 | `ScrollbarThumb` | `+2` | `+3` | `+1` |
 | `ToolTip` | `+4` | `+6` | `+2` |
 
+## Control Density
+
+Theme-owned control sizing in device-independent pixels (`ThemeDensity`). Heights/sizes are plain doubles; paddings and the default border are WPF `Thickness`. Density makes Sharp feel compact and Soft Glass airy; it is theme-owned, not user-overridable in this pass.
+
+| Density token | Sharp Dark | Minimal | Soft Glass |
+|---|---:|---:|---:|
+| `ControlHeight` | `30` | `34` | `38` |
+| `IconButtonSize` | `30` | `32` | `36` |
+| `ScrollbarThickness` | `8` | `10` | `10` |
+| `ButtonPadding` (h,v) | `10,5` | `12,6` | `16,9` |
+| `InputPadding` (h,v) | `8,0` | `10,0` | `14,2` |
+| `MenuItemPadding` (h,v) | `8,5` | `10,6` | `14,9` |
+| `PresetChipPadding` (h,v) | `8,0` | `10,0` | `14,0` |
+| `ToolTipPadding` (h,v) | `7,4` | `8,5` | `10,7` |
+| `BorderThicknessDefault` | `1` | `1` | `1` |
+
+Density interpretation:
+
+- `ControlHeight` and `IconButtonSize` increase strictly Sharp < Minimal < Soft Glass (the compact-to-airy axis).
+- `ScrollbarThickness` thickens off Sharp (`8`) then ties between Minimal and Soft Glass (`10`).
+- `BorderThicknessDefault` is a uniform `1` across all three this pass: border weight is not a v2 differentiation axis until pixel-snapping/layout-rounding risk has its own gate.
+- Migrated consumer sites resolve these via `DynamicResource` (`DarkButton`, `DarkTextBox`, `IconButton`, `PinToggle`, `ScrollBar`, `DarkComboBoxItem`, `DarkComboBox`, `ToolTip`, and the Settings `PresetToggle`). The intentionally borderless `AccentButton`/`DangerButton`, the `SwatchToggle` chips (deferred), the `PinToggle` template border, and the dialog's outer window frame keep their own values.
+
+## Inner Elevation
+
+Theme-owned inner drop-shadow for popups, menus, and raised internal panels (`ThemeElevation`). Inner-only — never an outer-window glow (the windows host WebView2 by HWND and stay `AllowsTransparency=False`). Sharp Dark has no inner elevation: the applier writes a `null` Effect, not a no-op `DropShadowEffect`.
+
+| Elevation field | Sharp Dark | Minimal | Soft Glass |
+|---|---:|---:|---:|
+| Popup blur radius | none | `8` | `16` |
+| Popup shadow depth | none | `1` | `2` |
+| Popup opacity | none | `0.22` | `0.34` |
+| Panel blur radius | none | `6` | `12` |
+| Panel shadow depth | none | `1` | `2` |
+| Panel opacity | none | `0.16` | `0.26` |
+
+Elevation interpretation:
+
+- Sharp Dark is flat (`Elevation = null`); Minimal is subtle; Soft Glass is the softest.
+- The applier replaces `ElevationPopup` / `ElevationPanel` with frozen `DropShadowEffect`s for Minimal and Soft Glass, and a `null` Effect for Sharp Dark.
+- The inner-elevation CONSUMERS (applying these effects to popup/panel surfaces) are a later pass; the tokens are derived and applied to the resource dictionary but not yet consumed by any control.
+
 ## Native DWM Window Corners
 
 | Field | Sharp Dark | Minimal | Soft Glass | Difference |
@@ -235,6 +277,23 @@ Radius resources:
 - `ControlCornerRadius`
 - `ButtonCornerRadius`
 
+Density resources (doubles and `Thickness`):
+
+- `DensityControlHeight`
+- `DensityIconButtonSize`
+- `DensityScrollbarThickness`
+- `DensityButtonPadding`
+- `DensityInputPadding`
+- `DensityMenuItemPadding`
+- `DensityPresetChipPadding`
+- `DensityToolTipPadding`
+- `BorderThicknessDefault`
+
+Inner elevation resources (`DropShadowEffect` or `null`):
+
+- `ElevationPopup`
+- `ElevationPanel`
+
 Runtime mechanics:
 
 - Brushes are replaced, not mutated.
@@ -265,7 +324,9 @@ The visible behavioral jump on preset click now spans every preset-owned axis:
 - native DWM corner mode (`Default` / `SmallRound` / `Round`),
 - fade delay preset (`normal` / `long` / `short`),
 - popout strip auto-hide (Soft Glass on, others off),
-- Soft Glass active/idle opacity.
+- Soft Glass active/idle opacity,
+- control density (Sharp compact, Soft Glass airy),
+- inner elevation tokens (Sharp none, Minimal subtle, Soft Glass soft; consumers land in a later pass).
 
 ## Persistence Fields
 
@@ -322,5 +383,7 @@ Every current preset-level difference falls into one of these buckets:
 6. Fade delay preset: all three differ (`normal` / `long` / `short`).
 7. Popout strip auto-hide: Soft Glass differs from Sharp Dark and Minimal.
 8. Popout opacity defaults: Soft Glass differs from Sharp Dark and Minimal.
+9. Control density: heights, icon-button size, scrollbar thickness, and paddings (Sharp compact, Soft Glass airy; scrollbar ties between Minimal and Soft Glass; the default border is a uniform `1`).
+10. Inner elevation: popup/panel drop-shadow (Sharp none, Minimal subtle, Soft Glass soft; consumers land in a later pass).
 
 Everything else is currently shared by all three presets or controlled by user overrides rather than by the preset itself.

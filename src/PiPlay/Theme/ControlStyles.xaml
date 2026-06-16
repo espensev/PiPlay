@@ -27,10 +27,10 @@
     <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
     <Setter Property="Background" Value="{DynamicResource SurfaceRaised}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
-    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessDefault}" />
     <Setter Property="FontFamily" Value="Segoe UI" />
     <Setter Property="FontSize" Value="13" />
-    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="Padding" Value="{DynamicResource DensityButtonPadding}" />
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="SnapsToDevicePixels" Value="True" />
     <Setter Property="Template">
@@ -118,8 +118,8 @@
   <!-- Chrome icon button: 32x32 hit target, transparent, hover surface, rounded.
        Set Content to a glyph (Segoe Fluent / MDL2) or short text. -->
   <Style TargetType="Button" x:Key="IconButton">
-    <Setter Property="Width" Value="32" />
-    <Setter Property="Height" Value="32" />
+    <Setter Property="Width" Value="{DynamicResource DensityIconButtonSize}" />
+    <Setter Property="Height" Value="{DynamicResource DensityIconButtonSize}" />
     <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
@@ -177,8 +177,8 @@
 
   <!-- Pin/Fade toggle: active = configurable glyph + subtle active border. -->
   <Style TargetType="ToggleButton" x:Key="PinToggle">
-    <Setter Property="Width" Value="32" />
-    <Setter Property="Height" Value="32" />
+    <Setter Property="Width" Value="{DynamicResource DensityIconButtonSize}" />
+    <Setter Property="Height" Value="{DynamicResource DensityIconButtonSize}" />
     <Setter Property="Foreground" Value="{DynamicResource TextSecondary}" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderBrush" Value="Transparent" />
@@ -220,11 +220,11 @@
     <Setter Property="SelectionBrush" Value="{DynamicResource AccentPrimary}" />
     <Setter Property="Background" Value="{DynamicResource SurfaceRaised}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
-    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessDefault}" />
     <Setter Property="FontFamily" Value="Segoe UI" />
     <Setter Property="FontSize" Value="13" />
-    <Setter Property="MinHeight" Value="32" />
-    <Setter Property="Padding" Value="10,0" />
+    <Setter Property="MinHeight" Value="{DynamicResource DensityControlHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource DensityInputPadding}" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
     <Setter Property="Template">
@@ -255,8 +255,8 @@
        system scrollbar inside dark chrome (REQ-UI-01). Thin, rounded thumb, no arrow buttons. -->
   <Style TargetType="ScrollBar">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Width" Value="10" />
-    <Setter Property="MinWidth" Value="10" />
+    <Setter Property="Width" Value="{DynamicResource DensityScrollbarThickness}" />
+    <Setter Property="MinWidth" Value="{DynamicResource DensityScrollbarThickness}" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="ScrollBar">
@@ -287,8 +287,8 @@
       <Trigger Property="Orientation" Value="Horizontal">
         <Setter Property="Width" Value="Auto" />
         <Setter Property="MinWidth" Value="0" />
-        <Setter Property="Height" Value="10" />
-        <Setter Property="MinHeight" Value="10" />
+        <Setter Property="Height" Value="{DynamicResource DensityScrollbarThickness}" />
+        <Setter Property="MinHeight" Value="{DynamicResource DensityScrollbarThickness}" />
         <Setter Property="Template">
           <Setter.Value>
             <ControlTemplate TargetType="ScrollBar">
@@ -325,7 +325,7 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="FontFamily" Value="Segoe UI" />
     <Setter Property="FontSize" Value="13" />
-    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="Padding" Value="{DynamicResource DensityMenuItemPadding}" />
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="SnapsToDevicePixels" Value="True" />
     <Setter Property="Template">
@@ -354,10 +354,10 @@
     <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
     <Setter Property="Background" Value="{DynamicResource SurfaceRaised}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
-    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessDefault}" />
     <Setter Property="FontFamily" Value="Segoe UI" />
     <Setter Property="FontSize" Value="13" />
-    <Setter Property="Height" Value="32" />
+    <Setter Property="Height" Value="{DynamicResource DensityControlHeight}" />
     <Setter Property="SnapsToDevicePixels" Value="True" />
     <Setter Property="ItemContainerStyle" Value="{StaticResource DarkComboBoxItem}" />
     <Setter Property="Template">
@@ -369,7 +369,7 @@
               <ToggleButton.Template>
                 <ControlTemplate TargetType="ToggleButton">
                   <Border x:Name="bd" Background="{DynamicResource SurfaceRaised}"
-                          BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1"
+                          BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="{DynamicResource BorderThicknessDefault}"
                           CornerRadius="{DynamicResource RadiusInput}">
                     <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
                                Margin="0,0,9,0" Text="&#xE70D;"
@@ -402,7 +402,7 @@
               <Border x:Name="DropDownBorder" MinWidth="{Binding ActualWidth, ElementName=ToggleButton}"
                       MaxHeight="{TemplateBinding MaxDropDownHeight}" Margin="0,4,0,0"
                       Background="{DynamicResource SurfaceBase}" BorderBrush="{DynamicResource BorderSubtle}"
-                      BorderThickness="1" CornerRadius="{DynamicResource RadiusPopup}">
+                      BorderThickness="{DynamicResource BorderThicknessDefault}" CornerRadius="{DynamicResource RadiusPopup}">
                 <Grid>
                   <ScrollViewer x:Name="DropDownScroll" Margin="4"
                                 VerticalScrollBarVisibility="Auto"
@@ -440,7 +440,7 @@
     <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
     <Setter Property="Background" Value="{DynamicResource SurfaceRaised}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
-    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessDefault}" />
     <Setter Property="FontFamily" Value="Segoe UI" />
     <Setter Property="FontSize" Value="12" />
     <Setter Property="Placement" Value="Bottom" />
@@ -452,7 +452,7 @@
         <ControlTemplate TargetType="ToolTip">
           <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                   BorderThickness="{TemplateBinding BorderThickness}"
-                  CornerRadius="{DynamicResource RadiusToolTip}" Padding="8,5">
+                  CornerRadius="{DynamicResource RadiusToolTip}" Padding="{DynamicResource DensityToolTipPadding}">
             <ContentPresenter />
           </Border>
         </ControlTemplate>

@@ -10,7 +10,8 @@
   and cover the pre-Apply instant.
 -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
   <!-- Sharp Dark palette seeds (theme-v2 tight-scope spec §"Palette targets"): the darkest, coolest
        base. The warmer pre-theme tones now live on as the Minimal preset. -->
@@ -99,5 +100,29 @@
        the semantic tokens (Control follows Input, Button follows Button). -->
   <CornerRadius x:Key="ControlCornerRadius">3</CornerRadius>
   <CornerRadius x:Key="ButtonCornerRadius">3</CornerRadius>
+
+  <!-- Density tokens (theme-v2 tight-scope spec §"Density targets"): theme-owned control sizing,
+       seeded with the sharp-dark (default) profile. ThemeResourceApplier replaces every entry from the
+       active preset's ThemeDensity; control consumers reference them via DynamicResource and migrate to
+       the tokens in the density-consumer pass. Heights/sizes are Double; paddings + the uniform default
+       border are Thickness (a BorderThickness/Padding consumer needs a Thickness struct, not a string). -->
+  <sys:Double x:Key="DensityControlHeight">30</sys:Double>
+  <sys:Double x:Key="DensityIconButtonSize">30</sys:Double>
+  <sys:Double x:Key="DensityScrollbarThickness">8</sys:Double>
+  <Thickness x:Key="DensityButtonPadding">10,5</Thickness>
+  <Thickness x:Key="DensityInputPadding">8,0</Thickness>
+  <Thickness x:Key="DensityMenuItemPadding">8,5</Thickness>
+  <Thickness x:Key="DensityPresetChipPadding">8,0</Thickness>
+  <Thickness x:Key="DensityToolTipPadding">7,4</Thickness>
+  <!-- Uniform default stroke weight (theme-v2: constant 1 across all three v2 themes until border
+       weight earns its own pixel-snapping/layout-rounding gate). -->
+  <Thickness x:Key="BorderThicknessDefault">1</Thickness>
+
+  <!-- Inner elevation (theme-v2 tight-scope spec §"Elevation targets"): the popup/panel drop-shadow.
+       Sharp Dark (default) is flat — both seed as x:Null so the design-time / pre-Apply Effect is null,
+       exactly the value the applier writes for sharp-dark. ThemeResourceApplier replaces these with
+       frozen DropShadowEffects for Minimal and Soft Glass. Inner-only; never an outer-window glow. -->
+  <x:Null x:Key="ElevationPopup" />
+  <x:Null x:Key="ElevationPanel" />
 
 </ResourceDictionary>
