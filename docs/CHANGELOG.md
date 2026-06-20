@@ -4,6 +4,11 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-20
+
+Minor release (from 0.4.3, build 21): the accent color wheel + per-profile accents land on top of
+the UI overhaul / Theme V2 work, published exact-source to Stable.
+
 UI overhaul stabilization (plan `docs/superpowers/plans/2026-06-10-ui-overhaul-stabilization.md`).
 
 ### Added
