@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Media;
@@ -121,14 +122,14 @@ public class XamlInvariantTests
             "ResetAppStateButton", "ResetDescriptionText",
             "ClearBrowserDataButton", "ClearDescriptionText", "CloseButton",
             "ThemeSharpDarkPreset", "ThemeMinimalPreset", "ThemeSoftGlassPreset",
-            "AccentChipCyan", "AccentChipSteelBlue", "AccentChipSteel", "AccentChipViolet", "AccentChipGreen",
-            "AccentChipAmber",
+            "AccentTargetText", "AccentPicker",
             "CornerStyleThemeChip", "CornerStyleSquareChip", "CornerStyleSmallChip",
             "CornerStyleSoftChip", "CornerStyleRoundChip",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
             "ActiveOpacitySlider", "ActiveOpacityValueText", "IdleOpacitySlider", "IdleOpacityValueText",
             "StripAutoHideToggle",
             "CompactModeToggle", "CompactModeHintText",
+            "DoneButton",
         }},
     };
 
@@ -154,6 +155,68 @@ public class XamlInvariantTests
         // The title bar must NOT scroll away (CloseButton stays reachable at any content height).
         Assert.DoesNotContain(scroll.Descendants(),
             e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "CloseButton");
+    }
+
+    [Fact]
+    public void Settings_done_button_lives_in_a_fixed_footer_outside_the_scroll()
+    {
+        // The primary "Done" confirm (apply + close, mirroring the title-bar close) must stay reachable
+        // at any scroll position, so — like CloseButton — it lives OUTSIDE SettingsScroll, in the fixed
+        // footer. A Done that scrolled with the sections would vanish under a tall section list.
+        var doc = XamlTestFiles.Load("SettingsWindow.xaml");
+        var scroll = doc.Descendants(XamlTestFiles.Pres + "ScrollViewer")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "SettingsScroll");
+        Assert.DoesNotContain(scroll.Descendants(),
+            e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "DoneButton");
+
+        // It is a Button using the shared primary-accent style (not a one-off look).
+        var done = doc.Descendants(XamlTestFiles.Pres + "Button")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "DoneButton");
+        Assert.Equal("{StaticResource AccentButton}", done.Attribute("Style")?.Value);
+    }
+
+    [Fact]
+    public void Settings_theme_hint_matches_the_actual_preview_contract()
+    {
+        var hint = XamlTestFiles.Load("SettingsWindow.xaml").Descendants()
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "ThemeHintText")
+            .Attribute("Text")?.Value;
+
+        Assert.Contains("Accent and opacity preview live", hint);
+        Assert.DoesNotContain("Theme, accent, and corners preview live", hint);
+        Assert.DoesNotContain("chips", hint, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Accent_color_picker_exposes_required_named_parts()
+    {
+        var names = XamlTestFiles.Load("Controls/AccentColorPicker.xaml").Descendants()
+            .Select(e => e.Attribute(XamlTestFiles.X + "Name")?.Value)
+            .Where(n => n is not null)
+            .ToHashSet();
+
+        Assert.Contains("HueSatDisc", names);
+        Assert.Contains("ValueSlider", names);
+        Assert.Contains("RInput", names);
+        Assert.Contains("GInput", names);
+        Assert.Contains("BInput", names);
+        Assert.Contains("HexInput", names);
+        Assert.Contains("PresetRow", names);
+        Assert.Contains("PreviewSwatch", names);
+        Assert.Contains("ReadabilityWarning", names);
+        Assert.Contains("UseNearestReadableButton", names);
+    }
+
+    [Fact]
+    public void Accent_color_picker_hue_wheel_capture_has_release_paths()
+    {
+        var source = File.ReadAllText(Path.Combine(XamlTestFiles.SrcDir, "Controls", "AccentColorPicker.xaml.cs"));
+
+        Assert.Contains("HueSatDisc.MouseLeftButtonUp += HueSatDisc_MouseLeftButtonUp;", source);
+        Assert.Contains("Unloaded += (_, _) => ReleaseHueSatCapture();", source);
+        Assert.Contains("ReleaseHueSatCapture();", source);
+        Assert.Contains("HueSatDisc.ReleaseMouseCapture();", source);
+        Assert.Contains("e.LeftButton != MouseButtonState.Pressed", source);
     }
 
     [Fact]
@@ -267,7 +330,7 @@ public class XamlInvariantTests
             "PinToggle", "AutoToggle", "PopOutButton",
         }},
         new object[] { "PlayerWindow.xaml", new[] { "FadeToggle", "PinToggle", "ExpandButton", "CloseButton" } },
-        new object[] { "SettingsWindow.xaml", new[] { "CloseButton" } },
+        new object[] { "SettingsWindow.xaml", new[] { "CloseButton", "DoneButton" } },
     };
 
     [Fact]
@@ -617,14 +680,18 @@ public class XamlInvariantTests
     }
 
     [Fact]
-    public void Accent_button_text_is_readable_on_accent_fill()
+    public void Accent_button_text_and_border_read_on_the_dark_fill()
     {
-        // AccentButton foreground is {DynamicResource OnAccent} on the AccentPrimary fill
-        // (ControlStyles.xaml). This is the DEFAULT (cyan) seed; user accents are gated by the
-        // derived-token contrast gate (ThemeCatalogTests) across all chips x profiles.
+        // The AccentButton (e.g. Pop out video) is a dark SurfaceRaised fill with a light TextPrimary
+        // label and an AccentBorder outline (ControlStyles.xaml) — chosen so light text/icons never wash
+        // out on a bright accent. The label must read on the fill (>=4.5) and the accent outline must
+        // read on it as a UI component (>=3.0). DEFAULT (cyan) seeds; user accents are gated per chip x
+        // profile by the derived-token contrast gate (ThemeCatalogTests).
         var t = ColorTokens();
-        var ratio = Wcag.ContrastRatio(t["OnAccentColor"], t["AccentPrimaryColor"]);
-        Assert.True(ratio >= 4.5, $"Accent button text contrast = {ratio:F2}:1.");
+        var text = Wcag.ContrastRatio(t["TextPrimaryColor"], t["SurfaceRaisedColor"]);
+        Assert.True(text >= 4.5, $"Accent button text contrast = {text:F2}:1.");
+        var border = Wcag.ContrastRatio(t["AccentBorderColor"], t["SurfaceRaisedColor"]);
+        Assert.True(border >= 3.0, $"Accent button border contrast = {border:F2}:1.");
     }
 
     [Fact]
@@ -672,7 +739,7 @@ public class XamlInvariantTests
     [Fact]
     public void Theme_accent_palette_is_readable()
     {
-        // Every OFFERED accent chip (ThemeCatalog) must read as an on-dark glyph (>=3:1 on the hover
+        // Every OFFERED accent (ThemeCatalog) must read as an on-dark glyph (>=3:1 on the hover
         // surface) AND carry the dark AccentButton text (>=4.5:1) — the gate behind the Task 10
         // single-accent palette and the Task 9 startup recolor of the primary button.
         var hover = ColorTokens()["SurfaceHoverColor"];
@@ -698,13 +765,10 @@ public class XamlInvariantTests
         IEnumerable<string> NamesWhere(Func<string, bool> pred) => controls
             .Select(e => e.Attribute(XamlTestFiles.X + "Name")!.Value).Where(pred);
 
-        // Preset chip Tags are the catalog preset ids; accent chip Tags are the catalog hex colors.
+        // Preset chip Tags are the catalog preset ids.
         // Order-independent so the hand-written markup and the catalog cannot drift apart.
         var presetTags = NamesWhere(n => n.StartsWith("Theme") && n.EndsWith("Preset")).Select(Tag).ToHashSet();
         Assert.Equal(ThemeCatalog.Presets.Select(p => p.Id).ToHashSet(), presetTags!);
-
-        var accentTags = NamesWhere(n => n.StartsWith("AccentChip")).Select(Tag).ToHashSet();
-        Assert.Equal(ThemeCatalog.AccentOptions.Select(o => o.HexColor).ToHashSet(), accentTags!);
 
         // Corner-style chip Tags are the catalog corner style keys (review doc §8.1 override).
         var cornerTags = NamesWhere(n => n.StartsWith("CornerStyle")).Select(Tag).ToHashSet();
@@ -722,8 +786,7 @@ public class XamlInvariantTests
         foreach (var name in new[]
         {
             "ThemeSharpDarkPreset", "ThemeMinimalPreset", "ThemeSoftGlassPreset",
-            "AccentChipCyan", "AccentChipSteelBlue", "AccentChipSteel", "AccentChipViolet", "AccentChipGreen",
-            "AccentChipAmber",
+            "AccentPicker",
             "CornerStyleThemeChip", "CornerStyleSquareChip", "CornerStyleSmallChip",
             "CornerStyleSoftChip", "CornerStyleRoundChip",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",

@@ -57,28 +57,33 @@
     </Setter>
   </Style>
 
-  <!-- Primary action button (e.g. Pop out video) -->
+  <!-- Primary action button (e.g. Pop out video): a DARK fill with a 2px accent OUTLINE and a light
+       label. The previous bright AccentPrimary fill washed out light text/icons; the dark fill keeps
+       them readable while the accent — and the active profile's color — still reads via the border
+       (AccentBorder is the lightened, >=3:1-on-dark derived variant). -->
   <Style TargetType="Button" x:Key="AccentButton" BasedOn="{StaticResource DarkButton}">
-    <Setter Property="Background" Value="{DynamicResource AccentPrimary}" />
-    <Setter Property="Foreground" Value="{DynamicResource OnAccent}" />
-    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceRaised}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource AccentBorder}" />
+    <Setter Property="BorderThickness" Value="2" />
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
-          <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="{DynamicResource RadiusButton}">
+          <Border x:Name="bd" Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{DynamicResource RadiusButton}">
             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                               Margin="{TemplateBinding Padding}" />
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-              <Setter TargetName="bd" Property="Background" Value="{DynamicResource AccentHover}" />
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource SurfaceHover}" />
             </Trigger>
-            <!-- Pressed wins over hover (IsPressed implies IsMouseOver): darker fill + a foreground
-                 re-picked for that fill so a dim accent's pressed state stays readable (CON-1). -->
+            <!-- Pressed wins over hover (IsPressed implies IsMouseOver): a darker fill; the light label
+                 stays readable so no per-accent foreground re-pick is needed. -->
             <Trigger Property="IsPressed" Value="True">
-              <Setter TargetName="bd" Property="Background" Value="{DynamicResource AccentPressed}" />
-              <Setter Property="Foreground" Value="{DynamicResource OnAccentPressed}" />
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource SurfaceBase}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
               <Setter Property="Opacity" Value="0.4" />

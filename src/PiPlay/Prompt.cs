@@ -2,7 +2,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using PiPlay.Controls;
 using PiPlay.Services;
+using PiPlay.Theme;
 
 namespace PiPlay;
 
@@ -163,8 +165,9 @@ internal static class Prompt
     /// override (spec 10, Phase 3) is carried through as the durable token (null / "normal" /
     /// "compact"); normalization/precedence live in <see cref="PlaybackModePolicy"/>.
     /// </summary>
-    public static (string Name, string Url, string? Mode)? EditProfile(
-        Window owner, string name, string url, string? mode)
+    public static (string Name, string Url, string? Mode, string? AccentColor)? EditProfile(
+        Window owner, string name, string url, string? mode, string? accentColor = null,
+        string? fallbackAccentColor = null, Action<string>? accentPreview = null)
     {
         var win = BuildShell(owner, "Edit profile", out var body);
 
@@ -195,6 +198,24 @@ internal static class Prompt
         var (modePicker, selectedMode) = BuildModePicker(mode);
         body.Children.Add(modePicker);
 
+        var useAccent = new CheckBox
+        {
+            Content = "Profile accent",
+            IsChecked = accentColor is not null,
+            Foreground = Brush("TextPrimary"),
+            Margin = new Thickness(0, 12, 0, 8),
+            ToolTip = "Use a custom accent when this profile is active",
+        };
+        body.Children.Add(useAccent);
+
+        var accentPicker = new AccentColorPicker
+        {
+            SelectedColor = accentColor ?? fallbackAccentColor ?? ThemeCatalog.DefaultAccentColor,
+            IsEnabled = useAccent.IsChecked == true,
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+        body.Children.Add(accentPicker);
+
         var error = new TextBlock
         {
             Foreground = Brush("DangerPin"),
@@ -211,7 +232,34 @@ internal static class Prompt
         buttons.Children.Add(cancel);
         body.Children.Add(buttons);
 
-        (string Name, string Url, string? Mode)? result = null;
+        void UpdateAccentSaveState()
+        {
+            ok.IsEnabled = CanSaveProfileAccent(useAccent.IsChecked == true, accentPicker);
+        }
+
+        accentPicker.PreviewColorChanged += hex =>
+        {
+            if (useAccent.IsChecked == true)
+                accentPreview?.Invoke(hex);
+            UpdateAccentSaveState();
+        };
+        accentPicker.ReadabilityChanged += _ => UpdateAccentSaveState();
+        useAccent.Checked += (_, _) =>
+        {
+            accentPicker.IsEnabled = true;
+            if (accentPicker.IsSelectedReadable)
+                accentPreview?.Invoke(accentPicker.SelectedColor);
+            UpdateAccentSaveState();
+        };
+        useAccent.Unchecked += (_, _) =>
+        {
+            accentPicker.IsEnabled = false;
+            accentPreview?.Invoke(fallbackAccentColor ?? ThemeCatalog.DefaultAccentColor);
+            UpdateAccentSaveState();
+        };
+        UpdateAccentSaveState();
+
+        (string Name, string Url, string? Mode, string? AccentColor)? result = null;
         ok.Click += (_, _) =>
         {
             var trimmedName = nameBox.Text.Trim();
@@ -230,13 +278,24 @@ internal static class Prompt
                 return;   // keep the dialog open; nothing is saved
             }
 
-            result = (trimmedName, urlBox.Text.Trim(), selectedMode());
+            var editedAccent = useAccent.IsChecked == true ? accentPicker.SelectedColor : null;
+            if (!CanSaveProfileAccent(useAccent.IsChecked == true, accentPicker))
+            {
+                error.Text = "Choose a readable profile accent or turn the profile accent off.";
+                error.Visibility = Visibility.Visible;
+                return;
+            }
+
+            result = (trimmedName, urlBox.Text.Trim(), selectedMode(), editedAccent);
             win.DialogResult = true;
         };
         nameBox.Loaded += (_, _) => { nameBox.Focus(); nameBox.SelectAll(); };
 
         return win.ShowDialog() == true ? result : null;
     }
+
+    internal static bool CanSaveProfileAccent(bool useProfileAccent, AccentColorPicker accentPicker) =>
+        !useProfileAccent || (accentPicker.IsSelectedReadable && ProfileService.ValidateAccent(accentPicker.SelectedColor));
 
     /// <summary>
     /// Themed dark Yes/No confirmation. Returns true only if the user confirms. Default focus is

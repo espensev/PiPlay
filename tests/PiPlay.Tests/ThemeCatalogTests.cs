@@ -36,19 +36,33 @@ public class ThemeCatalogTests
     [Theory]
     [InlineData("#a78bfa", "#A78BFA")]
     [InlineData("38d996", "#38D996")]
-    [InlineData("not-a-color", "#00D4FF")]
-    [InlineData("#12345", "#00D4FF")]
+    [InlineData("not-a-color", "#2BAED0")]
+    [InlineData("#12345", "#2BAED0")]
     public void Accent_hex_is_normalized_or_reset_to_default(string input, string expected)
     {
         Assert.Equal(expected, ThemeCatalog.NormalizeAccentColor(input));
     }
 
     [Theory]
-    [InlineData("cyan", "#00D4FF")]
-    [InlineData("violet", "#A78BFA")]
-    [InlineData("green", "#38D996")]
-    [InlineData("amber", "#FFC857")]
-    [InlineData("bogus", "#00D4FF")]
+    [InlineData("#00D4FF", true)]
+    [InlineData("#abcdef", true)]
+    [InlineData("00D4FF", true)]
+    [InlineData("not-a-color", false)]
+    [InlineData("#12345", false)]
+    [InlineData("#1234567", false)]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    public void IsValidHex_matches_the_canonical_normalizer(string? input, bool expected)
+    {
+        Assert.Equal(expected, ThemeCatalog.IsValidHex(input));
+    }
+
+    [Theory]
+    [InlineData("cyan", "#2BAED0")]
+    [InlineData("violet", "#9E84F0")]
+    [InlineData("green", "#2DB57F")]
+    [InlineData("amber", "#D69A2E")]
+    [InlineData("bogus", "#2BAED0")]
     public void Legacy_accent_keys_map_to_hex_seed_values(string legacyAccent, string expected)
     {
         Assert.Equal(expected, ThemeCatalog.AccentColorForLegacyAccent(legacyAccent));
@@ -146,11 +160,11 @@ public class ThemeCatalogTests
     // --- Accent switch rule (end-pass review §3.3, claim-response review R4) ---
 
     [Theory]
-    [InlineData("#00D4FF", "sharp-dark", "soft-glass", "#A78BFA")]   // on previous default → adopt next default
-    [InlineData("#00d4ff", "sharp-dark", "soft-glass", "#A78BFA")]   // lowercase normalizes before comparison
+    [InlineData("#2BAED0", "sharp-dark", "soft-glass", "#9E84F0")]   // on previous default → adopt next default
+    [InlineData("#2baed0", "sharp-dark", "soft-glass", "#9E84F0")]   // lowercase normalizes before comparison
     [InlineData("#FFC857", "sharp-dark", "soft-glass", "#FFC857")]   // custom accent survives the switch
     [InlineData("#ffc857", "sharp-dark", "soft-glass", "#FFC857")]   // …and comes back normalized
-    [InlineData("#A78BFA", "soft-glass", "sharp-dark", "#00D4FF")]   // works in both directions
+    [InlineData("#9E84F0", "soft-glass", "sharp-dark", "#2BAED0")]   // works in both directions
     public void Accent_for_theme_switch_preserves_custom_accents(
         string current, string fromTheme, string toTheme, string expected)
     {
@@ -216,7 +230,7 @@ public class ThemeCatalogTests
 
     [Fact]
     public void Sharp_dark_matches_the_v2_spec_literals() => AssertPresetMatchesSpec(
-        "sharp-dark", "Sharp Dark", "#00D4FF", "normal", stripAutoHide: false,
+        "sharp-dark", "Sharp Dark", "#2BAED0", "normal", stripAutoHide: false,
         activeOpacity: 1.0, idleOpacity: 1.0, DwmCornerMode.Default,
         new ThemePalette(
             AppBackground: "#050609", SurfaceBase: "#0B0E12", SurfaceRaised: "#131820",
@@ -228,7 +242,7 @@ public class ThemeCatalogTests
 
     [Fact]
     public void Minimal_matches_the_v2_spec_literals() => AssertPresetMatchesSpec(
-        "minimal", "Minimal", "#5AA9E6", "long", stripAutoHide: false,
+        "minimal", "Minimal", "#3F84C0", "long", stripAutoHide: false,
         activeOpacity: 1.0, idleOpacity: 1.0, DwmCornerMode.SmallRound,
         new ThemePalette(
             AppBackground: "#14120F", SurfaceBase: "#1C1A16", SurfaceRaised: "#26231E",
@@ -240,7 +254,7 @@ public class ThemeCatalogTests
 
     [Fact]
     public void Soft_glass_matches_the_v2_spec_literals() => AssertPresetMatchesSpec(
-        "soft-glass", "Soft Glass", "#A78BFA", "short", stripAutoHide: true,
+        "soft-glass", "Soft Glass", "#9E84F0", "short", stripAutoHide: true,
         activeOpacity: 0.92, idleOpacity: 0.78, DwmCornerMode.Round,
         new ThemePalette(
             AppBackground: "#0B1018", SurfaceBase: "#121A26", SurfaceRaised: "#1B2738",

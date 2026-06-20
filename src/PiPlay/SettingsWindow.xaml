@@ -1,6 +1,7 @@
 <Window x:Class="PiPlay.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:PiPlay.Controls"
         Title="PiPlay settings"
         Width="520" Height="680" MinHeight="360"
         WindowStyle="None"
@@ -88,6 +89,7 @@
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
         <RowDefinition Height="*" />
+        <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
 
       <!-- Title bar (drag to move; close button) -->
@@ -131,11 +133,9 @@
 
         <TextBlock Text="Theme" FontSize="12" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,0,0,6" />
-        <!-- Copy matches the actual close-to-apply behavior (theme code review P3): theme and
-             accent land on every open window when the dialog closes; only the opacity sliders
-             (and this dialog's own corners) preview live while it is open. -->
+        <!-- Accent previews live; Done commits while the title-bar close dismisses. -->
         <TextBlock x:Name="ThemeHintText"
-                   Text="Theme, accent, and corners apply to every open window when you close Settings - no restart needed. A preset sets the accent; the chips fine-tune it."
+                   Text="Accent and opacity preview live; Done applies theme and corner changes."
                    TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,0,0,8" />
         <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
@@ -152,31 +152,16 @@
 
         <TextBlock Text="Accent color" FontSize="12" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,0,0,6" />
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-          <ToggleButton x:Name="AccentChipCyan" Style="{StaticResource SwatchToggle}"
-                        Background="#00D4FF" Tag="#00D4FF" Click="AccentChip_Click"
-                        ToolTip="Accent: Cyan" AutomationProperties.Name="Accent Cyan" />
-          <ToggleButton x:Name="AccentChipSteelBlue" Style="{StaticResource SwatchToggle}"
-                        Background="#5AA9E6" Tag="#5AA9E6" Click="AccentChip_Click"
-                        ToolTip="Accent: Steel blue" AutomationProperties.Name="Accent Steel blue" />
-          <ToggleButton x:Name="AccentChipSteel" Style="{StaticResource SwatchToggle}"
-                        Background="#4A8FAB" Tag="#4A8FAB" Click="AccentChip_Click"
-                        ToolTip="Accent: Steel (muted)" AutomationProperties.Name="Accent Steel" />
-          <ToggleButton x:Name="AccentChipViolet" Style="{StaticResource SwatchToggle}"
-                        Background="#A78BFA" Tag="#A78BFA" Click="AccentChip_Click"
-                        ToolTip="Accent: Violet" AutomationProperties.Name="Accent Violet" />
-          <ToggleButton x:Name="AccentChipGreen" Style="{StaticResource SwatchToggle}"
-                        Background="#38D996" Tag="#38D996" Click="AccentChip_Click"
-                        ToolTip="Accent: Green" AutomationProperties.Name="Accent Green" />
-          <ToggleButton x:Name="AccentChipAmber" Style="{StaticResource SwatchToggle}"
-                        Background="#FFC857" Tag="#FFC857" Click="AccentChip_Click"
-                        ToolTip="Accent: Amber" AutomationProperties.Name="Accent Amber" />
-        </StackPanel>
+        <TextBlock x:Name="AccentTargetText" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                   TextWrapping="Wrap" Margin="0,0,0,8" />
+        <controls:AccentColorPicker x:Name="AccentPicker" Margin="0,0,0,12"
+                                    ToolTip="Choose the app accent color"
+                                    AutomationProperties.Name="Accent color picker" />
 
         <!-- Corner style (review doc §8.1): an override of the theme's whole corner PROFILE
              (control radii + native window corner), never individual per-control radii. "Theme"
              keeps preset-owned corners. Chip names use the CornerStyle prefix — the catalog-drift
-             test predicates key on Theme*Preset / AccentChip* names. -->
+             test predicates key on Theme*Preset / CornerStyle* names. -->
         <TextBlock Text="Corners" FontSize="12" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,0,0,6" />
         <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
@@ -290,6 +275,18 @@
                       AutomationProperties.Name="Auto-hide popout top bar" />
       </StackPanel>
       </ScrollViewer>
+
+      <!-- Fixed footer: a visible affirmative "Done" (apply + close). Lives OUTSIDE SettingsScroll so it stays reachable at any scroll
+           position; SurfaceBase + a top hairline pair it with the title bar as a matched action bar. -->
+      <Border Grid.Row="2" Background="{DynamicResource SurfaceBase}"
+              BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0,1,0,0" Padding="20,12">
+        <Button x:Name="DoneButton" Style="{StaticResource AccentButton}"
+                Content="Done" MinWidth="96" HorizontalAlignment="Right"
+                IsDefault="True" IsEnabled="{Binding IsSelectedReadable, ElementName=AccentPicker}"
+                Click="DoneButton_Click"
+                ToolTip="Apply your changes and close Settings"
+                AutomationProperties.Name="Done" />
+      </Border>
 
     </Grid>
   </Border>

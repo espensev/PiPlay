@@ -109,7 +109,7 @@ public static class ThemeCatalog
     // "cyan" seed land on the same value (AccentColorForLegacyAccent("cyan")). Every offered accent
     // is bright enough to read as an on-dark glyph and to carry the dark AccentButton text — the
     // XamlInvariantTests "Theme accent palette is readable" theory gates this.
-    public const string DefaultAccentColor = "#00D4FF";
+    public const string DefaultAccentColor = "#2BAED0";
     public const string DefaultFadeDelayPreset = "normal";
 
     /// <summary>"theme" = corners follow the selected preset; the other styles override the whole
@@ -203,7 +203,7 @@ public static class ThemeCatalog
             "minimal",
             "Minimal",
             "A quieter preset for daily browsing and low-distraction popouts.",
-            "#5AA9E6",
+            "#3F84C0",
             // Calmer daily shell: longer fade delay so the strip lingers (theme-v2 spec §"behavior
             // defaults"); strip stays pinned and the window stays opaque.
             DefaultFadeDelayPreset: "long",
@@ -227,7 +227,7 @@ public static class ThemeCatalog
             "soft-glass",
             "Soft Glass",
             "A softer overlay-friendly preset for desktop popouts.",
-            "#A78BFA",
+            "#9E84F0",
             // Floating overlay shell: a short fade and auto-hiding strip keep the surface clean, and
             // the window is translucent active/idle (theme-v2 tight-scope spec §"behavior defaults").
             DefaultFadeDelayPreset: "short",
@@ -249,15 +249,18 @@ public static class ThemeCatalog
             Elevation: SoftGlassElevation),
     ];
 
+    // Deeper, less-neon defaults (owner request 2026-06-20): each pushed toward the readable floor
+    // (accent must still read as a glyph on the dark UI AND carry dark text >=4.5:1), so they are
+    // noticeably darker than the old neon set without failing the WCAG accent gates (ThemeCatalogTests).
     private static readonly ThemeAccentOption[] AccentOptionsValue =
     [
         new("cyan", "Cyan", DefaultAccentColor),
-        new("steel-blue", "Steel blue", "#5AA9E6"),
+        new("steel-blue", "Steel blue", "#3F84C0"),
         // The muted steel accent (review doc §5): the darker, less-neon tone for the sharp look.
         new("steel", "Steel", "#4A8FAB"),
-        new("violet", "Violet", "#A78BFA"),
-        new("green", "Green", "#38D996"),
-        new("amber", "Amber", "#FFC857"),
+        new("violet", "Violet", "#9E84F0"),
+        new("green", "Green", "#2DB57F"),
+        new("amber", "Amber", "#D69A2E"),
     ];
 
     private static readonly ThemeCornerStyleOption[] CornerStyleOptionsValue =
@@ -320,6 +323,8 @@ public static class ThemeCatalog
         return NormalizeHex6(fallback) ?? DefaultAccentColor;
     }
 
+    public static bool IsValidHex(string? color) => NormalizeHex6(color) is not null;
+
     /// <summary>
     /// Accent rule for an explicit theme switch (end-pass review §3.3): adopt the next preset's
     /// default accent only when the current accent IS the previous preset's default — a
@@ -360,9 +365,9 @@ public static class ThemeCatalog
     {
         return PlayerAppearancePolicy.NormalizeAccent(key) switch
         {
-            "violet" => "#A78BFA",
-            "green" => "#38D996",
-            "amber" => "#FFC857",
+            "violet" => "#9E84F0",
+            "green" => "#2DB57F",
+            "amber" => "#D69A2E",
             _ => DefaultAccentColor,
         };
     }

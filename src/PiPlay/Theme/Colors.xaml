@@ -23,28 +23,28 @@
   <Color x:Key="BorderStrongColor">#FF3E4B5C</Color>
   <Color x:Key="TextPrimaryColor">#FFF4F7FA</Color>
   <Color x:Key="TextSecondaryColor">#FF9AA2AD</Color>
-  <Color x:Key="AccentCyanColor">#FF00D4FF</Color>
+  <Color x:Key="AccentCyanColor">#FF2BAED0</Color>
   <Color x:Key="AccentCyanLightColor">#FF5BE6FF</Color>
   <Color x:Key="AccentPurpleColor">#FF6D3BFF</Color>
-  <Color x:Key="AccentVioletColor">#FFA78BFA</Color>
-  <Color x:Key="AccentGreenColor">#FF38D996</Color>
-  <Color x:Key="AccentAmberColor">#FFFFC857</Color>
+  <Color x:Key="AccentVioletColor">#FF9E84F0</Color>
+  <Color x:Key="AccentGreenColor">#FF2DB57F</Color>
+  <Color x:Key="AccentAmberColor">#FFD69A2E</Color>
   <Color x:Key="DangerPinColor">#FFE45D75</Color>
 
   <!-- Theme accent (overhaul Task 9): the single, preset-driven accent. Defaults to the sharp-dark
        cyan as a markup fallback; ThemeResourceApplier replaces the AccentPrimary brushes below with
        the chosen accent and derived hover color at startup. AccentCyan/AccentCyanLight remain defined
        as compatibility aliases (the fixed cyan swatch + any markup that still names them). -->
-  <Color x:Key="AccentPrimaryColor">#FF00D4FF</Color>
-  <Color x:Key="AccentPrimaryLightColor">#FF2EDCFF</Color>
+  <Color x:Key="AccentPrimaryColor">#FF2BAED0</Color>
+  <Color x:Key="AccentPrimaryLightColor">#FF51BDD8</Color>
 
   <!-- Derived accent state seeds (theme-v2 Phase B / Task 4): cyan under the sharp-dark profile, the
        default theme. ThemeResourceApplier replaces these from ThemeColors.DeriveAccentSet at startup
        and on accent change. OnAccentPressed re-picks the foreground for the darker pressed fill (CON-1)
        — dark here because cyan's pressed stays bright. AccentPrimaryLight aliases AccentHover. -->
-  <Color x:Key="AccentHoverColor">#FF2EDCFF</Color>
-  <Color x:Key="AccentPressedColor">#FF00B2D6</Color>
-  <Color x:Key="AccentBorderColor">#FF1AD8FF</Color>
+  <Color x:Key="AccentHoverColor">#FF51BDD8</Color>
+  <Color x:Key="AccentPressedColor">#FF2492AF</Color>
+  <Color x:Key="AccentBorderColor">#FF40B6D5</Color>
   <Color x:Key="OnAccentColor">#FF06141A</Color>
   <Color x:Key="OnAccentPressedColor">#FF06141A</Color>
 

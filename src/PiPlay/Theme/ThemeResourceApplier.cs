@@ -35,7 +35,7 @@ public static class ThemeResourceApplier
     public static void Apply(ResourceDictionary resources, ThemeSettings? theme, PlayerSettings player)
     {
         var preset = ThemeCatalog.PresetFor(theme?.ThemeId);
-        ApplyAccent(resources, ThemePreferenceResolver.AccentColor(theme, player), preset);
+        ApplyAccentOnly(resources, ThemePreferenceResolver.AccentColor(theme, player), preset);
         ApplyPalette(resources, preset.Palette);
         ApplyRadii(resources, ThemeCatalog.RadiiFor(preset, theme?.CornerStyle));
         ApplyDensity(resources, preset.Density);
@@ -50,7 +50,7 @@ public static class ThemeResourceApplier
     /// them. OnAccentPressed carries the CON-1 fix: a dim accent's pressed fill gets a readable
     /// foreground rather than the reused OnAccent.
     /// </summary>
-    private static void ApplyAccent(ResourceDictionary resources, string accentColor, ThemePreset preset)
+    public static void ApplyAccentOnly(ResourceDictionary resources, string accentColor, ThemePreset preset)
     {
         var set = ThemeColors.DeriveAccentSet(accentColor, preset);
         SetColorPair(resources, "AccentPrimary", set.Primary);

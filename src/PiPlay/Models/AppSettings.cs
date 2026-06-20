@@ -16,7 +16,7 @@ public sealed class AppSettings
     /// Schema ≤2 wrote theme blocks whose nulls meant "fall back to the legacy Player fields",
     /// so SettingsService backfills those nulls from Player once on first load.
     /// </summary>
-    public const int CurrentSchemaVersion = 3;
+    public const int CurrentSchemaVersion = 4;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
     public string LastUrl { get; set; } = "https://www.youtube.com/";
@@ -31,6 +31,7 @@ public sealed class AppSettings
     public PlayerSettings Player { get; set; } = new();
     public ThemeSettings Theme { get; set; } = new();
     public List<Profile> Profiles { get; set; } = new();
+    public string? ActiveProfileName { get; set; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? ExtensionData { get; set; }
