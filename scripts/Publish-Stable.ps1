@@ -61,6 +61,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "NativeCommand.ps1")
+
 if (-not [System.IO.Path]::IsPathRooted($DeployRoot)) {
     # A bare token like '--help' binds positionally to -DeployRoot and would deploy a full
     # publish tree into a junk folder next to this script. Use Get-Help for usage.
@@ -81,7 +83,7 @@ function Write-Step([int]$n, [string]$message) { Write-Host "`n[$n] $message" -F
 function Invoke-Git {
     param([Parameter(Mandatory = $true)][string[]]$GitArgs)
 
-    $out = & git -C $repoRoot @GitArgs 2>$null
+    $out = Invoke-NativeCommandQuiet { & git -C $repoRoot @GitArgs }
     if ($LASTEXITCODE -ne 0) { return $null }
     return $out
 }

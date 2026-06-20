@@ -60,6 +60,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "NativeCommand.ps1")
+
 $ProjectName = "PiPlay"
 $ProjectRelativePath = "src\PiPlay\PiPlay.csproj"
 $PublishExtras = @(
@@ -264,7 +266,7 @@ function Get-SourceCommit {
     $git = Get-Command git -ErrorAction SilentlyContinue
     if (-not $git) { return $null }
 
-    $commit = & $git.Source -C $RepositoryRoot rev-parse HEAD 2>$null
+    $commit = Invoke-NativeCommandQuiet { & $git.Source -C $RepositoryRoot rev-parse HEAD }
     if ($LASTEXITCODE -ne 0) { return $null }
 
     $trimmed = "$commit".Trim()
@@ -278,7 +280,7 @@ function Get-SourceDirtyEntries {
     $git = Get-Command git -ErrorAction SilentlyContinue
     if (-not $git) { return @() }
 
-    $status = @(& $git.Source -C $RepositoryRoot status --porcelain --untracked-files=all 2>$null)
+    $status = @(Invoke-NativeCommandQuiet { & $git.Source -C $RepositoryRoot status --porcelain --untracked-files=all })
     if ($LASTEXITCODE -ne 0) { return @() }
     return @($status | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 }
