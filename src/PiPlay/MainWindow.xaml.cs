@@ -281,9 +281,14 @@ public partial class MainWindow : Window
 
     private void ApplySourceAppearance()
     {
+        ApplySourceAppearance(ResolvedAccentColor);
+    }
+
+    private void ApplySourceAppearance(string accentColor)
+    {
         // One theme accent drives the Source Pin (overhaul Task 10): the toggle's checked glyph and
         // the pinned hint share the accent brush built from Theme.AccentColor.
-        var pinBrush = ThemeColors.Brush(EffectiveAccentColor);
+        var pinBrush = ThemeColors.Brush(accentColor);
         ToggleAccent.SetCheckedBrush(PinToggle, pinBrush);
         PinnedHint.Foreground = pinBrush;
     }
@@ -369,10 +374,14 @@ public partial class MainWindow : Window
     private void LoadProfilesIntoCombo()
     {
         _loadingProfiles = true;
-        ProfilesCombo.ItemsSource = _settings.Profiles.ToList();
-        ProfilesCombo.SelectedIndex = -1;
+        var profiles = _settings.Profiles.ToList();
+        ProfilesCombo.ItemsSource = profiles;
+        ProfilesCombo.SelectedItem = _settings.ActiveProfileName is null
+            ? null
+            : profiles.FirstOrDefault(p => string.Equals(p.Name, _settings.ActiveProfileName, StringComparison.OrdinalIgnoreCase));
         _loadingProfiles = false;
         UpdateProfileCommandState();
+        ApplyResolvedAccent();
     }
 
     /// <summary>Edit/Delete act on the selected profile, so they are enabled only when one is picked.</summary>
@@ -382,7 +391,18 @@ public partial class MainWindow : Window
     private void ProfilesCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         UpdateProfileCommandState();
-        if (_loadingProfiles || ProfilesCombo.SelectedItem is not Profile profile) return;
+        if (_loadingProfiles) return;
+        if (ProfilesCombo.SelectedItem is not Profile profile)
+        {
+            ProfileAccentService.ClearActiveProfile(_settings);
+            ApplyResolvedAccent();
+            _settingsService.Save(_settings);
+            return;
+        }
+
+        ProfileAccentService.SetActiveProfile(_settings, profile);
+        ApplyResolvedAccent();
+        _settingsService.Save(_settings);
         if (profile.Topmost is bool tm) ApplyTopmost(tm);
         NavigateInternal(profile.Url);
     }
@@ -401,7 +421,8 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(name)) return;
         name = name.Trim();
 
-        if (ProfileService.Exists(_settings, name))
+        var existing = ProfileService.Find(_settings, name);
+        if (existing is not null)
         {
             if (!Prompt.AskConfirm(this, "Overwrite profile?",
                     $"A profile named \"{name}\" already exists. Overwrite it?", "Overwrite"))
@@ -410,7 +431,7 @@ public partial class MainWindow : Window
             }
         }
 
-        ProfileService.Save(_settings, new Profile { Name = name, Url = currentUrl, Topmost = Topmost });
+        ProfileService.Save(_settings, ProfileService.CreateQuickSaveProfile(existing, name, currentUrl, Topmost));
         _settingsService.Save(_settings);
         LoadProfilesIntoCombo();
         Log.Info("Profile saved.");
@@ -420,8 +441,13 @@ public partial class MainWindow : Window
     {
         if (ProfilesCombo.SelectedItem is not Profile original) return;
 
-        var edited = Prompt.EditProfile(this, original.Name, original.Url, original.Mode);
-        if (edited is null) return;   // cancelled (and an invalid edit never gets here)
+        var edited = Prompt.EditProfile(this, original.Name, original.Url, original.Mode, original.AccentColor,
+            EffectiveAccentColor, LivePreviewAccent);
+        if (edited is null)
+        {
+            ApplyResolvedAccent();
+            return;   // cancelled (and an invalid edit never gets here)
+        }
 
         // Name, Url, and the Phase 3 playback Mode are editable; carry the other Phase 2 fields through.
         var updated = new Profile
@@ -429,6 +455,7 @@ public partial class MainWindow : Window
             Name = edited.Value.Name,
             Url = edited.Value.Url,
             Mode = PlaybackModePolicy.NormalizeProfileMode(edited.Value.Mode),
+            AccentColor = ProfileService.NormalizeAccentForStorage(edited.Value.AccentColor),
             Topmost = original.Topmost,
             FadeEnabled = original.FadeEnabled,
             Bounds = original.Bounds,
@@ -448,6 +475,8 @@ public partial class MainWindow : Window
 
         if (outcome != ProfileUpdateOutcome.Updated) return;   // NotFound is not reachable from a live selection
 
+        ProfileAccentService.RenameActiveProfileIfMatches(_settings, original.Name, updated.Name);
+
         _settingsService.Save(_settings);
         LoadProfilesIntoCombo();
         Log.Info("Profile edited.");
@@ -464,6 +493,7 @@ public partial class MainWindow : Window
         }
 
         ProfileService.Remove(_settings, profile.Name);
+        ProfileAccentService.ClearActiveProfileIfMatches(_settings, profile.Name);
         _settingsService.Save(_settings);
         LoadProfilesIntoCombo();
         Log.Info("Profile deleted.");
@@ -481,13 +511,16 @@ public partial class MainWindow : Window
         var dialog = new SettingsWindow(
             isBrowserReady: CanClearBrowserData,
             themeId: _settings.Theme.ThemeId,
-            accentColor: EffectiveAccentColor,
+            accentColor: ResolvedAccentColor,
             fadeIdleDelayMs: EffectiveFadeIdleDelayMs,
             compactMode: _settings.Player.CompactMode,
             activeOpacityOverride: _settings.Theme.ActiveWindowOpacity,
             idleOpacityOverride: _settings.Theme.IdleWindowOpacity,
             stripAutoHideOverride: _settings.Theme.StripAutoHide,
-            cornerStyle: EffectiveCornerStyle)
+            cornerStyle: EffectiveCornerStyle,
+            accentEditContext: ActiveProfileHasAccentOverride
+                ? $"Editing accent for profile '{_settings.ActiveProfileName}'."
+                : "Editing the app accent.")
         {
             Owner = this,
             Topmost = Topmost,
@@ -496,11 +529,13 @@ public partial class MainWindow : Window
         // animate:false — the event fires per drag tick; restarting the 150ms fade each tick would
         // stair-step and churn animation timers. The drag itself is the animation.
         dialog.OpacityPreviewChanged += (constant, idle) => _player?.ApplyWindowOpacity(constant, idle, animate: false);
+        dialog.AccentPreviewChanged += LivePreviewAccent;
 
         if (dialog.ShowDialog() != true)
         {
-            // Dismissed without applying: undo any live preview back to the persisted levels.
+            // Dismissed without applying: undo live previews back to the persisted levels/accent.
             _player?.ApplyWindowOpacity(EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity);
+            ApplyResolvedAccent();
             return;
         }
 
@@ -550,7 +585,7 @@ public partial class MainWindow : Window
         _settings = _settingsService.Reset();
         ApplyTopmost(false);
         ApplyAuto(false);
-        ThemeResourceApplier.Apply(Application.Current.Resources, _settings.Theme, _settings.Player);
+        ApplyThemeResources();
         ApplySourceAppearance();
         ApplyOwnCornerMode();
         ApplyOpenPlayerAppearance();
@@ -566,13 +601,15 @@ public partial class MainWindow : Window
         // behavior values are NULLABLE overrides (theme code review P2) — the pure writer keeps
         // nulls null so an accent-only apply leaves the user following preset defaults, and
         // mirrors the EFFECTIVE values onto the legacy Player fields.
-        ThemeSettingsWriter.Apply(_settings, themeId, accentColor, fadeIdleDelayMs, compactMode,
+        var globalAccent = ActiveProfileHasAccentOverride ? EffectiveAccentColor : ThemeCatalog.NormalizeAccentColor(accentColor);
+        ThemeSettingsWriter.Apply(_settings, themeId, globalAccent, fadeIdleDelayMs, compactMode,
             activeOpacityOverride, idleOpacityOverride, stripAutoHideOverride, cornerStyle);
+        CommitAccent(accentColor);
 
         // Restyle the theme-driven shell resources live (DynamicResource consumers re-resolve), then
         // the runtime-applied Pin/Fade glyphs and the native window corners, so the whole theme
         // moves together on apply.
-        ThemeResourceApplier.Apply(Application.Current.Resources, _settings.Theme, _settings.Player);
+        ApplyThemeResources();
         ApplySourceAppearance();
         ApplyOwnCornerMode();
         ApplyOpenPlayerAppearance();
@@ -581,6 +618,45 @@ public partial class MainWindow : Window
 
     private string EffectiveAccentColor =>
         ThemePreferenceResolver.AccentColor(_settings.Theme, _settings.Player);
+
+    private Profile? ActiveProfile =>
+        ProfileAccentService.ActiveProfile(_settings);
+
+    private bool ActiveProfileHasAccentOverride => ProfileAccentService.ActiveProfileHasAccentOverride(_settings);
+
+    internal string ResolvedAccentColor =>
+        ProfileAccentService.ResolvedAccentColor(_settings, EffectiveAccentColor);
+
+    internal void LivePreviewAccent(string hex)
+    {
+        if (!AccentReadabilityPolicy.Evaluate(hex).IsReadable) return;
+        ApplyAccentEverywhere(ThemeCatalog.NormalizeAccentColor(hex));
+    }
+
+    private string CommitAccent(string hex)
+    {
+        return ProfileAccentService.CommitAccent(_settings, hex);
+    }
+
+    private void ApplyResolvedAccent() => ApplyAccentEverywhere(ResolvedAccentColor);
+
+    private void ApplyAccentEverywhere(string accentColor)
+    {
+        ThemeResourceApplier.ApplyAccentOnly(Application.Current.Resources, accentColor,
+            ThemeCatalog.PresetFor(_settings.Theme.ThemeId));
+        ApplySourceAppearance(accentColor);
+        ApplyOpenPlayerAppearance(accentColor);
+    }
+
+    private void ApplyThemeResources()
+    {
+        ThemeResourceApplier.Apply(Application.Current.Resources, _settings.Theme, _settings.Player);
+        if (!string.Equals(ResolvedAccentColor, EffectiveAccentColor, StringComparison.OrdinalIgnoreCase))
+        {
+            ThemeResourceApplier.ApplyAccentOnly(Application.Current.Resources, ResolvedAccentColor,
+                ThemeCatalog.PresetFor(_settings.Theme.ThemeId));
+        }
+    }
 
     private int EffectiveFadeIdleDelayMs =>
         ThemePreferenceResolver.FadeIdleDelayMs(_settings.Theme, _settings.Player);
@@ -611,16 +687,39 @@ public partial class MainWindow : Window
 
     private void ApplyOpenPlayerAppearance()
     {
-        _player?.ApplyAppearance(EffectiveAccentColor, EffectiveFadeIdleDelayMs, EffectiveStripAutoHide);
+        ApplyOpenPlayerAppearance(ResolvedAccentColor);
+    }
+
+    private void ApplyOpenPlayerAppearance(string accentColor)
+    {
+        _player?.ApplyAppearance(accentColor, EffectiveFadeIdleDelayMs, EffectiveStripAutoHide);
         _player?.ApplyWindowOpacity(EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity);
         _player?.ApplyCornerMode(EffectiveDwmCornerMode);
     }
 
-    internal void ReplaceSettingsForTests(AppSettings settings) => _settings = settings;
+    internal void ReplaceSettingsForTests(AppSettings settings)
+    {
+        _settings = settings;
+        ApplyThemeResources();
+        ApplySourceAppearance();   // refresh the imperative pin/hint accent from the injected settings
+        LoadProfilesIntoCombo();
+    }
+
+    internal string ResolvedAccentColorForTests => ResolvedAccentColor;
+
+    // The dismiss-without-apply / edit-cancel revert path (ShowDialog() != true), exposed so the
+    // revert can be asserted without driving a modal dialog.
+    internal void RevertPreviewedAccentForTests() => ApplyResolvedAccent();
+
+    internal void SelectProfileForTests(string? name)
+    {
+        ProfileAccentService.SetActiveProfile(_settings, name is null ? null : ProfileService.Find(_settings, name));
+        LoadProfilesIntoCombo();
+    }
 
     internal (string AccentColor, int FadeIdleDelayMs, double ActiveWindowOpacity, double IdleWindowOpacity,
         bool StripAutoHide, string CornerStyle) EffectivePlayerPreferencesForTests =>
-        (EffectiveAccentColor, EffectiveFadeIdleDelayMs, EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity,
+        (ResolvedAccentColor, EffectiveFadeIdleDelayMs, EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity,
             EffectiveStripAutoHide, EffectiveCornerStyle);
 
     private async Task PerformClearBrowserDataAsync()
@@ -744,7 +843,7 @@ public partial class MainWindow : Window
             target.StartSeconds = seconds ?? target.StartSeconds;
             _player = new PlayerWindow(env, popoutUrl, _settings.Player.Topmost,
                 _settings.Player.Placement, _settings.Player.LastWidth, _settings.Player.LastHeight,
-                _settings.Player.FadeEnabled, EffectiveAccentColor,
+                _settings.Player.FadeEnabled, ResolvedAccentColor,
                 EffectiveFadeIdleDelayMs, mode, target,
                 EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity,
                 EffectiveStripAutoHide, EffectiveDwmCornerMode);

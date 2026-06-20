@@ -375,6 +375,13 @@ Derived-token contrast rules:
 > (naive `OnAccent` reuse) to 4.89/4.70/4.52:1 (white) — soft-glass steel at **4.52:1** is the razor
 > margin the gate guards.
 >
+> **OPEN follow-up from PR #25 audit:** the first real `AccentButton` consumer (`PopOutButton`) has
+> nested `TextBlock` content. The `AccentButton` template must forward
+> `TextElement.Foreground="{TemplateBinding Foreground}"` through its `ContentPresenter`, and runtime
+> coverage must prove nested button content renders `OnAccent` / `OnAccentPressed`, not merely that
+> `Button.Foreground` resolves the token. See
+> `docs/reviews/2026-06-17-pr25-theme-accent-audit.md`.
+>
 > **OPEN — `AccentMuted` is NOT yet WCAG-safe as one universal token (design decision owed).** With
 > the spec mixes, the two pinned pairings trade off inversely and neither holds across all six chips ×
 > three profiles: muted-as-glyph (`>= 3.0` vs `SurfaceBase`) fails the dim chips (steel 2.05–2.76,
@@ -616,6 +623,9 @@ Runtime tests:
 - `WpfRuntimeTests`
   - applying each preset updates existing controls.
   - `AccentButton` foreground updates through `OnAccent`; pressed foreground updates through `OnAccentPressed`.
+  - nested `AccentButton` content receives the templated foreground; `PopOutButtonIcon` /
+    `PopOutButtonText` or an equivalent nested `TextBlock` fixture must render `OnAccent` and
+    `OnAccentPressed`.
   - realized consumers re-resolve density, border, and elevation tokens.
   - `SettingsWindow` preset click shows selected theme/accent/corner state correctly.
   - opacity preview/rollback behavior is unchanged.

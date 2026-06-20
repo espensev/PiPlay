@@ -26,6 +26,7 @@ x86/
 ## Stray local archives (release zips live under bin\publish\archive, which is ignored)
 docs.zip
 piplay-theme-v2-tight-scope-docs.zip
+Archive/
 
 ## Transient agent check scripts (throwaway re-derivation / verification helpers, never shared)
 .tmp_*

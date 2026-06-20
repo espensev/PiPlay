@@ -122,4 +122,29 @@ public class ReleaseScriptPolicyTests
         Assert.True(preTagVerify < createTag, "Pre-tag verification must run before the stable tag is created.");
         Assert.True(createTag < finalVerify, "A full verification must run after the tag is created.");
     }
+
+    [Fact]
+    public void Native_command_helper_owns_benign_stderr_policy()
+    {
+        var helper = Script("scripts/NativeCommand.ps1");
+
+        Assert.Contains("function Invoke-NativeCommandQuiet", helper);
+        Assert.Contains("$previousErrorActionPreference = $ErrorActionPreference", helper);
+        Assert.Contains("$ErrorActionPreference = \"Continue\"", helper);
+        Assert.Contains("$ErrorActionPreference = $previousErrorActionPreference", helper);
+    }
+
+    [Theory]
+    [InlineData("scripts/Build-PiPlay.ps1")]
+    [InlineData("scripts/Publish-Stable.ps1")]
+    [InlineData("scripts/Verify-StableDeploy.ps1")]
+    [InlineData("scripts/Preflight-SpecGate.ps1")]
+    public void Git_helpers_use_shared_native_command_wrapper(string relativePath)
+    {
+        var script = Script(relativePath);
+
+        Assert.Contains(". (Join-Path $PSScriptRoot \"NativeCommand.ps1\")", script);
+        Assert.Contains("Invoke-NativeCommandQuiet", script);
+        Assert.DoesNotContain("$previousErrorActionPreference = $ErrorActionPreference", script);
+    }
 }

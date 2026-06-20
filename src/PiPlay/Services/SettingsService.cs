@@ -166,6 +166,7 @@ public sealed class SettingsService
         s.Profiles ??= new List<Profile>();
 
         if (string.IsNullOrWhiteSpace(s.LastUrl)) s.LastUrl = "https://www.youtube.com/";
+        if (string.IsNullOrWhiteSpace(s.ActiveProfileName)) s.ActiveProfileName = null;
         s.Player.PinAccent = PlayerAppearancePolicy.NormalizeAccent(s.Player.PinAccent);
         s.Player.FadeAccent = PlayerAppearancePolicy.NormalizeAccent(s.Player.FadeAccent);
         s.Player.FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(s.Player.FadeIdleDelayMs);
@@ -198,7 +199,11 @@ public sealed class SettingsService
         // Repair the per-profile playback mode to the durable vocabulary (null/normal/compact),
         // folding the legacy "embed" alias to "compact" and unknown values to null (Phase 3).
         foreach (var p in s.Profiles)
+        {
             p.Mode = PlaybackModePolicy.NormalizeProfileMode(p.Mode);
+            p.AccentColor = ProfileService.NormalizeAccentForStorage(p.AccentColor);
+        }
+        ProfileAccentService.ReconcileActiveProfile(s);
         return s;
     }
 

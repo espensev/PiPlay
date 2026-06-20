@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using PiPlay.Controls;
 using PiPlay.Services;
 using PiPlay.Theme;
 
@@ -24,8 +25,7 @@ public partial class SettingsWindow : Window
     /// compact mode), so MainWindow knows to persist and re-apply on close.</summary>
     internal bool AppearanceChanged { get; private set; }
 
-    /// <summary>The selected theme preset id and the single accent hex it/the chips drive (overhaul
-    /// Task 10): one accent replaces the separate Pin/Fade color choices.</summary>
+    /// <summary>The selected theme preset id and the single accent hex the picker drives.</summary>
     internal string ThemeId { get; private set; }
     internal string AccentColor { get; private set; }
 
@@ -63,10 +63,12 @@ public partial class SettingsWindow : Window
     /// <summary>Raised on every opacity slider move so MainWindow can live-preview the levels on
     /// the open popout (spec 7.3 / plan Task 3). Args: (constant, idle).</summary>
     internal event Action<double, double>? OpacityPreviewChanged;
+    internal event Action<string>? AccentPreviewChanged;
 
     // True from construction until the ctor has seeded the sliders: Slider coerces Value to its
     // Minimum during InitializeComponent, which fires ValueChanged before our values are in.
     private bool _seedingOpacitySliders = true;
+    private bool _seedingAccentPicker = true;
 
     public SettingsWindow(
         bool isBrowserReady,
@@ -77,7 +79,8 @@ public partial class SettingsWindow : Window
         double? activeOpacityOverride = null,
         double? idleOpacityOverride = null,
         bool? stripAutoHideOverride = null,
-        string? cornerStyle = ThemeCatalog.DefaultCornerStyle)
+        string? cornerStyle = ThemeCatalog.DefaultCornerStyle,
+        string? accentEditContext = null)
     {
         InitializeComponent();
         ApplyInitialBounds();
@@ -87,6 +90,12 @@ public partial class SettingsWindow : Window
 
         ThemeId = ThemeCatalog.NormalizeThemeId(themeId);
         AccentColor = ThemeCatalog.NormalizeAccentColor(accentColor);
+        AccentPicker.SelectedColor = AccentColor;
+        AccentPicker.PreviewColorChanged += AccentPicker_PreviewColorChanged;
+        _seedingAccentPicker = false;
+        AccentTargetText.Text = string.IsNullOrWhiteSpace(accentEditContext)
+            ? "Editing the app accent."
+            : accentEditContext;
         CornerStyle = ThemeCatalog.NormalizeCornerStyle(cornerStyle);
         FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
         CompactMode = compactMode;
@@ -137,15 +146,27 @@ public partial class SettingsWindow : Window
         if (e.ButtonState == MouseButtonState.Pressed) DragMove();
     }
 
-    private void CloseButton_Click(object sender, RoutedEventArgs e)
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => DismissWithoutApplying();
+
+    // The footer "Done" is the visible affirmative commit path. Title-bar close/Esc dismisses so
+    // MainWindow can revert any live accent preview.
+    private void DoneButton_Click(object sender, RoutedEventArgs e) => CompleteDialog();
+
+    private void DismissWithoutApplying()
     {
-        if (AppearanceChanged)
+        Close();
+    }
+
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
         {
-            CompleteDialog();
+            e.Handled = true;
+            DismissWithoutApplying();
             return;
         }
 
-        Close();
+        base.OnPreviewKeyDown(e);
     }
 
     private void ThemePreset_Click(object sender, RoutedEventArgs e)
@@ -167,6 +188,7 @@ public partial class SettingsWindow : Window
         StripAutoHideOverride = null;
         ActiveOpacityOverride = null;
         IdleOpacityOverride = null;
+        AccentPicker.SelectedColor = AccentColor;
         StripAutoHideToggle.IsChecked = StripAutoHide;
         _seedingOpacitySliders = true;
         ActiveOpacitySlider.Value = DisplayPercent(ConstantWindowOpacity);
@@ -179,11 +201,12 @@ public partial class SettingsWindow : Window
         ApplyOwnCornerMode();
     }
 
-    private void AccentChip_Click(object sender, RoutedEventArgs e)
+    private void AccentPicker_PreviewColorChanged(string hex)
     {
-        AccentColor = ThemeCatalog.NormalizeAccentColor(((FrameworkElement)sender).Tag as string);
+        if (_seedingAccentPicker) return;
+        AccentColor = ThemeCatalog.NormalizeAccentColor(hex);
         AppearanceChanged = true;
-        ApplyAppearanceSelections();
+        AccentPreviewChanged?.Invoke(AccentColor);
     }
 
     private void CornerStyle_Click(object sender, RoutedEventArgs e)
@@ -283,8 +306,6 @@ public partial class SettingsWindow : Window
     private void ApplyAppearanceSelections()
     {
         SelectByTag(ThemeId, ThemeSharpDarkPreset, ThemeMinimalPreset, ThemeSoftGlassPreset);
-        SelectByTag(AccentColor, AccentChipCyan, AccentChipSteelBlue, AccentChipSteel, AccentChipViolet,
-            AccentChipGreen, AccentChipAmber);
         SelectByTag(CornerStyle, CornerStyleThemeChip, CornerStyleSquareChip, CornerStyleSmallChip,
             CornerStyleSoftChip, CornerStyleRoundChip);
         SelectDelay(FadeIdleDelayMs, FadeDelayShortPreset, FadeDelayNormalPreset, FadeDelayLongPreset);

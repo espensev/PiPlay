@@ -304,41 +304,40 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void Accent_recolor_reaches_a_dynamic_resource_consumer() => StaTestThread.Invoke(() =>
     {
-        // The AccentButton fill resolves {DynamicResource AccentPrimary}. REPLACING the App resource
-        // (what the applier does) changes what the consumer resolves — the recolor mechanism the
-        // compiled-BAML frozen seed brushes cannot satisfy by mutation. (For an element IN a window
-        // the update is live; WPF only withholds change notifications from this untethered button, so
-        // we assert resolution at realize-time rather than a post-realize live swap.)
-        var original = Application.Current.Resources["AccentPrimary"];
+        // The AccentButton wears a dark fill with an accent OUTLINE; the accent reaches the button via
+        // {DynamicResource AccentBorder}. REPLACING the App resource (what the applier does) changes
+        // what the consumer resolves — the recolor mechanism the compiled-BAML frozen seed brushes
+        // cannot satisfy by mutation. (Resolution asserted at realize-time for this untethered button.)
+        var original = Application.Current.Resources["AccentBorder"];
         try
         {
             var sentinel = Color.FromRgb(0x12, 0x34, 0x56);
             var brush = new SolidColorBrush(sentinel);
             brush.Freeze();
-            Application.Current.Resources["AccentPrimary"] = brush;
+            Application.Current.Resources["AccentBorder"] = brush;
 
             var btn = new Button { Style = (Style)Application.Current.FindResource("AccentButton") };
-            btn.Measure(new Size(200, 40));   // realize: Background resolves the replaced resource
-            Assert.Equal(sentinel, ((SolidColorBrush)btn.Background).Color);
+            btn.Measure(new Size(200, 40));   // realize: BorderBrush resolves the replaced resource
+            Assert.Equal(sentinel, ((SolidColorBrush)btn.BorderBrush).Color);
         }
         finally
         {
-            Application.Current.Resources["AccentPrimary"] = original;   // never pollute the shared app
+            Application.Current.Resources["AccentBorder"] = original;   // never pollute the shared app
         }
     });
 
     [Fact]
-    public void AccentButton_foreground_resolves_the_on_accent_token() => StaTestThread.Invoke(() =>
+    public void AccentButton_foreground_resolves_the_text_primary_token() => StaTestThread.Invoke(() =>
     {
-        // Task 4: the AccentButton foreground migrated from a hardcoded #FF06141A to
-        // {DynamicResource OnAccent}, so replacing the app token recolors the button text at realize.
-        var original = Application.Current.Resources["OnAccent"];
+        // The dark AccentButton uses a light {DynamicResource TextPrimary} label (readable on the dark
+        // fill — no washed-out light-on-bright-accent), so replacing the app token recolors it at realize.
+        var original = Application.Current.Resources["TextPrimary"];
         try
         {
             var sentinel = Color.FromRgb(0xAB, 0xCD, 0xEF);
             var brush = new SolidColorBrush(sentinel);
             brush.Freeze();
-            Application.Current.Resources["OnAccent"] = brush;
+            Application.Current.Resources["TextPrimary"] = brush;
 
             var btn = new Button { Style = (Style)Application.Current.FindResource("AccentButton") };
             btn.Measure(new Size(200, 40));   // realize: Foreground resolves the replaced resource
@@ -346,7 +345,7 @@ public class WpfRuntimeTests : IDisposable
         }
         finally
         {
-            Application.Current.Resources["OnAccent"] = original;   // never pollute the shared app
+            Application.Current.Resources["TextPrimary"] = original;   // never pollute the shared app
         }
     });
 
@@ -387,133 +386,6 @@ public class WpfRuntimeTests : IDisposable
         // When the browser is ready the button is enabled and carries no explanatory tooltip.
         var ready = new SettingsWindow(isBrowserReady: true);
         Assert.Null(((Button)ready.FindName("ClearBrowserDataButton")!).ToolTip);
-    });
-
-    [Fact]
-    public void SettingsWindow_reflects_and_updates_theme_and_accent_input() => StaTestThread.Invoke(() =>
-    {
-        var w = new SettingsWindow(isBrowserReady: true, themeId: "soft-glass", accentColor: "#38D996",
-            fadeIdleDelayMs: 4000);
-
-        Assert.Equal("soft-glass", w.ThemeId);
-        Assert.Equal("#38D996", w.AccentColor);
-        Assert.Equal(4000, w.FadeIdleDelayMs);
-        Assert.True(((ToggleButton)w.FindName("ThemeSoftGlassPreset")!).IsChecked);
-        Assert.True(((ToggleButton)w.FindName("AccentChipGreen")!).IsChecked);
-        Assert.True(((ToggleButton)w.FindName("FadeDelayLongPreset")!).IsChecked);
-
-        // Picking a single accent chip retargets the one accent and checks only that chip.
-        ((ToggleButton)w.FindName("AccentChipViolet")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-        ((ToggleButton)w.FindName("FadeDelayShortPreset")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-
-        Assert.True(w.AppearanceChanged);
-        Assert.Equal("#A78BFA", w.AccentColor);
-        Assert.Equal(1500, w.FadeIdleDelayMs);
-        Assert.True(((ToggleButton)w.FindName("AccentChipViolet")!).IsChecked);
-        Assert.False(((ToggleButton)w.FindName("AccentChipGreen")!).IsChecked);
-        Assert.True(((ToggleButton)w.FindName("FadeDelayShortPreset")!).IsChecked);
-
-        // Picking a preset adopts that preset's default accent (Sharp Dark -> cyan) and re-checks it.
-        ((ToggleButton)w.FindName("ThemeSharpDarkPreset")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-        Assert.Equal("sharp-dark", w.ThemeId);
-        Assert.Equal(ThemeCatalog.DefaultAccentColor, w.AccentColor);
-        Assert.True(((ToggleButton)w.FindName("AccentChipCyan")!).IsChecked);
-        Assert.False(((ToggleButton)w.FindName("AccentChipViolet")!).IsChecked);
-    });
-
-    [Fact]
-    public void SettingsWindow_reflects_and_updates_corner_style() => StaTestThread.Invoke(() =>
-    {
-        // The ctor seeds the persisted override and checks its chip; an unknown value lands on
-        // "theme" (the preset-owned default).
-        var w = new SettingsWindow(isBrowserReady: true, cornerStyle: "round");
-        Assert.Equal("round", w.CornerStyle);
-        Assert.True(((ToggleButton)w.FindName("CornerStyleRoundChip")!).IsChecked);
-        Assert.Equal("theme", new SettingsWindow(isBrowserReady: true, cornerStyle: "bogus").CornerStyle);
-
-        // Clicking a chip retargets the override, flags the change, and re-checks only that chip.
-        ((ToggleButton)w.FindName("CornerStyleSquareChip")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-        Assert.True(w.AppearanceChanged);
-        Assert.Equal("square", w.CornerStyle);
-        Assert.True(((ToggleButton)w.FindName("CornerStyleSquareChip")!).IsChecked);
-        Assert.False(((ToggleButton)w.FindName("CornerStyleRoundChip")!).IsChecked);
-    });
-
-    [Fact]
-    public void SettingsWindow_preset_click_adopts_the_preset_defaults() => StaTestThread.Invoke(() =>
-    {
-        // Review doc §2.1: an EXPLICIT preset selection applies the preset's behavior defaults —
-        // fade delay, strip auto-hide, opacity levels — and returns corners to the theme.
-        // Behavior returns to "follow the preset" (code review P2): the overrides become NULL,
-        // not snapshots, so only controls touched afterwards become overrides. The accent here
-        // is the sharp-dark DEFAULT, so the §3.3 rule adopts the new default too.
-        var w = new SettingsWindow(isBrowserReady: true, themeId: "sharp-dark",
-            accentColor: ThemeCatalog.DefaultAccentColor,
-            fadeIdleDelayMs: 1500, activeOpacityOverride: 1.0, idleOpacityOverride: 1.0,
-            stripAutoHideOverride: true, cornerStyle: "square");
-
-        ((ToggleButton)w.FindName("ThemeSoftGlassPreset")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-
-        var preset = ThemeCatalog.PresetFor("soft-glass");
-        Assert.Equal("soft-glass", w.ThemeId);
-        Assert.Equal(preset.DefaultAccentColor, w.AccentColor);
-        Assert.Equal(ThemeCatalog.DefaultCornerStyle, w.CornerStyle);
-        Assert.True(((ToggleButton)w.FindName("CornerStyleThemeChip")!).IsChecked);
-        Assert.Equal(ThemeCatalog.FadeDelayMillisecondsForPreset(preset.DefaultFadeDelayPreset), w.FadeIdleDelayMs);
-        Assert.Null(w.StripAutoHideOverride);
-        Assert.Null(w.ActiveOpacityOverride);
-        Assert.Null(w.IdleOpacityOverride);
-        Assert.Equal(preset.DefaultStripAutoHide, w.StripAutoHide);
-        Assert.Equal(preset.DefaultStripAutoHide, ((ToggleButton)w.FindName("StripAutoHideToggle")!).IsChecked);
-        Assert.Equal(preset.DefaultActiveWindowOpacity, w.ConstantWindowOpacity);
-        Assert.Equal(preset.DefaultIdleWindowOpacity, w.IdleWindowOpacity);
-        // The slider displays the preset default — expectation computed with DisplayPercent's
-        // own rounding/floor rule so the test never pins a magic percent (Copilot review nit).
-        Assert.Equal(Math.Round(Math.Max(preset.DefaultActiveWindowOpacity, WindowOpacityPolicy.UiFloor) * 100.0),
-            ((Slider)w.FindName("ActiveOpacitySlider")!).Value);
-        Assert.True(w.AppearanceChanged);
-    });
-
-    [Fact]
-    public void SettingsWindow_accent_only_change_keeps_behavior_on_preset_defaults() => StaTestThread.Invoke(() =>
-    {
-        // Code review P2 regression: an accent-only apply must NOT materialize the null
-        // "follow the preset" behavior overrides into explicit values.
-        var w = new SettingsWindow(isBrowserReady: true);   // fresh: all behavior overrides null
-
-        ((ToggleButton)w.FindName("AccentChipAmber")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-
-        Assert.True(w.AppearanceChanged);
-        Assert.Null(w.ActiveOpacityOverride);
-        Assert.Null(w.IdleOpacityOverride);
-        Assert.Null(w.StripAutoHideOverride);
-
-        // Touching ONE behavior control creates an override for just that control.
-        ((Slider)w.FindName("IdleOpacitySlider")!).Value = 70;
-        Assert.Equal(0.7, w.IdleOpacityOverride);
-        Assert.Null(w.ActiveOpacityOverride);
-        Assert.Null(w.StripAutoHideOverride);
-    });
-
-    [Fact]
-    public void SettingsWindow_preset_click_preserves_a_custom_accent() => StaTestThread.Invoke(() =>
-    {
-        // End-pass review §3.3: a deliberately chosen accent survives theme switches; only a
-        // user still on the previous theme's default adopts the new theme's default.
-        var w = new SettingsWindow(isBrowserReady: true, themeId: "sharp-dark", accentColor: "#FFC857");
-
-        ((ToggleButton)w.FindName("ThemeSoftGlassPreset")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-
-        Assert.Equal("soft-glass", w.ThemeId);
-        Assert.Equal("#FFC857", w.AccentColor);   // amber preserved, not reset to violet
-        Assert.True(((ToggleButton)w.FindName("AccentChipAmber")!).IsChecked);
-
-        // Selecting the previous default first puts the user back on rails: the next theme
-        // switch adopts that theme's default accent.
-        ((ToggleButton)w.FindName("AccentChipViolet")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-        ((ToggleButton)w.FindName("ThemeSharpDarkPreset")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-        Assert.Equal(ThemeCatalog.DefaultAccentColor, w.AccentColor);
-        Assert.True(((ToggleButton)w.FindName("AccentChipCyan")!).IsChecked);
     });
 
     // --- Resolved DependencyProperty invariants (runtime counterpart to Layer 1) ---
@@ -591,11 +463,14 @@ public class WpfRuntimeTests : IDisposable
     public void MainWindow_source_pin_uses_the_theme_accent() => StaTestThread.Invoke(() =>
     {
         var w = new MainWindow();
+        // Inject default settings so the assertion is isolated from any accent persisted to the shared
+        // test data root by an earlier test (the default WAS cyan; it is now the deepened #2BAED0).
+        w.ReplaceSettingsForTests(new AppSettings());
         var pin = (ToggleButton)w.FindName("PinToggle")!;
         var hint = (TextBlock)w.FindName("PinnedHint")!;
 
         // The source Pin glyph and the pinned hint share one accent brush built from Theme.AccentColor
-        // (overhaul Task 10); default settings resolve to the sharp-dark cyan.
+        // (overhaul Task 10); default settings resolve to the sharp-dark deep cyan.
         var accent = (SolidColorBrush)ToggleAccent.GetCheckedBrush(pin)!;
         Assert.Equal(ThemeColors.ParseColor(ThemeCatalog.DefaultAccentColor), accent.Color);
         Assert.Equal(accent.Color, ((SolidColorBrush)hint.Foreground).Color);
@@ -825,6 +700,46 @@ public class WpfRuntimeTests : IDisposable
         var w = NewPlayer();   // no mode argument -> PlaybackMode.Normal
         Assert.Equal(PlaybackModePolicy.NormalMinWidth, w.MinWidth);
         Assert.Equal(PlaybackModePolicy.NormalMinHeight, w.MinHeight);
+    });
+
+    [Fact]
+    public void MainWindow_reverts_a_previewed_accent_on_dismiss() => StaTestThread.Invoke(() =>
+    {
+        // Spec D5 / plan-review P1: dismissing Settings without applying (ShowDialog() != true) and
+        // cancelling the profile edit must revert every previewed accent surface to the resolved accent.
+        var w = new MainWindow();
+        w.ReplaceSettingsForTests(new AppSettings());   // global accent = default, no profile override
+        var resolved = ThemeColors.DeriveAccentSet(
+            w.ResolvedAccentColorForTests, ThemeCatalog.PresetFor("sharp-dark")).Primary;
+
+        w.LivePreviewAccent("#9E84F0");   // preview a different accent
+        Assert.NotEqual(resolved, ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color);
+
+        w.RevertPreviewedAccentForTests();   // the dismiss-without-apply revert path
+        Assert.Equal(resolved, ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color);
+    });
+
+    [Fact]
+    public void MainWindow_live_preview_holds_last_readable_on_an_unreadable_color() => StaTestThread.Invoke(() =>
+    {
+        // Spec §7 / fail-closed: the live-preview path must never hand an unreadable color to the
+        // throwing pipeline (which would pop the App error dialog). LivePreviewAccent short-circuits
+        // an unreadable color, holding the last readable value, without throwing.
+        var w = new MainWindow();
+        w.ReplaceSettingsForTests(new AppSettings());
+        try
+        {
+            w.LivePreviewAccent("#9E84F0");   // readable -> applied
+            var previewed = ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color;
+
+            var ex = Record.Exception(() => w.LivePreviewAccent("#787878"));   // WCAG dead-zone gray
+            Assert.Null(ex);
+            Assert.Equal(previewed, ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color);
+        }
+        finally
+        {
+            w.RevertPreviewedAccentForTests();   // restore the App accent (avoid cross-test pollution)
+        }
     });
 
     [Fact]

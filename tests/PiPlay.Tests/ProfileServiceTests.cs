@@ -1,5 +1,6 @@
 using PiPlay.Models;
 using PiPlay.Services;
+using PiPlay.Theme;
 
 namespace PiPlay.Tests;
 
@@ -44,6 +45,42 @@ public class ProfileServiceTests
     }
 
     [Fact]
+    public void CreateQuickSaveProfile_preserves_existing_profile_specific_options()
+    {
+        var bounds = new PlacementData
+        {
+            X = 10,
+            Y = 20,
+            Width = 900,
+            Height = 560,
+            Maximized = true,
+            MonitorDeviceName = "DISPLAY1",
+            DpiScale = 1.25,
+        };
+        var existing = new Profile
+        {
+            Name = "Violet",
+            Url = "https://youtu.be/dQw4w9WgXcQ",
+            Mode = "compact",
+            AccentColor = "#A78BFA",
+            Topmost = false,
+            FadeEnabled = false,
+            Bounds = bounds,
+        };
+
+        var quickSave = ProfileService.CreateQuickSaveProfile(
+            existing, "Violet", "https://youtu.be/new12345678", topmost: true);
+
+        Assert.Equal("Violet", quickSave.Name);
+        Assert.Equal("https://youtu.be/new12345678", quickSave.Url);
+        Assert.Equal("compact", quickSave.Mode);
+        Assert.Equal("#A78BFA", quickSave.AccentColor);
+        Assert.True(quickSave.Topmost);
+        Assert.False(quickSave.FadeEnabled);
+        Assert.Same(bounds, quickSave.Bounds);
+    }
+
+    [Fact]
     public void Remove_returns_true_only_when_present()
     {
         var s = WithProfiles("Lo-fi");
@@ -63,6 +100,29 @@ public class ProfileServiceTests
     public void ValidateUrl_accepts_only_supported_youtube_urls(string? url, bool ok)
     {
         Assert.Equal(ok, ProfileService.ValidateUrl(url).Ok);
+    }
+
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("#00D4FF", true)]
+    [InlineData("#787878", false)]
+    [InlineData("not-a-color", false)]
+    public void ValidateAccent_accepts_null_or_readable_hex_only(string? accent, bool ok)
+    {
+        Assert.Equal(ok, ProfileService.ValidateAccent(accent));
+    }
+
+    [Fact]
+    public void NormalizeAccentForStorage_drops_invalid_and_repairs_unreadable_hex()
+    {
+        Assert.Null(ProfileService.NormalizeAccentForStorage(null));
+        Assert.Null(ProfileService.NormalizeAccentForStorage("not-a-color"));
+        Assert.Equal("#00D4FF", ProfileService.NormalizeAccentForStorage("00d4ff"));
+
+        var repaired = ProfileService.NormalizeAccentForStorage("#787878");
+        Assert.NotNull(repaired);
+        Assert.NotEqual("#787878", repaired);
+        Assert.True(AccentReadabilityPolicy.Evaluate(repaired).IsReadable);
     }
 
     // --- Update (Phase 2 edit path): position-preserving + collision-aware ---

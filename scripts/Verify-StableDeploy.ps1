@@ -40,6 +40,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "NativeCommand.ps1")
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $script:failCount = 0
 $script:warnCount = 0
@@ -57,7 +59,7 @@ function Get-Sha256Hex([string]$Path) {
 }
 
 function Invoke-Git([string[]]$GitArgs) {
-    $out = & git -C $repoRoot @GitArgs 2>$null
+    $out = Invoke-NativeCommandQuiet { & git -C $repoRoot @GitArgs }
     if ($LASTEXITCODE -ne 0) { return $null }
     return $out
 }
@@ -216,7 +218,7 @@ if (-not $commit) {
     if ($headFull -eq $commit) {
         Write-Ok "Deploy was built from the CURRENT HEAD ($headShort)."
     } else {
-        & git -C $repoRoot merge-base --is-ancestor $commit HEAD 2>$null
+        Invoke-NativeCommandQuiet { & git -C $repoRoot merge-base --is-ancestor $commit HEAD } | Out-Null
         if ($LASTEXITCODE -eq 0) {
             $behindCount = Invoke-Git @("rev-list", "--count", "$commit..HEAD")
             Write-ProvenanceIssue "Deploy commit $commitShort is an ancestor of HEAD ($headShort) - deploy is $behindCount commit(s) behind. Re-publish to test the latest code."

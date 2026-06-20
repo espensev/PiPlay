@@ -1,4 +1,5 @@
 using PiPlay.Models;
+using PiPlay.Theme;
 
 namespace PiPlay.Services;
 
@@ -26,6 +27,21 @@ public static class ProfileService
         settings.Profiles.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
 
     public static bool Exists(AppSettings settings, string name) => Find(settings, name) is not null;
+
+    /// <summary>
+    /// Build the profile saved by the toolbar quick-save action: refresh the URL and current source
+    /// pin state while preserving profile-specific options that quick-save does not expose.
+    /// </summary>
+    public static Profile CreateQuickSaveProfile(Profile? existing, string name, string url, bool topmost) => new()
+    {
+        Name = name,
+        Url = url,
+        Mode = existing?.Mode,
+        AccentColor = existing?.AccentColor,
+        Topmost = topmost,
+        FadeEnabled = existing?.FadeEnabled,
+        Bounds = existing?.Bounds,
+    };
 
     /// <summary>Insert or overwrite a profile by name (case-insensitive). Returns true if an existing one was replaced.</summary>
     public static bool Save(AppSettings settings, Profile profile)
@@ -85,5 +101,17 @@ public static class ProfileService
         if (!YouTubeUrlHelper.TryParse(url, out _))
             return (false, "Enter a supported YouTube video or playlist URL.");
         return (true, null);
+    }
+
+    public static bool ValidateAccent(string? hex) =>
+        hex is null || (ThemeCatalog.IsValidHex(hex) && AccentReadabilityPolicy.Evaluate(hex).IsReadable);
+
+    public static string? NormalizeAccentForStorage(string? hex)
+    {
+        if (string.IsNullOrWhiteSpace(hex) || !ThemeCatalog.IsValidHex(hex)) return null;
+        var normalized = ThemeCatalog.NormalizeAccentColor(hex);
+        return AccentReadabilityPolicy.Evaluate(normalized).IsReadable
+            ? normalized
+            : AccentReadabilityPolicy.NearestReadable(normalized);
     }
 }

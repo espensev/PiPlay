@@ -71,7 +71,21 @@ Each task should leave the tree green and committable. Do not merge the color wh
     - `XamlInvariantTests` resource definedness.
     - `WpfRuntimeTests` realized `AccentButton` re-resolves foreground/background/pressed resources
       after theme/accent apply.
+    - Follow-up from PR #25 audit: verify the foreground reaches nested content, not only
+      `Button.Foreground`. `PopOutButtonIcon` and `PopOutButtonText` must render `OnAccent` /
+      `OnAccentPressed`, or an equivalent synthetic nested-`TextBlock` case must prove the
+      `AccentButton` template forwards `TextElement.Foreground` through its `ContentPresenter`.
   - Commit: `refactor(theme): use semantic accent resources`
+
+- [ ] **Task 4a — Close PR #25 nested accent-content gap.**
+  - Add `TextElement.Foreground="{TemplateBinding Foreground}"` to the `AccentButton`
+    `ContentPresenter` so nested visual content receives `OnAccent` and `OnAccentPressed`.
+  - Add a WPF runtime regression test for `PopOutButtonIcon` / `PopOutButtonText`, or a synthetic
+    `AccentButton` with nested `TextBlock`s, proving the nested content foreground follows the
+    button foreground across normal and pressed accent states.
+  - Reference review: `docs/reviews/2026-06-17-pr25-theme-accent-audit.md`.
+  - Verification: `dotnet test PiPlay.sln --configuration Debug --filter WpfRuntimeTests`.
+  - Commit: `fix(theme): propagate accent foreground through button content`
 
 - [x] **Task 5 — Add density/elevation model and resources.** (landed, PR3)
   - Add `ThemeDensity` and `ThemeElevation` records to `ThemeCatalog.cs`.

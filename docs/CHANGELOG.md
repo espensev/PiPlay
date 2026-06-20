@@ -23,6 +23,10 @@ UI overhaul stabilization (plan `docs/superpowers/plans/2026-06-10-ui-overhaul-s
   closes, with no restart needed; opacity sliders still live-preview on the open Popout Player.
   Theme settings are stored additively and migration-safe — an older build reading a newer
   settings file no longer drops the theme block.
+- **Accent color wheel and profile accents:** the fixed accent swatches are replaced with a
+  reusable color-wheel picker with RGB/hex fields, readable-color gating, nearest-readable repair,
+  and live preview. Profiles can optionally carry their own accent override; selecting an accented
+  profile re-themes the app and the active profile is restored on restart.
 
 ### Changed
 - **Same-semver release-candidate rebuild:** `BUILD_NUMBER` advances to `20` so the accepted Phase 0
@@ -48,6 +52,20 @@ UI overhaul stabilization (plan `docs/superpowers/plans/2026-06-10-ui-overhaul-s
 - **Popout action clarity:** while a popout is open, the main-window action reads
   "Show popout" (and restores a minimized popout); the YouTube mix/radio fallback reason is
   shown on the source placeholder instead of being log-only.
+
+### Fixed
+- **Accent wheel input cleanup:** releasing the hue wheel now releases mouse capture on mouse-up,
+  on cleanup, and when dragging stops, so later clicks are not swallowed by the wheel.
+- **Profile accent validation:** invalid RGB/hex input in the profile editor disables Save and is
+  also guarded in the click path, preventing stale previously-selected accents from being saved.
+- **Profile quick-save overwrite:** saving over an existing profile now preserves profile-specific
+  playback mode, accent color, fade, and bounds while refreshing the URL/current pin state.
+- **Workflow preflight resilience:** build/publish/verify/spec-preflight Git helpers no longer abort
+  on benign native Git stderr such as LF-to-CRLF normalization warnings; real Git failures still flow
+  through exit codes.
+- **Accent workflow cleanup:** Settings copy now matches the actual live-preview behavior; profile
+  accent storage normalization is centralized; release scripts share one native-command stderr
+  wrapper; and the color-wheel WPF tests are split into focused files.
 
 ### Accessibility
 - Explicit accessible names for every icon-only control: main chrome, navigation, URL box,

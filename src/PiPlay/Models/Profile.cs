@@ -19,6 +19,9 @@ public sealed class Profile
     /// </summary>
     public string? Mode { get; set; }
 
+    /// <summary>Optional per-profile app accent override. <c>null</c> follows the global theme accent.</summary>
+    public string? AccentColor { get; set; }
+
     public bool? Topmost { get; set; }
     public bool? FadeEnabled { get; set; }
     public PlacementData? Bounds { get; set; }

@@ -59,7 +59,7 @@ Preset switching rule:
 
 - If the current accent equals the previous preset's default, selecting another preset adopts the new preset's default accent.
 - If the current accent is custom or deliberately chosen, it survives the preset switch.
-- Available accent chips are the same for every preset: cyan `#00D4FF`, steel blue `#5AA9E6`, steel `#4A8FAB`, violet `#A78BFA`, green `#38D996`, amber `#FFC857`.
+- The accent picker's preset quick-picks are the same for every preset: cyan `#00D4FF`, steel blue `#5AA9E6`, steel `#4A8FAB`, violet `#A78BFA`, green `#38D996`, amber `#FFC857`.
 
 ## Behavior Defaults
 

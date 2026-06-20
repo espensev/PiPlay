@@ -47,6 +47,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "NativeCommand.ps1")
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
 # --- regexes (verbatim translations of spec-check.yml; see header SOURCE OF TRUTH) ---
@@ -63,7 +65,7 @@ function Invoke-Git([string[]]$GitArgs) {
     # core.quotepath=false makes git emit raw UTF-8 paths instead of octal-escaped, double-quoted
     # non-ASCII names (e.g. "src/caf\303\251.cs"). The leading quote would otherwise defeat the
     # anchored '^(src|scripts|tests)/' match — CI sees clean REST .filename values, so we match those.
-    $out = & git -C $repoRoot -c core.quotepath=false @GitArgs 2>$null
+    $out = Invoke-NativeCommandQuiet { & git -C $repoRoot -c core.quotepath=false @GitArgs }
     return ,@($out)
 }
 

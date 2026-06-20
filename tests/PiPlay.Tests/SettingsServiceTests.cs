@@ -113,7 +113,7 @@ public class SettingsServiceTests : IDisposable
 
         var loaded = svc.Load();
 
-        Assert.Equal("#38D996", loaded.Theme.AccentColor);
+        Assert.Equal("#2DB57F", loaded.Theme.AccentColor);   // legacy "green" -> the deepened green
         Assert.Equal("long", loaded.Theme.FadeDelayPreset);
         // The legacy behavior values become EXPLICIT theme overrides at seed time (end-pass
         // review F2): the resolver's preset-default fallback must never change a migrated
@@ -340,6 +340,43 @@ public class SettingsServiceTests : IDisposable
         Assert.Null(loaded.Profiles.Single(p => p.Name == "Bogus").Mode);
         Assert.Equal("compact", loaded.Profiles.Single(p => p.Name == "Keep").Mode);
         Assert.Null(loaded.Profiles.Single(p => p.Name == "Blank").Mode);
+    }
+
+    [Fact]
+    public void Profile_accent_and_active_profile_roundtrip()
+    {
+        var svc = new SettingsService(_path);
+        var settings = new AppSettings { ActiveProfileName = "Violet" };
+        settings.Profiles.Add(new Profile
+        {
+            Name = "Violet",
+            Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            AccentColor = "#A78BFA",
+        });
+
+        svc.Save(settings);
+        var loaded = svc.Load();
+
+        Assert.Equal("Violet", loaded.ActiveProfileName);
+        Assert.Equal("#A78BFA", loaded.Profiles.Single().AccentColor);
+    }
+
+    [Fact]
+    public void Profile_accent_and_active_profile_are_sanitized_on_load()
+    {
+        File.WriteAllText(_path,
+            "{\"activeProfileName\":\"Ghost\",\"profiles\":[" +
+            "{\"name\":\"Bad\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"accentColor\":\"not-a-color\"}," +
+            "{\"name\":\"Mid\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"accentColor\":\"#787878\"}]}");
+        var svc = new SettingsService(_path);
+
+        var loaded = svc.Load();
+
+        Assert.Null(loaded.ActiveProfileName);
+        Assert.Null(loaded.Profiles.Single(p => p.Name == "Bad").AccentColor);
+        var repaired = loaded.Profiles.Single(p => p.Name == "Mid").AccentColor;
+        Assert.NotEqual("#787878", repaired);
+        Assert.True(AccentReadabilityPolicy.Evaluate(repaired).IsReadable);
     }
 
     [Fact]
