@@ -350,6 +350,21 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void PopOutButton_nested_text_uses_pixel_aligned_rendering() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        var label = (TextBlock)w.FindName("PopOutButtonText")!;
+        var icon = (TextBlock)w.FindName("PopOutButtonIcon")!;
+
+        foreach (var text in new[] { label, icon })
+        {
+            Assert.Equal(TextFormattingMode.Display, TextOptions.GetTextFormattingMode(text));
+            Assert.Equal(TextHintingMode.Fixed, TextOptions.GetTextHintingMode(text));
+            Assert.Equal(TextRenderingMode.Grayscale, TextOptions.GetTextRenderingMode(text));
+        }
+    });
+
+    [Fact]
     public void SettingsWindow_shows_the_tested_privacy_wording() => StaTestThread.Invoke(() =>
     {
         var w = new SettingsWindow(isBrowserReady: true);

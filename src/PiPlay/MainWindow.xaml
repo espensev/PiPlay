@@ -127,13 +127,20 @@
            implying a second popout. UpdatePopoutActionState flips label, tooltip, and UIA name
            together; the inner TextBlocks are named so code toggles .Text without losing the icon. -->
       <Button x:Name="PopOutButton" Grid.Column="5" Style="{StaticResource AccentButton}"
-              Margin="6,9,10,9" Click="PopOutButton_Click" IsEnabled="False"
+              Margin="6,6,10,6" Click="PopOutButton_Click" IsEnabled="False"
               ToolTip="Pop out the current video" AutomationProperties.Name="Pop out video">
         <StackPanel Orientation="Horizontal">
           <TextBlock x:Name="PopOutButtonIcon" Text="&#xE8A7;"
                      FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14"
+                     TextOptions.TextFormattingMode="Display"
+                     TextOptions.TextHintingMode="Fixed"
+                     TextOptions.TextRenderingMode="Grayscale"
                      VerticalAlignment="Center" Margin="0,0,8,0" />
-          <TextBlock x:Name="PopOutButtonText" Text="Pop out video" VerticalAlignment="Center" />
+          <TextBlock x:Name="PopOutButtonText" Text="Pop out video"
+                     TextOptions.TextFormattingMode="Display"
+                     TextOptions.TextHintingMode="Fixed"
+                     TextOptions.TextRenderingMode="Grayscale"
+                     VerticalAlignment="Center" />
         </StackPanel>
       </Button>
     </Grid>

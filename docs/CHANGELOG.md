@@ -4,6 +4,11 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [Unreleased]
 
+### Fixed
+- **Popout action rendering:** the Source Window `Pop out video` button now applies pixel-aligned
+  text rendering to its nested icon and label and has enough toolbar height budget for the largest
+  theme density, preventing malformed or clipped accent-button text.
+
 ## [0.5.0] - 2026-06-20
 
 Minor release (from 0.4.3, build 21): the accent color wheel + per-profile accents land on top of

@@ -67,6 +67,9 @@
     <Setter Property="BorderBrush" Value="{DynamicResource AccentBorder}" />
     <Setter Property="BorderThickness" Value="2" />
     <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+    <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
+    <Setter Property="TextOptions.TextRenderingMode" Value="Grayscale" />
     <Setter Property="Template">
       <Setter.Value>
         <ControlTemplate TargetType="Button">
@@ -74,6 +77,9 @@
                   BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
                   CornerRadius="{DynamicResource RadiusButton}">
             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                              TextOptions.TextFormattingMode="Display"
+                              TextOptions.TextHintingMode="Fixed"
+                              TextOptions.TextRenderingMode="Grayscale"
                               Margin="{TemplateBinding Padding}" />
           </Border>
           <ControlTemplate.Triggers>

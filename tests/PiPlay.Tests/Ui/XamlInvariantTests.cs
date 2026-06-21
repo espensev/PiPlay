@@ -1,4 +1,5 @@
 using System.IO;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Media;
@@ -217,6 +218,70 @@ public class XamlInvariantTests
         Assert.Contains("ReleaseHueSatCapture();", source);
         Assert.Contains("HueSatDisc.ReleaseMouseCapture();", source);
         Assert.Contains("e.LeftButton != MouseButtonState.Pressed", source);
+    }
+
+    [Fact]
+    public void Accent_button_text_uses_pixel_aligned_rendering()
+    {
+        var style = XamlTestFiles.Load("Theme/ControlStyles.xaml").Descendants(XamlTestFiles.Pres + "Style")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Key")?.Value == "AccentButton");
+
+        string? SetterValue(string property) => style.Elements(XamlTestFiles.Pres + "Setter")
+            .SingleOrDefault(s => s.Attribute("Property")?.Value == property)
+            ?.Attribute("Value")?.Value;
+
+        Assert.Equal("Display", SetterValue("TextOptions.TextFormattingMode"));
+        Assert.Equal("Fixed", SetterValue("TextOptions.TextHintingMode"));
+        Assert.Equal("Grayscale", SetterValue("TextOptions.TextRenderingMode"));
+
+        var presenter = style.Descendants(XamlTestFiles.Pres + "ContentPresenter").Single();
+        Assert.Equal("Display", presenter.Attribute("TextOptions.TextFormattingMode")?.Value);
+        Assert.Equal("Fixed", presenter.Attribute("TextOptions.TextHintingMode")?.Value);
+        Assert.Equal("Grayscale", presenter.Attribute("TextOptions.TextRenderingMode")?.Value);
+
+        var main = XamlTestFiles.Load("MainWindow.xaml");
+        foreach (var name in new[] { "PopOutButtonIcon", "PopOutButtonText" })
+        {
+            var text = main.Descendants(XamlTestFiles.Pres + "TextBlock")
+                .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == name);
+            Assert.Equal("Display", text.Attribute("TextOptions.TextFormattingMode")?.Value);
+            Assert.Equal("Fixed", text.Attribute("TextOptions.TextHintingMode")?.Value);
+            Assert.Equal("Grayscale", text.Attribute("TextOptions.TextRenderingMode")?.Value);
+        }
+    }
+
+    [Fact]
+    public void Popout_button_height_allows_the_largest_theme_density()
+    {
+        var doc = XamlTestFiles.Load("MainWindow.xaml");
+        var toolbarRow = doc.Descendants(XamlTestFiles.Pres + "RowDefinition")
+            .ElementAt(1)
+            .Attribute("Height")?.Value;
+        Assert.Equal("50", toolbarRow);
+
+        var button = doc.Descendants(XamlTestFiles.Pres + "Button")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "PopOutButton");
+        var margin = ParseThickness(button.Attribute("Margin")?.Value ?? "");
+        var availableHeight = 50 - margin.Top - margin.Bottom;
+        var requiredHeight = ThemeCatalog.Presets.Max(p => p.Density.ControlHeight);
+
+        Assert.True(availableHeight >= requiredHeight,
+            $"PopOutButton has {availableHeight} DIP available, but the largest theme control height is {requiredHeight} DIP.");
+    }
+
+    private static Thickness ParseThickness(string value)
+    {
+        var parts = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(p => double.Parse(p, CultureInfo.InvariantCulture))
+            .ToArray();
+
+        return parts.Length switch
+        {
+            1 => new Thickness(parts[0]),
+            2 => new Thickness(parts[0], parts[1], parts[0], parts[1]),
+            4 => new Thickness(parts[0], parts[1], parts[2], parts[3]),
+            _ => throw new FormatException("Unsupported Thickness literal: " + value),
+        };
     }
 
     [Fact]
