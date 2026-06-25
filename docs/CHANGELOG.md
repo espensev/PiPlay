@@ -4,6 +4,22 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-25
+
+Minor release (from 0.6.0, build 23): owner UI roadmap **P1 — a borderless surface**, plus a
+documentation prune. Published exact-source to Stable.
+
+### Changed
+- **Borderless controls (P1):** resting control outlines (toolbar buttons, the URL box, the profile
+  combo, the primary accent button) and the Settings dialog frame are now transparent — the UI reads
+  as a clean floating surface instead of a grid of grey boxes. Keyboard-focus rings are preserved
+  (the URL box still shows the accent ring on focus), and per-theme accent/identity behavior is
+  unchanged. Delivered without any window-hosting change; the WebView resize-band reduction and the
+  larger-card/transparency work remain deferred.
+
+### Maintenance
+- Pruned stale documentation artifacts and repaired the surviving doc references.
+
 ## [0.6.0] - 2026-06-25
 
 Minor release (from 0.5.0, build 22): an appearance follow-up to the owner UI review. The global app
