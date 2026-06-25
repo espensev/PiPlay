@@ -4,6 +4,12 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-06-25
+
+Patch release (from 0.7.0, build 24): completes **P1 — borderless** by suppressing the Windows 11
+DWM system frame border that the 0.7.0 control-border pass left untouched. Published exact-source to
+Stable.
+
 ### Fixed
 - **Borderless window frame (P1 completion):** the Windows 11 system frame border — the faint grey
   hairline tracing each window's rounded outer edge — is now suppressed via `DWMWA_BORDER_COLOR =
