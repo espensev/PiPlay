@@ -4,6 +4,16 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [Unreleased]
 
+### Fixed
+- **Borderless window frame (P1 completion):** the Windows 11 system frame border — the faint grey
+  hairline tracing each window's rounded outer edge — is now suppressed via `DWMWA_BORDER_COLOR =
+  DWMWA_COLOR_NONE` on all four borderless windows (main, popout player, Settings, prompts). The
+  v0.7.0 P1 pass made the WPF *control* borders transparent but never touched the OS frame, so the
+  window still read as boxed; this removes the last visible border. Applied unconditionally (the
+  default Sharp Dark theme uses the pristine DWM corner mode, so the prior corner-only path never
+  ran), High Contrast keeps the system border (an accessibility boundary cue), and no
+  window-hosting / transparency change is involved.
+
 ## [0.7.0] - 2026-06-25
 
 Minor release (from 0.6.0, build 23): owner UI roadmap **P1 — a borderless surface**, plus a

@@ -39,9 +39,22 @@ public static class WindowOpacityApplier
     private const int DWMWCP_DONOTROUND = 1;
     private const int DWMWCP_ROUND = 2;
     private const int DWMWCP_ROUNDSMALL = 3;
+    private const int DWMWA_BORDER_COLOR = 34;            // Windows 11 22000+; COLORREF
+    private const uint DWMWA_COLOR_NONE = 0xFFFFFFFE;     // suppress the frame border (rounded, no border)
+    private const uint DWMWA_COLOR_DEFAULT = 0xFFFFFFFF;  // restore the system default border
     private const int AnimationStepMs = 15;
     private static readonly UIntPtr GuardSubclassId = new(0x4F504143); // "OPAC"
     private static readonly Dictionary<IntPtr, GuardState> States = new();
+
+    // Border-color intent is tracked SEPARATELY from States: a border-color write is a pure DWM
+    // composition attribute (no WS_EX_LAYERED, no subclass), so it must not create a GuardState — that
+    // would make a never-opacity-engaged window read as "tracked" and break the opacity no-op
+    // invariant. This dict is a bounded, prod-never-read observation record for the test seam only
+    // (SetBorderColor recomputes the resolved value every call; nothing in production reads it).
+    // Border-only windows intentionally carry no subclass, so there is no WM_NCDESTROY hook to reclaim
+    // entries the way States self-cleans — the footprint is a few bytes per distinct top-level HWND
+    // ever shown (negligible); tests call ResetBorderSuppressionForTests to stay deterministic.
+    private static readonly Dictionary<IntPtr, bool> BorderSuppression = new();
 
     private sealed class GuardState
     {
@@ -125,6 +138,39 @@ public static class WindowOpacityApplier
         _ = DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref pref, sizeof(int));
     }
 
+    /// <summary>
+    /// Suppress (or restore) the Windows 11 DWM system frame border via DWMWA_BORDER_COLOR =
+    /// DWMWA_COLOR_NONE — the documented "rounded window with no border" (dwmapi.h, build 22000+).
+    /// P1 makes borderless the default, so callers pass <paramref name="suppress"/> = true; the
+    /// <see cref="ShouldSuppressBorder"/> gate still keeps the system border under High Contrast (an
+    /// accessibility boundary cue, like the preserved keyboard focus rings).
+    ///
+    /// Deliberately STATELESS w.r.t. the opacity guard: unlike <see cref="Apply"/>, a border-color
+    /// write touches no exstyle bit and needs no subclass, so it never calls <see cref="Install"/> or
+    /// creates a <see cref="States"/> entry — a window that only gets a border-color write stays
+    /// "never tracked" for the opacity no-op invariant. DWM persists the attribute, so one set at
+    /// SourceInitialized sticks; the theme/reset corner re-apply seams re-assert it for free. Silently
+    /// a no-op on Windows 10 (DWM rejects attribute 34).
+    /// </summary>
+    public static void SetBorderColor(IntPtr hwnd, bool suppress) =>
+        SetBorderColor(hwnd, suppress, System.Windows.SystemParameters.HighContrast);
+
+    /// <summary>Test/overload seam taking the High Contrast state explicitly so the HC integration
+    /// (not just the pure predicate) can be pinned deterministically without depending on the host's
+    /// ambient accessibility setting.</summary>
+    internal static void SetBorderColor(IntPtr hwnd, bool suppress, bool highContrast)
+    {
+        if (hwnd == IntPtr.Zero) return;
+        var suppressed = ShouldSuppressBorder(suppress, highContrast);
+        var color = unchecked((int)(suppressed ? DWMWA_COLOR_NONE : DWMWA_COLOR_DEFAULT));
+        _ = DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref color, sizeof(int));
+        BorderSuppression[hwnd] = suppressed;
+    }
+
+    /// <summary>Borderless is the P1 default, but never strip the frame under Windows High Contrast
+    /// (the system border is an accessibility boundary/focus cue). Pure so the logic lane can pin it.</summary>
+    internal static bool ShouldSuppressBorder(bool suppress, bool highContrast) => suppress && !highContrast;
+
     /// <summary>Cursor position probe for the hover-restore poll (WPF gets no mouse events over
     /// the WebView2 child HWND — Stage 0 spike finding).</summary>
     internal static bool TryGetCursorPos(out int x, out int y)
@@ -149,6 +195,9 @@ public static class WindowOpacityApplier
     internal static byte? CurrentAlphaForTests(IntPtr hwnd) => States.TryGetValue(hwnd, out var s) ? s.CurrentAlpha : null;
     internal static DwmCornerMode CornerModeForTests(IntPtr hwnd) =>
         States.TryGetValue(hwnd, out var s) ? s.CornerMode : DwmCornerMode.Default;
+    internal static bool? BorderColorSuppressedForTests(IntPtr hwnd) =>
+        BorderSuppression.TryGetValue(hwnd, out var v) ? v : null;
+    internal static void ResetBorderSuppressionForTests() => BorderSuppression.Clear();
     internal static bool LastExStyleWriteCarriedTransparentBitForTests(IntPtr hwnd) =>
         States.TryGetValue(hwnd, out var s) && (s.LastExStyleWritten & WS_EX_TRANSPARENT) != 0;
 

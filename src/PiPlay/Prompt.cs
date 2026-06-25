@@ -43,10 +43,14 @@ internal static class Prompt
         };
 
         // Same native corner shape as the themed owner windows (review doc §8.7): without this,
-        // a round/square theme would leave the prompt as the only differently-shaped dialog.
-        win.SourceInitialized += (_, _) => Services.WindowOpacityApplier.SetCornerMode(
-            new System.Windows.Interop.WindowInteropHelper(win).Handle,
-            Theme.ThemeResourceApplier.CurrentDwmCorners);
+        // a round/square theme would leave the prompt as the only differently-shaped dialog. And the
+        // same P1 borderless treatment — suppress the Win11 DWM frame hairline so prompts match.
+        win.SourceInitialized += (_, _) =>
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(win).Handle;
+            Services.WindowOpacityApplier.SetCornerMode(hwnd, Theme.ThemeResourceApplier.CurrentDwmCorners);
+            Services.WindowOpacityApplier.SetBorderColor(hwnd, suppress: true);
+        };
 
         var root = new DockPanel();
 

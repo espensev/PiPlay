@@ -223,6 +223,7 @@ public partial class SettingsWindow : Window
         if (hwnd == IntPtr.Zero) return;   // SourceInitialized applies the initial state
         WindowOpacityApplier.SetCornerMode(hwnd,
             ThemeCatalog.DwmCornersFor(ThemeCatalog.PresetFor(ThemeId), CornerStyle));
+        WindowOpacityApplier.SetBorderColor(hwnd, suppress: true);   // P1 borderless: no Win11 DWM frame hairline
     }
 
     private void FadeDelay_Click(object sender, RoutedEventArgs e)

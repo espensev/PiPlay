@@ -729,6 +729,7 @@ public partial class PlayerWindow : Window
         var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero) return;   // SourceInitialized applies the initial state
         WindowOpacityApplier.SetCornerMode(hwnd, _dwmCornerMode);
+        WindowOpacityApplier.SetBorderColor(hwnd, suppress: true);   // P1 borderless: no Win11 DWM frame hairline
     }
 
     /// <summary>

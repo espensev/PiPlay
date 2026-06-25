@@ -1046,6 +1046,65 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void Border_color_suppression_does_not_engage_the_opacity_guard() => StaTestThread.Invoke(() =>
+    {
+        // A window that only ever gets a DWM border-color write must stay "never tracked" for the
+        // opacity guard: DWMWA_BORDER_COLOR is a DWM composition attribute, not a WS_EX_LAYERED/alpha
+        // change, so SetBorderColor must not install the subclass or create a States entry — otherwise
+        // the opacity no-op invariant (pristine exstyle, TargetAlpha null) breaks.
+        WindowOpacityApplier.ResetBorderSuppressionForTests();   // deterministic "never recorded" baseline
+        var w = new Window
+        {
+            Width = 240, Height = 160, Left = 100, Top = 100,
+            WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.CanResize,
+            AllowsTransparency = false, Opacity = 0, ShowActivated = false, ShowInTaskbar = false,
+        };
+        var hwnd = new WindowInteropHelper(w).EnsureHandle();
+        var pristine = GetWindowLongPtrW(hwnd, -20).ToInt64();
+
+        // Never called → no recorded intent (mirrors the opacity TargetAlpha==null "never tracked" gate).
+        Assert.Null(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
+
+        // Explicit highContrast keeps the assertion deterministic regardless of the host's setting.
+        WindowOpacityApplier.SetBorderColor(hwnd, suppress: true, highContrast: false);
+        Assert.True(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
+
+        // The border-color write perturbs no exstyle bit and engages no opacity tracking.
+        Assert.Equal(pristine, GetWindowLongPtrW(hwnd, -20).ToInt64());
+        Assert.Null(WindowOpacityApplier.TargetAlphaForTests(hwnd));
+        Assert.False(WindowOpacityApplier.IsEngagedForTests(hwnd));
+
+        // The "borders on" / restore path records not-suppressed.
+        WindowOpacityApplier.SetBorderColor(hwnd, suppress: false, highContrast: false);
+        Assert.False(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
+
+        w.Close();
+    });
+
+    [Fact]
+    public void Border_color_keeps_the_system_border_under_high_contrast() => StaTestThread.Invoke(() =>
+    {
+        // Accessibility: borderless is the default, but High Contrast must keep the system frame
+        // border (a boundary/focus cue). The production method consults the real HC state; the
+        // overload injects it so BOTH branches are pinned without depending on the host's setting.
+        var w = new Window
+        {
+            Width = 240, Height = 160, Left = 100, Top = 100,
+            WindowStyle = WindowStyle.None, AllowsTransparency = false,
+            ShowActivated = false, ShowInTaskbar = false, Opacity = 0,
+        };
+        var hwnd = new WindowInteropHelper(w).EnsureHandle();
+
+        WindowOpacityApplier.SetBorderColor(hwnd, suppress: true, highContrast: true);
+        Assert.False(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));   // HC → keep the border
+
+        WindowOpacityApplier.SetBorderColor(hwnd, suppress: true, highContrast: false);
+        Assert.True(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));    // normal → suppress
+
+        w.Close();
+    });
+
+    [Fact]
     public void PlayerWindow_applies_active_and_idle_levels_through_the_applier() => StaTestThread.Invoke(() =>
     {
         // EnsureHandle fires SourceInitialized without Show: Loaded never runs, so WebView2 and
@@ -1145,6 +1204,50 @@ public class WpfRuntimeTests : IDisposable
             // Restore the static for the rest of the suite (sharp-dark default = Default).
             ThemeResourceApplier.Apply(new ResourceDictionary(), new ThemeSettings(), new PlayerSettings());
         }
+    });
+
+    // --- Borderless follow-up: every borderless window suppresses the Windows 11 DWM frame border ---
+    // (P1's missed gap: the default sharp-dark theme is DwmCornerMode.Default, so SetCornerMode
+    // early-returns and never touched DWM — leaving the grey system hairline. Border suppression is
+    // unconditional, so these assert it lands even with no corner override.) Each asserts NotNull —
+    // i.e. the window WIRED a border-color decision — which proves the wiring independently of the
+    // host's High Contrast state (the resolved value itself is pinned by the HC test above).
+
+    [Fact]
+    public void MainWindow_suppresses_its_dwm_frame_border_at_source_initialized() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        var hwnd = new WindowInteropHelper(w).EnsureHandle();
+        Assert.NotNull(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
+        w.Close();
+    });
+
+    [Fact]
+    public void PlayerWindow_suppresses_its_dwm_frame_border_at_source_initialized() => StaTestThread.Invoke(() =>
+    {
+        var w = new PlayerWindow(environment: null!, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            topmost: false, placement: null, defaultWidth: 960, defaultHeight: 540, fadeEnabled: true);
+        var hwnd = new WindowInteropHelper(w).EnsureHandle();
+        Assert.NotNull(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
+        w.Close();
+    });
+
+    [Fact]
+    public void SettingsWindow_suppresses_its_dwm_frame_border_on_its_own_hwnd() => StaTestThread.Invoke(() =>
+    {
+        var w = new SettingsWindow(isBrowserReady: true, cornerStyle: "round");
+        var hwnd = new WindowInteropHelper(w).EnsureHandle();
+        Assert.NotNull(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
+        w.Close();
+    });
+
+    [Fact]
+    public void Prompt_dialogs_suppress_the_dwm_frame_border() => StaTestThread.Invoke(() =>
+    {
+        var shell = Prompt.BuildShell(owner: null, "Test", out _);
+        var hwnd = new WindowInteropHelper(shell).EnsureHandle();
+        Assert.NotNull(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
+        shell.Close();
     });
 
     [DllImport("user32.dll", SetLastError = true)]

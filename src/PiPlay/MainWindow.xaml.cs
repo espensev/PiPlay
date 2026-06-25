@@ -674,6 +674,7 @@ public partial class MainWindow : Window
         var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero) return;
         WindowOpacityApplier.SetCornerMode(hwnd, EffectiveDwmCornerMode);
+        WindowOpacityApplier.SetBorderColor(hwnd, suppress: true);   // P1 borderless: no Win11 DWM frame hairline
     }
 
     private void ApplyOpenPlayerAppearance()
