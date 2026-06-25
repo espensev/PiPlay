@@ -15,6 +15,8 @@ decisions or reopening the already-reviewed v0.7.2-b25 release patch.
   (`683/683`) and `git diff --check` with only line-ending normalization warnings.
 - Branch merge check after fetch: the local `fix/p1-webview-inset-and-prompt` branch is already
   merged into `main`; no remote branch remains unmerged into `main`.
+- Static review after stabilization is recorded in
+  `docs/reviews/2026-06-25-b25-followup-package-review.md`.
 - Remaining open items are intentionally deferred gates: deployed visual QA, profile-accent owner
   decision, rounded-corner language, and video fit modes.
 
@@ -44,6 +46,13 @@ decisions or reopening the already-reviewed v0.7.2-b25 release patch.
   - Update `ApplyReturnActionAsync(...)` so return decisions use popout-side paused state when known,
     not only `_sourceWasPlayingAtPopout`.
   - Update tests that currently pin focus-only copy and behavior.
+
+- [ ] **Task 3b - Finish P4 playback-state replay after returned-video navigation.**
+  - Current state: same-video return preserves captured paused/volume/mute/rate where the YouTube DOM
+    allows it.
+  - Residual gap: if the popout moved to a different video, `ReturnAction.Navigate` correctly sends the
+    source to that video/timestamp but does not replay paused/volume/mute/rate after navigation.
+  - Add a pending returned-video playback-state replay and tests before claiming full P4 acceptance.
 
 - [x] **Task 4 - Clean up P3 opacity semantics.**
   - Rename/copy-frame the current controls as whole-popout opacity if keeping the existing layered-HWND
