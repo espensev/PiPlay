@@ -460,10 +460,14 @@ public class WpfRuntimeTests : IDisposable
         w.Show();
         w.UpdateLayout();
         Assert.True(BorderlessWindowHelper.HasExpandedResizeSubclassForTests(hwnd));
-        var p = w.PointToScreen(new Point(20, 5)); // top band, inside the 32 DIP left corner length
+        // Probe a point inside the top resize band (y < ResizeBorderDip) and within the 32 DIP left
+        // corner length — band-relative so the P1 10->4 DIP shrink needs no recalibration.
+        var probeY = BorderlessResizeHitTestPolicy.ResizeBorderDip / 2;
+        const double probeX = 20;
+        var p = w.PointToScreen(new Point(probeX, probeY));
         var roundTrip = w.PointFromScreen(p);
-        Assert.InRange(roundTrip.X, 19.5, 20.5);
-        Assert.InRange(roundTrip.Y, 4.5, 5.5);
+        Assert.InRange(roundTrip.X, probeX - 0.5, probeX + 0.5);
+        Assert.InRange(roundTrip.Y, probeY - 0.5, probeY + 0.5);
         var result = SendMessage(hwnd, WM_NCHITTEST, IntPtr.Zero, MakeLParam((int)p.X, (int)p.Y));
 
         Assert.Equal(BorderlessResizeHitTestPolicy.HTTOPLEFT, result.ToInt32());
@@ -1251,6 +1255,17 @@ public class WpfRuntimeTests : IDisposable
         var shell = Prompt.BuildShell(owner: null, "Test", out _);
         var hwnd = new WindowInteropHelper(shell).EnsureHandle();
         Assert.NotNull(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
+        shell.Close();
+    });
+
+    [Fact]
+    public void Prompt_shell_has_no_visible_inner_border() => StaTestThread.Invoke(() =>
+    {
+        // P1 borderless: with the DWM frame suppressed, the prompt's content Border must not redraw a
+        // 1px inner frame (owner review — "make the prompt's inner border transparent").
+        var shell = Prompt.BuildShell(owner: null, "Test", out _);
+        var border = Assert.IsType<Border>(shell.Content);
+        Assert.Equal(new Thickness(0), border.BorderThickness);
         shell.Close();
     });
 

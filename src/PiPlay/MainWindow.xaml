@@ -22,7 +22,7 @@
        a transparent WPF window is incompatible with the HwndHost WebView2 (airspace). -->
   <WindowChrome.WindowChrome>
     <WindowChrome CaptionHeight="42"
-                  ResizeBorderThickness="10"
+                  ResizeBorderThickness="4"
                   CornerRadius="0"
                   GlassFrameThickness="0"
                   UseAeroCaptionButtons="False" />
@@ -161,7 +161,7 @@
       <wv2:WebView2 x:Name="Browser">
         <wv2:WebView2.Style>
           <Style TargetType="{x:Type wv2:WebView2}">
-            <Setter Property="Margin" Value="10,0,10,10" />
+            <Setter Property="Margin" Value="4,0,4,4" />
             <Style.Triggers>
               <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}"
                            Value="Maximized">

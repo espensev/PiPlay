@@ -88,8 +88,9 @@ internal static class Prompt
 
         win.Content = new Border
         {
-            BorderBrush = Brush("BorderSubtle"),
-            BorderThickness = new Thickness(1),
+            // P1 borderless: no inner frame — the DWM frame is suppressed and the dialog reads as a
+            // clean surface (the SurfaceBase title bar + AppBackground body already separate it).
+            BorderThickness = new Thickness(0),
             Child = root,
         };
         return win;

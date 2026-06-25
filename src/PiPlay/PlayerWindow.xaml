@@ -18,7 +18,7 @@
        dragging is handled explicitly on the chrome strip so there's no accidental maximize. -->
   <WindowChrome.WindowChrome>
     <WindowChrome CaptionHeight="0"
-                  ResizeBorderThickness="10"
+                  ResizeBorderThickness="4"
                   CornerRadius="0"
                   GlassFrameThickness="0"
                   UseAeroCaptionButtons="False" />
@@ -100,7 +100,7 @@
     <wv2:WebView2 x:Name="Player" Grid.Row="2">
       <wv2:WebView2.Style>
         <Style TargetType="{x:Type wv2:WebView2}">
-          <Setter Property="Margin" Value="10,0,10,10" />
+          <Setter Property="Margin" Value="4,0,4,4" />
           <Style.Triggers>
             <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}"
                          Value="Maximized">
