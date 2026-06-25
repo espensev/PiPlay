@@ -4,6 +4,25 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-06-25
+
+Patch release (from 0.7.1, build 25): continues **P1 — borderless** by trimming the largest remaining
+"framed tray" cue the v0.7.1 (b24) comparison review flagged — the inset around the hosted video — and
+dropping the prompt dialog's inner border. Published exact-source to Stable. P1 reads cleaner but is not
+finished: a persistent top chrome band, internal separators/hairlines, the letterboxed video tray, and
+`soft`/`round` both mapping to DWM `Round` still preserve a framed feel.
+
+### Changed
+- **Thinner WebView inset (P1):** the left/right/bottom margin around the hosted WebView2 in both the
+  main window and the popout player is reduced from 10 DIP to 4 DIP, and the borderless resize band is
+  matched at the same 4 DIP (`WindowChrome.ResizeBorderThickness` and
+  `BorderlessResizeHitTestPolicy.ResizeBorderDip`), so the video sits nearer the window edge and reads
+  less as a black tray. The 32-DIP corner grab is preserved, so resize ergonomics are unchanged, and the
+  maximized state still goes full-bleed (inset 0).
+- **Borderless prompt dialog (P1):** the shared prompt shell (`Prompt.BuildShell`) no longer draws a 1px
+  inner border, matching the borderless Settings dialog, so prompts read as a clean dark surface — the
+  title-bar strip and body background already separate the dialog from what's behind it.
+
 ## [0.7.1] - 2026-06-25
 
 Patch release (from 0.7.0, build 24): completes **P1 — borderless** by suppressing the Windows 11
