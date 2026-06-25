@@ -17,6 +17,8 @@ decisions or reopening the already-reviewed v0.7.2-b25 release patch.
   merged into `main`; no remote branch remains unmerged into `main`.
 - Static review after stabilization is recorded in
   `docs/reviews/2026-06-25-b25-followup-package-review.md`.
+- Automated QA readiness at `011e8ee` is recorded in the same review artifact: clean, full tests
+  683/683, non-mutating Release build gate, whitespace check, and clean tracked/untracked status.
 - Remaining open items are intentionally deferred gates: deployed visual QA, profile-accent owner
   decision, rounded-corner language, and video fit modes.
 

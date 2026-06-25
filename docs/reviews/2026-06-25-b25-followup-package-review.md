@@ -52,10 +52,25 @@ Recommended fix:
 - Add tests around the policy/state handoff and a runtime seam that proves a different-video return
   queues both the target URL and the pending playback-state replay.
 
+## QA Readiness Pass
+
+2026-06-25 automated pre-commit QA was run at `011e8ee` before this docs-only evidence update:
+
+- `dotnet clean PiPlay.sln --configuration Debug --nologo` passed with 0 warnings and 0 errors.
+- `dotnet test PiPlay.sln --configuration Debug --nologo` passed: 683/683 tests.
+- `./Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump` passed: Release build, 0
+  warnings, 0 errors, version `0.7.2`, build `25` unchanged.
+- `git diff --check` passed with no output.
+- `git status --short --branch` showed a clean tracked tree; `git ls-files --others
+  --exclude-standard` returned no untracked commit candidates.
+
+Manual Stable smoke was not run in this pass. Per `docs/AGENTS.md` and `tests/README.md`, that lane
+must run against the deployed Stable copy after an explicit Stable publish/verify step, not against repo
+build output.
+
 ## Non-Findings
 
 - The source-window button and placeholder copy now correctly flip to `Bring video back`.
 - The explicit `CaptureReturnStateNowAsync()` path avoids relying only on the last timer tick for
   same-video return.
 - Whole-popout opacity wording is now honest about the current layered-window implementation.
-
