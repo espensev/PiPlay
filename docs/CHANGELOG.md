@@ -16,6 +16,12 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 - **Popout action rendering:** the Source Window `Pop out video` button now applies pixel-aligned
   text rendering to its nested icon and label and has enough toolbar height budget for the largest
   theme density, preventing malformed or clipped accent-button text.
+- Quieted the control borders across all themes — the per-theme palettes (sharp-dark, minimal,
+  soft-glass) plus the `Colors.xaml` fallback now use a faint hairline `BorderSubtle`/`BorderStrong`
+  instead of the old hard grey, so the UI no longer reads as a boxed-in browser window.
+- Removed the embed "Compact player" setting; new Video Popouts always use the full YouTube watch
+  page (the embedded player broke on embed-disabled videos for near-zero visible gain). The compact
+  code path is kept dormant behind `PlaybackModePolicy.CompactPlayerEnabled = false`.
 
 ## [0.5.0] - 2026-06-20
 
