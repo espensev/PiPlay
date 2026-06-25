@@ -11,14 +11,14 @@
         <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
       <TextBlock x:Name="ReadabilityWarning"
-                 Text="This color is not readable as an app accent."
+                 Text="Enter a valid 6-digit hex color."
                  Foreground="{DynamicResource DangerPin}" TextWrapping="Wrap"
                  VerticalAlignment="Center" Visibility="Collapsed" />
       <Button x:Name="UseNearestReadableButton" Grid.Column="1"
-              Style="{StaticResource DarkButton}" Content="Use nearest readable"
+              Style="{StaticResource DarkButton}" Content="Use default"
               Click="UseNearestReadableButton_Click" Visibility="Collapsed"
-              ToolTip="Snap to the nearest readable accent"
-              AutomationProperties.Name="Use nearest readable accent" />
+              ToolTip="Use the default accent color"
+              AutomationProperties.Name="Use default accent" />
     </Grid>
 
     <Grid Margin="0,0,0,10">

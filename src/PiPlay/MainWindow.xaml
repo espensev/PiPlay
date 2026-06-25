@@ -1,6 +1,7 @@
 <Window x:Class="PiPlay.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:theme="clr-namespace:PiPlay.Theme"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         Title="PiPlay"
         Height="760" Width="1180"
@@ -12,6 +13,10 @@
         Background="{DynamicResource AppBackground}"
         UseLayoutRounding="False"
         SnapsToDevicePixels="True">
+
+  <Window.Resources>
+    <theme:AccentForegroundConverter x:Key="AccentForegroundConverter" />
+  </Window.Resources>
 
   <!-- Custom thin title bar with native resize (spec 5.5). AllowsTransparency stays False:
        a transparent WPF window is incompatible with the HwndHost WebView2 (airspace). -->
@@ -93,13 +98,12 @@
                   ToolTip="Saved profiles" AutomationProperties.Name="Saved profiles">
           <ComboBox.ItemTemplate>
             <DataTemplate>
-              <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Border Width="10" Height="10" CornerRadius="{DynamicResource RadiusSwatch}"
-                        Background="{Binding AccentColor, TargetNullValue=#5B6770}"
-                        BorderBrush="{DynamicResource BorderStrong}" BorderThickness="1"
-                        Margin="0,0,8,0" />
-                <TextBlock Text="{Binding Name}" />
-              </StackPanel>
+              <Border x:Name="ProfileIdentityChip" CornerRadius="{DynamicResource RadiusSwatch}"
+                      Padding="8,3"
+                      Background="{Binding AccentColor, TargetNullValue=#2D333B, FallbackValue=#2D333B}">
+                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                           Foreground="{Binding AccentColor, Converter={StaticResource AccentForegroundConverter}}" />
+              </Border>
             </DataTemplate>
           </ComboBox.ItemTemplate>
         </ComboBox>
@@ -132,11 +136,13 @@
         <StackPanel Orientation="Horizontal">
           <TextBlock x:Name="PopOutButtonIcon" Text="&#xE8A7;"
                      FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14"
+                     Foreground="{Binding Foreground, ElementName=PopOutButton}"
                      TextOptions.TextFormattingMode="Display"
                      TextOptions.TextHintingMode="Fixed"
                      TextOptions.TextRenderingMode="Grayscale"
                      VerticalAlignment="Center" Margin="0,0,8,0" />
           <TextBlock x:Name="PopOutButtonText" Text="Pop out video"
+                     Foreground="{Binding Foreground, ElementName=PopOutButton}"
                      TextOptions.TextFormattingMode="Display"
                      TextOptions.TextHintingMode="Fixed"
                      TextOptions.TextRenderingMode="Grayscale"
@@ -176,6 +182,11 @@
           <TextBlock Text="Close the popout to bring playback back here."
                      FontSize="12" Margin="0,6,0,0"
                      Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
+          <Button x:Name="PlaceholderShowPopoutButton" Style="{StaticResource AccentButton}"
+                  Content="Show popout" Margin="0,18,0,0"
+                  Click="PlaceholderShowPopoutButton_Click"
+                  ToolTip="Bring the open Video Popout to the front"
+                  AutomationProperties.Name="Show popout" />
           <!-- Non-blocking fallback note (Q-6): e.g. the mix/radio "popped out the current video
                only" reason, previously log-only. Lives on the SOURCE side by design - the popout
                ErrorBar is compact-error semantics and must not diverge the popout captures. -->

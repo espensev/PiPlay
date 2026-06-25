@@ -19,7 +19,7 @@ public sealed class Profile
     /// </summary>
     public string? Mode { get; set; }
 
-    /// <summary>Optional per-profile app accent override. <c>null</c> follows the global theme accent.</summary>
+    /// <summary>Optional per-profile identity color. <c>null</c> uses the neutral profile chip.</summary>
     public string? AccentColor { get; set; }
 
     public bool? Topmost { get; set; }

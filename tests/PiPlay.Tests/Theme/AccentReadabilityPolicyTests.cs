@@ -23,9 +23,9 @@ public class AccentReadabilityPolicyTests
     }
 
     [Fact]
-    public void A_mid_gray_is_unreadable()
+    public void A_mid_gray_is_accepted()
     {
-        Assert.False(AccentReadabilityPolicy.Evaluate("#787878").IsReadable);
+        Assert.True(AccentReadabilityPolicy.Evaluate("#787878").IsReadable);
     }
 
     [Theory]
@@ -33,9 +33,14 @@ public class AccentReadabilityPolicyTests
     [InlineData("#787878")]
     [InlineData("#202060")]
     [InlineData("not-a-color")]
-    public void NearestReadable_always_returns_a_readable_color(string input)
+    public void NearestReadable_normalizes_valid_hex_and_defaults_invalid(string input)
     {
-        Assert.True(AccentReadabilityPolicy.Evaluate(AccentReadabilityPolicy.NearestReadable(input)).IsReadable);
+        var value = AccentReadabilityPolicy.NearestReadable(input);
+
+        Assert.True(AccentReadabilityPolicy.Evaluate(value).IsReadable);
+        Assert.Equal(ThemeCatalog.IsValidHex(input)
+            ? ThemeCatalog.NormalizeAccentColor(input)
+            : ThemeCatalog.DefaultAccentColor, value);
     }
 
     [Fact]
@@ -46,15 +51,9 @@ public class AccentReadabilityPolicyTests
     }
 
     [Fact]
-    public void NearestReadable_preserves_hue_when_brightening_a_dim_color()
+    public void NearestReadable_preserves_valid_dim_colors()
     {
-        // The fix raises Value/Saturation on the SAME hue before any curated-anchor snap, so a
-        // dim-but-fixable color keeps its hue — a stub that snapped to a constant or nearest preset
-        // would drift the hue and fail this. (#202060 is a dim blue ~hue 240.)
-        var inputHue = ColorMath.RgbToHsv(ThemeColors.ParseColor("#202060")).H;
-        var fixedHue = ColorMath.RgbToHsv(
-            ThemeColors.ParseColor(AccentReadabilityPolicy.NearestReadable("#202060"))).H;
-        Assert.True(Math.Abs(fixedHue - inputHue) <= 12.0, $"hue drifted {inputHue:F1} -> {fixedHue:F1}");
+        Assert.Equal("#202060", AccentReadabilityPolicy.NearestReadable("#202060"));
     }
 
     [Fact]
@@ -64,9 +63,7 @@ public class AccentReadabilityPolicyTests
         {
             var color = ColorMath.HsvToRgb(hue, 1, 1);
             var raw = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
-            var fixedColor = AccentReadabilityPolicy.NearestReadable(raw);
-
-            Assert.True(AccentReadabilityPolicy.Evaluate(fixedColor).IsReadable, $"hue {hue}: {fixedColor}");
+            Assert.Equal(raw, AccentReadabilityPolicy.NearestReadable(raw));
         }
     }
 }

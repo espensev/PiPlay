@@ -442,7 +442,7 @@ public partial class MainWindow : Window
         if (ProfilesCombo.SelectedItem is not Profile original) return;
 
         var edited = Prompt.EditProfile(this, original.Name, original.Url, original.Mode, original.AccentColor,
-            EffectiveAccentColor, LivePreviewAccent);
+            EffectiveAccentColor);
         if (edited is null)
         {
             ApplyResolvedAccent();
@@ -518,9 +518,7 @@ public partial class MainWindow : Window
             idleOpacityOverride: _settings.Theme.IdleWindowOpacity,
             stripAutoHideOverride: _settings.Theme.StripAutoHide,
             cornerStyle: EffectiveCornerStyle,
-            accentEditContext: ActiveProfileHasAccentOverride
-                ? $"Editing accent for profile '{_settings.ActiveProfileName}'."
-                : "Editing the app accent.")
+            accentEditContext: "Editing the app accent.")
         {
             Owner = this,
             Topmost = Topmost,
@@ -601,7 +599,7 @@ public partial class MainWindow : Window
         // behavior values are NULLABLE overrides (theme code review P2) — the pure writer keeps
         // nulls null so an accent-only apply leaves the user following preset defaults, and
         // mirrors the EFFECTIVE values onto the legacy Player fields.
-        var globalAccent = ActiveProfileHasAccentOverride ? EffectiveAccentColor : ThemeCatalog.NormalizeAccentColor(accentColor);
+        var globalAccent = ThemeCatalog.NormalizeAccentColor(accentColor);
         ThemeSettingsWriter.Apply(_settings, themeId, globalAccent, fadeIdleDelayMs, compactMode,
             activeOpacityOverride, idleOpacityOverride, stripAutoHideOverride, cornerStyle);
         CommitAccent(accentColor);
@@ -622,14 +620,12 @@ public partial class MainWindow : Window
     private Profile? ActiveProfile =>
         ProfileAccentService.ActiveProfile(_settings);
 
-    private bool ActiveProfileHasAccentOverride => ProfileAccentService.ActiveProfileHasAccentOverride(_settings);
-
     internal string ResolvedAccentColor =>
         ProfileAccentService.ResolvedAccentColor(_settings, EffectiveAccentColor);
 
     internal void LivePreviewAccent(string hex)
     {
-        if (!AccentReadabilityPolicy.Evaluate(hex).IsReadable) return;
+        if (!ThemeCatalog.IsValidHex(hex)) return;
         ApplyAccentEverywhere(ThemeCatalog.NormalizeAccentColor(hex));
     }
 
@@ -651,11 +647,6 @@ public partial class MainWindow : Window
     private void ApplyThemeResources()
     {
         ThemeResourceApplier.Apply(Application.Current.Resources, _settings.Theme, _settings.Player);
-        if (!string.Equals(ResolvedAccentColor, EffectiveAccentColor, StringComparison.OrdinalIgnoreCase))
-        {
-            ThemeResourceApplier.ApplyAccentOnly(Application.Current.Resources, ResolvedAccentColor,
-                ThemeCatalog.PresetFor(_settings.Theme.ThemeId));
-        }
     }
 
     private int EffectiveFadeIdleDelayMs =>
@@ -787,6 +778,9 @@ public partial class MainWindow : Window
     // --- Video Popout lifecycle (spec 13) ---
 
     private async void PopOutButton_Click(object sender, RoutedEventArgs e) => await StartVideoPopoutAsync();
+
+    private void PlaceholderShowPopoutButton_Click(object sender, RoutedEventArgs e) =>
+        ActivateExistingPlayer();
 
     private async Task StartVideoPopoutAsync()
     {

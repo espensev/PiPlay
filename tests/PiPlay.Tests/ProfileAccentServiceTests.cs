@@ -7,26 +7,26 @@ namespace PiPlay.Tests;
 public class ProfileAccentServiceTests
 {
     [Fact]
-    public void Resolved_accent_uses_active_profile_override_else_global()
+    public void Resolved_accent_always_uses_global_app_accent()
     {
         var settings = SettingsWithProfiles();
 
         ProfileAccentService.SetActiveProfile(settings, settings.Profiles.Single(p => p.Name == "Violet"));
-        Assert.Equal("#A78BFA", ProfileAccentService.ResolvedAccentColor(settings, "#00D4FF"));
+        Assert.Equal("#00D4FF", ProfileAccentService.ResolvedAccentColor(settings, "#00D4FF"));
 
         ProfileAccentService.SetActiveProfile(settings, settings.Profiles.Single(p => p.Name == "Plain"));
         Assert.Equal("#00D4FF", ProfileAccentService.ResolvedAccentColor(settings, "#00D4FF"));
     }
 
     [Fact]
-    public void Commit_routes_to_profile_only_when_profile_overrides()
+    public void Commit_always_routes_to_global_app_accent()
     {
         var settings = SettingsWithProfiles();
 
         ProfileAccentService.SetActiveProfile(settings, settings.Profiles.Single(p => p.Name == "Violet"));
         ProfileAccentService.CommitAccent(settings, "#38D996");
-        Assert.Equal("#38D996", settings.Profiles.Single(p => p.Name == "Violet").AccentColor);
-        Assert.Equal("#00D4FF", settings.Theme.AccentColor);
+        Assert.Equal("#A78BFA", settings.Profiles.Single(p => p.Name == "Violet").AccentColor);
+        Assert.Equal("#38D996", settings.Theme.AccentColor);
 
         ProfileAccentService.SetActiveProfile(settings, settings.Profiles.Single(p => p.Name == "Plain"));
         ProfileAccentService.CommitAccent(settings, "#FFC857");
@@ -47,12 +47,12 @@ public class ProfileAccentServiceTests
             },
         };
 
-        Assert.Equal("#A78BFA", ProfileAccentService.ResolvedAccentColor(settings, "#00D4FF"));
+        Assert.Equal("#00D4FF", ProfileAccentService.ResolvedAccentColor(settings, "#00D4FF"));
 
         settings.Profiles.Single().Name = "Purple";
         ProfileAccentService.RenameActiveProfileIfMatches(settings, "Violet", "Purple");
         Assert.Equal("Purple", settings.ActiveProfileName);
-        Assert.Equal("#A78BFA", ProfileAccentService.ResolvedAccentColor(settings, "#00D4FF"));
+        Assert.Equal("#00D4FF", ProfileAccentService.ResolvedAccentColor(settings, "#00D4FF"));
 
         ProfileService.Remove(settings, "Purple");
         ProfileAccentService.ReconcileActiveProfile(settings);

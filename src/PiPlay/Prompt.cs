@@ -200,11 +200,11 @@ internal static class Prompt
 
         var useAccent = new CheckBox
         {
-            Content = "Profile accent",
+            Content = "Profile color",
             IsChecked = accentColor is not null,
             Foreground = Brush("TextPrimary"),
             Margin = new Thickness(0, 12, 0, 8),
-            ToolTip = "Use a custom accent when this profile is active",
+            ToolTip = "Use a custom identity color for this profile",
         };
         body.Children.Add(useAccent);
 
@@ -281,7 +281,7 @@ internal static class Prompt
             var editedAccent = useAccent.IsChecked == true ? accentPicker.SelectedColor : null;
             if (!CanSaveProfileAccent(useAccent.IsChecked == true, accentPicker))
             {
-                error.Text = "Choose a readable profile accent or turn the profile accent off.";
+                error.Text = "Choose a valid profile color or turn the profile accent off.";
                 error.Visibility = Visibility.Visible;
                 return;
             }

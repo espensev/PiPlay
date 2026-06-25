@@ -135,8 +135,12 @@ public class SettingsWindowAppearanceTests : IDisposable
         Assert.True(((Button)w.FindName("DoneButton")!).IsEnabled);
 
         picker.SelectedColor = "#787878";
+        Assert.True(((Button)w.FindName("DoneButton")!).IsEnabled);
+        Assert.Equal("#787878", preview);
+
+        picker.SelectedColor = "not-a-color";
         Assert.False(((Button)w.FindName("DoneButton")!).IsEnabled);
-        Assert.Equal("#A78BFA", preview);
+        Assert.Equal("#787878", preview);
     });
 
     [Fact]

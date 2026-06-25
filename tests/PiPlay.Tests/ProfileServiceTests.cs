@@ -105,24 +105,21 @@ public class ProfileServiceTests
     [Theory]
     [InlineData(null, true)]
     [InlineData("#00D4FF", true)]
-    [InlineData("#787878", false)]
+    [InlineData("#787878", true)]
     [InlineData("not-a-color", false)]
-    public void ValidateAccent_accepts_null_or_readable_hex_only(string? accent, bool ok)
+    public void ValidateAccent_accepts_null_or_valid_hex_only(string? accent, bool ok)
     {
         Assert.Equal(ok, ProfileService.ValidateAccent(accent));
     }
 
     [Fact]
-    public void NormalizeAccentForStorage_drops_invalid_and_repairs_unreadable_hex()
+    public void NormalizeAccentForStorage_drops_invalid_and_preserves_valid_hex()
     {
         Assert.Null(ProfileService.NormalizeAccentForStorage(null));
         Assert.Null(ProfileService.NormalizeAccentForStorage("not-a-color"));
         Assert.Equal("#00D4FF", ProfileService.NormalizeAccentForStorage("00d4ff"));
 
-        var repaired = ProfileService.NormalizeAccentForStorage("#787878");
-        Assert.NotNull(repaired);
-        Assert.NotEqual("#787878", repaired);
-        Assert.True(AccentReadabilityPolicy.Evaluate(repaired).IsReadable);
+        Assert.Equal("#787878", ProfileService.NormalizeAccentForStorage("#787878"));
     }
 
     // --- Update (Phase 2 edit path): position-preserving + collision-aware ---

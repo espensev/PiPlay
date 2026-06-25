@@ -109,7 +109,7 @@ public class XamlInvariantTests
             "BackButton", "ReloadButton", "HomeButton", "SaveProfileButton",
             "EditProfileButton", "DeleteProfileButton",
             "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton",
-            "SourcePlaceholder", "PlaceholderNoteText", "RuntimeErrorPanel", "RuntimeErrorText",
+            "SourcePlaceholder", "PlaceholderShowPopoutButton", "PlaceholderNoteText", "RuntimeErrorPanel", "RuntimeErrorText",
         }},
         new object[] { "PlayerWindow.xaml", new[]
         {
@@ -233,8 +233,12 @@ public class XamlInvariantTests
         Assert.Equal("Display", SetterValue("TextOptions.TextFormattingMode"));
         Assert.Equal("Fixed", SetterValue("TextOptions.TextHintingMode"));
         Assert.Equal("Grayscale", SetterValue("TextOptions.TextRenderingMode"));
+        Assert.Equal("{DynamicResource BorderThicknessDefault}", SetterValue("BorderThickness"));
+        Assert.Equal("{DynamicResource AccentPrimary}", SetterValue("Background"));
+        Assert.Equal("{DynamicResource OnAccent}", SetterValue("Foreground"));
 
         var presenter = style.Descendants(XamlTestFiles.Pres + "ContentPresenter").Single();
+        Assert.Equal("{TemplateBinding Foreground}", presenter.Attribute("TextElement.Foreground")?.Value);
         Assert.Equal("Display", presenter.Attribute("TextOptions.TextFormattingMode")?.Value);
         Assert.Equal("Fixed", presenter.Attribute("TextOptions.TextHintingMode")?.Value);
         Assert.Equal("Grayscale", presenter.Attribute("TextOptions.TextRenderingMode")?.Value);
@@ -247,7 +251,35 @@ public class XamlInvariantTests
             Assert.Equal("Display", text.Attribute("TextOptions.TextFormattingMode")?.Value);
             Assert.Equal("Fixed", text.Attribute("TextOptions.TextHintingMode")?.Value);
             Assert.Equal("Grayscale", text.Attribute("TextOptions.TextRenderingMode")?.Value);
+            Assert.Equal("{Binding Foreground, ElementName=PopOutButton}", text.Attribute("Foreground")?.Value);
         }
+    }
+
+    [Fact]
+    public void Source_placeholder_has_show_popout_action()
+    {
+        var button = XamlTestFiles.Load("MainWindow.xaml").Descendants(XamlTestFiles.Pres + "Button")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "PlaceholderShowPopoutButton");
+
+        Assert.Equal("Show popout", button.Attribute("Content")?.Value);
+        Assert.Equal("{StaticResource AccentButton}", button.Attribute("Style")?.Value);
+        Assert.Equal("PlaceholderShowPopoutButton_Click", button.Attribute("Click")?.Value);
+        Assert.Equal("Show popout", button.Attribute("AutomationProperties.Name")?.Value);
+        Assert.Contains("front", button.Attribute("ToolTip")?.Value);
+    }
+
+    [Fact]
+    public void Profile_selector_fills_identity_chip_with_profile_color()
+    {
+        var chip = XamlTestFiles.Load("MainWindow.xaml").Descendants(XamlTestFiles.Pres + "Border")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "ProfileIdentityChip");
+
+        Assert.Contains("AccentColor", chip.Attribute("Background")?.Value);
+
+        var label = chip.Elements(XamlTestFiles.Pres + "TextBlock").Single();
+        Assert.Equal("{Binding Name}", label.Attribute("Text")?.Value);
+        Assert.Contains("AccentColor", label.Attribute("Foreground")?.Value);
+        Assert.Contains("AccentForegroundConverter", label.Attribute("Foreground")?.Value);
     }
 
     [Fact]
@@ -392,7 +424,7 @@ public class XamlInvariantTests
             "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton",
             "BackButton", "ReloadButton", "HomeButton", "UrlBox", "ProfilesCombo",
             "SaveProfileButton", "EditProfileButton", "DeleteProfileButton",
-            "PinToggle", "AutoToggle", "PopOutButton",
+            "PinToggle", "AutoToggle", "PopOutButton", "PlaceholderShowPopoutButton",
         }},
         new object[] { "PlayerWindow.xaml", new[] { "FadeToggle", "PinToggle", "ExpandButton", "CloseButton" } },
         new object[] { "SettingsWindow.xaml", new[] { "CloseButton", "DoneButton" } },
@@ -702,6 +734,7 @@ public class XamlInvariantTests
 
         AssertSetter(controls, "DarkButton", "Padding", "DensityButtonPadding");
         AssertSetter(controls, "DarkButton", "BorderThickness", "BorderThicknessDefault");
+        AssertSetter(controls, "AccentButton", "BorderThickness", "BorderThicknessDefault");
         AssertSetter(controls, "DarkTextBox", "MinHeight", "DensityControlHeight");
         AssertSetter(controls, "DarkTextBox", "Padding", "DensityInputPadding");
         AssertSetter(controls, "DarkTextBox", "BorderThickness", "BorderThicknessDefault");
@@ -745,18 +778,11 @@ public class XamlInvariantTests
     }
 
     [Fact]
-    public void Accent_button_text_and_border_read_on_the_dark_fill()
+    public void Accent_button_text_reads_on_the_accent_fill()
     {
-        // The AccentButton (e.g. Pop out video) is a dark SurfaceRaised fill with a light TextPrimary
-        // label and an AccentBorder outline (ControlStyles.xaml) — chosen so light text/icons never wash
-        // out on a bright accent. The label must read on the fill (>=4.5) and the accent outline must
-        // read on it as a UI component (>=3.0). DEFAULT (cyan) seeds; user accents are gated per chip x
-        // profile by the derived-token contrast gate (ThemeCatalogTests).
         var t = ColorTokens();
-        var text = Wcag.ContrastRatio(t["TextPrimaryColor"], t["SurfaceRaisedColor"]);
+        var text = Wcag.ContrastRatio(t["OnAccentColor"], t["AccentPrimaryColor"]);
         Assert.True(text >= 4.5, $"Accent button text contrast = {text:F2}:1.");
-        var border = Wcag.ContrastRatio(t["AccentBorderColor"], t["SurfaceRaisedColor"]);
-        Assert.True(border >= 3.0, $"Accent button border contrast = {border:F2}:1.");
     }
 
     [Fact]
@@ -804,9 +830,8 @@ public class XamlInvariantTests
     [Fact]
     public void Theme_accent_palette_is_readable()
     {
-        // Every OFFERED accent (ThemeCatalog) must read as an on-dark glyph (>=3:1 on the hover
-        // surface) AND carry the dark AccentButton text (>=4.5:1) — the gate behind the Task 10
-        // single-accent palette and the Task 9 startup recolor of the primary button.
+        // The curated preset chips still need to work in the places they are offered as fixed
+        // choices: active glyphs on hover surfaces and dark text on filled primary buttons.
         var hover = ColorTokens()["SurfaceHoverColor"];
         foreach (var option in ThemeCatalog.AccentOptions)
         {

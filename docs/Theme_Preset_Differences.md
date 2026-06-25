@@ -31,6 +31,22 @@ Terminology:
 | Minimal | Low-distraction daily browsing | Warm charcoal palette, steel-blue default accent, moderate radii, small native corners, long fade, fully opaque popout defaults, normal density, subtle inner shadow. |
 | Soft Glass | Desktop overlay / floating popout style | Cool blue palette, violet default accent, largest radii, rounded native corners, short fade, auto-hiding strip, translucent popout defaults, airy density, soft inner shadow. |
 
+## Token Differences vs Perceived Window Impact (2026-06-23 owner review)
+
+The tables in this document are accurate at the token level — palette, radii, density, elevation, DWM
+corner mode, fade, and opacity all differ across the three presets. The 2026-06-23 owner review
+(`docs/reviews/2026-06-23-owner-appearance-popout-compact-review.md`) nonetheless reports that the
+*final window* feel does not differ enough. Both can be true: the perceived silhouette/feel is
+constrained by factors this token catalog does not capture —
+
+- The **video surface is opaque** and dominates the window, so palette/border tokens only show on thin chrome.
+- **Outer-window corners are DWM-owned**: three fixed OS radii only, and `soft`/`round` both resolve to `DWMWCP_ROUND` (identical) — there is no large "card" radius and no outer border or shadow following the curve, because the windows host WebView2 by HWND with `AllowsTransparency=False` (airspace; see the Inner Elevation note below).
+- **Default transparency is low** (only Soft Glass ships translucent), by design.
+
+The owner also requests a 4th **Blackout** preset and explicit border/shadow controls. These are
+direction, not current code; the catalog tables below stay code-backed. Tracked in
+`SPEC_GAPS_AND_OWNERSHIP.md` (2026-06-23 owner appearance / popout / compact review).
+
 ## Preset Identity
 
 | Field | Sharp Dark | Minimal | Soft Glass | Difference |

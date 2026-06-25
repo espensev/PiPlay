@@ -9,23 +9,27 @@ namespace PiPlay.Tests;
 public class AccentColorPickerTests
 {
     [Fact]
-    public void AccentColorPicker_seeds_flags_and_fixes_colors() => StaTestThread.Invoke(() =>
+    public void AccentColorPicker_accepts_valid_rgb_colors_and_defaults_invalid() => StaTestThread.Invoke(() =>
     {
         var picker = new AccentColorPicker { SelectedColor = "#38D996" };
         Assert.Equal("#38D996", picker.SelectedColor);
         Assert.True(picker.IsSelectedReadable);
 
         picker.SelectedColor = "#787878";
-        Assert.False(picker.IsSelectedReadable);
+        Assert.True(picker.IsSelectedReadable);
         picker.UseNearestReadable();
 
         Assert.True(picker.IsSelectedReadable);
-        Assert.NotEqual("#787878", picker.SelectedColor);
-        Assert.True(AccentReadabilityPolicy.Evaluate(picker.SelectedColor).IsReadable);
+        Assert.Equal("#787878", picker.SelectedColor);
+
+        picker.SelectedColor = "not-a-color";
+        Assert.False(picker.IsSelectedReadable);
+        picker.UseNearestReadable();
+        Assert.Equal(ThemeCatalog.DefaultAccentColor, picker.SelectedColor);
     });
 
     [Fact]
-    public void AccentColorPicker_raises_preview_for_readable_values_only() => StaTestThread.Invoke(() =>
+    public void AccentColorPicker_raises_preview_for_valid_values_only() => StaTestThread.Invoke(() =>
     {
         var picker = new AccentColorPicker { SelectedColor = "#00D4FF" };
         string? last = null;
@@ -35,7 +39,10 @@ public class AccentColorPickerTests
         Assert.Equal("#A78BFA", last);
 
         picker.SelectedColor = "#787878";
-        Assert.Equal("#A78BFA", last);
+        Assert.Equal("#787878", last);
+
+        picker.SelectedColor = "not-a-color";
+        Assert.Equal("#787878", last);
     });
 
     [Fact]

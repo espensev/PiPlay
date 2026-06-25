@@ -10,31 +10,30 @@ namespace PiPlay.Tests;
 public class MainWindowProfileAccentTests : IDisposable
 {
     [Fact]
-    public void MainWindow_resolves_active_profile_accent_else_global() => StaTestThread.Invoke(() =>
+    public void MainWindow_keeps_app_accent_global_when_profiles_change() => StaTestThread.Invoke(() =>
     {
         var w = new MainWindow();
         w.ReplaceSettingsForTests(SettingsWithProfiles());
 
         w.SelectProfileForTests("Violet");
-        Assert.Equal("#A78BFA", w.ResolvedAccentColorForTests);
+        Assert.Equal("#00D4FF", w.ResolvedAccentColorForTests);
 
         w.SelectProfileForTests("Plain");
         Assert.Equal("#00D4FF", w.ResolvedAccentColorForTests);
     });
 
     [Fact]
-    public void MainWindow_applies_active_profile_accent_without_navigation() => StaTestThread.Invoke(() =>
+    public void MainWindow_profile_selection_does_not_recolor_app_accent_or_navigate_in_test_seam() => StaTestThread.Invoke(() =>
     {
         var w = new MainWindow();
         w.ReplaceSettingsForTests(SettingsWithProfiles());
 
         w.SelectProfileForTests("Violet");
-        var violet = ThemeColors.DeriveAccentSet("#A78BFA", ThemeCatalog.PresetFor("sharp-dark")).Primary;
-        Assert.Equal(violet, ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color);
+        var global = ThemeColors.DeriveAccentSet("#00D4FF", ThemeCatalog.PresetFor("sharp-dark")).Primary;
+        Assert.Equal(global, ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color);
         Assert.Null(w.PendingUrlForTests);
 
         w.SelectProfileForTests("Plain");
-        var global = ThemeColors.DeriveAccentSet("#00D4FF", ThemeCatalog.PresetFor("sharp-dark")).Primary;
         Assert.Equal(global, ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color);
         Assert.Null(w.PendingUrlForTests);
     });

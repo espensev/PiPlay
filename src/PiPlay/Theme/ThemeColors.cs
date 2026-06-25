@@ -79,16 +79,15 @@ public static class ThemeColors
     private static readonly Color DarkForeground = Color.FromRgb(0x06, 0x14, 0x1A);
 
     /// <summary>
-    /// Pick the foreground that reads on <paramref name="accent"/> at WCAG AA (>= 4.5:1): the dark
-    /// button text if it clears the bar, else white. FAIL-CLOSED — if neither candidate reaches
-    /// 4.5:1 it throws rather than returning a sub-threshold fallback (theme-v2 spec; review TG-4).
+    /// Pick the best dark/white foreground for <paramref name="accent"/>. Most colors clear WCAG AA
+    /// with one of these; mid-tone colors can fall in the mathematical dead zone, where neither does.
+    /// In that case return the higher-contrast candidate instead of rejecting the user's color.
     /// </summary>
     public static Color PickReadableForeground(Color accent)
     {
-        if (ContrastRatio(DarkForeground, accent) >= 4.5) return DarkForeground;
-        if (ContrastRatio(Colors.White, accent) >= 4.5) return Colors.White;
-        throw new InvalidOperationException(
-            $"Accent #{accent.R:X2}{accent.G:X2}{accent.B:X2} has no WCAG-AA foreground: neither dark nor white reaches 4.5:1.");
+        var darkContrast = ContrastRatio(DarkForeground, accent);
+        var whiteContrast = ContrastRatio(Colors.White, accent);
+        return darkContrast >= whiteContrast ? DarkForeground : Colors.White;
     }
 
     /// <summary>The theme-v2 accent derivation profile for a theme id (spec "Suggested profiles").</summary>
@@ -119,7 +118,7 @@ public static class ThemeColors
         var glow = WithAlpha(primary, profile.GlowAlpha);
         var onAccent = PickReadableForeground(primary);
         // CON-1: re-pick the foreground against the DARKER pressed fill, not reuse OnAccent — a dim
-        // accent (steel) drops below 4.5:1 when pressed, so this flips it to white. Fail-closed.
+        // accent (steel) may need to flip to white.
         var onAccentPressed = PickReadableForeground(pressed);
 
         return new DerivedAccentSet(primary, hover, pressed, muted, border, subtle, glow, onAccent, onAccentPressed);

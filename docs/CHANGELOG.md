@@ -5,6 +5,14 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 ## [Unreleased]
 
 ### Fixed
+- **Detached-video placeholder action:** the Source Window placeholder now includes a direct
+  **Show popout** action that brings the existing Video Popout to the front.
+- **Filled accent actions:** accent buttons now use the selected app accent as their fill with
+  generated dark/white foreground text instead of reading as a heavy accent outline.
+- **Profile color identity:** saved profile colors now fill the profile selector chip and no longer
+  override the global app accent when a profile is active.
+- **Wider custom colors:** Settings and profile colors now accept any valid `#RRGGBB` value; invalid
+  hex is still blocked/defaulted, but mid-tone colors are no longer repaired away.
 - **Popout action rendering:** the Source Window `Pop out video` button now applies pixel-aligned
   text rendering to its nested icon and label and has enough toolbar height budget for the largest
   theme density, preventing malformed or clipped accent-button text.

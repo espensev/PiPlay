@@ -104,14 +104,11 @@ public static class ProfileService
     }
 
     public static bool ValidateAccent(string? hex) =>
-        hex is null || (ThemeCatalog.IsValidHex(hex) && AccentReadabilityPolicy.Evaluate(hex).IsReadable);
+        hex is null || ThemeCatalog.IsValidHex(hex);
 
     public static string? NormalizeAccentForStorage(string? hex)
     {
         if (string.IsNullOrWhiteSpace(hex) || !ThemeCatalog.IsValidHex(hex)) return null;
-        var normalized = ThemeCatalog.NormalizeAccentColor(hex);
-        return AccentReadabilityPolicy.Evaluate(normalized).IsReadable
-            ? normalized
-            : AccentReadabilityPolicy.NearestReadable(normalized);
+        return ThemeCatalog.NormalizeAccentColor(hex);
     }
 }

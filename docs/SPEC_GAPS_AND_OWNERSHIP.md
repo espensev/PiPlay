@@ -8,10 +8,80 @@
 |---|---|---|---|
 | Source Window after direct profile launch | Future/profile polish | Profiles can be launch targets, but the app has not decided whether direct launch can run without a visible Source Window. | Decide whether Source Window remains required, can start minimized/hidden, or becomes optional. |
 
+## 2026-06-23 owner appearance / popout / compact review
+
+Source: owner review at `docs/reviews/2026-06-23-owner-appearance-popout-compact-review.md`.
+Ground-truthed against the code on
+2026-06-23 with four read-only investigations (compact mode; popout button + placeholder; corner
+silhouette; accent + transparency). **Runtime QA was not performed this pass** — the findings below are
+verified-vs-code / observed-behavior, not a sign-off that anything renders or behaves correctly when
+run. Items the owner reported as observed behavior stay flagged for a deployed-Stable runtime check.
+
+### Organizing frame (owner, review §9)
+
+The owner's intended split: **Profiles** define content (URL, name, saved placement, saved launch
+mode, and an *optional identity color*). **Appearance** defines look (global accent, theme, corner
+radius, border, shadow, transparency). **Popout state** defines whether playback is detached, where the
+popout is, and whether the placeholder offers "show popout" / "restore here". The accent work (2.2) is
+the concrete expression of this split.
+
+### Owner-directed intent (decided by the owner — captured, not open)
+
+These are directives, not questions. They define the target; the *how* and any behavior reversals are
+the open sub-decisions further down.
+
+| Ref | Owner direction |
+|---|---|
+| 2.1 / 5 | Theme presets must be visibly distinct; add a 4th **Blackout** preset (0% transparency). |
+| 2.2 / §9 | A **global app accent** drives primary buttons, focus rings, active outlines, selected theme state, the popout/restore and compact buttons, and highlights. The **profile color** is demoted to a profile chip/dot/identity marker (+ an optional popout border only while that profile is active). |
+| 2.3 | The user may pick **any** accent color; the app auto-picks readable foreground text (black/white by contrast); border opacity/strength is a separate, independent control. Do not reject useful colors for being poor text backgrounds. |
+| 2.4 / 7 | Corner radius must change the **actual popout silhouette** (outer window + video clipping): Round = a large rounded floating card, with border and shadow following the rounded shape and no square backing layer. |
+| 3.1 / 8 | The main-window placeholder should offer a direct action (e.g. **[Show popout]** / **[Restore video here]**), not static text only. |
+| P1 | Reduce default transparency; make it a controlled effect, not the core look (owner's suggested 0–30% band). |
+| 4 / 6 | Provide explicit app modes — **Browse / Cinema / Compact / Popout** — where Compact = a small, player-first main-window layout with hover-reveal chrome. |
+
+### Already present in code (clarify before re-litigating)
+
+Code inspection found the mechanism for several P0 items. Code-presence is **not** a runtime sign-off;
+where the owner reported observed behavior, that signal stands until a runtime check says otherwise.
+
+| Owner claim | Code finding (file:line) | Status |
+|---|---|---|
+| 3.2 "Show popout" does not bring the popout back; duplicate risk | Toolbar button flips label/tooltip/UIA name `Pop out video` ↔ `Show popout` (`MainWindow.xaml.cs:894-902`); `StartVideoPopoutAsync` short-circuits `if (_player is not null) { ActivateExistingPlayer(); return; }` (`:795`); `ActivateExistingPlayer` restores-from-minimized then `Activate()`s (`:879-885`); single-popout per ADR-0005 / spec §13.4. | Mechanism present; owner reports a clarity/behavior problem code inspection cannot confirm or refute — **flag for runtime QA**. (Commit `f979793` was a text-rendering polish only, no logic change.) |
+| 4 "Compact mode does not work" | "Compact" today is a **popout playback-surface** toggle in Settings (`SettingsWindow.xaml:199-203`), read only when building the next popout URL (`PlaybackModePolicy.cs`; `MainWindow.xaml.cs:824-827`). It never changes the main-window layout. | **Terminology mismatch** — the owner's main-window "Compact Mode" is net-new and does not exist; the shipped popout-compact is a different feature, itself **flagged for runtime QA**. |
+| P1 "reduce transparency by default" | Global opacity default is `1.0` (`WindowOpacityPolicy.cs:18`); only Soft Glass ships translucent (`0.92` active / `0.78` idle, `ThemeCatalog.cs:235`). | Already opaque by default everywhere except Soft Glass; the remainder is an open sub-decision below. |
+| 2.3 "auto-pick readable foreground" | `ThemeColors.PickReadableForeground` picks the best dark/white foreground, and the 2026-06-25 follow-up accepts any valid `#RRGGBB` accent/profile color. | Text foreground is now separated from the old hard reject; border/glow strength remains a future control axis. |
+
+### Terminology to disambiguate (settled fact)
+
+"Mode" is overloaded. Spec §10 **playback modes** (Normal page / Compact embed / Shell) describe how the
+*Popout Player* plays video. The review's **Browse / Cinema / Compact / Popout** are *UX/layout* modes
+of the *main window* and do not exist in code. Keep the two axes separate in all future copy; do not
+call a main-window layout "Compact" unqualified, since "Compact player" already means the popout
+playback surface.
+
+### Open sub-decisions (need owner / architecture sign-off)
+
+| Item | The decision | Why it is open |
+|---|---|---|
+| Corner silhouette architecture | Accept the DWM limit (and at least de-duplicate `soft`/`round`, which both map to `DWMWCP_ROUND`), or lift WebView2 airspace (windowless/composition hosting) to get a large card radius with an outer border + shadow following the curve. | Outer corners are DWM-only: three fixed OS radii, no large radius, no outer border/shadow, because the windows host WebView2 by HWND with `AllowsTransparency=False` (airspace). The `RadiusPopoutFrame`/`RadiusMainWindowFrame` tokens are **unconsumed** — wire or remove them. An ADR is likely warranted if airspace is lifted. |
+| Transparency band | Reduce Soft Glass's default translucency, and/or cap the opacity slider to the owner's ≤30%-transparency band (the slider floor is currently 45% opacity = 55% transparency at `SettingsWindow.xaml:242,258`). | Tuning + UX-range decision. |
+| Main-window mode model | Whether to build Browse/Cinema/Compact main-window layouts (toolbar collapse, hover-reveal chrome), how they persist (global vs per-profile), and naming to avoid the "Compact" collision. | Net-new feature; no main-window mode state machine exists today. |
+| "Restore video here" | A detach-while-open action that returns playback to the main window without closing the popout. | Interacts with REQ-RETURN-01 (return is close-only today) and ADR-0005 (single-player). The `[Show popout]` placeholder action is cheaper — the activate path already exists — and could land first. |
+
+Owner priorities, verbatim: **P0** — main-window compact mode; "Show popout" restore/focus; no
+duplicate/unreachable popout. **P1** — corner silhouette; accent/profile split; reduce default
+transparency; distinct theme presets. **P2** — border mode + strength; shadow strength; hover-reveal
+chrome; separate "Restore video here". Re-read against the ground-truth above: the P0 "compact" is
+net-new work, not a fix; `Show popout` now has both toolbar and placeholder activation paths, while
+the separate restore-here action remains open.
+
 ## Recent implementation items
 
 | Item | Ready status | Notes |
 |---|---|---|
+| Accent/profile split | Implemented in working tree | The 2026-06-25 follow-up makes `Profile.AccentColor` an identity color, keeps `theme.accentColor` as the global app accent, fills the profile selector chip with the profile color, and makes Settings always edit the global accent. Optional active-profile popout border remains a future enhancement. Design: `docs/superpowers/specs/2026-06-25-profile-color-identity-and-accent-fill-design.md`; plan: `docs/superpowers/plans/2026-06-25-profile-color-identity-and-accent-fill.md`. |
+| Accent gate relax + filled accent actions | Implemented in working tree | Any valid `#RRGGBB` accent/profile color is accepted; invalid hex is still blocked/defaulted. `AccentButton` now uses accent fill tokens with generated dark/white foreground instead of an outline-only treatment. Design: `docs/superpowers/specs/2026-06-25-profile-color-identity-and-accent-fill-design.md`; plan: `docs/superpowers/plans/2026-06-25-profile-color-identity-and-accent-fill.md`. |
 | Borderless resize zones | Implemented in working tree | Previous implementation was `WindowChrome.ResizeBorderThickness="6"` on both primary windows. `REQ-WINDOW-02` now uses 10 DIP edge resize zones plus 32 DIP corner length via native hit testing, without adding a visible size grip or touch-first 40 x 40 target. Design: `docs/superpowers/specs/2026-06-07-borderless-resize-zones-design.md`; plan: `docs/superpowers/plans/2026-06-07-borderless-resize-zones.md`. Manual DPI resize QA remains a release-candidate check. |
 | Compact player sweep | Stages 1–4 shipped (merged to main 2026-06-10) | Compact mode is implemented as **shell mode**: mode policy (`PlaybackModePolicy` — durable `null`/`normal`/`compact` vocabulary, global/profile precedence, 480×270 minimum, mode→URL join, profile-override video-id gate), global/profile placement UI, the local `player.html` shell served from the `https://piplay.local/` WebView2 virtual host (allowlisted on the Popout Player only), and the YouTube IFrame-API host↔shell bridge (`PlayerShellBridge`/`PlayerShellProtocol`). **Stage 4 shipped (2026-06-10, live-smoked):** the compact error bar + in-place normal-page fallback — IFrame-API error, failed shell load, and ready-watchdog timeout all surface the bar; playing-state recovery auto-dismisses it; the fallback reopens the current target at the best-known timestamp (design: `docs/superpowers/specs/2026-06-10-compact-stage4-fallback-design.md`). The overhaul Task 3 pass (2026-06-10) additionally keeps compact recommendation clicks inside PiPlay (in-place retarget) and makes return video-aware in both modes. The earlier Stage-1 direct embed is superseded; `BuildEmbedUrl` is kept as a reserved fallback tier. Account-backed live playback rows in `docs/QA_Checklist.md` remain release-candidate QA. Design: `docs/superpowers/specs/2026-06-07-compact-player-sweep-design.md`; plan: `docs/superpowers/plans/2026-06-07-compact-player-sweep.md`. |
 

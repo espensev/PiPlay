@@ -3,17 +3,14 @@ using PiPlay.Theme;
 
 namespace PiPlay.Services;
 
-/// <summary>Pure helpers for resolving and committing the active profile accent override.</summary>
+/// <summary>Pure helpers for active profile identity color state.</summary>
 public static class ProfileAccentService
 {
     public static Profile? ActiveProfile(AppSettings settings) =>
         settings.ActiveProfileName is null ? null : ProfileService.Find(settings, settings.ActiveProfileName);
 
-    public static bool ActiveProfileHasAccentOverride(AppSettings settings) =>
-        ActiveProfile(settings)?.AccentColor is not null;
-
     public static string ResolvedAccentColor(AppSettings settings, string globalAccent) =>
-        ActiveProfile(settings)?.AccentColor ?? ThemeCatalog.NormalizeAccentColor(globalAccent);
+        ThemeCatalog.NormalizeAccentColor(globalAccent);
 
     public static void SetActiveProfile(AppSettings settings, Profile? profile) =>
         settings.ActiveProfileName = profile?.Name;
@@ -41,10 +38,7 @@ public static class ProfileAccentService
     public static string CommitAccent(AppSettings settings, string hex)
     {
         var normalized = ProfileService.NormalizeAccentForStorage(hex) ?? ThemeCatalog.DefaultAccentColor;
-        if (ActiveProfile(settings) is { AccentColor: not null } profile)
-            profile.AccentColor = normalized;
-        else
-            settings.Theme.AccentColor = normalized;
+        settings.Theme.AccentColor = normalized;
         return normalized;
     }
 }

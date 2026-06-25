@@ -374,9 +374,7 @@ public class SettingsServiceTests : IDisposable
 
         Assert.Null(loaded.ActiveProfileName);
         Assert.Null(loaded.Profiles.Single(p => p.Name == "Bad").AccentColor);
-        var repaired = loaded.Profiles.Single(p => p.Name == "Mid").AccentColor;
-        Assert.NotEqual("#787878", repaired);
-        Assert.True(AccentReadabilityPolicy.Evaluate(repaired).IsReadable);
+        Assert.Equal("#787878", loaded.Profiles.Single(p => p.Name == "Mid").AccentColor);
     }
 
     [Fact]

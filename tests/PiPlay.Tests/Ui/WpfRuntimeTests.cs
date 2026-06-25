@@ -272,7 +272,7 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void Theme_restyle_reaches_dynamic_density_consumers() => StaTestThread.Invoke(() =>
     {
-        // TG-8: a realized DarkButton/DarkTextBox re-resolves the new density/border tokens via
+        // TG-8: realized button/input styles re-resolve the new density/border tokens via
         // DynamicResource — the same replace-not-mutate mechanism proven for surface/radius above, now
         // for Padding/BorderThickness/MinHeight. Replacing the app entries restyles realized consumers.
         var originalPad = Application.Current.Resources["DensityButtonPadding"];
@@ -289,6 +289,10 @@ public class WpfRuntimeTests : IDisposable
             Assert.Equal(new Thickness(7, 3, 7, 3), btn.Padding);
             Assert.Equal(new Thickness(4), btn.BorderThickness);
 
+            var accent = new Button { Style = (Style)Application.Current.FindResource("AccentButton") };
+            accent.Measure(new Size(200, 60));
+            Assert.Equal(new Thickness(4), accent.BorderThickness);
+
             var box = new TextBox { Style = (Style)Application.Current.FindResource("DarkTextBox") };
             box.Measure(new Size(200, 60));
             Assert.Equal(41.0, box.MinHeight);
@@ -302,42 +306,39 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void Accent_recolor_reaches_a_dynamic_resource_consumer() => StaTestThread.Invoke(() =>
+    public void Accent_recolor_fills_accent_button() => StaTestThread.Invoke(() =>
     {
-        // The AccentButton wears a dark fill with an accent OUTLINE; the accent reaches the button via
-        // {DynamicResource AccentBorder}. REPLACING the App resource (what the applier does) changes
+        // The AccentButton wears the accent as its fill. REPLACING the App resource changes
         // what the consumer resolves — the recolor mechanism the compiled-BAML frozen seed brushes
         // cannot satisfy by mutation. (Resolution asserted at realize-time for this untethered button.)
-        var original = Application.Current.Resources["AccentBorder"];
+        var original = Application.Current.Resources["AccentPrimary"];
         try
         {
             var sentinel = Color.FromRgb(0x12, 0x34, 0x56);
             var brush = new SolidColorBrush(sentinel);
             brush.Freeze();
-            Application.Current.Resources["AccentBorder"] = brush;
+            Application.Current.Resources["AccentPrimary"] = brush;
 
             var btn = new Button { Style = (Style)Application.Current.FindResource("AccentButton") };
-            btn.Measure(new Size(200, 40));   // realize: BorderBrush resolves the replaced resource
-            Assert.Equal(sentinel, ((SolidColorBrush)btn.BorderBrush).Color);
+            btn.Measure(new Size(200, 40));   // realize: Background resolves the replaced resource
+            Assert.Equal(sentinel, ((SolidColorBrush)btn.Background).Color);
         }
         finally
         {
-            Application.Current.Resources["AccentBorder"] = original;   // never pollute the shared app
+            Application.Current.Resources["AccentPrimary"] = original;   // never pollute the shared app
         }
     });
 
     [Fact]
-    public void AccentButton_foreground_resolves_the_text_primary_token() => StaTestThread.Invoke(() =>
+    public void AccentButton_foreground_resolves_the_on_accent_token() => StaTestThread.Invoke(() =>
     {
-        // The dark AccentButton uses a light {DynamicResource TextPrimary} label (readable on the dark
-        // fill — no washed-out light-on-bright-accent), so replacing the app token recolors it at realize.
-        var original = Application.Current.Resources["TextPrimary"];
+        var original = Application.Current.Resources["OnAccent"];
         try
         {
             var sentinel = Color.FromRgb(0xAB, 0xCD, 0xEF);
             var brush = new SolidColorBrush(sentinel);
             brush.Freeze();
-            Application.Current.Resources["TextPrimary"] = brush;
+            Application.Current.Resources["OnAccent"] = brush;
 
             var btn = new Button { Style = (Style)Application.Current.FindResource("AccentButton") };
             btn.Measure(new Size(200, 40));   // realize: Foreground resolves the replaced resource
@@ -345,7 +346,7 @@ public class WpfRuntimeTests : IDisposable
         }
         finally
         {
-            Application.Current.Resources["TextPrimary"] = original;   // never pollute the shared app
+            Application.Current.Resources["OnAccent"] = original;   // never pollute the shared app
         }
     });
 
@@ -361,6 +362,7 @@ public class WpfRuntimeTests : IDisposable
             Assert.Equal(TextFormattingMode.Display, TextOptions.GetTextFormattingMode(text));
             Assert.Equal(TextHintingMode.Fixed, TextOptions.GetTextHintingMode(text));
             Assert.Equal(TextRenderingMode.Grayscale, TextOptions.GetTextRenderingMode(text));
+            Assert.Equal(((Button)w.FindName("PopOutButton")!).Foreground, text.Foreground);
         }
     });
 
@@ -642,6 +644,7 @@ public class WpfRuntimeTests : IDisposable
         var w = new MainWindow();
         Assert.IsType<TextBox>(w.FindName("UrlBox"));
         Assert.IsType<Button>(w.FindName("PopOutButton"));
+        Assert.IsType<Button>(w.FindName("PlaceholderShowPopoutButton"));
         Assert.IsType<ComboBox>(w.FindName("ProfilesCombo"));
         Assert.IsType<Border>(w.FindName("SourcePlaceholder"));
         Assert.IsType<Border>(w.FindName("RuntimeErrorPanel"));
@@ -665,6 +668,21 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal("Pop out video", label.Text);
         Assert.Equal("Pop out video", System.Windows.Automation.AutomationProperties.GetName(btn));
         Assert.Contains("Pop out", (string)btn.ToolTip);
+    });
+
+    [Fact]
+    public void Source_placeholder_show_popout_button_is_accessible_recovery_action() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        var button = (Button)w.FindName("PlaceholderShowPopoutButton")!;
+
+        Assert.Same(Application.Current.FindResource("AccentButton"), button.Style);
+        Assert.Equal("Show popout", button.Content);
+        Assert.Equal("Show popout", System.Windows.Automation.AutomationProperties.GetName(button));
+        Assert.Contains("front", (string)button.ToolTip);
+
+        w.ShowSourcePlaceholder(true);
+        Assert.Equal(Visibility.Visible, button.Visibility);
     });
 
     [Fact]
@@ -735,19 +753,17 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void MainWindow_live_preview_holds_last_readable_on_an_unreadable_color() => StaTestThread.Invoke(() =>
+    public void MainWindow_live_preview_accepts_mid_tone_colors_and_ignores_invalid_hex() => StaTestThread.Invoke(() =>
     {
-        // Spec §7 / fail-closed: the live-preview path must never hand an unreadable color to the
-        // throwing pipeline (which would pop the App error dialog). LivePreviewAccent short-circuits
-        // an unreadable color, holding the last readable value, without throwing.
         var w = new MainWindow();
         w.ReplaceSettingsForTests(new AppSettings());
         try
         {
-            w.LivePreviewAccent("#9E84F0");   // readable -> applied
+            w.LivePreviewAccent("#787878");
             var previewed = ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color;
+            Assert.Equal(ThemeColors.ParseColor("#787878"), previewed);
 
-            var ex = Record.Exception(() => w.LivePreviewAccent("#787878"));   // WCAG dead-zone gray
+            var ex = Record.Exception(() => w.LivePreviewAccent("not-a-color"));
             Assert.Null(ex);
             Assert.Equal(previewed, ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color);
         }

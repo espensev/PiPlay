@@ -171,6 +171,13 @@ YouTube red should remain YouTube-owned. PiPlay action accents should use cyan/p
 | Icon button | 10-14 px | 32x32 or 36x36 hit target. |
 | App icon tile | About 22% of size | Matches the rounded-square icon direction. |
 
+> **Outer-window corner shape is currently DWM-owned.** The Popout and Main windows host WebView2 by
+> HWND with `AllowsTransparency=False`, so the rounded radius comes from the OS
+> (`DWMWA_WINDOW_CORNER_PREFERENCE`): three fixed radii only (≈0 / small / standard ~8 px), with no
+> outer border or shadow following the curve. The `Popout Player 14-18 px` target above is therefore
+> not reachable through DWM; a large rounded-card silhouette with a curve-following border/shadow
+> requires lifting WebView2 airspace. Under review — see `SPEC_GAPS_AND_OWNERSHIP.md` (2026-06-23).
+
 ### 5.4 Icon style
 
 - Use a simple line/glyph style with rounded caps and joins.
@@ -469,6 +476,13 @@ This gives PiPlay control over size, placement, topmost behavior, closing, retur
 ## 10. Playback modes
 
 PiPlay should support multiple playback modes, but only one should be the default quality path.
+
+> **"Playback mode" vs "UX/layout mode" (terminology).** The modes in this section describe how the
+> *Popout Player* plays video. They are a different axis from any main-window UX/layout mode (e.g. the
+> Browse / Cinema / Compact / Popout modes proposed in the 2026-06-23 owner review). In particular, the
+> **Compact player** setting selects the popout's playback surface (Mode B/C); it is *not* a
+> main-window compact layout, which is not implemented. Do not call a main-window layout "Compact"
+> unqualified. See `SPEC_GAPS_AND_OWNERSHIP.md` (2026-06-23 owner appearance / popout / compact review).
 
 ### 10.1 Mode A — Normal YouTube page mode
 
@@ -822,6 +836,11 @@ Visual target:
 - Small PiPlay popout icon near the text or centered.
 - Keep the surrounding YouTube page visible where practical.
 
+> The 2026-06-23 owner review asks the placeholder to offer a direct action (e.g. **[Show popout]** /
+> **[Restore video here]**) rather than static text only. The `[Show popout]` activate path already
+> exists (`ActivateExistingPlayer`); a `[Restore video here]` detach-while-open action is an open
+> sub-decision because it interacts with REQ-RETURN-01 — see `SPEC_GAPS_AND_OWNERSHIP.md` (2026-06-23).
+
 Implementation tiers:
 
 | Tier | Description | Use |
@@ -1051,6 +1070,7 @@ Phase 2 profile model:
   "name": "Compiler videos",
   "url": "https://www.youtube.com/playlist?list=...",
   "mode": null,
+  "accentColor": null,
   "topmost": true,
   "fadeEnabled": null,
   "bounds": {
@@ -1071,6 +1091,7 @@ Quality requirements:
 - Profiles validate URLs before saving in the Phase 2 edit path.
 - Broken profile URLs must fail gracefully even in MVP.
 - **[REQ-PROFILE-01]** For fields that a profile is allowed to carry, a launched profile overrides the global default per field. Unset/null fields fall back to the global value.
+- `accentColor` is an optional per-profile **identity color**. It decorates profile UI (currently the filled profile chip) and must not replace the global app accent; Settings Appearance edits the global accent only. An optional active-profile popout border remains a future enhancement.
 - **[REQ-PROFILE-02]** Profiles store both bounds and monitor identity. Restore to the saved monitor when present; otherwise clamp to the nearest visible work area using `WindowPlacementService`.
 - Compact-mode placement is resolved for Phase 3: global player default plus optional profile
   override. MVP/profile precedence still does not imply compact mode is shipped until the Phase 3
@@ -1422,6 +1443,7 @@ The following are normative defaults unless superseded by a later ADR or require
 ### 25.2 Open decisions
 
 1. Should the Source Window be optional after launching a profile directly?
+2. Appearance / popout / compact directions from the 2026-06-23 owner review — the corner-silhouette architecture (accept the DWM limit vs lift WebView2 airspace), the transparency band, a main-window mode model (Browse / Cinema / Compact), optional active-profile popout border, and a "Restore video here" action — are tracked in `SPEC_GAPS_AND_OWNERSHIP.md` (2026-06-23 owner appearance / popout / compact review). The global-accent/profile-identity split and relaxed valid-hex accent gate are implemented in the 2026-06-25 follow-up pass.
 
 ---
 

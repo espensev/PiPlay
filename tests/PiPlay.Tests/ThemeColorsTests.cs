@@ -88,15 +88,18 @@ public class ThemeColorsTests
     }
 
     [Fact]
-    public void PickReadableForeground_is_fail_closed_when_no_candidate_reaches_4_5()
+    public void PickReadableForeground_returns_the_best_candidate_for_mid_tones()
     {
-        // A mid-tone in the WCAG dead zone: below 4.5:1 against BOTH dark and white. It must throw,
-        // never return a sub-threshold fallback (review TG-4).
+        // A mid-tone in the WCAG dead zone is below 4.5:1 against BOTH dark and white. The app now
+        // accepts user colors anyway and returns the better of the two instead of rejecting it.
         var deadZone = Color.FromRgb(0x78, 0x78, 0x78);
 
-        Assert.True(ThemeColors.ContrastRatio(Color.FromRgb(0x06, 0x14, 0x1A), deadZone) < 4.5);
-        Assert.True(ThemeColors.ContrastRatio(Colors.White, deadZone) < 4.5);
-        Assert.Throws<InvalidOperationException>(() => ThemeColors.PickReadableForeground(deadZone));
+        var dark = Color.FromRgb(0x06, 0x14, 0x1A);
+        var darkContrast = ThemeColors.ContrastRatio(dark, deadZone);
+        var whiteContrast = ThemeColors.ContrastRatio(Colors.White, deadZone);
+        Assert.True(darkContrast < 4.5);
+        Assert.True(whiteContrast < 4.5);
+        Assert.Equal(whiteContrast > darkContrast ? Colors.White : dark, ThemeColors.PickReadableForeground(deadZone));
     }
 
     [Theory]
