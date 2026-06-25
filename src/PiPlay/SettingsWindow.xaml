@@ -80,7 +80,7 @@
     </Style>
   </Window.Resources>
 
-  <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1">
+  <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0">
     <!-- Bounded + scrollable (overhaul Task 5): the title bar stays fixed; the sections scroll.
          Frame model reconciled with the parallel main landing (b35c0dd): a fixed launch Height
          (clamped to the work area in the ctor) instead of SizeToContent, so the dialog cannot

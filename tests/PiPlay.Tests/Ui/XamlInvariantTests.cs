@@ -332,6 +332,16 @@ public class XamlInvariantTests
         Assert.Equal("Disabled", scroll.Attribute("HorizontalScrollBarVisibility")?.Value);
     }
 
+    [Fact]
+    public void Settings_dialog_has_no_outer_border()
+    {
+        var root = XamlTestFiles.Load("SettingsWindow.xaml").Root!;
+        // The outermost Border (the dialog frame) must not draw a stroke.
+        var outerBorder = root.Elements(XamlTestFiles.Pres + "Border")
+            .First(b => b.Attribute("BorderThickness") is not null);
+        Assert.Equal("0", outerBorder.Attribute("BorderThickness")!.Value);
+    }
+
     [Theory]
     [InlineData("CornerStyleThemeChip", "AppearanceSectionHeader", "AdvancedSectionHeader")] // Appearance owns corners
     [InlineData("FadeDelayShortPreset", "AdvancedSectionHeader", null)]                   // Advanced owns fade delay
