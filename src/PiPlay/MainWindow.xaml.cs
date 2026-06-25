@@ -778,16 +778,20 @@ public partial class MainWindow : Window
 
     // --- Video Popout lifecycle (spec 13) ---
 
-    private async void PopOutButton_Click(object sender, RoutedEventArgs e) => await StartVideoPopoutAsync();
+    private async void PopOutButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_player is not null) await BringVideoBackAsync();
+        else await StartVideoPopoutAsync();
+    }
 
-    private void PlaceholderShowPopoutButton_Click(object sender, RoutedEventArgs e) =>
-        ActivateExistingPlayer();
+    private async void PlaceholderBringBackButton_Click(object sender, RoutedEventArgs e) =>
+        await BringVideoBackAsync();
 
     private async Task StartVideoPopoutAsync()
     {
         // Guards (spec 13.4): browser ready, no popout in flight, single player (ADR-0005).
         if (!_browserReady || _popoutInProgress) return;
-        if (_player is not null) { ActivateExistingPlayer(); return; }
+        if (_player is not null) { await BringVideoBackAsync(); return; }
 
         _popoutInProgress = true;
         PopOutButton.IsEnabled = false;
@@ -879,20 +883,45 @@ public partial class MainWindow : Window
         _player.Activate();
     }
 
+    private async Task BringVideoBackAsync()
+    {
+        if (_player is null || _popoutInProgress) return;
+
+        _popoutInProgress = true;
+        PopOutButton.IsEnabled = false;
+        try
+        {
+            var player = _player;
+            await player.CaptureReturnStateNowAsync();
+            player.Close();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Bring video back failed; focusing the existing popout instead.", ex);
+            ActivateExistingPlayer();
+        }
+        finally
+        {
+            _popoutInProgress = false;
+            PopOutButton.IsEnabled = true;
+            UpdatePopoutActionState();
+        }
+    }
+
     /// <summary>
     /// Reflect the single-player lifecycle on the primary action (Q-6): while a popout is open the
-    /// button shows/focuses it instead of implying a second popout will open. Label, tooltip, and
+    /// button returns playback instead of implying a second popout will open. Label, tooltip, and
     /// UIA name flip together so the accessible name never lies (REQ-UI-02).
     /// </summary>
     private void UpdatePopoutActionState() => ApplyPopoutActionState(_player is not null);
 
     internal void ApplyPopoutActionState(bool hasPlayer)
     {
-        var label = hasPlayer ? "Show popout" : "Pop out video";
+        var label = hasPlayer ? "Bring video back" : "Pop out video";
         PopOutButtonText.Text = label;
         System.Windows.Automation.AutomationProperties.SetName(PopOutButton, label);
         PopOutButton.ToolTip = hasPlayer
-            ? "Bring the open Video Popout to the front"
+            ? "Return playback to the Source Window"
             : "Pop out the current video";
     }
 
@@ -980,10 +1009,16 @@ public partial class MainWindow : Window
         if (_clearingBrowserData) return;
         var core = Browser.CoreWebView2;
 
-        // REQ-RETURN-01: resume only if the source was playing when popout started;
-        // 0 is a valid timestamp distinct from unknown. Decision lives in ReturnPolicy.
-        switch (ReturnPolicy.Decide(state.LastKnownSeconds, _sourceWasPlayingAtPopout,
-                    state.VideoId, _popoutSourceVideoId))
+        // REQ-RETURN-01/P4: resume from the popout's current paused state when known; otherwise
+        // fall back to the older source-was-playing snapshot. 0 is a valid timestamp distinct from
+        // unknown. Decision lives in ReturnPolicy.
+        var action = ReturnPolicy.Decide(state.LastKnownSeconds, _sourceWasPlayingAtPopout,
+            state.Paused, state.VideoId, _popoutSourceVideoId);
+
+        if (action != ReturnAction.Navigate && core is not null)
+            await YouTubeDomBridge.ApplyPlaybackSettingsAsync(core, state.Volume, state.Muted, state.PlaybackRate);
+
+        switch (action)
         {
             case ReturnAction.Navigate:
                 // The popout ended on a DIFFERENT video (recommendation click, playlist
@@ -998,7 +1033,7 @@ public partial class MainWindow : Window
                 await YouTubeDomBridge.SeekAndPlayAsync(core, state.LastKnownSeconds!.Value);
                 break;
             case ReturnAction.Seek when core is not null:
-                await YouTubeDomBridge.SeekAsync(core, state.LastKnownSeconds!.Value);
+                await YouTubeDomBridge.SeekAndPauseAsync(core, state.LastKnownSeconds!.Value);
                 break;
             case ReturnAction.Play when core is not null:
                 await YouTubeDomBridge.PlayAsync(core);

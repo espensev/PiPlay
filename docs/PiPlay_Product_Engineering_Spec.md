@@ -76,7 +76,7 @@ Use these terms consistently in the UI, code, docs, issues, and tests.
 | **Source Window** | The main PiPlay browser window that launched the popout. | Engineering docs and diagnostics. |
 | **Source Placeholder** | The black placeholder shown while the video is popped out. | UI copy: `Playing in Video Popout`. |
 | **Pin** | Keep the active PiPlay surface above other windows. | UI toggle: `Pin`. |
-| **Fade** | Hover/idle fading of Popout controls, chrome, or optional whole-window opacity. | UI toggle: `Fade`. |
+| **Fade** | Hover/idle fading of Popout controls, chrome, or optional whole-popout opacity. | UI toggle: `Fade`. |
 | **Auto** | Automatically pop out supported YouTube watch videos when enabled. | UI toggle: `Auto`; off by default. |
 
 Prefer **Pop out video**, **Video Popout**, and **Popout Player** in user-facing UI.
@@ -264,7 +264,7 @@ Scope by phase:
 - **Phase 2:** controls fade, `Auto`, profile edit/validation, and small Pin/Fade appearance
   customization.
 - **Phase 3:** compact-mode polish and any deferred playback/profile refinements.
-- **Phase 4:** chrome fade and whole-window opacity.
+- **Phase 4:** chrome fade and whole-popout opacity.
 
 ### 6.1 Auto
 
@@ -301,7 +301,7 @@ Rules:
 - Conservative by default.
 - Hover or mouse movement always restores full controls.
 - Chrome fade is Phase 4 polish.
-- Whole-window opacity is a Phase 4 advanced sub-setting, not the default meaning of Fade.
+- Whole-popout opacity is a Phase 4 advanced sub-setting, not the default meaning of Fade.
 - Fade never implies click-through behavior.
 - Phase 2 customization may expose constrained controls-fade idle-delay presets. The default remains
   2500 ms; initial presets are Short = 1500 ms, Normal = 2500 ms, and Long = 4000 ms.
@@ -352,7 +352,7 @@ Phase 4 optional polish.
 - Border/shadow remain subtle enough to locate the window.
 - Hover restores full chrome.
 
-### 7.3 Whole-window opacity
+### 7.3 Whole popout opacity
 
 Phase 4 Opera-like advanced setting.
 
@@ -360,13 +360,15 @@ Phase 4 Opera-like advanced setting.
 - Hover restores full opacity.
 - Off by default.
 - Minimum normal setting should not go below 45% unless the user explicitly unlocks it.
-- Whole-window opacity must preserve normal mouse interaction with the Popout Player.
+- Whole popout opacity must preserve normal mouse interaction with the Popout Player.
+- This is not video-safe chrome/background transparency: current layered-window alpha affects the
+  hosted video surface too. A future transparency feature needs an explicit scope/target model.
 
 Suggested defaults:
 
 ```text
-Idle window opacity:            85%
-Hover window opacity:           100%
+Idle whole-popout opacity:      85%
+Hover whole-popout opacity:     100%
 Minimum allowed normal setting: 45%
 ```
 
@@ -708,7 +710,9 @@ Minimum methods:
 Task<PlayerState?> ReadPlayerStateAsync(CoreWebView2 webView);
 Task PauseAsync(CoreWebView2 webView);
 Task PlayAsync(CoreWebView2 webView);
+Task SeekAndPauseAsync(CoreWebView2 webView, int seconds);
 Task SeekAndPlayAsync(CoreWebView2 webView, int seconds);
+Task ApplyPlaybackSettingsAsync(CoreWebView2 webView, double? volume, bool? muted, double? playbackRate);
 Task<string?> ReadCanonicalUrlAsync(CoreWebView2 webView);
 ```
 
@@ -841,10 +845,9 @@ Visual target:
 - Small PiPlay popout icon near the text or centered.
 - Keep the surrounding YouTube page visible where practical.
 
-> The 2026-06-23 owner review asks the placeholder to offer a direct action (e.g. **[Show popout]** /
-> **[Restore video here]**) rather than static text only. The `[Show popout]` activate path already
-> exists (`ActivateExistingPlayer`); a `[Restore video here]` detach-while-open action is an open
-> sub-decision because it interacts with REQ-RETURN-01 — see `SPEC_GAPS_AND_OWNERSHIP.md` (2026-06-23).
+> The 2026-06-25 b25 follow-up changed the placeholder's direct action from focus-only
+> **[Show popout]** to **[Bring video back]**. The command captures fresh popout return state, closes
+> the popout, and drives the normal return path so playback returns to the Source Window.
 
 Implementation tiers:
 
@@ -1241,7 +1244,7 @@ A build should not be called “release candidate” until the following pass.
 | Monitor removed | Restore after monitor change | Player appears on visible monitor |
 | Network loss | Disconnect network | Error state, no crash |
 | Phase 2 controls fade | Let player idle, then hover | Controls fade and restore reliably |
-| Phase 4 opacity | Enable whole-window opacity | Player remains interactable; clicks do not pass through |
+| Phase 4 opacity | Enable whole-popout opacity | Player remains interactable; clicks do not pass through |
 
 ### 22.2 UX tests
 
@@ -1340,7 +1343,7 @@ MVP should defer:
 - `Auto`.
 - Profile edit/validation beyond graceful failure and basic overwrite handling.
 - Chrome fade.
-- Whole-window opacity.
+- Whole-popout opacity.
 - Full custom compact player UI.
 - Local `player.html` IFrame API shell.
 - Global hotkeys.
@@ -1416,7 +1419,7 @@ Phase 2 landing status:
 - Tray/minimize behavior.
 - Optional global hotkeys.
 - Chrome fade.
-- Whole-window opacity and size presets.
+- Whole-popout opacity and size presets.
 - Import/export profiles.
 - Better accessibility and high-contrast support.
 
@@ -1538,7 +1541,7 @@ Touch-first future:      use explicit 40 x 40 effective-pixel affordances only i
 
 ### 26.6 Transparency implementation caution
 
-For MVP, keep the WebView/video surface opaque. Implement controls fade first. Whole-window opacity may use normal window opacity if it works reliably with WebView2, but it must be tested for input, rendering, and performance.
+For MVP, keep the WebView/video surface opaque. Implement controls fade first. Whole-popout opacity may use layered window alpha if it works reliably with WebView2, but it must be tested for input, rendering, and performance.
 
 Do not make the WebView itself transparent and do not implement click-through behavior.
 

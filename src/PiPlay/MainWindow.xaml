@@ -179,14 +179,14 @@
                      Foreground="{DynamicResource AccentPrimary}" HorizontalAlignment="Center" />
           <TextBlock Text="Playing in Video Popout" FontSize="18" Margin="0,14,0,0"
                      Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" />
-          <TextBlock Text="Close the popout to bring playback back here."
+          <TextBlock Text="Ready to bring playback back here."
                      FontSize="12" Margin="0,6,0,0"
                      Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
-          <Button x:Name="PlaceholderShowPopoutButton" Style="{StaticResource AccentButton}"
-                  Content="Show popout" Margin="0,18,0,0"
-                  Click="PlaceholderShowPopoutButton_Click"
-                  ToolTip="Bring the open Video Popout to the front"
-                  AutomationProperties.Name="Show popout" />
+          <Button x:Name="PlaceholderBringBackButton" Style="{StaticResource AccentButton}"
+                  Content="Bring video back" Margin="0,18,0,0"
+                  Click="PlaceholderBringBackButton_Click"
+                  ToolTip="Return playback to the Source Window"
+                  AutomationProperties.Name="Bring video back" />
           <!-- Non-blocking fallback note (Q-6): e.g. the mix/radio "popped out the current video
                only" reason, previously log-only. Lives on the SOURCE side by design - the popout
                ErrorBar is compact-error semantics and must not diverge the popout captures. -->

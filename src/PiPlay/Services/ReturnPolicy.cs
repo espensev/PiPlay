@@ -18,16 +18,21 @@ public enum ReturnAction
 
 /// <summary>
 /// Pure decision for REQ-RETURN-01, extracted from <see cref="MainWindow"/> so it is testable
-/// without WebView2. Resume only if the source was playing when popout started; treat a null
-/// <paramref name="lastKnownSeconds"/> as "unknown" (0 is a valid timestamp, not unknown).
+/// without WebView2. Resume uses the popout's current paused state when known, otherwise the older
+/// source-was-playing snapshot. Treat a null <paramref name="lastKnownSeconds"/> as "unknown"
+/// (0 is a valid timestamp, not unknown).
 /// </summary>
 public static class ReturnPolicy
 {
     public static ReturnAction Decide(int? lastKnownSeconds, bool sourceWasPlaying)
+        => Decide(lastKnownSeconds, sourceWasPlaying, returnedPaused: null);
+
+    public static ReturnAction Decide(int? lastKnownSeconds, bool sourceWasPlaying, bool? returnedPaused)
     {
+        var shouldResume = returnedPaused.HasValue ? !returnedPaused.Value : sourceWasPlaying;
         if (lastKnownSeconds is not null)
-            return sourceWasPlaying ? ReturnAction.SeekAndPlay : ReturnAction.Seek;
-        return sourceWasPlaying ? ReturnAction.Play : ReturnAction.None;
+            return shouldResume ? ReturnAction.SeekAndPlay : ReturnAction.Seek;
+        return shouldResume ? ReturnAction.Play : ReturnAction.None;
     }
 
     /// <summary>
@@ -38,12 +43,17 @@ public static class ReturnPolicy
     /// </summary>
     public static ReturnAction Decide(
         int? lastKnownSeconds, bool sourceWasPlaying, string? returnedVideoId, string? sourceVideoIdAtPopout)
+        => Decide(lastKnownSeconds, sourceWasPlaying, returnedPaused: null, returnedVideoId, sourceVideoIdAtPopout);
+
+    public static ReturnAction Decide(
+        int? lastKnownSeconds, bool sourceWasPlaying, bool? returnedPaused,
+        string? returnedVideoId, string? sourceVideoIdAtPopout)
     {
         if (!string.IsNullOrEmpty(returnedVideoId) && !string.IsNullOrEmpty(sourceVideoIdAtPopout) &&
             !string.Equals(returnedVideoId, sourceVideoIdAtPopout, StringComparison.Ordinal))
         {
             return ReturnAction.Navigate;
         }
-        return Decide(lastKnownSeconds, sourceWasPlaying);
+        return Decide(lastKnownSeconds, sourceWasPlaying, returnedPaused);
     }
 }

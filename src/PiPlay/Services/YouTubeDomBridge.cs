@@ -1,10 +1,17 @@
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 
 namespace PiPlay.Services;
 
 /// <summary>A snapshot of the YouTube &lt;video&gt; element. Duration is nullable (live/unknown).</summary>
-public sealed record PlayerState(int CurrentTime, bool Paused, int? Duration);
+public sealed record PlayerState(
+    int CurrentTime,
+    bool Paused,
+    int? Duration,
+    double? Volume,
+    bool? Muted,
+    double? PlaybackRate);
 
 /// <summary>
 /// The ONE place that talks to the YouTube page DOM (spec 12.5, Q-3). All JavaScript is
@@ -26,7 +33,10 @@ public static class YouTubeDomBridge
   return {{
     currentTime: Math.floor(v.currentTime || 0),
     paused: !!v.paused,
-    duration: Number.isFinite(v.duration) ? Math.floor(v.duration) : null
+    duration: Number.isFinite(v.duration) ? Math.floor(v.duration) : null,
+    volume: Number.isFinite(v.volume) ? v.volume : null,
+    muted: typeof v.muted === 'boolean' ? v.muted : null,
+    playbackRate: Number.isFinite(v.playbackRate) ? v.playbackRate : null
   }};
 }})()";
 
@@ -53,7 +63,16 @@ public static class YouTubeDomBridge
             int? duration = root.TryGetProperty("duration", out var d) && d.ValueKind == JsonValueKind.Number
                 ? d.GetInt32()
                 : null;
-            return new PlayerState(currentTime, paused, duration);
+            double? volume = root.TryGetProperty("volume", out var v) && v.ValueKind == JsonValueKind.Number
+                ? v.GetDouble()
+                : null;
+            bool? muted = root.TryGetProperty("muted", out var m) && m.ValueKind is JsonValueKind.True or JsonValueKind.False
+                ? m.GetBoolean()
+                : null;
+            double? playbackRate = root.TryGetProperty("playbackRate", out var r) && r.ValueKind == JsonValueKind.Number
+                ? r.GetDouble()
+                : null;
+            return new PlayerState(currentTime, paused, duration, volume, muted, playbackRate);
         }
         catch (Exception ex)
         {
@@ -73,9 +92,39 @@ public static class YouTubeDomBridge
         ExecuteVoidAsync(webView,
             $"(() => {{ const v = {VideoSelector}; if (v) {{ try {{ v.currentTime = {seconds}; }} catch (e) {{}} }} }})()");
 
+    public static Task SeekAndPauseAsync(CoreWebView2 webView, int seconds) =>
+        ExecuteVoidAsync(webView,
+            $"(() => {{ const v = {VideoSelector}; if (v) {{ try {{ v.currentTime = {seconds}; }} catch (e) {{}} v.pause(); }} }})()");
+
     public static Task SeekAndPlayAsync(CoreWebView2 webView, int seconds) =>
         ExecuteVoidAsync(webView,
             $"(() => {{ const v = {VideoSelector}; if (v) {{ try {{ v.currentTime = {seconds}; }} catch (e) {{}} const p = v.play(); if (p && p.catch) p.catch(() => {{}}); }} }})()");
+
+    public static Task ApplyPlaybackSettingsAsync(
+        CoreWebView2 webView, double? volume, bool? muted, double? playbackRate)
+    {
+        if (volume is null && muted is null && playbackRate is null) return Task.CompletedTask;
+
+        static string Js(double value) => value.ToString("R", CultureInfo.InvariantCulture);
+        var volumeScript = volume is null
+            ? string.Empty
+            : $"const volume = {Js(Math.Clamp(volume.Value, 0.0, 1.0))}; if (Number.isFinite(volume)) v.volume = volume;";
+        var mutedScript = muted is null
+            ? string.Empty
+            : $"v.muted = {(muted.Value ? "true" : "false")};";
+        var rateScript = playbackRate is null
+            ? string.Empty
+            : $"const rate = {Js(playbackRate.Value)}; if (Number.isFinite(rate) && rate > 0) {{ try {{ v.playbackRate = rate; }} catch (e) {{}} }}";
+
+        return ExecuteVoidAsync(webView, $@"
+(() => {{
+  const v = {VideoSelector};
+  if (!v) return;
+  {volumeScript}
+  {mutedScript}
+  {rateScript}
+}})()");
+    }
 
     /// <summary>Read the page's canonical URL (or location.href) for the currently playing item.</summary>
     public static async Task<string?> ReadCanonicalUrlAsync(CoreWebView2 webView)

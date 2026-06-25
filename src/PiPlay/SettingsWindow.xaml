@@ -215,9 +215,9 @@
                         AutomationProperties.Name="Fade delay Long" />
         </StackPanel>
 
-        <!-- Whole-window opacity (spec 7.3, Phase 4). Sliders floor at 45% (QA §3); values
+        <!-- Whole popout opacity (spec 7.3, Phase 4). Sliders floor at 45% (QA §3); values
              10-45% are honored only when hand-edited into settings.json (the explicit unlock). -->
-        <TextBlock Text="Window opacity" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+        <TextBlock Text="Whole popout opacity" FontSize="12" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,12,0,6" />
         <Grid Margin="0,0,0,6">
           <Grid.ColumnDefinitions>
@@ -230,8 +230,8 @@
           <Slider x:Name="ActiveOpacitySlider" Grid.Column="1" Minimum="45" Maximum="100"
                   SmallChange="1" LargeChange="10" IsMoveToPointEnabled="True"
                   VerticalAlignment="Center" ValueChanged="OpacitySlider_ValueChanged"
-                  ToolTip="Popout window opacity while you interact with it (45-100%)"
-                  AutomationProperties.Name="Active window opacity" />
+                  ToolTip="Whole popout opacity while you interact with it (45-100%)"
+                  AutomationProperties.Name="Active whole popout opacity" />
           <TextBlock x:Name="ActiveOpacityValueText" Grid.Column="2" FontSize="12" TextAlignment="Right"
                      Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
         </Grid>
@@ -246,8 +246,8 @@
           <Slider x:Name="IdleOpacitySlider" Grid.Column="1" Minimum="45" Maximum="100"
                   SmallChange="1" LargeChange="10" IsMoveToPointEnabled="True"
                   VerticalAlignment="Center" ValueChanged="OpacitySlider_ValueChanged"
-                  ToolTip="Popout window opacity after the mouse goes idle (45-100%)"
-                  AutomationProperties.Name="Idle window opacity" />
+                  ToolTip="Whole popout opacity after the mouse goes idle (45-100%)"
+                  AutomationProperties.Name="Idle whole popout opacity" />
           <TextBlock x:Name="IdleOpacityValueText" Grid.Column="2" FontSize="12" TextAlignment="Right"
                      Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
         </Grid>

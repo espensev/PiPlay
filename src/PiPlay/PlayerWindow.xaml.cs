@@ -331,6 +331,8 @@ public partial class PlayerWindow : Window
         _shellReadyTimer.Stop();
         // Compact mode's source of truth for the return timestamp is the IFrame API, not the DOM.
         _returnState.LastKnownSeconds = state.CurrentTime;
+        // Compact shell protocol does not currently report paused/volume/mute/rate; normal mode
+        // captures those from the DOM bridge.
         // Protocol v3: the shell reports the CURRENT video (playlist auto-advance and in-iframe
         // clicks are invisible to the host). PlayerShellProtocol.Parse already rejected malformed
         // ids at the wire (the parse IS the trust boundary), so a non-empty value here is a
@@ -449,6 +451,10 @@ public partial class PlayerWindow : Window
     internal string? CurrentFallbackVideoIdForTests => _currentTarget?.VideoId;
     internal string? ReturnVideoIdForTests => _returnState.VideoId;
     internal int? ReturnSecondsForTests => _returnState.LastKnownSeconds;
+    internal bool? ReturnPausedForTests => _returnState.Paused;
+    internal double? ReturnVolumeForTests => _returnState.Volume;
+    internal bool? ReturnMutedForTests => _returnState.Muted;
+    internal double? ReturnPlaybackRateForTests => _returnState.PlaybackRate;
     internal PlacementData? LaunchPlacementForTests => _placement;
 
     // Strip auto-hide seams (Wpf lane): drive the collapse/reveal state machine headlessly.
@@ -472,7 +478,30 @@ public partial class PlayerWindow : Window
             await YouTubeDomBridge.PlayAsync(Player.CoreWebView2);
         }
 
+        ApplyReturnPlaybackState(state);
+    }
+
+    internal async Task<PlayerReturnState> CaptureReturnStateNowAsync()
+    {
+        await CaptureCurrentPlaybackStateAsync();
+        CaptureReturnWindowState();
+        return _returnState;
+    }
+
+    private async Task CaptureCurrentPlaybackStateAsync()
+    {
+        if (!PlaybackModePolicy.UsesDomSyncTimer(_mode) || Player.CoreWebView2 is null) return;
+        var state = await YouTubeDomBridge.ReadPlayerStateAsync(Player.CoreWebView2);
+        if (state is not null) ApplyReturnPlaybackState(state);
+    }
+
+    private void ApplyReturnPlaybackState(PlayerState state)
+    {
         _returnState.LastKnownSeconds = state.CurrentTime;
+        _returnState.Paused = state.Paused;
+        _returnState.Volume = state.Volume;
+        _returnState.Muted = state.Muted;
+        _returnState.PlaybackRate = state.PlaybackRate;
     }
 
     // --- Chrome ---
@@ -841,6 +870,9 @@ public partial class PlayerWindow : Window
     // --- Close / return (spec 14) ---
 
     private void PlayerWindow_Closing(object? sender, CancelEventArgs e)
+        => CaptureReturnWindowState();
+
+    private void CaptureReturnWindowState()
     {
         if (_capturedReturn) return;
         _capturedReturn = true;

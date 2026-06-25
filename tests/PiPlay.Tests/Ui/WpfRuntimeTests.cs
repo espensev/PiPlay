@@ -648,7 +648,7 @@ public class WpfRuntimeTests : IDisposable
         var w = new MainWindow();
         Assert.IsType<TextBox>(w.FindName("UrlBox"));
         Assert.IsType<Button>(w.FindName("PopOutButton"));
-        Assert.IsType<Button>(w.FindName("PlaceholderShowPopoutButton"));
+        Assert.IsType<Button>(w.FindName("PlaceholderBringBackButton"));
         Assert.IsType<ComboBox>(w.FindName("ProfilesCombo"));
         Assert.IsType<Border>(w.FindName("SourcePlaceholder"));
         Assert.IsType<Border>(w.FindName("RuntimeErrorPanel"));
@@ -657,16 +657,16 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void Popout_action_state_flips_label_tooltip_and_uia_name_together() => StaTestThread.Invoke(() =>
     {
-        // Q-6 / REQ-UI-02 (overhaul Task 6): while a popout is open the primary action must say
-        // show/focus, and the accessible name must flip in the same code path as the label.
+        // Q-6 / REQ-UI-02 / P4: while a popout is open the primary action returns playback, and
+        // the accessible name must flip in the same code path as the label.
         var w = new MainWindow();
         var btn = (Button)w.FindName("PopOutButton")!;
         var label = (TextBlock)w.FindName("PopOutButtonText")!;
 
         w.ApplyPopoutActionState(hasPlayer: true);
-        Assert.Equal("Show popout", label.Text);
-        Assert.Equal("Show popout", System.Windows.Automation.AutomationProperties.GetName(btn));
-        Assert.Contains("front", (string)btn.ToolTip);
+        Assert.Equal("Bring video back", label.Text);
+        Assert.Equal("Bring video back", System.Windows.Automation.AutomationProperties.GetName(btn));
+        Assert.Contains("Return playback", (string)btn.ToolTip);
 
         w.ApplyPopoutActionState(hasPlayer: false);
         Assert.Equal("Pop out video", label.Text);
@@ -675,15 +675,15 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void Source_placeholder_show_popout_button_is_accessible_recovery_action() => StaTestThread.Invoke(() =>
+    public void Source_placeholder_bring_back_button_is_accessible_recovery_action() => StaTestThread.Invoke(() =>
     {
         var w = new MainWindow();
-        var button = (Button)w.FindName("PlaceholderShowPopoutButton")!;
+        var button = (Button)w.FindName("PlaceholderBringBackButton")!;
 
         Assert.Same(Application.Current.FindResource("AccentButton"), button.Style);
-        Assert.Equal("Show popout", button.Content);
-        Assert.Equal("Show popout", System.Windows.Automation.AutomationProperties.GetName(button));
-        Assert.Contains("front", (string)button.ToolTip);
+        Assert.Equal("Bring video back", button.Content);
+        Assert.Equal("Bring video back", System.Windows.Automation.AutomationProperties.GetName(button));
+        Assert.Contains("Return playback", (string)button.ToolTip);
 
         w.ShowSourcePlaceholder(true);
         Assert.Equal(Visibility.Visible, button.Visibility);

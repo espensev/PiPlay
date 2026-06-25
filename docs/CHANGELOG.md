@@ -4,6 +4,14 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [Unreleased]
 
+### Changed
+- **Bring video back (P4):** while a popout exists, the Source Window primary action and placeholder
+  action now return playback to the Source Window instead of only focusing the popout. The return path
+  captures fresh popout timestamp, paused state, volume, mute, and playback speed where the YouTube DOM
+  exposes them.
+- **Whole popout opacity wording (P3):** Settings now labels the existing layered-window opacity feature
+  as whole-popout opacity, making clear it is not video-safe chrome-only transparency.
+
 ## [0.7.2] - 2026-06-25
 
 Patch release (from 0.7.1, build 25): continues **P1 — borderless** by trimming the largest remaining

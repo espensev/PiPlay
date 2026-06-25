@@ -17,6 +17,18 @@ public class ReturnPolicyTests
         Assert.Equal(expected, ReturnPolicy.Decide(lastKnownSeconds, wasPlaying));
     }
 
+    [Theory]
+    [InlineData(120, true, true, ReturnAction.Seek)]
+    [InlineData(120, false, false, ReturnAction.SeekAndPlay)]
+    [InlineData(null, true, true, ReturnAction.None)]
+    [InlineData(null, false, false, ReturnAction.Play)]
+    [InlineData(120, true, null, ReturnAction.SeekAndPlay)]
+    public void Popout_paused_state_overrides_source_launch_state_when_known(
+        int? lastKnownSeconds, bool sourceWasPlaying, bool? returnedPaused, ReturnAction expected)
+    {
+        Assert.Equal(expected, ReturnPolicy.Decide(lastKnownSeconds, sourceWasPlaying, returnedPaused));
+    }
+
     // Video-aware overload (overhaul Task 3): a popout that ended on a DIFFERENT video must make
     // the source NAVIGATE there; seeking the original video to the new video's timestamp is the
     // corruption this fixes.
@@ -29,7 +41,7 @@ public class ReturnPolicyTests
         int? lastKnownSeconds, bool wasPlaying)
     {
         Assert.Equal(ReturnAction.Navigate,
-            ReturnPolicy.Decide(lastKnownSeconds, wasPlaying, "newVideo0001", "oldVideo0001"));
+            ReturnPolicy.Decide(lastKnownSeconds, wasPlaying, returnedPaused: true, "newVideo0001", "oldVideo0001"));
     }
 
     [Theory]

@@ -42,7 +42,7 @@ the open sub-decisions further down.
 | 2.2 / §9 | A **global app accent** drives primary buttons, focus rings, active outlines, selected theme state, the popout/restore and compact buttons, and highlights. The **profile color** is demoted to a profile chip/dot/identity marker (+ an optional popout border only while that profile is active). |
 | 2.3 | The user may pick **any** accent color; the app auto-picks readable foreground text (black/white by contrast); border opacity/strength is a separate, independent control. Do not reject useful colors for being poor text backgrounds. |
 | 2.4 / 7 | Corner radius must change the **actual popout silhouette** (outer window + video clipping): Round = a large rounded floating card, with border and shadow following the rounded shape and no square backing layer. |
-| 3.1 / 8 | The main-window placeholder should offer a direct action (e.g. **[Show popout]** / **[Restore video here]**), not static text only. |
+| 3.1 / 8 | The main-window placeholder should offer a direct action, not static text only. |
 | P1 | Reduce default transparency; make it a controlled effect, not the core look (owner's suggested 0–30% band). |
 | 4 / 6 | Provide explicit app modes — **Browse / Cinema / Compact / Popout** — where Compact = a small, player-first main-window layout with hover-reveal chrome. |
 
@@ -53,7 +53,7 @@ where the owner reported observed behavior, that signal stands until a runtime c
 
 | Owner claim | Code finding (file:line) | Status |
 |---|---|---|
-| 3.2 "Show popout" does not bring the popout back; duplicate risk | Toolbar button flips label/tooltip/UIA name `Pop out video` ↔ `Show popout` (`MainWindow.xaml.cs:894-902`); `StartVideoPopoutAsync` short-circuits `if (_player is not null) { ActivateExistingPlayer(); return; }` (`:795`); `ActivateExistingPlayer` restores-from-minimized then `Activate()`s (`:879-885`); single-popout per ADR-0005 / spec §13.4. | Mechanism present; owner reports a clarity/behavior problem code inspection cannot confirm or refute — **flag for runtime QA**. (Commit `f979793` was a text-rendering polish only, no logic change.) |
+| 3.2 "Show popout" does not bring the popout back; duplicate risk | Toolbar button now flips label/tooltip/UIA name `Pop out video` ↔ `Bring video back`; the placeholder action uses the same `BringVideoBackAsync` path. The command captures fresh popout return state, closes the popout, and drives `ApplyReturnActionAsync`. | **Implemented in working tree.** Manual QA still needs to verify YouTube permits volume/mute/speed restoration on real pages. |
 | 4 "Compact mode does not work" | "Compact" is no longer a user-facing popout toggle: the Settings control was removed, and `PlaybackModePolicy.CompactPlayerEnabled=false` forces new popouts to Normal while the compact plumbing remains dormant. It never changed the main-window layout. | **Terminology mismatch** — the owner's main-window "Compact Mode" is net-new and does not exist; the dormant popout compact plumbing is a different axis and should not be treated as the requested main-window mode. |
 | P1 "reduce transparency by default" | Global opacity default is `1.0` (`WindowOpacityPolicy.cs:18`); only Soft Glass ships translucent (`0.92` active / `0.78` idle, `ThemeCatalog.cs:235`). | Already opaque by default everywhere except Soft Glass; the remainder is an open sub-decision below. |
 | 2.3 "auto-pick readable foreground" | `ThemeColors.PickReadableForeground` picks the best dark/white foreground, and the 2026-06-25 follow-up accepts any valid `#RRGGBB` accent/profile color. | Text foreground is now separated from the old hard reject; border/glow strength remains a future control axis. |
@@ -71,16 +71,16 @@ playback surface.
 | Item | The decision | Why it is open |
 |---|---|---|
 | Corner silhouette architecture | Accept the DWM limit (and at least de-duplicate `soft`/`round`, which both map to `DWMWCP_ROUND`), or lift WebView2 airspace (windowless/composition hosting) to get a large card radius with an outer border + shadow following the curve. | Outer corners are DWM-only: three fixed OS radii, no large radius, no outer border/shadow, because the windows host WebView2 by HWND with `AllowsTransparency=False` (airspace). The `RadiusPopoutFrame`/`RadiusMainWindowFrame` tokens are **unconsumed** — wire or remove them. An ADR is likely warranted if airspace is lifted. |
-| Transparency band | Reduce Soft Glass's default translucency, and/or cap the opacity slider to the owner's ≤30%-transparency band (the slider floor is currently 45% opacity = 55% transparency at `SettingsWindow.xaml:242,258`). | Tuning + UX-range decision. |
+| Transparency band | Current UI calls the shipped feature whole-popout opacity. A true transparency feature still needs scope/target decisions: Off / Main / Popout / Both, and chrome/background only by default with video opaque. | Architecture/UX decision remains open because the current layered-window alpha fades the WebView/video too. |
 | Main-window mode model | Whether to build Browse/Cinema/Compact main-window layouts (toolbar collapse, hover-reveal chrome), how they persist (global vs per-profile), and naming to avoid the "Compact" collision. | Net-new feature; no main-window mode state machine exists today. |
-| "Restore video here" | A detach-while-open action that returns playback to the main window without closing the popout. | Interacts with REQ-RETURN-01 (return is close-only today) and ADR-0005 (single-player). The `[Show popout]` placeholder action is cheaper — the activate path already exists — and could land first. |
+| "Restore video here" / "Bring video back" | The implemented command returns playback to the main window by capturing fresh popout state and closing the single popout through the existing return pipeline. | If the owner later wants a separate focus-only command or a non-closing duplicate surface, that is a new ADR-0005/single-player decision, not the P4 bring-back fix. |
 
 Owner priorities, verbatim: **P0** — main-window compact mode; "Show popout" restore/focus; no
 duplicate/unreachable popout. **P1** — corner silhouette; accent/profile split; reduce default
 transparency; distinct theme presets. **P2** — border mode + strength; shadow strength; hover-reveal
 chrome; separate "Restore video here". Re-read against the ground-truth above: the P0 "compact" is
-net-new work, not a fix; `Show popout` now has both toolbar and placeholder activation paths, while
-the separate restore-here action remains open.
+net-new work, not a fix; `Bring video back` now covers the source-window return action by closing the
+single popout through the existing return pipeline.
 
 ## Recent implementation items
 
@@ -102,7 +102,7 @@ the separate restore-here action remains open.
 
 | Item | Resolution |
 |---|---|
-| MVP scope for `Auto`, `Fade`, and profiles | MVP = Pin + basic profile save/load + always-visible controls. Phase 2 = controls fade + Auto + profile edit/validation. Phase 4 = chrome fade + whole-window opacity. |
+| MVP scope for `Auto`, `Fade`, and profiles | MVP = Pin + basic profile save/load + always-visible controls. Phase 2 = controls fade + Auto + profile edit/validation. Phase 4 = chrome fade + whole-popout opacity. |
 | Open questions vs accepted decisions | Section 25 is split into resolved defaults and open decisions. |
 | Close/return behavior | Normative `REQ-RETURN-01`: resume only if the source was playing when Video Popout started. |
 | External link handling | Normative Source Window allowlist + system-browser external policy; Popout Player never wanders off YouTube. |
@@ -120,7 +120,7 @@ the separate restore-here action remains open.
 | `AGENTS.md` / `CHANGELOG.md` location | Decision: keep canonical copies under `docs/` intentionally; `AGENTS.md` already documents the path-prefix rule if moved to root. No duplicates to maintain. |
 | Stable publish + channel/data isolation | A stable, runnable copy deploys to `E:\Dev_test_implemenations\PiPlay` via `scripts\Publish-Stable.ps1`. The release channel is baked into the binary (`PiPlayChannel`); a Stable copy uses portable data beside the exe, its own single-instance identity, and a `PiPlay — Stable …` title, while the Default channel is unchanged. Recorded in `adr/0007-stable-channel-and-portable-data.md`. |
 | Auto trigger timing | **Playback-start**, `/watch`-only, **once per video** (id-keyed). `Auto` detects a watch video playing on the Source Window and reuses `StartVideoPopoutAsync`; an id de-dup blocks the return-resume re-pop loop, and Shorts/embeds are excluded. Off by default. |
-| Popout control customization first slice | Fixed swatches for Pin and Fade active colors plus controls-fade idle-delay presets. No hex picker, profile override, whole-window opacity UI, click-through, or transparent WebView2 behavior. |
+| Popout control customization first slice | Fixed swatches for Pin and Fade active colors plus controls-fade idle-delay presets. No hex picker, profile override, whole-popout opacity UI, click-through, or transparent WebView2 behavior. |
 | Compact-mode placement | Reserved global player default (`PlayerSettings.CompactMode`, off by default) plus optional profile override (`Profile.Mode`: null/global, `normal`, `compact`; legacy `embed` normalizes to `compact`). New popouts currently ignore these values and force Normal while `CompactPlayerEnabled=false`. |
 
 ## Documentation ownership
