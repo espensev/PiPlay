@@ -56,4 +56,18 @@ public static class ReturnPolicy
         }
         return Decide(lastKnownSeconds, sourceWasPlaying, returnedPaused);
     }
+
+    /// <summary>
+    /// Resolve the volume/mute/rate to re-apply to the Source Window on return. The Popout Player's
+    /// reported value wins when known; otherwise fall back to the source's pre-suppression launch value.
+    /// Mute is forced to a concrete value (default un-muted) because popout launch now MUTES the source
+    /// (Q-1 duplicate-audio suppression): leaving it null lets <c>ApplyPlaybackSettingsAsync</c> skip the
+    /// mute write, and the source returns silent. This guarantees suppression is always undone on return.
+    /// </summary>
+    public static (double? Volume, bool? Muted, double? PlaybackRate) ResolveReturnSettings(
+        double? popoutVolume, bool? popoutMuted, double? popoutPlaybackRate,
+        double? launchVolume, bool? launchMuted, double? launchPlaybackRate)
+        => (popoutVolume ?? launchVolume,
+            popoutMuted ?? launchMuted ?? false,
+            popoutPlaybackRate ?? launchPlaybackRate);
 }

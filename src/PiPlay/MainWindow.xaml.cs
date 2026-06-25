@@ -34,9 +34,20 @@ public partial class MainWindow : Window
     private bool _popoutInProgress;
     private PlayerWindow? _player;
     private bool _sourceWasPlayingAtPopout;
+    // The source's pre-suppression playback settings, captured at popout launch. Used as the return
+    // fallback when the popout never reported live state (e.g. X-close before the first sync sample),
+    // so suppression's mute is always undone and the source never returns silent (Q-1).
+    private double? _sourceVolumeAtPopout;
+    private bool? _sourceMutedAtPopout;
+    private double? _sourcePlaybackRateAtPopout;
     // The video the source was on when the popout launched (overhaul Task 3): compared against the
     // popout's returned video id to decide navigate-vs-seek on close (REQ-RETURN-01).
     private string? _popoutSourceVideoId;
+    private System.Windows.Threading.DispatcherTimer? _sourceSuppressionTimer;
+    private bool _sourceSuppressionTickInProgress;
+    private PlayerReturnState? _pendingReturnReplay;
+    private bool _pendingReturnReplayInProgress;
+    private bool _mainWindowClosing;
 
     // Auto (spec §6.1): source-side playback detector + the de-dup key that blocks the return-resume
     // re-pop loop. The timer only runs while Auto is on and the browser is ready.
@@ -114,6 +125,7 @@ public partial class MainWindow : Window
             core.Settings.IsStatusBarEnabled = false;
 
             core.NavigationStarting += Core_NavigationStarting;
+            core.NavigationCompleted += Core_NavigationCompleted;
             core.NewWindowRequested += Core_NewWindowRequested;
             core.SourceChanged += Core_SourceChanged;
 
@@ -156,6 +168,8 @@ public partial class MainWindow : Window
 
     private void Core_NavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
     {
+        ClearStalePendingReturnReplay(e.Uri);
+
         if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri) &&
             NavigationPolicy.IsAllowed(uri, NavigationSurface.Source))
         {
@@ -165,6 +179,99 @@ public partial class MainWindow : Window
         e.Cancel = true;
         Log.Info($"Source navigation blocked, opening externally: {Log.RedactUrl(e.Uri)}");
         OpenExternal(e.Uri);
+    }
+
+    private async void Core_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
+    {
+        if (!e.IsSuccess || _pendingReturnReplay is null) return;
+        await ReplayPendingReturnStateAsync();
+    }
+
+    private void ClearStalePendingReturnReplay(string? uri)
+    {
+        if (_pendingReturnReplay?.VideoId is not { Length: > 0 } pendingId) return;
+        if (!YouTubeUrlHelper.TryParse(uri, out var target) || target.VideoId is null) return;
+        if (string.Equals(pendingId, target.VideoId, StringComparison.Ordinal)) return;
+
+        _pendingReturnReplay = null;
+    }
+
+    private async Task ReplayPendingReturnStateAsync()
+    {
+        if (_pendingReturnReplayInProgress) return;
+        var state = _pendingReturnReplay;
+        var core = Browser.CoreWebView2;
+        if (state is null || core is null || _clearingBrowserData || _mainWindowClosing) return;
+
+        _pendingReturnReplayInProgress = true;
+        try
+        {
+            for (var attempt = 0; attempt < 12; attempt++)
+            {
+                // Re-validate every iteration: a navigation during the retry window can null/replace the
+                // pending state (ClearStalePendingReturnReplay) or move the source off-target. The loop
+                // holds `state` locally, so without this it would replay stale state onto the wrong page.
+                if (!ReferenceEquals(_pendingReturnReplay, state) || _mainWindowClosing) return;
+                if (!IsCurrentSourceReturnReplayTarget(core, state))
+                {
+                    if (ReferenceEquals(_pendingReturnReplay, state)) _pendingReturnReplay = null;
+                    return;
+                }
+
+                var current = await YouTubeDomBridge.ReadPlayerStateAsync(core);
+                if (current is not null)
+                {
+                    await ApplyReturnedPlaybackStateAsync(core, state);
+                    if (ReferenceEquals(_pendingReturnReplay, state)) _pendingReturnReplay = null;
+                    return;
+                }
+
+                await Task.Delay(250);
+            }
+
+            // Timed out waiting for the video element: clear the pending state so a later same-video
+            // navigation cannot re-fire this replay.
+            if (ReferenceEquals(_pendingReturnReplay, state)) _pendingReturnReplay = null;
+            Log.Warn("Returned-video playback-state replay timed out waiting for the source video element.");
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Returned-video playback-state replay failed.", ex);
+        }
+        finally
+        {
+            _pendingReturnReplayInProgress = false;
+        }
+    }
+
+    private static bool IsCurrentSourceReturnReplayTarget(CoreWebView2 core, PlayerReturnState state) =>
+        state.VideoId is not { Length: > 0 } expected ||
+        (YouTubeUrlHelper.TryParse(core.Source, out var target) &&
+         string.Equals(target.VideoId, expected, StringComparison.Ordinal));
+
+    private static async Task ApplyReturnedPlaybackStateAsync(CoreWebView2 core, PlayerReturnState state)
+    {
+        await YouTubeDomBridge.ApplyPlaybackSettingsAsync(core, state.Volume, state.Muted, state.PlaybackRate);
+
+        switch (state.Paused)
+        {
+            case false when state.LastKnownSeconds is not null:
+                await YouTubeDomBridge.SeekAndPlayAsync(core, state.LastKnownSeconds.Value);
+                break;
+            case true when state.LastKnownSeconds is not null:
+                await YouTubeDomBridge.SeekAndPauseAsync(core, state.LastKnownSeconds.Value);
+                break;
+            case false:
+                await YouTubeDomBridge.PlayAsync(core);
+                break;
+            case true:
+                await YouTubeDomBridge.PauseAsync(core);
+                break;
+            default:
+                if (state.LastKnownSeconds is not null)
+                    await YouTubeDomBridge.SeekAsync(core, state.LastKnownSeconds.Value);
+                break;
+        }
     }
 
     private void Core_NewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
@@ -796,13 +903,19 @@ public partial class MainWindow : Window
         _popoutInProgress = true;
         PopOutButton.IsEnabled = false;
         var core = Browser.CoreWebView2;
+        PlayerState? launchState = null;
 
         try
         {
-            // 1) Read source state; capture timestamp + was-playing BEFORE pausing (REQ-RETURN-01).
-            var state = await YouTubeDomBridge.ReadPlayerStateAsync(core);
-            _sourceWasPlayingAtPopout = state is { Paused: false };
-            var seconds = state?.CurrentTime;
+            // 1) Read source state; capture timestamp + was-playing + volume/mute/rate BEFORE
+            // suppressing (REQ-RETURN-01). The settings are the return fallback if the popout never
+            // reports live state, so suppression's mute is always undone on return (Q-1).
+            launchState = await YouTubeDomBridge.ReadPlayerStateAsync(core);
+            _sourceWasPlayingAtPopout = launchState is { Paused: false };
+            _sourceVolumeAtPopout = launchState?.Volume;
+            _sourceMutedAtPopout = launchState?.Muted;
+            _sourcePlaybackRateAtPopout = launchState?.PlaybackRate;
+            var seconds = launchState?.CurrentTime;
 
             // 2) Resolve the currently playing video (canonical URL first, then the address bar).
             var target = await ResolvePopoutTargetAsync(core);
@@ -828,7 +941,8 @@ public partial class MainWindow : Window
             // 3) Pause the source and show the placeholder (Q-1: no duplicate audio). A non-null
             // FallbackReason (mix/radio drop) rides along as the placeholder note (Q-6) — it was
             // previously log-only, invisible to the user.
-            await YouTubeDomBridge.PauseAsync(core);
+            await YouTubeDomBridge.SuppressPlaybackAsync(core);
+            StartSourceSuppressionGuard();
             ShowSourcePlaceholder(true, target.FallbackReason);
 
             // 4) Create the single Popout Player on the shared environment, in the resolved mode.
@@ -845,7 +959,8 @@ public partial class MainWindow : Window
                 _settings.Player.FadeEnabled, ResolvedAccentColor,
                 EffectiveFadeIdleDelayMs, mode, target,
                 EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity,
-                EffectiveStripAutoHide, EffectiveDwmCornerMode);
+                EffectiveStripAutoHide, EffectiveDwmCornerMode,
+                nudgePlayOnInitialPause: _sourceWasPlayingAtPopout);
             _player.PlayerClosed += Player_OnClosed;
             _player.Show();
 
@@ -857,8 +972,12 @@ public partial class MainWindow : Window
         {
             // Failure after pause (spec 13.5): restore the source and resume if it had been playing.
             Log.Error("Video Popout failed; restoring source.", ex);
+            StopSourceSuppressionGuard();
             ShowSourcePlaceholder(false);
             if (_player is not null) { try { _player.Close(); } catch { /* ignore */ } _player = null; }
+            if (core is not null)
+                await YouTubeDomBridge.ApplyPlaybackSettingsAsync(
+                    core, launchState?.Volume, launchState?.Muted, launchState?.PlaybackRate);
             if (_sourceWasPlayingAtPopout && core is not null) await YouTubeDomBridge.PlayAsync(core);
             Prompt.ShowInfo(this, "Pop out video", "PiPlay couldn't pop out this video. It stayed in the main window.");
         }
@@ -966,6 +1085,43 @@ public partial class MainWindow : Window
             visible && !string.IsNullOrEmpty(note) ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    private void StartSourceSuppressionGuard()
+    {
+        _sourceSuppressionTimer ??= CreateSourceSuppressionTimer();
+        if (!_sourceSuppressionTimer.IsEnabled) _sourceSuppressionTimer.Start();
+    }
+
+    private System.Windows.Threading.DispatcherTimer CreateSourceSuppressionTimer()
+    {
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        timer.Tick += SourceSuppressionTimer_Tick;
+        return timer;
+    }
+
+    private void StopSourceSuppressionGuard()
+    {
+        _sourceSuppressionTimer?.Stop();
+        _sourceSuppressionTickInProgress = false;
+    }
+
+    private async void SourceSuppressionTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_sourceSuppressionTickInProgress) return;
+        if (_player is null || _clearingBrowserData || _mainWindowClosing) return;
+        var core = Browser.CoreWebView2;
+        if (core is null) return;
+
+        _sourceSuppressionTickInProgress = true;
+        try
+        {
+            await YouTubeDomBridge.SuppressPlaybackAsync(core);
+        }
+        finally
+        {
+            _sourceSuppressionTickInProgress = false;
+        }
+    }
+
     private async void Player_OnClosed(object? sender, PlayerReturnState state)
     {
         try
@@ -983,12 +1139,19 @@ public partial class MainWindow : Window
                 if (state.Placement.Height >= 180) _settings.Player.LastHeight = state.Placement.Height;
             }
 
-            // Return to the source (spec 14). LastKnownSeconds is nullable; 0 is a valid timestamp.
-            ShowSourcePlaceholder(false);
-            await ApplyReturnActionAsync(state);
+            // Placement/settings must survive even if source scripting fails.
+            _settingsService.Save(_settings);
+
+            StopSourceSuppressionGuard();
+            if (!_mainWindowClosing)
+            {
+                // Return to the source (spec 14). LastKnownSeconds is nullable; 0 is a valid timestamp.
+                ShowSourcePlaceholder(false);
+                if (!_clearingBrowserData) await ApplyReturnActionAsync(state);
+            }
 
             _settingsService.Save(_settings);
-            Log.Info("Returned from Video Popout.");
+            Log.Info(_mainWindowClosing ? "Popout Player closed during app shutdown." : "Returned from Video Popout.");
         }
         catch (Exception ex)
         {
@@ -1016,7 +1179,14 @@ public partial class MainWindow : Window
             state.Paused, state.VideoId, _popoutSourceVideoId);
 
         if (action != ReturnAction.Navigate && core is not null)
-            await YouTubeDomBridge.ApplyPlaybackSettingsAsync(core, state.Volume, state.Muted, state.PlaybackRate);
+        {
+            // Popout live value wins; else the pre-suppression launch value; else forced un-mute so
+            // the source can never return silent after launch-time mute suppression (Q-1).
+            var (volume, muted, rate) = ReturnPolicy.ResolveReturnSettings(
+                state.Volume, state.Muted, state.PlaybackRate,
+                _sourceVolumeAtPopout, _sourceMutedAtPopout, _sourcePlaybackRateAtPopout);
+            await YouTubeDomBridge.ApplyPlaybackSettingsAsync(core, volume, muted, rate);
+        }
 
         switch (action)
         {
@@ -1026,6 +1196,9 @@ public partial class MainWindow : Window
                 // actually is. The timestamp rides the watch URL; Auto's de-dup key
                 // updates FIRST so the returned video is not instantly re-popped.
                 _autoLastHandledVideoId = state.VideoId;
+                _pendingReturnReplay = CloneForReturnReplay(
+                    state, _sourceWasPlayingAtPopout,
+                    _sourceVolumeAtPopout, _sourceMutedAtPopout, _sourcePlaybackRateAtPopout);
                 NavigateInternal(YouTubeUrlHelper.BuildWatchUrl(
                     new YouTubeTarget { VideoId = state.VideoId }, state.LastKnownSeconds));
                 break;
@@ -1043,8 +1216,41 @@ public partial class MainWindow : Window
 
     // Return seams (overhaul Task 3, WPF lane): drive the navigate-vs-seek return decision
     // headlessly — the queued pending URL is the observable for the Navigate case.
-    internal void SeedPopoutReturnForTests(string sourceVideoId) => _popoutSourceVideoId = sourceVideoId;
+    internal void SeedPopoutReturnForTests(
+        string sourceVideoId,
+        bool sourceWasPlayingAtPopout = false,
+        double? sourceVolumeAtPopout = null,
+        bool? sourceMutedAtPopout = null,
+        double? sourcePlaybackRateAtPopout = null)
+    {
+        _popoutSourceVideoId = sourceVideoId;
+        _sourceWasPlayingAtPopout = sourceWasPlayingAtPopout;
+        _sourceVolumeAtPopout = sourceVolumeAtPopout;
+        _sourceMutedAtPopout = sourceMutedAtPopout;
+        _sourcePlaybackRateAtPopout = sourcePlaybackRateAtPopout;
+    }
+
     internal string? AutoLastHandledVideoIdForTests => _autoLastHandledVideoId;
+    internal PlayerReturnState? PendingReturnReplayForTests => _pendingReturnReplay;
+
+    private static PlayerReturnState CloneForReturnReplay(
+        PlayerReturnState state, bool sourceWasPlayingAtPopout,
+        double? sourceVolumeAtPopout, bool? sourceMutedAtPopout, double? sourcePlaybackRateAtPopout)
+    {
+        var (volume, muted, rate) = ReturnPolicy.ResolveReturnSettings(
+            state.Volume, state.Muted, state.PlaybackRate,
+            sourceVolumeAtPopout, sourceMutedAtPopout, sourcePlaybackRateAtPopout);
+
+        return new()
+        {
+            VideoId = state.VideoId,
+            LastKnownSeconds = state.LastKnownSeconds,
+            Paused = state.Paused ?? !sourceWasPlayingAtPopout,
+            Volume = volume,
+            Muted = muted,
+            PlaybackRate = rate,
+        };
+    }
 
     // --- Single-instance activation (REQ-APP-01) ---
 
@@ -1078,7 +1284,9 @@ public partial class MainWindow : Window
     {
         try
         {
+            _mainWindowClosing = true;
             _autoTimer?.Stop();
+            StopSourceSuppressionGuard();
             // Close the Popout Player too (its handler captures/persists player state).
             if (_player is not null) { try { _player.Close(); } catch { /* ignore */ } }
 

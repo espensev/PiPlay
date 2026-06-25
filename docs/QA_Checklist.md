@@ -22,10 +22,11 @@ Mark each: pass / issue (link) / skipped.
 - [ ] youtube.com loads without crashing.
 - [ ] A `watch?v=` URL loads and plays.
 - [ ] Warm WebView: after the Popout Player has played for about 3 s, its timestamp is within 2 s of (expected source timestamp + elapsed playback time); target ≤1 s.
-- [ ] Source audio stops on popout — no duplicate audio. **(Q-1)**
+- [ ] Source audio stops on popout — no duplicate audio through launch, ads, autoplay-next, and YouTube SPA re-render. **(Q-1)**
 - [ ] Source Placeholder is visible with no WebView bleed-through.
-- [ ] Closing the player after popping out from a playing source returns and resumes. **(Q-2, REQ-RETURN-01)**
-- [ ] Closing the player after popping out from a paused source returns at the timestamp and stays paused. **(REQ-RETURN-01)**
+- [ ] Closing the player after popping out from a playing source returns at the timestamp and follows the popout's live play/pause state. **(Q-2, REQ-RETURN-01)**
+- [ ] Popping out from a paused source does not auto-start playback; closing without pressing play returns at the timestamp and stays paused. **(REQ-RETURN-01)**
+- [ ] Popping out from a paused source, pressing play in the popout, then closing returns at the timestamp and resumes. **(REQ-RETURN-01)**
 - [ ] Seek player to 0, then close — source returns to 0, not a stale timestamp.
 - [ ] Rapid double-click on Pop out opens only one player.
 - [ ] Launching PiPlay while it is already running focuses the existing instance — no second process or WebView2 user-data contention. **(REQ-APP-01)**
@@ -42,7 +43,7 @@ Mark each: pass / issue (link) / skipped.
 
 ## 2. Window quality (Q-7)
 - [ ] Player drags smoothly from the chrome area; video controls still work.
-- [ ] **Phase 3 — resize zones:** edge resize feels native on the Source Window and Popout Player **with the pointer over the video/page surface itself** (the WebView2 area — the originally reported dead zone), not only over the chrome strip/toolbar: left/right/bottom resize cursors appear without pixel-perfect aiming on the 10 DIP inset band (`REQ-WINDOW-02`; the visible band is the accepted Task 1 trade-off).
+- [ ] **Phase 3 — resize zones:** edge resize feels native on the Source Window and Popout Player **with the pointer over the video/page surface itself** (the WebView2 area — the originally reported dead zone), not only over the chrome strip/toolbar: left/right/bottom resize cursors appear without pixel-perfect aiming on the 4 DIP inset band (`REQ-WINDOW-02`; the visible band is the accepted Task 1 trade-off).
 - [ ] **Phase 3 — resize zones:** corner resize feels native on the Source Window and Popout Player **including corners reached over the player surface**: each corner gives diagonal resize over the first/last ~32 DIP along the edge band, and normal page-mode player remains usable at 320x180.
 - [ ] **Phase 3 — resize zones:** expanded resize zones do not swallow controls: Source caption buttons and Popout Fade/Pin/Expand/Close remain clickable outside the outer resize band.
 - [ ] Pin/topmost is obvious and independent for the player and the Source Window.
@@ -60,7 +61,7 @@ captures and record the evidence per column, never write per-state procedures.
 | Behavior (one procedure) | Popout Standard | Fullview Faded |
 |---|---|---|
 | Wheel scroll needs one click into the page first (wheel focus-routing; documented owner decision 2026-06-10), then wheel/touchpad/page-scrollbar scroll works — including at reduced opacity. | | |
-| Wheel over the 10 DIP resize band is inert by design (the band belongs to the window, not the page); in-page scroll just inside the band is unaffected. | | |
+| Wheel over the 4 DIP resize band is inert by design (the band belongs to the window, not the page); in-page scroll just inside the band is unaffected. | | |
 | Expand button on the strip toggles full-monitor expand and back; glyph and tooltip flip Expand/Restore together. | | |
 | Restore stays reachable while expanded: the strip (or its top-edge reveal under auto-hide) exposes the restore button; Esc restores after clicking the strip once (WPF focus). | | |
 | Close while expanded, pop out again: the next popout launches at the prior normal bounds, never expanded. | | |
@@ -77,8 +78,9 @@ captures and record the evidence per column, never write per-state procedures.
 - [ ] **Overhaul Task 5 — Settings fits short displays:** on (or simulating) a ~768 px work area, the Settings window caps at the work area, the sections scroll, the title-bar close button never scrolls away, and all four sections are reachable in order: Privacy, Appearance, Playback, Advanced.
 - [ ] Settings exposes no Compact player toggle/copy; new popouts use Normal while `PlaybackModePolicy.CompactPlayerEnabled=false`.
 - [ ] **Overhaul Tasks 9-10 — Theme preset + accent smoke:** Settings → Appearance shows a Theme row (Sharp Dark / Minimal / Soft Glass) and a single Accent color chip row. Selecting a preset checks it and adopts that preset's default accent. The chosen accent recolors the primary "Pop out video" button, the URL caret/focus, and the Pin/Fade glyphs LIVE on the open main window (DynamicResource); a newly launched Popout Player also uses it. Restart and confirm the accent persists and is applied at startup. A hand-edited invalid `theme.themeId`/`accentColor` in settings.json falls back to Sharp Dark / cyan without crashing.
-- [ ] **Video-aware return (Normal mode):** let the popout move to a different video (playlist auto-advance or normal-page in-page navigation), then close it — the source NAVIGATES to that video at the popout's timestamp instead of seeking the original video; with Auto on, the returned video does not instantly re-pop.
+- [ ] **Video-aware return (Normal mode):** let the popout move to a different video (playlist auto-advance or normal-page in-page navigation), then close it — the source NAVIGATES to that video at the popout's timestamp instead of seeking the original video, then replays play/pause, volume/mute, and speed where YouTube permits; with Auto on, the returned video does not instantly re-pop.
 - [ ] **Bring video back (P4):** pop out a video, pause/change volume/mute/speed in the popout, then click **Bring video back** in the Source Window — playback returns to the Source Window with timestamp and play/pause preserved, and volume/mute/speed preserved where YouTube permits.
+- [ ] **Plain X-close/Alt-F4 return:** pop out a video, pause/change volume/mute/speed in the popout, then close the popout from its window chrome — playback returns to the Source Window with timestamp and play/pause preserved, and volume/mute/speed preserved where YouTube permits. Repeat once by closing immediately after popout launch to confirm the source does not return silent.
 
 ## 3.5 Compact player plumbing (dormant)
 - [ ] `PlaybackModePolicy.CompactPlayerEnabled` remains `false` for this release.

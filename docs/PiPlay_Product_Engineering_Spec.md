@@ -883,9 +883,11 @@ Video Popout must be guarded:
 if (!_browserReady || _popoutInProgress)
     return;
 
+// A popout already exists: the Source Window primary action is now "Bring video back" (P4),
+// so route to the return path instead of opening or merely focusing a second player (ADR-0005).
 if (_player is not null)
 {
-    _player.Activate();
+    await BringVideoBackAsync();
     return;
 }
 ```
@@ -909,7 +911,7 @@ When the Popout Player closes:
 ```text
 Popout Player closing
   ↓
-Capture last known timestamp, bounds, topmost state, fade state
+Capture last known timestamp, paused state, volume, mute, playback speed, bounds, topmost state, fade state
   ↓
 Stop sync timer
   ↓
@@ -917,11 +919,13 @@ Notify Source Window
   ↓
 Source Window hides Source Placeholder and shows source WebView
   ↓
-Source Window seeks source video to last known timestamp if available
+If the popout ended on a different video, Source Window navigates there and replays captured playback state after the source video element is ready
+  ↓
+Otherwise Source Window seeks source video to last known timestamp if available
   ↓
 Source Window resumes playback only if REQ-RETURN-01 allows it
   ↓
-Settings are saved
+Settings are saved before and after source-return scripting so popout placement survives return-script failure
 ```
 
 Important details:
@@ -929,14 +933,22 @@ Important details:
 - `LastKnownSeconds` must be nullable.
 - `0` is a valid known timestamp.
 - Unknown timestamp and known-zero timestamp must not be conflated.
-- **[REQ-RETURN-01]** Source playback must resume on return only if the source was playing when Video Popout started. If the source was paused when popped out, return to the same video/timestamp and remain paused.
-- `sourceWasPlayingAtPopout` is captured before PiPlay pauses the source; do not infer it later from close-time state.
+- **[REQ-RETURN-01]** Source playback follows the Popout Player's live paused/playing state when that
+  state is known at return. If the popout paused state is unknown, fall back to whether the source was
+  playing when Video Popout started.
+- `sourceWasPlayingAtPopout` is captured before PiPlay suppresses the source and is a fallback only.
+- If the source was paused at popout launch, PiPlay must not auto-nudge the Popout Player into playing;
+  a return to playing state from that path must come from user action inside the popout.
 
 Recommended model:
 
 ```csharp
 public int? LastKnownSeconds { get; private set; }
-public bool SourceWasPlayingAtPopout { get; private set; }
+public bool? PopoutPausedAtReturn { get; private set; }
+public double? PopoutVolumeAtReturn { get; private set; }
+public bool? PopoutMutedAtReturn { get; private set; }
+public double? PopoutPlaybackRateAtReturn { get; private set; }
+public bool SourceWasPlayingAtPopoutFallback { get; private set; }
 ```
 
 ---
@@ -1229,8 +1241,9 @@ A build should not be called “release candidate” until the following pass.
 | Video Popout timestamp | Press Pop out during playback | Warm WebView: after the Popout Player has been playing for about 3 s, player timestamp is within 2 s of expected source timestamp plus elapsed time; target ≤1 s |
 | Source pause | Pop out during playback | Source audio stops |
 | Placeholder | Pop out | Source Placeholder visible, no WebView bleed-through |
-| Close player | Close Popout Player after source was playing | Source returns and resumes playback |
-| Close paused source | Pop out while source is paused, then close | Source returns at timestamp and stays paused (`REQ-RETURN-01`) |
+| Close player | Close Popout Player after source was playing | Source returns at timestamp and follows the popout's live play/pause state |
+| Close paused source | Pop out while source is paused, then close without pressing play | Source returns at timestamp and stays paused (`REQ-RETURN-01`) |
+| Paused source, user plays in popout | Pop out while source is paused, press play in the popout, then close | Source returns at timestamp and resumes (`REQ-RETURN-01`) |
 | Timestamp zero | Seek player to 0 and close | Source returns to 0, not stale timestamp |
 | Double-click popout | Rapidly click Pop out | Only one player opens |
 | Playlist watch URL | Pop out `watch?v=X&list=PL...` | Preserves video `X` and playlist context |
@@ -1436,7 +1449,7 @@ The following are normative defaults unless superseded by a later ADR or require
 | ID / source | Decision |
 |---|---|
 | ADR-0005 | PiPlay is single-player for now. A popout request while a player exists activates the existing player rather than opening another. |
-| REQ-RETURN-01 | Return resumes playback only if the source was playing when Video Popout started; otherwise the source returns paused. |
+| REQ-RETURN-01 | Return follows the Popout Player's live paused/playing state when known; if unknown, return falls back to whether the source was playing when Video Popout started. |
 | REQ-NAV-01 | The allowlist is a guardrail, not a blocker: the Source Window allows YouTube plus Google sign-in (including regional domains); other links open in the system browser without per-link prompts. |
 | REQ-NAV-02 | The Popout Player stays on YouTube plus the Google sign-in surface and never wanders onto unrelated sites; unrelated navigation is blocked or opened externally. |
 | REQ-PRIVACY-01 / REQ-PRIVACY-02 | `Reset app state` and `Clear browser data` are separate actions. Reset keeps the YouTube session; clear browser data logs the user out. |

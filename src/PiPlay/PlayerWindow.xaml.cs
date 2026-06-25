@@ -67,6 +67,8 @@ public partial class PlayerWindow : Window
     private bool _navCompleted;
     private bool _capturedReturn;
     private bool _nudgedPlay;
+    private bool _nudgePlayOnInitialPause;
+    private bool _finalReturnPlaybackCaptured;
 
     // Compact (shell) mode only: the host side of the IFrame-API bridge (spec 10.3), the one-shot
     // "the IFrame API never came up" watchdog, and the one-way fallback latch.
@@ -100,7 +102,8 @@ public partial class PlayerWindow : Window
         double constantWindowOpacity = WindowOpacityPolicy.Default,
         double idleWindowOpacity = WindowOpacityPolicy.Default,
         bool stripAutoHide = false,
-        DwmCornerMode dwmCornerMode = DwmCornerMode.Default)
+        DwmCornerMode dwmCornerMode = DwmCornerMode.Default,
+        bool nudgePlayOnInitialPause = true)
     {
         InitializeComponent();
         BorderlessWindowHelper.EnableExpandedResizeZones(this);
@@ -108,6 +111,7 @@ public partial class PlayerWindow : Window
         _environment = environment;
         _currentUrl = url;
         _mode = mode;
+        _nudgePlayOnInitialPause = nudgePlayOnInitialPause;
         _currentTarget = fallbackTarget;
         _returnState.VideoId = fallbackTarget?.VideoId;   // the launch video until navigation says otherwise
 
@@ -232,6 +236,7 @@ public partial class PlayerWindow : Window
         if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri) &&
             NavigationPolicy.IsAllowed(uri, NavigationSurface.Player))
         {
+            ResetPlaybackSamplingForNavigation();
             return;
         }
 
@@ -270,8 +275,11 @@ public partial class PlayerWindow : Window
     {
         _currentTarget = target;
         _returnState.VideoId = target.VideoId;
-        _returnState.LastKnownSeconds = null;
+        ResetReturnMediaStateForNewTarget();
         _nudgedPlay = false;
+        _finalReturnPlaybackCaptured = false;
+        _navCompleted = false;
+        _syncTimer.Stop();
         // The navigation tears down any fullscreen element with no exit event reaching a handler
         // that still believes the OLD page's element is up — drop the latch, keep the window state
         // (yanking the window around mid-retarget would be worse than staying expanded).
@@ -307,7 +315,7 @@ public partial class PlayerWindow : Window
 
     private void Core_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
-        _navCompleted = true;
+        _navCompleted = e.IsSuccess;
         // A compact shell that failed to load outright can never message the host — surface the
         // error bar now instead of waiting out the watchdog (spec 10.3 / Q-6, Stage 4).
         if (_mode == PlaybackMode.Compact && !e.IsSuccess)
@@ -319,6 +327,22 @@ public partial class PlayerWindow : Window
         // shell bridge (IFrame API). The mode-specific choice lives in PlaybackModePolicy so the
         // "one source of truth for the timestamp" invariant is unit-testable (spec 10.3).
         if (PlaybackModePolicy.UsesDomSyncTimer(_mode) && !_syncTimer.IsEnabled) _syncTimer.Start();
+    }
+
+    private void ResetPlaybackSamplingForNavigation()
+    {
+        _navCompleted = false;
+        if (PlaybackModePolicy.UsesDomSyncTimer(_mode)) _syncTimer.Stop();
+        ResetReturnMediaStateForNewTarget();
+    }
+
+    private void ResetReturnMediaStateForNewTarget()
+    {
+        _returnState.LastKnownSeconds = null;
+        _returnState.Paused = null;
+        _returnState.Volume = null;
+        _returnState.Muted = null;
+        _returnState.PlaybackRate = null;
     }
 
     // --- Compact shell bridge + error/fallback path (spec 10.3 / Q-6, Stage 4) ---
@@ -466,16 +490,18 @@ public partial class PlayerWindow : Window
 
     private async void SyncTimer_Tick(object? sender, EventArgs e)
     {
-        if (!_navCompleted || Player.CoreWebView2 is null) return;
+        if (_finalReturnPlaybackCaptured || !_navCompleted || Player.CoreWebView2 is null) return;
         var state = await YouTubeDomBridge.ReadPlayerStateAsync(Player.CoreWebView2);
+        if (_finalReturnPlaybackCaptured) return;
         if (state is null) return;
 
         // The popout is the active surface now: if it came up paused, nudge play once
         // (play() is an allowed control per spec 19). Best-effort; never forced again.
-        if (!_nudgedPlay && state.Paused)
+        if (_nudgePlayOnInitialPause && !_nudgedPlay && state.Paused)
         {
             _nudgedPlay = true;
             await YouTubeDomBridge.PlayAsync(Player.CoreWebView2);
+            if (_finalReturnPlaybackCaptured) return;
         }
 
         ApplyReturnPlaybackState(state);
@@ -483,6 +509,8 @@ public partial class PlayerWindow : Window
 
     internal async Task<PlayerReturnState> CaptureReturnStateNowAsync()
     {
+        _finalReturnPlaybackCaptured = true;
+        _syncTimer.Stop();
         await CaptureCurrentPlaybackStateAsync();
         CaptureReturnWindowState();
         return _returnState;
@@ -870,7 +898,10 @@ public partial class PlayerWindow : Window
     // --- Close / return (spec 14) ---
 
     private void PlayerWindow_Closing(object? sender, CancelEventArgs e)
-        => CaptureReturnWindowState();
+    {
+        _finalReturnPlaybackCaptured = true;
+        CaptureReturnWindowState();
+    }
 
     private void CaptureReturnWindowState()
     {

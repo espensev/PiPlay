@@ -84,6 +84,10 @@ public static class YouTubeDomBridge
     public static Task PauseAsync(CoreWebView2 webView) =>
         ExecuteVoidAsync(webView, $"(() => {{ const v = {VideoSelector}; if (v) v.pause(); }})()");
 
+    public static Task SuppressPlaybackAsync(CoreWebView2 webView) =>
+        ExecuteVoidAsync(webView,
+            $"(() => {{ const v = {VideoSelector}; if (v) {{ v.muted = true; try {{ v.pause(); }} catch (e) {{}} }} }})()");
+
     public static Task PlayAsync(CoreWebView2 webView) =>
         ExecuteVoidAsync(webView,
             $"(() => {{ const v = {VideoSelector}; if (v) {{ const p = v.play(); if (p && p.catch) p.catch(() => {{}}); }} }})()");

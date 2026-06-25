@@ -8,7 +8,15 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 - **Bring video back (P4):** while a popout exists, the Source Window primary action and placeholder
   action now return playback to the Source Window instead of only focusing the popout. The return path
   captures fresh popout timestamp, paused state, volume, mute, and playback speed where the YouTube DOM
-  exposes them.
+  exposes them. If the popout ends on a different video, the Source Window now navigates there and
+  replays the captured play/pause, volume/mute, and playback-speed state after the returned video is
+  available.
+- **Return resume rule (REQ-RETURN-01):** return follows the popout's live play/pause state when known;
+  source-was-playing at launch is now fallback-only. PiPlay only nudges a newly opened popout into
+  playback when the source was already playing at launch.
+- **Source audio suppression:** while playback is detached, the Source Window now mutes+pauses the source
+  and reasserts suppression so ads, autoplay-next, and SPA re-renders are less likely to produce duplicate
+  audio behind the placeholder.
 - **Whole popout opacity wording (P3):** Settings now labels the existing layered-window opacity feature
   as whole-popout opacity, making clear it is not video-safe chrome-only transparency.
 

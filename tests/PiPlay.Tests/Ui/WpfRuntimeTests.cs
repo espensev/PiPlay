@@ -1549,7 +1549,15 @@ public class WpfRuntimeTests : IDisposable
         var w = new MainWindow();
         w.SeedPopoutReturnForTests(sourceVideoId: "AAAAAAAAAAA");
 
-        w.ApplyReturnActionAsync(new PlayerReturnState { VideoId = "BBBBBBBBBBB", LastKnownSeconds = 42 })
+        w.ApplyReturnActionAsync(new PlayerReturnState
+            {
+                VideoId = "BBBBBBBBBBB",
+                LastKnownSeconds = 42,
+                Paused = true,
+                Volume = 0.35,
+                Muted = true,
+                PlaybackRate = 1.25,
+            })
             .GetAwaiter().GetResult();   // Navigate completes synchronously (no core to script)
 
         // The browser never initializes in the test lane, so the navigation queues — the queued
@@ -1557,6 +1565,41 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal("https://www.youtube.com/watch?v=BBBBBBBBBBB&t=42s", w.PendingUrlForTests);
         // De-dup key armed before navigating: Auto must not instantly re-pop the returned video.
         Assert.Equal("BBBBBBBBBBB", w.AutoLastHandledVideoIdForTests);
+        Assert.NotNull(w.PendingReturnReplayForTests);
+        Assert.Equal("BBBBBBBBBBB", w.PendingReturnReplayForTests!.VideoId);
+        Assert.Equal(42, w.PendingReturnReplayForTests.LastKnownSeconds);
+        Assert.True(w.PendingReturnReplayForTests.Paused);
+        Assert.Equal(0.35, w.PendingReturnReplayForTests.Volume);
+        Assert.True(w.PendingReturnReplayForTests.Muted);
+        Assert.Equal(1.25, w.PendingReturnReplayForTests.PlaybackRate);
+    });
+
+    [Fact]
+    public void Return_to_a_different_video_without_popout_sample_replays_launch_settings() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        w.SeedPopoutReturnForTests(
+            sourceVideoId: "AAAAAAAAAAA",
+            sourceWasPlayingAtPopout: true,
+            sourceVolumeAtPopout: 0.72,
+            sourceMutedAtPopout: false,
+            sourcePlaybackRateAtPopout: 1.5);
+
+        w.ApplyReturnActionAsync(new PlayerReturnState
+            {
+                VideoId = "BBBBBBBBBBB",
+                LastKnownSeconds = 7,
+            })
+            .GetAwaiter().GetResult();
+
+        Assert.Equal("https://www.youtube.com/watch?v=BBBBBBBBBBB&t=7s", w.PendingUrlForTests);
+        Assert.NotNull(w.PendingReturnReplayForTests);
+        Assert.Equal("BBBBBBBBBBB", w.PendingReturnReplayForTests!.VideoId);
+        Assert.Equal(7, w.PendingReturnReplayForTests.LastKnownSeconds);
+        Assert.False(w.PendingReturnReplayForTests.Paused);
+        Assert.Equal(0.72, w.PendingReturnReplayForTests.Volume);
+        Assert.False(w.PendingReturnReplayForTests.Muted);
+        Assert.Equal(1.5, w.PendingReturnReplayForTests.PlaybackRate);
     });
 
     [Fact]
