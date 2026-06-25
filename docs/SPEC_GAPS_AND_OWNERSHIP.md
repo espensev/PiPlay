@@ -2,6 +2,12 @@
 
 **Status:** Working notes after Draft 0.10 compact-player sweep planning. Resolved items have been folded into `PiPlay_Product_Engineering_Spec.md`; keep this file for the remaining open decisions, ready implementation items, and ownership boundaries.
 
+## ⚠️ Open bugs (owner-reported — must not drop)
+
+| Bug | Reported | Status | Detail |
+|---|---|---|---|
+| **Double-audio: source "base" keeps playing after popout** | 2026-06-25 (pre-existing, not a v0.6.0 regression) | OPEN | The source is paused once, fire-and-forget — `MainWindow.xaml.cs:826` → `YouTubeDomBridge.PauseAsync` (`YouTubeDomBridge.cs:65-66`, a single DOM `video.pause()`); never muted, never re-asserted, so YouTube auto-resumes (autoplay-next / ad / SPA re-render). Worst on mix/radio sources (`start_radio=1`). The Normal-mode popout autoplays its own audio → two overlapping streams. Full log: `docs/reviews/2026-06-25-v0.6.0-owner-review-bugs.md` (Bug 1). Fix direction: mute the source WebView while a popout is open and re-assert pause/mute on a short guard. |
+
 ## Remaining open product decisions
 
 | Item | Phase pressure | Current issue | Needed decision |
