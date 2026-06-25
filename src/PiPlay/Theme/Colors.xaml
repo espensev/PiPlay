@@ -19,8 +19,8 @@
   <Color x:Key="SurfaceBaseColor">#FF0B0E12</Color>
   <Color x:Key="SurfaceRaisedColor">#FF131820</Color>
   <Color x:Key="SurfaceHoverColor">#FF1E2630</Color>
-  <Color x:Key="BorderSubtleColor">#FF2B3645</Color>
-  <Color x:Key="BorderStrongColor">#FF3E4B5C</Color>
+  <Color x:Key="BorderSubtleColor">#FF181F29</Color>
+  <Color x:Key="BorderStrongColor">#FF262F3D</Color>
   <Color x:Key="TextPrimaryColor">#FFF4F7FA</Color>
   <Color x:Key="TextSecondaryColor">#FF9AA2AD</Color>
   <Color x:Key="AccentCyanColor">#FF2BAED0</Color>

@@ -909,6 +909,21 @@ public class XamlInvariantTests
         Assert.Contains("DangerButton", keys);
     }
 
+    [Fact]
+    public void Grey_border_tokens_are_quieted_to_a_faint_hairline()
+    {
+        var colors = XamlTestFiles.Load("Theme/Colors.xaml");
+        string ColorOf(string key) => colors
+            .Descendants(XamlTestFiles.Pres + "Color")
+            .Single(e => (string?)e.Attribute(XamlTestFiles.X + "Key") == key)
+            .Value.Trim();
+
+        // Softened from the old hard greys (#FF2B3645 / #FF3E4B5C) so control outlines read as a
+        // faint hairline on the dark UI instead of a boxed-in grey rectangle (owner review P1/P2).
+        Assert.Equal("#FF181F29", ColorOf("BorderSubtleColor"));
+        Assert.Equal("#FF262F3D", ColorOf("BorderStrongColor"));
+    }
+
     // --- App manifest declares per-monitor-v2 DPI awareness (REQ-WINDOW-01, Q-7) ---
 
     [Fact]
