@@ -4,24 +4,39 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-25
+
+Minor release (from 0.5.0, build 22): an appearance follow-up to the owner UI review. The global app
+accent is separated from per-profile identity color, accent actions are filled, color acceptance is
+widened, the control borders and Soft Glass translucency are quieted, and the embed Compact player is
+removed. Published exact-source to Stable.
+
+### Changed
+- **Profile color is identity, not app accent:** saved profile colors now fill the profile selector
+  chip and no longer override the global app accent when a profile is active; Settings Appearance
+  always edits the global accent.
+- **Filled accent actions:** accent buttons now use the selected app accent as their fill with
+  generated dark/white foreground text instead of reading as a heavy accent outline.
+- **Wider custom colors:** Settings and profile colors now accept any valid `#RRGGBB` value; invalid
+  hex is still blocked/defaulted, but mid-tone colors are no longer repaired away.
+- **Quieter chrome:** the control borders across all themes (sharp-dark, minimal, soft-glass plus the
+  `Colors.xaml` fallback) are now a faint hairline instead of hard grey, so the UI no longer reads as
+  a boxed-in browser window.
+- **Soft Glass is near-opaque by default:** its default translucency drops from a heavy active 0.92 /
+  idle 0.78 to a slight, controlled active 0.97 / idle 0.90; the per-window opacity control still
+  overrides it. Sharp Dark and Minimal stay fully opaque.
+
+### Removed
+- **Embed "Compact player":** the embedded-player popout mode is gone; new Video Popouts always use
+  the full YouTube watch page (the embed broke on embed-disabled videos for near-zero visible gain).
+  The compact code path is kept dormant behind `PlaybackModePolicy.CompactPlayerEnabled = false`.
+
 ### Fixed
 - **Detached-video placeholder action:** the Source Window placeholder now includes a direct
   **Show popout** action that brings the existing Video Popout to the front.
-- **Filled accent actions:** accent buttons now use the selected app accent as their fill with
-  generated dark/white foreground text instead of reading as a heavy accent outline.
-- **Profile color identity:** saved profile colors now fill the profile selector chip and no longer
-  override the global app accent when a profile is active.
-- **Wider custom colors:** Settings and profile colors now accept any valid `#RRGGBB` value; invalid
-  hex is still blocked/defaulted, but mid-tone colors are no longer repaired away.
 - **Popout action rendering:** the Source Window `Pop out video` button now applies pixel-aligned
   text rendering to its nested icon and label and has enough toolbar height budget for the largest
   theme density, preventing malformed or clipped accent-button text.
-- Quieted the control borders across all themes — the per-theme palettes (sharp-dark, minimal,
-  soft-glass) plus the `Colors.xaml` fallback now use a faint hairline `BorderSubtle`/`BorderStrong`
-  instead of the old hard grey, so the UI no longer reads as a boxed-in browser window.
-- Removed the embed "Compact player" setting; new Video Popouts always use the full YouTube watch
-  page (the embedded player broke on embed-disabled videos for near-zero visible gain). The compact
-  code path is kept dormant behind `PlaybackModePolicy.CompactPlayerEnabled = false`.
 
 ## [0.5.0] - 2026-06-20
 
