@@ -1,4 +1,3 @@
-using System;
 using PiPlay.Services;
 
 namespace PiPlay.Tests;
@@ -100,13 +99,20 @@ public class BorderlessResizeHitTestPolicyTests
             Width, Height, x: Band / 2, y: MidY, isResizable: false, isNormalWindowState: true));
 
     [Fact]
-    public void Tiny_windows_clamp_border_and_corner_lengths_to_half_the_window()
+    public void Tiny_windows_clamp_the_resize_band_to_half_the_window()
     {
-        // Border clamps to min(Band, dim/2); a point inside the clamped border near a corner is diagonal.
-        const double tiny = 18;
-        var border = Math.Min(Band, tiny / 2);
+        // A window only one band wide/tall forces border = min(Band, dim/2) onto the dim/2 arm
+        // (dim/2 = Band/2 < Band), so the band clamps to half the window — exercised at any DIP value.
+        var tiny = Band;
+        var clamped = tiny / 2;   // the effective (clamped) border
+        // Inside the clamped band near the top-left corner -> that diagonal.
         Assert.Equal(BorderlessResizeHitTestPolicy.HTTOPLEFT,
             BorderlessResizeHitTestPolicy.HitTest(
-                tiny, tiny, x: border / 2, y: border / 2, isResizable: true, isNormalWindowState: true));
+                tiny, tiny, x: clamped / 2, y: clamped / 2, isResizable: true, isNormalWindowState: true));
+        // The opposite point falls in the right+bottom clamped band -> the other diagonal, which
+        // only holds if the split sits at dim/2 (i.e. the clamp, not the full Band, is in effect).
+        Assert.Equal(BorderlessResizeHitTestPolicy.HTBOTTOMRIGHT,
+            BorderlessResizeHitTestPolicy.HitTest(
+                tiny, tiny, x: tiny - clamped / 2, y: tiny - clamped / 2, isResizable: true, isNormalWindowState: true));
     }
 }

@@ -19,7 +19,7 @@ internal static class Prompt
     private static Style Style(string key) => (Style)Application.Current.Resources[key];
 
     /// <summary>
-    /// Build a borderless dark dialog shell (matches SettingsWindow): a 1px border, a thin
+    /// Build a borderless dark dialog shell (matches SettingsWindow): no inner border, a thin
     /// draggable title bar with a close button, and a content body the caller fills. Internal so a
     /// WPF test can assert the dark/borderless invariants without showing a modal.
     /// </summary>
