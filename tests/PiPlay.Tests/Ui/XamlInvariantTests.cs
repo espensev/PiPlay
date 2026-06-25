@@ -940,6 +940,19 @@ public class XamlInvariantTests
         Assert.Equal("Transparent", RestingBorderBrush("AccentButton"));
         Assert.Equal("Transparent", RestingBorderBrush("DarkTextBox"));
 
+        // DarkComboBox toggle button border must be transparent (resting, no grey box on the field).
+        // The toggle border is the inline Border x:Name="bd" inside the ToggleButton template;
+        // the dropdown popup border (x:Name="DropDownBorder") intentionally keeps BorderSubtle.
+        var comboStyle = styles.Descendants(XamlTestFiles.Pres + "Style")
+            .Single(e => (string?)e.Attribute(XamlTestFiles.X + "Key") == "DarkComboBox");
+        var comboDescBorders = comboStyle.Descendants(XamlTestFiles.Pres + "Border").ToList();
+        var toggleBorder = comboDescBorders
+            .Single(b => (string?)b.Attribute(XamlTestFiles.X + "Name") == "bd");
+        var dropDownBorder = comboDescBorders
+            .Single(b => (string?)b.Attribute(XamlTestFiles.X + "Name") == "DropDownBorder");
+        Assert.Equal("Transparent", toggleBorder.Attribute("BorderBrush")?.Value);
+        Assert.Equal("{DynamicResource BorderSubtle}", dropDownBorder.Attribute("BorderBrush")?.Value);
+
         // DarkTextBox keyboard-focus trigger must still paint the accent ring (REQ-UI-02).
         var textBox = styles.Descendants(XamlTestFiles.Pres + "Style")
             .Single(e => (string?)e.Attribute(XamlTestFiles.X + "Key") == "DarkTextBox");
