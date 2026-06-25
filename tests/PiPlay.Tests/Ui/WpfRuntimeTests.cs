@@ -1725,19 +1725,24 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void Profile_mode_picker_round_trips_the_durable_token() => StaTestThread.Invoke(() =>
+    public void Profile_mode_picker_hides_dormant_compact_and_round_trips_the_token() => StaTestThread.Invoke(() =>
     {
-        Assert.Equal("compact", Prompt.BuildModePicker("compact").SelectedMode());
+        // Compact is dormant (PlaybackModePolicy.CompactPlayerEnabled == false): the picker hides the
+        // dead "Compact player" option, so a stored compact/embed profile falls back to "Use global".
+        Assert.False(PlaybackModePolicy.CompactPlayerEnabled);
+
         Assert.Equal("normal", Prompt.BuildModePicker("normal").SelectedMode());
         Assert.Null(Prompt.BuildModePicker(null).SelectedMode());
-        Assert.Equal("compact", Prompt.BuildModePicker("embed").SelectedMode());   // legacy alias
-        Assert.Null(Prompt.BuildModePicker("bogus").SelectedMode());               // unknown -> global
+        Assert.Null(Prompt.BuildModePicker("bogus").SelectedMode());     // unknown -> global
+        Assert.Null(Prompt.BuildModePicker("compact").SelectedMode());   // dead option hidden -> global
+        Assert.Null(Prompt.BuildModePicker("embed").SelectedMode());     // legacy alias likewise
 
-        // Changing the selection is reflected by the getter (covers the editor round-trip).
+        // Only "Use global default" + "Normal page" are offered; the getter reflects the selection.
         var (element, selectedMode) = Prompt.BuildModePicker(null);
         var combo = (ComboBox)element;
-        combo.SelectedIndex = 2;   // "Compact player"
-        Assert.Equal("compact", selectedMode());
+        Assert.Equal(2, combo.Items.Count);
+        combo.SelectedIndex = 1;   // "Normal page"
+        Assert.Equal("normal", selectedMode());
     });
 
     // --- Dark theme is actually wired at runtime (rebuts the stale "renders light" reports) ---

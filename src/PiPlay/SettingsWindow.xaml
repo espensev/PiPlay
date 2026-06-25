@@ -177,10 +177,6 @@
                         MinWidth="60" Content="Small" Tag="small" Click="CornerStyle_Click"
                         ToolTip="Small, sharp corner rounding"
                         AutomationProperties.Name="Small corners" />
-          <ToggleButton x:Name="CornerStyleSoftChip" Style="{StaticResource PresetToggle}"
-                        MinWidth="60" Content="Soft" Tag="soft" Click="CornerStyle_Click"
-                        ToolTip="Moderate, soft corner rounding"
-                        AutomationProperties.Name="Soft corners" />
           <ToggleButton x:Name="CornerStyleRoundChip" Style="{StaticResource PresetToggle}"
                         MinWidth="60" Content="Round" Tag="round" Click="CornerStyle_Click"
                         ToolTip="Large, round overlay-style corners"

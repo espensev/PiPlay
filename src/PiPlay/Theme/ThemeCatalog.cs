@@ -269,7 +269,6 @@ public static class ThemeCatalog
         new(DefaultCornerStyle, "Theme"),
         new("square", "Square"),
         new("small", "Small"),
-        new("soft", "Soft"),
         new("round", "Round"),
     ];
 
@@ -290,6 +289,10 @@ public static class ThemeCatalog
     {
         if (string.IsNullOrWhiteSpace(style)) return DefaultCornerStyle;
         var normalized = style.Trim().ToLowerInvariant();
+        // Legacy alias: "soft" and "round" always produced the same DWMWCP_ROUND outer corner (DWM
+        // exposes only three radii), so the duplicate "Soft" option was dropped 2026-06. A stored
+        // "soft" keeps its rounded silhouette by normalizing to "round".
+        if (normalized == "soft") normalized = "round";
         return CornerStyleOptionsValue.Any(o => o.Key == normalized) ? normalized : DefaultCornerStyle;
     }
 
@@ -300,7 +303,6 @@ public static class ThemeCatalog
         {
             "square" => SquareRadii,
             "small" => SharpRadii,
-            "soft" => MinimalRadii,
             "round" => SoftGlassRadii,
             _ => preset.Radii,
         };
@@ -312,7 +314,6 @@ public static class ThemeCatalog
         {
             "square" => DwmCornerMode.Square,
             "small" => DwmCornerMode.SmallRound,
-            "soft" => DwmCornerMode.Round,
             "round" => DwmCornerMode.Round,
             _ => preset.DwmCorners,
         };
