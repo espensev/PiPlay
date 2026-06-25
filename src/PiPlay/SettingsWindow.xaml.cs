@@ -99,7 +99,6 @@ public partial class SettingsWindow : Window
         CornerStyle = ThemeCatalog.NormalizeCornerStyle(cornerStyle);
         FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
         CompactMode = compactMode;
-        CompactModeToggle.IsChecked = compactMode;
         StripAutoHideOverride = stripAutoHideOverride;
         StripAutoHideToggle.IsChecked = StripAutoHide;
 
@@ -235,12 +234,6 @@ public partial class SettingsWindow : Window
             AppearanceChanged = true;
         }
         ApplyAppearanceSelections();
-    }
-
-    private void CompactModeToggle_Click(object sender, RoutedEventArgs e)
-    {
-        CompactMode = CompactModeToggle.IsChecked == true;
-        AppearanceChanged = true;
     }
 
     private void StripAutoHideToggle_Click(object sender, RoutedEventArgs e)

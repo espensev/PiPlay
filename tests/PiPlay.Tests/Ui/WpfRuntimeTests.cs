@@ -867,22 +867,17 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void SettingsWindow_reflects_and_toggles_compact_mode() => StaTestThread.Invoke(() =>
+    public void SettingsWindow_compact_mode_is_a_silent_pass_through() => StaTestThread.Invoke(() =>
     {
+        // The toggle was removed (2026-06); CompactMode is now a silent pass-through so the stored
+        // value still round-trips via the settings-save caller without any UI surface.
         var on = new SettingsWindow(isBrowserReady: true, compactMode: true);
         Assert.True(on.CompactMode);
-        Assert.True(((ToggleButton)on.FindName("CompactModeToggle")!).IsChecked);
+        Assert.Null(on.FindName("CompactModeToggle"));
 
-        var w = new SettingsWindow(isBrowserReady: true, compactMode: false);
-        Assert.False(w.CompactMode);
-        var toggle = (ToggleButton)w.FindName("CompactModeToggle")!;
-        Assert.False(toggle.IsChecked);   // strictly off, not merely "not true" (rejects null too)
-
-        // Simulate a user toggle: the checked state flips, then the Click handler reads it.
-        toggle.IsChecked = true;
-        toggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-        Assert.True(w.CompactMode);
-        Assert.True(w.AppearanceChanged);   // any persisted player preference change is flagged
+        var off = new SettingsWindow(isBrowserReady: true, compactMode: false);
+        Assert.False(off.CompactMode);
+        Assert.Null(off.FindName("CompactModeToggle"));
     });
 
     // --- Settings is bounded + scrollable (overhaul Task 5) ---
@@ -904,11 +899,10 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void SettingsWindow_states_that_compact_applies_to_new_popouts() => StaTestThread.Invoke(() =>
+    public void SettingsWindow_compact_hint_text_is_not_present() => StaTestThread.Invoke(() =>
     {
-        // Spec acceptance: "Settings copy states that Compact player applies to new popouts only."
-        var hint = (TextBlock)new SettingsWindow(isBrowserReady: true).FindName("CompactModeHintText")!;
-        Assert.Contains("new Popout Players", hint.Text);
+        // The Playback section and its hint text were removed (2026-06) along with CompactModeToggle.
+        Assert.Null(new SettingsWindow(isBrowserReady: true).FindName("CompactModeHintText"));
     });
 
     // --- Whole-window opacity (spec 7.3, Phase 4) ---

@@ -174,6 +174,14 @@ public class SettingsWindowAppearanceTests : IDisposable
         }
     });
 
+    [Fact]
+    public void SettingsWindow_no_longer_offers_the_embed_compact_toggle() => StaTestThread.Invoke(() =>
+    {
+        var w = new SettingsWindow(isBrowserReady: true);
+        Assert.Null(w.FindName("CompactModeToggle"));
+        Assert.Null(w.FindName("CompactModeHintText"));
+    });
+
     public void Dispose() => StaTestThread.Invoke(() =>
     {
         foreach (var w in Application.Current.Windows.Cast<Window>().ToArray())

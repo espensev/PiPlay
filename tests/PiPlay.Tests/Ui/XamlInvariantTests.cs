@@ -119,7 +119,7 @@ public class XamlInvariantTests
         new object[] { "SettingsWindow.xaml", new[]
         {
             "SettingsScroll",
-            "PrivacySectionHeader", "AppearanceSectionHeader", "PlaybackSectionHeader", "AdvancedSectionHeader",
+            "PrivacySectionHeader", "AppearanceSectionHeader", "AdvancedSectionHeader",
             "ResetAppStateButton", "ResetDescriptionText",
             "ClearBrowserDataButton", "ClearDescriptionText", "CloseButton",
             "ThemeSharpDarkPreset", "ThemeMinimalPreset", "ThemeSoftGlassPreset",
@@ -129,7 +129,6 @@ public class XamlInvariantTests
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
             "ActiveOpacitySlider", "ActiveOpacityValueText", "IdleOpacitySlider", "IdleOpacityValueText",
             "StripAutoHideToggle",
-            "CompactModeToggle", "CompactModeHintText",
             "DoneButton",
         }},
     };
@@ -143,14 +142,14 @@ public class XamlInvariantTests
         var scroll = doc.Descendants(XamlTestFiles.Pres + "ScrollViewer")
             .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "SettingsScroll");
 
-        // Every section header scrolls; the order is the spec's Privacy/Appearance/Playback/Advanced.
+        // Every section header scrolls; the order is the spec's Privacy/Appearance/Advanced.
         var headers = scroll.Descendants()
             .Select(e => e.Attribute(XamlTestFiles.X + "Name")?.Value)
             .Where(n => n is not null && n.EndsWith("SectionHeader"))
             .ToArray();
         Assert.Equal(new[]
         {
-            "PrivacySectionHeader", "AppearanceSectionHeader", "PlaybackSectionHeader", "AdvancedSectionHeader",
+            "PrivacySectionHeader", "AppearanceSectionHeader", "AdvancedSectionHeader",
         }, headers);
 
         // The title bar must NOT scroll away (CloseButton stays reachable at any content height).
@@ -334,8 +333,7 @@ public class XamlInvariantTests
     }
 
     [Theory]
-    [InlineData("CompactModeToggle", "PlaybackSectionHeader", "AdvancedSectionHeader")]   // Playback owns compact
-    [InlineData("CornerStyleThemeChip", "AppearanceSectionHeader", "PlaybackSectionHeader")] // Appearance owns corners
+    [InlineData("CornerStyleThemeChip", "AppearanceSectionHeader", "AdvancedSectionHeader")] // Appearance owns corners
     [InlineData("FadeDelayShortPreset", "AdvancedSectionHeader", null)]                   // Advanced owns fade delay
     [InlineData("ActiveOpacitySlider", "AdvancedSectionHeader", null)]                    // Advanced owns opacity
     [InlineData("StripAutoHideToggle", "AdvancedSectionHeader", null)]                    // Advanced owns auto-hide
@@ -882,7 +880,6 @@ public class XamlInvariantTests
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
             "ActiveOpacitySlider", "IdleOpacitySlider",
             "StripAutoHideToggle",
-            "CompactModeToggle",
         })
         {
             Assert.False(string.IsNullOrWhiteSpace(byName[name].Attribute("ToolTip")?.Value),
