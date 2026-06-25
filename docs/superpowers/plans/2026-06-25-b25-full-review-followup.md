@@ -7,6 +7,17 @@
 **Goal:** turn the b25 full review into an actionable queue without undoing settled current-product
 decisions or reopening the already-reviewed v0.7.2-b25 release patch.
 
+## Stabilization
+
+- Commit `fbe77c9` landed the safe local follow-up package: Task 3 P4 `Bring video back`, Task 4 P3
+  whole-popout opacity wording, the full-review evaluation, and this follow-up plan.
+- Validation passed before commit: `dotnet test PiPlay.sln --configuration Debug --nologo`
+  (`683/683`) and `git diff --check` with only line-ending normalization warnings.
+- Branch merge check after fetch: the local `fix/p1-webview-inset-and-prompt` branch is already
+  merged into `main`; no remote branch remains unmerged into `main`.
+- Remaining open items are intentionally deferred gates: deployed visual QA, profile-accent owner
+  decision, rounded-corner language, and video fit modes.
+
 ## Plan
 
 - [x] **Task 1 - Evaluate the full review against current HEAD.**
