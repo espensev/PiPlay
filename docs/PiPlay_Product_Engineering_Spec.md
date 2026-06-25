@@ -1,6 +1,6 @@
 # PiPlay Product & Engineering Specification
 
-**Status:** Draft 0.11 (beta candidate)
+**Status:** Draft 0.12 (beta candidate)
 **Project:** PiPlay
 **Purpose:** Quality-first Windows desktop app for playing YouTube videos in a movable, resizable Video Popout window.
 **Primary platform:** Windows desktop
@@ -479,9 +479,11 @@ PiPlay should support multiple playback modes, but only one should be the defaul
 > **"Playback mode" vs "UX/layout mode" (terminology).** The modes in this section describe how the
 > *Popout Player* plays video. They are a different axis from any main-window UX/layout mode (e.g. the
 > Browse / Cinema / Compact / Popout modes proposed in the 2026-06-23 owner review). In particular, the
-> **Compact player** setting selects the popout's playback surface (Mode B/C); it is *not* a
-> main-window compact layout, which is not implemented. Do not call a main-window layout "Compact"
-> unqualified. See `SPEC_GAPS_AND_OWNERSHIP.md` (2026-06-23 owner appearance / popout / compact review).
+> **Compact player** plumbing describes the popout's playback surface (Mode B/C), but new popouts
+> currently resolve to Normal because `PlaybackModePolicy.CompactPlayerEnabled = false`; Settings no
+> longer exposes a Compact player toggle. This is *not* a main-window compact layout, which is not
+> implemented. Do not call a main-window layout "Compact" unqualified. See
+> `SPEC_GAPS_AND_OWNERSHIP.md` (2026-06-23 owner appearance / popout / compact review).
 
 ### 10.1 Mode A — Normal YouTube page mode
 
@@ -548,6 +550,10 @@ Quality requirement:
 - Compact mode must be opt-in until it matches normal mode reliability for the common path.
 - Compact embed/IFrame mode must respect YouTube embedded-player viewport constraints. Do not use the normal-mode 320x180 minimum for embed mode; prefer at least 480x270 for a 16:9 player with controls, or define a separate compact-mode minimum before shipping.
 - **Resolved (Phase 3, Stage 1):** compact mode uses a separate **480x270** minimum window size, distinct from the 320x180 normal minimum. The minimums and the global/profile mode precedence are owned by the pure `PlaybackModePolicy` (`Profile.Mode` ?? global `PlayerSettings.CompactMode`).
+- **Current v0.7.2+ state:** compact embed/shell mode is dormant. `ResolveEffectivePopoutMode` returns
+  Normal while `CompactPlayerEnabled=false`; `Profile.Mode` and `PlayerSettings.CompactMode` remain
+  reserved/migration data and must not be described as user-facing until compact is deliberately
+  re-enabled.
 
 ### 10.3 Mode C — PiPlay shell mode with YouTube IFrame API
 
@@ -1012,11 +1018,12 @@ Required:
 - Native-feeling edge and corner resize.
 - Free resize by default.
 - Letterbox rather than crop video when aspect ratio differs.
-- **[REQ-WINDOW-02]** Phase 3 window-quality target: borderless windows use an invisible resize hit
-  area that is larger than the visible outline. The implementation target is a 10 DIP edge resize
-  zone for mouse/pen use and a 32 DIP corner length for diagonal resize. The corner length is
-  measured along the edge band; it is not a full 32 x 32 DIP square that steals clicks from
-  content. A visible outline, if drawn, should stay subtle (0-2 px).
+- **[REQ-WINDOW-02]** Phase 3 window-quality target: borderless windows use an edge resize hit area
+  owned by the top-level window because the WebView2 child consumes hit testing over the video. The
+  current P1 implementation target is a 4 DIP black edge band for mouse/pen use and a 32 DIP corner
+  length for diagonal resize. The corner length is measured along the edge band; it is not a full
+  32 x 32 DIP square that steals clicks from content. A visible outline, if drawn, should stay subtle
+  (0-2 px).
 
 Future optional behavior:
 
@@ -1092,9 +1099,9 @@ Quality requirements:
 - **[REQ-PROFILE-01]** For fields that a profile is allowed to carry, a launched profile overrides the global default per field. Unset/null fields fall back to the global value.
 - `accentColor` is an optional per-profile **identity color**. It decorates profile UI (currently the filled profile chip) and must not replace the global app accent; Settings Appearance edits the global accent only. An optional active-profile popout border remains a future enhancement.
 - **[REQ-PROFILE-02]** Profiles store both bounds and monitor identity. Restore to the saved monitor when present; otherwise clamp to the nearest visible work area using `WindowPlacementService`.
-- Compact-mode placement is resolved for Phase 3: global player default plus optional profile
-  override. MVP/profile precedence still does not imply compact mode is shipped until the Phase 3
-  compact-player sweep lands.
+- Compact-mode placement exists as reserved data (`PlayerSettings.CompactMode` plus optional
+  `Profile.Mode` override), but the user-facing Compact player is dormant in v0.7.2+. New popouts
+  force Normal while `PlaybackModePolicy.CompactPlayerEnabled=false`.
 
 ---
 
@@ -1394,8 +1401,9 @@ Phase 2 landing status:
 
 ### Phase 3 — Compact player upgrade
 
-- First window-quality preflight: expand borderless resize zones per `REQ-WINDOW-02`.
-- Resolve compact-mode placement as global player default plus optional profile override.
+- Maintain borderless resize zones per `REQ-WINDOW-02` (current P1 target: 4 DIP edge band plus
+  32 DIP corner length).
+- Keep compact-mode placement data dormant unless the Compact player is explicitly re-enabled.
 - Add embed mode improvements.
 - Add local `player.html` wrapper.
 - Use YouTube IFrame API for compact mode.
@@ -1433,8 +1441,8 @@ The following are normative defaults unless superseded by a later ADR or require
 | REQ-PROFILE-02 | Profiles store both bounds and monitor identity; restore same monitor when present, otherwise clamp to visible work area. |
 | Section 6.1 Auto | Trigger is playback-start, `/watch`-only, once per video id, off by default. Shorts and embeds are excluded, and return-resume does not re-pop the same video. |
 | Section 6.2 / 6.3 customization | First slice is fixed swatches for Pin/Fade active colors plus controls-fade idle-delay presets. Defaults preserve current cyan and 2500 ms fade timing; no hex picker, profile override, opacity UI, click-through, or transparent WebView2. |
-| REQ-WINDOW-02 | Borderless resize targets use a 10 DIP invisible edge resize zone and a 32 DIP corner length for diagonal resize. A visual border can remain 0-2 px; no visible size grip is required. |
-| Compact placement | Compact mode is both a global player preference (`PlayerSettings.CompactMode`, off by default) and an optional per-profile override (`Profile.Mode`: `null` = global, `normal` = force normal, `compact` = force compact). Legacy/internal `embed` normalizes to `compact`. |
+| REQ-WINDOW-02 | Borderless resize targets use a 4 DIP black edge resize band and a 32 DIP corner length for diagonal resize. A visual border can remain 0-2 px; no visible size grip is required. |
+| Compact placement | Compact mode has reserved data (`PlayerSettings.CompactMode`, off by default, and optional `Profile.Mode`: `null` = global, `normal` = force normal, `compact` = force compact; legacy/internal `embed` normalizes to `compact`), but new popouts currently ignore it and force Normal while `PlaybackModePolicy.CompactPlayerEnabled=false`. |
 
 ### 25.2 Open decisions
 
@@ -1521,7 +1529,8 @@ Implementation target for `REQ-WINDOW-02`:
 
 ```text
 Previous baseline:       6 DIP WindowChrome resize border on both primary windows
-Mouse/pen edge target:   10 DIP invisible resize zone
+Interim expanded target: 10 DIP invisible resize zone
+Current P1 edge target:  4 DIP black resize band tied to BorderlessResizeHitTestPolicy.ResizeBorderDip
 Mouse/pen corner target: 32 DIP corner length along the edge band
 Visual outline:          0-2 px, optional/subtle
 Touch-first future:      use explicit 40 x 40 effective-pixel affordances only in a touch/posture pass
@@ -1568,3 +1577,4 @@ These references support the current technical direction and should be rechecked
 | 0.9 | 2026-06-07 | Added and implemented `REQ-WINDOW-02` for larger borderless resize zones: previous 6 DIP baseline, 10 DIP edge target, 32 DIP corner length, and Win32 hit-test naming. |
 | 0.10 | 2026-06-07 | Planned the Phase 3 compact-player sweep and resolved compact-mode placement as global default plus optional profile override. |
 | 0.11 | 2026-06-10 | Beta candidate cut (v0.4.0-beta): release-facing copy cleaned for beta publication without changing requirements. Phase 4 §7.2/§7.3 resolution notes and the overlay compliance record remain tracked on the 2026-06-10 overlay/opacity plan (Task 6). |
+| 0.12 | 2026-06-25 | Aligned the living spec with the v0.7.2 P1 surface: the current resize band is 4 DIP with 32 DIP corner acquisition, and the Compact player is dormant behind `PlaybackModePolicy.CompactPlayerEnabled=false` while its settings/profile data remains reserved. |

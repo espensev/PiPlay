@@ -75,22 +75,15 @@ captures and record the evidence per column, never write per-state procedures.
 - [ ] Whole-window opacity cannot drop below the 45% floor from the UI; the player stays fully interactable at every opacity. **(Q-8)**
 - [ ] Auto-hide top bar (with Fade on): the strip collapses after the fade and the video fills the window; hovering the top edge reveals it.
 - [ ] **Overhaul Task 5 — Settings fits short displays:** on (or simulating) a ~768 px work area, the Settings window caps at the work area, the sections scroll, the title-bar close button never scrolls away, and all four sections are reachable in order: Privacy, Appearance, Playback, Advanced.
-- [ ] Settings → Playback copy states the Compact player applies to NEW Popout Players only; an already-open popout is unaffected by toggling it.
+- [ ] Settings exposes no Compact player toggle/copy; new popouts use Normal while `PlaybackModePolicy.CompactPlayerEnabled=false`.
 - [ ] **Overhaul Tasks 9-10 — Theme preset + accent smoke:** Settings → Appearance shows a Theme row (Sharp Dark / Minimal / Soft Glass) and a single Accent color chip row. Selecting a preset checks it and adopts that preset's default accent. The chosen accent recolors the primary "Pop out video" button, the URL caret/focus, and the Pin/Fade glyphs LIVE on the open main window (DynamicResource); a newly launched Popout Player also uses it. Restart and confirm the accent persists and is applied at startup. A hand-edited invalid `theme.themeId`/`accentColor` in settings.json falls back to Sharp Dark / cyan without crashing.
+- [ ] **Video-aware return (Normal mode):** let the popout move to a different video (playlist auto-advance or normal-page in-page navigation), then close it — the source NAVIGATES to that video at the popout's timestamp instead of seeking the original video; with Auto on, the returned video does not instantly re-pop.
 
-## 3.5 Compact player (Phase 3)
-- [ ] Global Settings compact-player preference defaults off; when enabled, new popouts use compact mode.
-- [ ] Profile mode override works: Use global, Normal, and Compact each resolve correctly.
-- [ ] Compact mode opens a normal `/watch` video in an embedded player, keeps source paused, and returns with the expected timestamp/resume state.
-- [ ] Compact mode handles playlists and playlist-only URLs according to the compact-player design.
-- [ ] Compact mode minimum size is at least 480x270; saved smaller bounds clamp up rather than opening unusably small.
-- [ ] Compact mode fallback is clear for unavailable/restricted/embed-disabled videos and can reopen the same target in normal mode.
-- [ ] Compact error bar also appears on a failed shell load and on an IFrame API that never responds (watchdog timeout); it auto-dismisses if playback recovers (e.g. playlist advance), and the fallback lands at the best-known timestamp.
-- [ ] Compact mode keeps YouTube controls/branding visible; no click-through or transparent WebView2 behavior is introduced.
-- [ ] **Overhaul Task 3 — recommendations stay in PiPlay:** clicking a recommendation or end-screen video inside the compact player retargets THIS popout in compact mode (no second window, no external browser); channel/search/non-YouTube targets still open in the system browser.
-- [ ] **Overhaul Task 3 — retargeted fallback:** after a recommendation retarget, force the error path (e.g. an embed-disabled video) — the error bar's "Open normal page" reopens the NEW video, not the launch video.
-- [ ] **Overhaul Task 3 — video-aware return (both modes):** let the popout move to a different video (compact recommendation click, playlist auto-advance, or normal-page in-page navigation), then close it — the source NAVIGATES to that video at the popout's timestamp instead of seeking the original video; with Auto on, the returned video does not instantly re-pop.
-- [ ] **Overhaul Task 4 — compact YouTube fullscreen:** the YouTube fullscreen button inside the compact player expands the popout window; exiting restores it; it does NOT un-expand a window the user expanded with the strip button first.
+## 3.5 Compact player plumbing (dormant)
+- [ ] `PlaybackModePolicy.CompactPlayerEnabled` remains `false` for this release.
+- [ ] New popouts resolve to Normal even if `PlayerSettings.CompactMode` or `Profile.Mode=compact` exists in settings data.
+- [ ] Settings exposes no Compact player toggle.
+- [ ] If Compact is deliberately re-enabled later, restore the compact-player manual rows from history, including recommendation retarget/fallback and compact YouTube fullscreen, then re-run them before release.
 
 ## 4. Recovery / errors (Q-6)
 - [ ] Missing WebView2 runtime: friendly message, no crash.
