@@ -255,7 +255,7 @@ public class ThemeCatalogTests
     [Fact]
     public void Soft_glass_matches_the_v2_spec_literals() => AssertPresetMatchesSpec(
         "soft-glass", "Soft Glass", "#9E84F0", "short", stripAutoHide: true,
-        activeOpacity: 0.92, idleOpacity: 0.78, DwmCornerMode.Round,
+        activeOpacity: 0.97, idleOpacity: 0.90, DwmCornerMode.Round,
         new ThemePalette(
             AppBackground: "#0B1018", SurfaceBase: "#121A26", SurfaceRaised: "#1B2738",
             SurfaceHover: "#26354B", BorderSubtle: "#2A3A52", BorderStrong: "#3A4D6A",

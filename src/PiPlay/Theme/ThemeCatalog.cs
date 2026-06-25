@@ -229,11 +229,12 @@ public static class ThemeCatalog
             "A softer overlay-friendly preset for desktop popouts.",
             "#9E84F0",
             // Floating overlay shell: a short fade and auto-hiding strip keep the surface clean, and
-            // the window is translucent active/idle (theme-v2 tight-scope spec §"behavior defaults").
+            // the window keeps only a slight, controlled translucency — near-opaque active with a
+            // light idle fade, not the old heavy see-through (owner review: "low, controlled, not heavy").
             DefaultFadeDelayPreset: "short",
             DefaultStripAutoHide: true,
-            DefaultActiveWindowOpacity: 0.92,
-            DefaultIdleWindowOpacity: 0.78,
+            DefaultActiveWindowOpacity: 0.97,
+            DefaultIdleWindowOpacity: 0.90,
             // Blue/cool translucent-overlay palette with quieted borders and secondary text
             // (theme-v2 tight-scope spec §"Palette targets").
             Palette: new(
