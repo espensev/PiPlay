@@ -1,8 +1,7 @@
 # PiPlay tests
 
-Layered regression suite. See `docs/superpowers/plans/2026-05-31-regression-test-suite.md` for the
-design (the standalone design doc was folded into that plan), and `docs/SPEC_GAPS_AND_OWNERSHIP.md`
-plus the product spec for the requirement-by-requirement status.
+Layered regression suite. See `docs/AGENTS.md` for the test conventions and quality bar, and
+`docs/SPEC_GAPS_AND_OWNERSHIP.md` plus the product spec for the requirement-by-requirement status.
 
 ## Lane A — `dotnet test` (fast, deterministic, headless)
 

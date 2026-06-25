@@ -1216,6 +1216,7 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void MainWindow_suppresses_its_dwm_frame_border_at_source_initialized() => StaTestThread.Invoke(() =>
     {
+        WindowOpacityApplier.ResetBorderSuppressionForTests();   // no stale recycled-HWND entry can weaken the check
         var w = new MainWindow();
         var hwnd = new WindowInteropHelper(w).EnsureHandle();
         Assert.NotNull(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
@@ -1225,6 +1226,7 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void PlayerWindow_suppresses_its_dwm_frame_border_at_source_initialized() => StaTestThread.Invoke(() =>
     {
+        WindowOpacityApplier.ResetBorderSuppressionForTests();   // no stale recycled-HWND entry can weaken the check
         var w = new PlayerWindow(environment: null!, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
             topmost: false, placement: null, defaultWidth: 960, defaultHeight: 540, fadeEnabled: true);
         var hwnd = new WindowInteropHelper(w).EnsureHandle();
@@ -1235,6 +1237,7 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void SettingsWindow_suppresses_its_dwm_frame_border_on_its_own_hwnd() => StaTestThread.Invoke(() =>
     {
+        WindowOpacityApplier.ResetBorderSuppressionForTests();   // no stale recycled-HWND entry can weaken the check
         var w = new SettingsWindow(isBrowserReady: true, cornerStyle: "round");
         var hwnd = new WindowInteropHelper(w).EnsureHandle();
         Assert.NotNull(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
@@ -1244,6 +1247,7 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void Prompt_dialogs_suppress_the_dwm_frame_border() => StaTestThread.Invoke(() =>
     {
+        WindowOpacityApplier.ResetBorderSuppressionForTests();   // no stale recycled-HWND entry can weaken the check
         var shell = Prompt.BuildShell(owner: null, "Test", out _);
         var hwnd = new WindowInteropHelper(shell).EnsureHandle();
         Assert.NotNull(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
