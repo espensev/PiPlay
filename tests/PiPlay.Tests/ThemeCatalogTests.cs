@@ -234,7 +234,7 @@ public class ThemeCatalogTests
         activeOpacity: 1.0, idleOpacity: 1.0, DwmCornerMode.Default,
         new ThemePalette(
             AppBackground: "#050609", SurfaceBase: "#0B0E12", SurfaceRaised: "#131820",
-            SurfaceHover: "#1E2630", BorderSubtle: "#2B3645", BorderStrong: "#3E4B5C",
+            SurfaceHover: "#1E2630", BorderSubtle: "#181F29", BorderStrong: "#262F3D",
             TextPrimary: "#F4F7FA", TextSecondary: "#9AA2AD", Danger: "#E45D75"),
         new ThemeRadii(
             MainWindowFrame: 2, PopoutFrame: 2, TitleBar: 2, Button: 3, IconButton: 3, Input: 3,
@@ -246,7 +246,7 @@ public class ThemeCatalogTests
         activeOpacity: 1.0, idleOpacity: 1.0, DwmCornerMode.SmallRound,
         new ThemePalette(
             AppBackground: "#14120F", SurfaceBase: "#1C1A16", SurfaceRaised: "#26231E",
-            SurfaceHover: "#312D27", BorderSubtle: "#3C372F", BorderStrong: "#50493E",
+            SurfaceHover: "#312D27", BorderSubtle: "#2E2A23", BorderStrong: "#3C362D",
             TextPrimary: "#F4F1EC", TextSecondary: "#B0A99E", Danger: "#E8564C"),
         new ThemeRadii(
             MainWindowFrame: 8, PopoutFrame: 12, TitleBar: 8, Button: 8, IconButton: 8, Input: 8,
@@ -258,7 +258,7 @@ public class ThemeCatalogTests
         activeOpacity: 0.92, idleOpacity: 0.78, DwmCornerMode.Round,
         new ThemePalette(
             AppBackground: "#0B1018", SurfaceBase: "#121A26", SurfaceRaised: "#1B2738",
-            SurfaceHover: "#26354B", BorderSubtle: "#44526E", BorderStrong: "#66799E",
+            SurfaceHover: "#26354B", BorderSubtle: "#2A3A52", BorderStrong: "#3A4D6A",
             TextPrimary: "#F6F8FC", TextSecondary: "#C4CEDC", Danger: "#E45D75"),
         new ThemeRadii(
             MainWindowFrame: 14, PopoutFrame: 22, TitleBar: 14, Button: 12, IconButton: 12, Input: 12,

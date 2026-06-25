@@ -190,7 +190,7 @@ public static class ThemeCatalog
             Palette: new(
                 AppBackground: "#050609", SurfaceBase: "#0B0E12",
                 SurfaceRaised: "#131820", SurfaceHover: "#1E2630",
-                BorderSubtle: "#2B3645", BorderStrong: "#3E4B5C",
+                BorderSubtle: "#181F29", BorderStrong: "#262F3D",
                 TextPrimary: "#F4F7FA", TextSecondary: "#9AA2AD",
                 Danger: "#E45D75"),
             Radii: SharpRadii,
@@ -214,7 +214,7 @@ public static class ThemeCatalog
             Palette: new(
                 AppBackground: "#14120F", SurfaceBase: "#1C1A16",
                 SurfaceRaised: "#26231E", SurfaceHover: "#312D27",
-                BorderSubtle: "#3C372F", BorderStrong: "#50493E",
+                BorderSubtle: "#2E2A23", BorderStrong: "#3C362D",
                 TextPrimary: "#F4F1EC", TextSecondary: "#B0A99E",
                 Danger: "#E8564C"),
             Radii: MinimalRadii,
@@ -234,12 +234,12 @@ public static class ThemeCatalog
             DefaultStripAutoHide: true,
             DefaultActiveWindowOpacity: 0.92,
             DefaultIdleWindowOpacity: 0.78,
-            // Blue/cool translucent-overlay palette with brighter borders and secondary text
+            // Blue/cool translucent-overlay palette with quieted borders and secondary text
             // (theme-v2 tight-scope spec §"Palette targets").
             Palette: new(
                 AppBackground: "#0B1018", SurfaceBase: "#121A26",
                 SurfaceRaised: "#1B2738", SurfaceHover: "#26354B",
-                BorderSubtle: "#44526E", BorderStrong: "#66799E",
+                BorderSubtle: "#2A3A52", BorderStrong: "#3A4D6A",
                 TextPrimary: "#F6F8FC", TextSecondary: "#C4CEDC",
                 Danger: "#E45D75"),
             Radii: SoftGlassRadii,
