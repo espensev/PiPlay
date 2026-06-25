@@ -66,6 +66,22 @@ public static class PlaybackModePolicy
             _ => globalCompact ? PlaybackMode.Compact : PlaybackMode.Normal,
         };
 
+    /// <summary>
+    /// Master switch for the embed Compact player. Dropped 2026-06: the embedded IFrame breaks on
+    /// embed-disabled videos for near-zero visible gain (owner review §4). False = new popouts are
+    /// always Normal. The Compact path (ResolveEffectiveMode, the shell/IFrame, Profile.Mode) is kept
+    /// DORMANT behind this flag rather than deleted, because the shell is the compact timestamp source.
+    /// </summary>
+    public const bool CompactPlayerEnabled = false;
+
+    /// <summary>
+    /// Effective popout mode honoring <see cref="CompactPlayerEnabled"/>: Normal whenever Compact is
+    /// disabled, otherwise the profile/global resolution. The popout-creation path calls THIS, not
+    /// <see cref="ResolveEffectiveMode"/> directly.
+    /// </summary>
+    public static PlaybackMode ResolveEffectivePopoutMode(string? profileMode, bool globalCompact) =>
+        CompactPlayerEnabled ? ResolveEffectiveMode(profileMode, globalCompact) : PlaybackMode.Normal;
+
     /// <summary>Minimum window width (DIP) for the given mode (spec 10.2 / 16.1).</summary>
     public static int MinWidthFor(PlaybackMode mode) =>
         mode == PlaybackMode.Compact ? CompactMinWidth : NormalMinWidth;

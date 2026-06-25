@@ -815,7 +815,7 @@ public partial class MainWindow : Window
             // 2b) Resolve the effective playback mode (spec 10): a matching profile override wins,
             // otherwise the global compact default. Compact mode uses the embedded YouTube player;
             // normal mode keeps the full watch page. Normal remains the default and the fallback.
-            var mode = PlaybackModePolicy.ResolveEffectiveMode(
+            var mode = PlaybackModePolicy.ResolveEffectivePopoutMode(
                 ResolveActiveProfileMode(target.VideoId), _settings.Player.CompactMode);
             var popoutUrl = PlaybackModePolicy.BuildPopoutUrl(
                 mode, target, seconds, WebViewEnvironmentService.ShellPlayerUrl);

@@ -107,4 +107,16 @@ public class PlaybackModePolicyTests
         Assert.Equal(expected,
             PlaybackModePolicy.ResolveProfileOverride(profileMode, profileVideoId, targetVideoId));
     }
+
+    // --- ResolveEffectivePopoutMode: the kill-switch for compact player ---
+
+    [Fact]
+    public void Embed_compact_player_is_disabled_so_new_popouts_resolve_to_normal()
+    {
+        Assert.False(PlaybackModePolicy.CompactPlayerEnabled);
+        // The kill switch overrides BOTH a global compact default and a per-profile compact override.
+        Assert.Equal(PlaybackMode.Normal, PlaybackModePolicy.ResolveEffectivePopoutMode(null, globalCompact: true));
+        Assert.Equal(PlaybackMode.Normal, PlaybackModePolicy.ResolveEffectivePopoutMode("compact", globalCompact: true));
+        Assert.Equal(PlaybackMode.Normal, PlaybackModePolicy.ResolveEffectivePopoutMode("compact", globalCompact: false));
+    }
 }
