@@ -12,7 +12,7 @@ Actions CI gate and documents the feature workflow in one obvious place.
 - `Q-6` recover-cleanly posture, indirectly: tests and build must catch regressions before merge.
 - `REQ-UI-01` / `REQ-UI-02`, indirectly: the existing Markup and Wpf test categories remain in
   the default `dotnet test` lane.
-- `docs/Regression_Test_Suite_Design.md`: promote the already-designed Lane A into CI while
+- Regression-suite design: promote the already-designed Lane A into CI while
   preserving Lane B as manual release smoke.
 
 ## Settled decisions
@@ -41,7 +41,7 @@ Actions CI gate and documents the feature workflow in one obvious place.
 | `docs/README.md` | Link the feature workflow from the documentation index. |
 | `README.md` | Link the feature workflow from the root start-here list. |
 | `docs/AGENTS.md` | Mention the local/CI gate in the working rules. |
-| `docs/Regression_Test_Suite_Design.md` | Mark the original "no CI yet" note as superseded by the new workflow. |
+| Regression-suite design record | Original "no CI yet" note superseded by this workflow; standalone record later pruned after folding into the retained plan. |
 | `docs/superpowers/plans/2026-06-06-ci-and-feature-workflow.md` | Track this implementation pass. |
 
 ## Out of scope

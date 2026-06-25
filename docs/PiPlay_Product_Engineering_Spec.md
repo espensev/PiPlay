@@ -288,8 +288,7 @@ Rules:
   *that* video right away — not only on the next video.
 - **No re-pop loop:** returning from a popout (which resumes source playback) does not re-pop the same
   video. A different `/watch` video playing re-pops normally.
-- Detection is best-effort (Q-6): a DOM hiccup means no auto-pop, never a crash. Design:
-  `docs/superpowers/specs/2026-06-06-auto-popout-design.md`.
+- Detection is best-effort (Q-6): a DOM hiccup means no auto-pop, never a crash.
 
 ### 6.2 Fade
 
@@ -1384,10 +1383,9 @@ Delivered Phase 2 scope:
 
 Phase 2 landing status:
 
-- Stable build `v0.3.0` build `10` has release evidence for the deterministic test lane,
-  build gate, Stable publish/deploy, metadata validation, deployed UI smoke, and UI Automation
-  title check in `docs/evidence/phase2-release-v0.3.0-b10.md`. Build 10 replaces the earlier
-  build 9 Stable deploy and is built from the final Phase 2 landing commit.
+- Stable build `v0.3.0` build `10` completed the deterministic test lane, build gate, Stable
+  publish/deploy, metadata validation, deployed UI smoke, and UI Automation title check. Build 10
+  replaces the earlier build 9 Stable deploy and is built from the final Phase 2 landing commit.
 - Account-backed/live YouTube rows in `docs/QA_Checklist.md` remain the release-candidate
   manual gate for Auto playback, controls fade/customization in live playback, profile edit/delete
   through the running Source Window, and privacy sign-in/sign-out invariants.
@@ -1396,10 +1394,8 @@ Phase 2 landing status:
 
 ### Phase 3 — Compact player upgrade
 
-- First window-quality preflight: expand borderless resize zones per `REQ-WINDOW-02`
-  (`docs/superpowers/specs/2026-06-07-borderless-resize-zones-design.md`).
-- Resolve compact-mode placement as global player default plus optional profile override
-  (`docs/superpowers/specs/2026-06-07-compact-player-sweep-design.md`).
+- First window-quality preflight: expand borderless resize zones per `REQ-WINDOW-02`.
+- Resolve compact-mode placement as global player default plus optional profile override.
 - Add embed mode improvements.
 - Add local `player.html` wrapper.
 - Use YouTube IFrame API for compact mode.

@@ -43,8 +43,6 @@ removed. Published exact-source to Stable.
 Minor release (from 0.4.3, build 21): the accent color wheel + per-profile accents land on top of
 the UI overhaul / Theme V2 work, published exact-source to Stable.
 
-UI overhaul stabilization (plan `docs/superpowers/plans/2026-06-10-ui-overhaul-stabilization.md`).
-
 ### Added
 - **Popout expand/restore:** a native expand button on the popout top bar toggles a
   full-monitor view and back, in both playback modes; the glyph and tooltip flip together.
@@ -236,7 +234,7 @@ UI overhaul stabilization (plan `docs/superpowers/plans/2026-06-10-ui-overhaul-s
   Video Popout when a `/watch` video is playing, reusing the manual popout's single-player lifecycle.
   It fires **once per video** (so returning from a popout doesn't re-pop it, and an in-source
   pause/resume won't either) and **excludes Shorts/embeds**. Resolves the open "Auto trigger timing"
-  decision in favour of playback-start. See `docs/superpowers/specs/2026-06-06-auto-popout-design.md`.
+  decision in favour of playback-start.
 
 ### Added — Phase 3 (compact player)
 - **Compact player mode (spec 10.2–10.3).** A new global **Settings → Playback → Compact player**
@@ -265,8 +263,7 @@ UI overhaul stabilization (plan `docs/superpowers/plans/2026-06-10-ui-overhaul-s
   action that reopens the same video in normal page mode at the best-known timestamp, in the same
   window. The bar dismisses itself if playback recovers (e.g. a playlist auto-advances past a dead
   entry). The error→message map, the auto-dismiss rule, and the watchdog timeout live in a pure
-  `PlayerShellErrorPolicy`; logs carry redacted targets only. See
-  `docs/superpowers/specs/2026-06-10-compact-stage4-fallback-design.md`.
+  `PlayerShellErrorPolicy`; logs carry redacted targets only.
 - **Verified locally (deterministic):** the mode/precedence/min-size policy, the mode→URL and
   profile-override seams, the shell URL builder + host single-source-of-truth, the navigation
   allowlist for the shell host, the host↔shell protocol, the shell-asset invariants (structure, no
@@ -281,8 +278,7 @@ UI overhaul stabilization (plan `docs/superpowers/plans/2026-06-10-ui-overhaul-s
   restricted/embed-disabled handling on real videos, signed-in/account-backed playback, the tuned
   shell CSP (deferred until the IFrame API's real requests are enumerated live), and the Stage-4
   paths not yet seen live (watchdog timeout, auto-dismiss on playlist recovery, timestamp-carrying
-  fallback after real playback). See
-  `docs/superpowers/specs/2026-06-07-compact-player-sweep-design.md`.
+  fallback after real playback).
 
 ### Added — Phase 4 (window quality + floating look)
 - **Expanded borderless resize zones (REQ-WINDOW-02, Q-7).** Both borderless windows answer
@@ -309,13 +305,13 @@ UI overhaul stabilization (plan `docs/superpowers/plans/2026-06-10-ui-overhaul-s
 - Stable Phase 2 evidence captured for `v0.3.0` build `10`: deterministic tests,
   non-mutating build gate, Stable publish/deploy, metadata validation, and deployed Stable UI
   smoke. Build 10 replaces the earlier build 9 Stable deploy and is built from the final Phase 2
-  landing commit. See `docs/evidence/phase2-release-v0.3.0-b10.md`.
+  landing commit.
 - Account-backed/live YouTube rows in `docs/QA_Checklist.md` remain the release-candidate manual
   gate. Compact-mode placement is resolved for Phase 3 as global default plus optional profile
   override, with implementation planned in the compact-player sweep.
 
 ### Tests & quality
-- **Layered regression suite** (`docs/Regression_Test_Suite_Design.md`), 221 tests in
+- **Layered regression suite**, 221 tests in
   `dotnet test` across three lanes plus a manual smoke:
   - **Layer 1 — XAML markup invariants** (`tests/.../Ui/XamlInvariantTests.cs`): parses the
     `.xaml` as XML and asserts the burned-in properties that break the app if they silently
@@ -332,7 +328,8 @@ UI overhaul stabilization (plan `docs/superpowers/plans/2026-06-10-ui-overhaul-s
     `RenderTargetBitmap` proving the URL text is not clipped at 150% DPI.
   - **Layer 4 — manual UIA + screenshot smoke** (`scripts/Test-UiSmoke.ps1`) for the true-render
     chrome gates at fractional DPI.
-- **Spec-conformance review** (`docs/Spec_Conformance_Review.md`): 92 findings, no current bugs.
+- **Spec-conformance review:** 92 findings, no current bugs; historical details were folded into the
+  retained regression-suite plan.
 - **Test-enabling seams** (behavior-preserving): `AppPaths` honors `PIPLAY_DATA_ROOT` and `AppChannel`
   honors `PIPLAY_CHANNEL` (both resolved per access; production channel identity is baked into the build); the
   placement clamp extracted to a pure `PlacementMath`; the return-resume decision extracted to a

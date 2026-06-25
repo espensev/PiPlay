@@ -35,9 +35,9 @@ Terminology:
 
 The tables in this document are accurate at the token level — palette, radii, density, elevation, DWM
 corner mode, fade, and opacity all differ across the three presets. The 2026-06-23 owner review
-(`docs/reviews/2026-06-23-owner-appearance-popout-compact-review.md`) nonetheless reports that the
-*final window* feel does not differ enough. Both can be true: the perceived silhouette/feel is
-constrained by factors this token catalog does not capture —
+summary in `SPEC_GAPS_AND_OWNERSHIP.md` nonetheless reports that the *final window* feel does not
+differ enough. Both can be true: the perceived silhouette/feel is constrained by factors this token
+catalog does not capture —
 
 - The **video surface is opaque** and dominates the window, so palette/border tokens only show on thin chrome.
 - **Outer-window corners are DWM-owned**: three fixed OS radii only, and `soft`/`round` both resolve to `DWMWCP_ROUND` (identical) — there is no large "card" radius and no outer border or shadow following the curve, because the windows host WebView2 by HWND with `AllowsTransparency=False` (airspace; see the Inner Elevation note below).

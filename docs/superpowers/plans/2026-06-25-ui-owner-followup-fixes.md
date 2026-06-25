@@ -9,7 +9,7 @@
 ## Tasks
 
 - [x] **Task 1 - Scope and evidence review.**
-  - Review `docs/reviews/2026-06-25-ui-owner-review-followup.md`.
+  - Review the folded owner-review summary in `docs/SPEC_GAPS_AND_OWNERSHIP.md`.
   - Confirm the latest committed source change only handled popout action text rendering.
   - Confirm the current fixable seams:
     - `AccentButton` hardcodes `BorderThickness=2`.

@@ -29,8 +29,10 @@ Active product/source docs are this index, the product spec, changelog, QA check
 compliance policy, privacy map, feature workflow, and spec gaps/ownership notes.
 
 Dated specs, plans, and worklogs under `docs/superpowers/` are immutable change-pass records.
-Completed review artifacts live under `docs/reviews/`. Raw screenshots and release evidence live
-under `docs/evidence/`; discovery folders are evidence, not current-state contracts.
+Only retained review artifacts live under `docs/reviews/`; folded one-off reviews should be deleted
+once their useful facts are captured in active docs or the matching change-pass record. Build-specific
+QA evidence may live under `docs/evidence/`, but stale screenshots should be pruned once their facts
+are folded forward.
 
 ## Current Theme Flow
 

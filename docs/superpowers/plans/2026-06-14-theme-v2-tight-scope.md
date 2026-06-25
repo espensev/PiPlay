@@ -83,7 +83,7 @@ Each task should leave the tree green and committable. Do not merge the color wh
   - Add a WPF runtime regression test for `PopOutButtonIcon` / `PopOutButtonText`, or a synthetic
     `AccentButton` with nested `TextBlock`s, proving the nested content foreground follows the
     button foreground across normal and pressed accent states.
-  - Reference review: `docs/reviews/2026-06-17-pr25-theme-accent-audit.md`.
+  - Reference review: PR25 theme-accent audit finding folded into the theme-v2 design note.
   - Verification: `dotnet test PiPlay.sln --configuration Debug --filter WpfRuntimeTests`.
   - Commit: `fix(theme): propagate accent foreground through button content`
 

@@ -1,7 +1,8 @@
 # Review Artifacts
 
-This directory stores completed review artifacts and review inputs. These files are evidence and
-provenance, not the current source of truth for product behavior.
+This directory is the lane for retained review artifacts and review inputs. Keep it sparse: when a
+review's useful facts are folded into active docs or the matching dated change-pass record, prune the
+raw artifact instead of keeping another stale report.
 
 Use active docs for current decisions:
 

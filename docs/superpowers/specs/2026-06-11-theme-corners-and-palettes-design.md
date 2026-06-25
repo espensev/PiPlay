@@ -2,9 +2,10 @@
 
 Date: 2026-06-11
 Status: implemented (PR #19)
-Source: `docs/reviews/2026-06-11-theme/source-review-and-variants.md` (external review of the v2 bundle) — this pass drives
-its §§2.5–2.6, 3, 7, and 8 home. Builds on the Task 8–10 theme pass (PR #18, design addendum in
-`2026-06-10-ui-overhaul-stabilization-design.md`).
+Source: external v2 bundle review, folded into this design before the raw review artifact was
+pruned. This pass drives its §§2.5–2.6, 3, 7, and 8 home. It builds on the Task 8–10 theme pass
+from PR #18; the older UI-overhaul implementation record was pruned after the useful facts were
+folded into current docs.
 
 ## Problem
 
@@ -101,7 +102,7 @@ fires the live preview, so Soft Glass's translucency is visible before the dialo
 
 ## Addendum: end-pass review disposition (2026-06-11)
 
-`docs/reviews/2026-06-11-theme/historical-draft-end-pass-review.md` audited the live checkout at `6e843a2` — the superseded
+The historical end-pass review audited the live checkout at `6e843a2` — the superseded
 parallel draft (AccentPalette.cs, `Theme.Accent*` keys, separate Pin/Fade color rows), NOT the
 merged lineage. Disposition against current code:
 
@@ -139,17 +140,15 @@ merged lineage. Disposition against current code:
   wheel — still deferred by design, matching both review docs' ordering.
 
 Note for evidence checks: verified against current `main` after the PR #19 merge (`9e822d8`).
-The 2026-06-11 end-pass and claim-response root reviews audited the superseded draft `6e843a2`
-and correctly reported the changes absent THERE — both files carry a HISTORICAL banner and
-should be read as "why the old draft failed", never as current-state verdicts. The
-current-state verdict is `docs/reviews/2026-06-11-theme/post-merge-disposition-review.md`
-checkout): R1–R7 satisfied for this pass; remaining items deferred by design, enumerated in
+The 2026-06-11 end-pass and claim-response reviews audited the superseded draft `6e843a2`
+and correctly reported the changes absent there. Their findings were folded here before the raw
+review artifacts were pruned. Current-state verdict after the PR #19 merge: R1–R7 satisfied for this pass; remaining items deferred by design, enumerated in
 "Accepted residuals / next pass" below.
 
 ## Addendum 2: Settings override-model pass (2026-06-11, post-merge code review)
 
-`docs/reviews/2026-06-11-theme/p2-p3-code-review.md` — the first review against merged main — found no blocker in
-the resolver/migration/palette/radius/DWM core but flagged a real model mismatch:
+The first post-merge code review against merged main found no blocker in the
+resolver/migration/palette/radius/DWM core but flagged a real model mismatch:
 
 - **P2 (fixed)** — the Settings apply path collapsed the nullable override model: ONE coarse
   `AppearanceChanged` flag meant an accent-only apply wrote all three behavior values back as

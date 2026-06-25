@@ -1,7 +1,7 @@
 # PiPlay Theme System V2 — tight-scope design
 
-Canonical theme-flow contract: this supersedes
-`docs/superpowers/specs/2026-06-14-theme-differentiation-design.md`.
+Canonical theme-flow contract: this supersedes the earlier 2026-06-14 theme-differentiation draft,
+which was pruned after its useful direction was folded here.
 
 Status: implementation spec. Imported from `piplay-theme-v2-tight-scope-docs.zip`, then checked
 against the local source tree on 2026-06-14. Phase A (theme identity values, exact gates, and
@@ -379,8 +379,8 @@ Derived-token contrast rules:
 > nested `TextBlock` content. The `AccentButton` template must forward
 > `TextElement.Foreground="{TemplateBinding Foreground}"` through its `ContentPresenter`, and runtime
 > coverage must prove nested button content renders `OnAccent` / `OnAccentPressed`, not merely that
-> `Button.Foreground` resolves the token. See
-> `docs/reviews/2026-06-17-pr25-theme-accent-audit.md`.
+> `Button.Foreground` resolves the token. This was the key finding from the PR25 theme-accent audit,
+> folded here before the raw review artifact was pruned.
 >
 > **OPEN — `AccentMuted` is NOT yet WCAG-safe as one universal token (design decision owed).** With
 > the spec mixes, the two pinned pairings trade off inversely and neither holds across all six chips ×

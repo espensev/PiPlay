@@ -2,7 +2,8 @@
 
 Date: 2026-06-25
 Status: approved direction (owner UI roadmap P1, cheap-first / no-lift tier)
-Roadmap: `docs/PiPlay_UI_Priority_Improvements.md` (P1). Grounding: `docs/reviews/2026-06-25-ui-review-crossvalidation.md`.
+Roadmap: `docs/PiPlay_UI_Priority_Improvements.md` (P1). Grounding: UI-roadmap cross-validation
+folded into this design before the raw review artifact was pruned.
 
 ## Context
 
