@@ -921,6 +921,36 @@ public class XamlInvariantTests
         Assert.Equal("#FF262F3D", ColorOf("BorderStrongColor"));
     }
 
+    [Fact]
+    public void Resting_control_borders_are_transparent_but_focus_ring_survives()
+    {
+        var styles = XamlTestFiles.Load("Theme/ControlStyles.xaml");
+
+        string RestingBorderBrush(string key)
+        {
+            var style = styles.Descendants(XamlTestFiles.Pres + "Style")
+                .Single(e => (string?)e.Attribute(XamlTestFiles.X + "Key") == key);
+            // The style's own (resting) BorderBrush setter — not template-trigger setters.
+            return style.Elements(XamlTestFiles.Pres + "Setter")
+                .Single(s => (string?)s.Attribute("Property") == "BorderBrush")
+                .Attribute("Value")!.Value;
+        }
+
+        Assert.Equal("Transparent", RestingBorderBrush("DarkButton"));
+        Assert.Equal("Transparent", RestingBorderBrush("AccentButton"));
+        Assert.Equal("Transparent", RestingBorderBrush("DarkTextBox"));
+
+        // DarkTextBox keyboard-focus trigger must still paint the accent ring (REQ-UI-02).
+        var textBox = styles.Descendants(XamlTestFiles.Pres + "Style")
+            .Single(e => (string?)e.Attribute(XamlTestFiles.X + "Key") == "DarkTextBox");
+        var focusTrigger = textBox.Descendants(XamlTestFiles.Pres + "Trigger")
+            .Single(t => (string?)t.Attribute("Property") == "IsKeyboardFocusWithin");
+        Assert.Contains("AccentBorder",
+            focusTrigger.Descendants(XamlTestFiles.Pres + "Setter")
+                .Single(s => (string?)s.Attribute("Property") == "BorderBrush")
+                .Attribute("Value")!.Value);
+    }
+
     // --- App manifest declares per-monitor-v2 DPI awareness (REQ-WINDOW-01, Q-7) ---
 
     [Fact]

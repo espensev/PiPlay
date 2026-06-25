@@ -26,7 +26,7 @@
   <Style TargetType="Button" x:Key="DarkButton">
     <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
     <Setter Property="Background" Value="{DynamicResource SurfaceRaised}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessDefault}" />
     <Setter Property="FontFamily" Value="Segoe UI" />
     <Setter Property="FontSize" Value="13" />
@@ -63,7 +63,7 @@
   <Style TargetType="Button" x:Key="AccentButton" BasedOn="{StaticResource DarkButton}">
     <Setter Property="Background" Value="{DynamicResource AccentPrimary}" />
     <Setter Property="Foreground" Value="{DynamicResource OnAccent}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource AccentBorder}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessDefault}" />
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
@@ -230,7 +230,7 @@
     <Setter Property="CaretBrush" Value="{DynamicResource AccentPrimary}" />
     <Setter Property="SelectionBrush" Value="{DynamicResource AccentPrimary}" />
     <Setter Property="Background" Value="{DynamicResource SurfaceRaised}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessDefault}" />
     <Setter Property="FontFamily" Value="Segoe UI" />
     <Setter Property="FontSize" Value="13" />
@@ -380,7 +380,7 @@
               <ToggleButton.Template>
                 <ControlTemplate TargetType="ToggleButton">
                   <Border x:Name="bd" Background="{DynamicResource SurfaceRaised}"
-                          BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="{DynamicResource BorderThicknessDefault}"
+                          BorderBrush="Transparent" BorderThickness="{DynamicResource BorderThicknessDefault}"
                           CornerRadius="{DynamicResource RadiusInput}">
                     <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
                                Margin="0,0,9,0" Text="&#xE70D;"
