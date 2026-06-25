@@ -937,8 +937,11 @@ Important details:
   state is known at return. If the popout paused state is unknown, fall back to whether the source was
   playing when Video Popout started.
 - `sourceWasPlayingAtPopout` is captured before PiPlay suppresses the source and is a fallback only.
-- If the source was paused at popout launch, PiPlay must not auto-nudge the Popout Player into playing;
-  a return to playing state from that path must come from user action inside the popout.
+- **[REQ-RETURN-07]** If the source was paused at popout launch, PiPlay must not auto-nudge the Popout
+  Player into playing; a return to playing state from that path must come from user action inside the
+  popout. Launch intent is passed into the Popout Player for the whole session, not just suppressed as
+  a one-shot nudge. (PiPlay does not force-pause a watch page that autoplays on its own — that residual
+  is a runtime-QA concern, not a guarantee.)
 
 Recommended model:
 
@@ -1450,6 +1453,7 @@ The following are normative defaults unless superseded by a later ADR or require
 |---|---|
 | ADR-0005 | PiPlay is single-player for now. A popout request while a player exists activates the existing player rather than opening another. |
 | REQ-RETURN-01 | Return follows the Popout Player's live paused/playing state when known; if unknown, return falls back to whether the source was playing when Video Popout started. |
+| REQ-RETURN-07 | If the source was paused at popout launch, PiPlay must not auto-nudge the Popout Player into playing; launch-from-paused intent is passed into the popout for the session, and a return to playing must come from user action inside the popout. The principled companion to REQ-RETURN-01 (Option A). |
 | REQ-NAV-01 | The allowlist is a guardrail, not a blocker: the Source Window allows YouTube plus Google sign-in (including regional domains); other links open in the system browser without per-link prompts. |
 | REQ-NAV-02 | The Popout Player stays on YouTube plus the Google sign-in surface and never wanders onto unrelated sites; unrelated navigation is blocked or opened externally. |
 | REQ-PRIVACY-01 / REQ-PRIVACY-02 | `Reset app state` and `Clear browser data` are separate actions. Reset keeps the YouTube session; clear browser data logs the user out. |
