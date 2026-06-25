@@ -10,7 +10,7 @@ namespace PiPlay.Tests;
 ///
 /// During theme design we repeatedly hand-compute contrast for candidate hex pairs: the base palette
 /// AND the Phase-B *derived* tokens (AccentPressed/AccentMuted — see CON-1 in
-/// docs/reviews/2026-06-14-theme-v2-spec-eval.md), where a wrong by-hand number emits a false
+/// docs/superpowers/specs/2026-06-14-theme-v2-tight-scope-design.md), where a wrong by-hand number emits a false
 /// "WCAG-safe" verdict. Paste a candidate pair into the [InlineData] rows below, set its floor, then:
 ///
 ///   dotnet test PiPlay.sln --filter "FullyQualifiedName~ContrastReportTests" --logger "console;verbosity=detailed"

@@ -8,7 +8,7 @@ namespace PiPlay.Services;
 /// Applies whole-window opacity to a borderless PiPlay window as layered-window alpha
 /// (WS_EX_LAYERED + SetLayeredWindowAttributes(LWA_ALPHA)) on the top-level HWND, plus the DWM
 /// rounded-corner preference for the floating look (spec 7.3, Phase 4; verified live by the
-/// Stage 0 spikes, see docs/superpowers/worklog/2026-06-10-popout-overlay-opacity-spikes.md).
+/// Stage 0 spikes, see docs/superpowers/plans/2026-06-10-popout-overlay-and-opacity.md).
 ///
 /// Two native facts from the spikes shape this class:
 /// 1. WPF's HwndTarget strips WS_EX_LAYERED out of any exstyle change while the window doesn't

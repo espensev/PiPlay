@@ -349,7 +349,7 @@ public class ThemeCatalogTests
     }
 
     // --- CON-1 (theme-v2 Phase B): derived accent tokens stay WCAG-safe in their PINNED pairings,
-    // across every offered accent x every theme profile (review docs/reviews/2026-06-14-theme-v2-spec-eval.md).
+    // across every offered accent x every theme profile (see docs/superpowers/specs/2026-06-14-theme-v2-tight-scope-design.md).
     // The naive derivation reused OnAccent on the darker pressed fill, dropping the dim steel chip to
     // 3.82:1; OnAccentPressed is re-picked against the pressed fill so it stays readable. Uses the
     // independent Wcag oracle (not the production ContrastRatio it polices). AccentMuted/Subtle/Glow

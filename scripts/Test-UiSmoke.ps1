@@ -4,7 +4,7 @@
   Manual end-to-end UI smoke for PiPlay: launches the built exe, asserts key UI elements via
   UI Automation, and captures a screenshot for the spec section 22.2 chrome acceptance review.
 .DESCRIPTION
-  Layer 4 of the regression suite (see docs/Regression_Test_Suite_Design.md). NOT part of
+  Layer 4 of the regression suite (see docs/superpowers/plans/2026-05-31-regression-test-suite.md). NOT part of
   `dotnet test` — it needs an interactive desktop, the WebView2 runtime, and network. Run it as
   a release gate alongside docs/QA_Checklist.md section 8. Capture at a fractional DPI (e.g.
   150%) to expose the rounding/clipping class of bug (see docs/AGENTS.md).
