@@ -874,6 +874,7 @@ public class WpfRuntimeTests : IDisposable
         var on = new SettingsWindow(isBrowserReady: true, compactMode: true);
         Assert.True(on.CompactMode);
         Assert.Null(on.FindName("CompactModeToggle"));
+        Assert.False(on.AppearanceChanged, "Storing compact mode in ctor must not mark settings dirty.");
 
         var off = new SettingsWindow(isBrowserReady: true, compactMode: false);
         Assert.False(off.CompactMode);
