@@ -34,3 +34,6 @@ Archive/
 ## Transient UI-smoke captures (Test-UiSmoke.ps1 writes a timestamped shot per run).
 ## Curated, stable-named evidence is committed deliberately; these raw runs are not.
 docs/evidence/ui-smoke-*.png
+
+## Owner's raw review inbox (un-curated drops; the processed copies live in docs/reviews/). Never shared.
+PRI-READ/
