@@ -108,8 +108,8 @@ These are the exact `ThemePalette` tokens applied to the shared resource diction
 | `SurfaceBase` | `#0B0E12` | `#1C1A16` | `#121A26` |
 | `SurfaceRaised` | `#131820` | `#26231E` | `#1B2738` |
 | `SurfaceHover` | `#1E2630` | `#312D27` | `#26354B` |
-| `BorderSubtle` | `#2B3645` | `#3C372F` | `#44526E` |
-| `BorderStrong` | `#3E4B5C` | `#50493E` | `#66799E` |
+| `BorderSubtle` | `#181F29` | `#2E2A23` | `#2A3A52` |
+| `BorderStrong` | `#262F3D` | `#3C362D` | `#3A4D6A` |
 | `TextPrimary` | `#F4F7FA` | `#F4F1EC` | `#F6F8FC` |
 | `TextSecondary` | `#9AA2AD` | `#B0A99E` | `#C4CEDC` |
 | `Danger` / `DangerPin` | `#E45D75` | `#E8564C` | `#E45D75` |
