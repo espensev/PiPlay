@@ -152,12 +152,12 @@ Suggested tokens:
 | `BorderSubtle` | `#30363D` | Thin outlines and window borders. |
 | `TextPrimary` | `#F3F5F7` | Primary text/icons. |
 | `TextSecondary` | `#A7ADB4` | Labels, inactive text. |
-| `AccentCyan` | `#00D4FF` | PiPlay brand/action accent. |
-| `AccentCyanLight` | `#5BE6FF` | Gradient highlight. |
+| `AccentCyan` | `#2BAED0` | PiPlay brand/action accent. |
+| `AccentCyanLight` | `#51BDD8` | Derived hover/light accent. |
 | `AccentPurple` | `#6D3BFF` | Secondary popout/action accent. |
-| `AccentViolet` | `#A78BFA` | Customization palette accent for active Pin/Fade controls. |
-| `AccentGreen` | `#38D996` | Customization palette accent for active Pin/Fade controls. |
-| `AccentAmber` | `#FFC857` | Customization palette accent for active Pin/Fade controls. |
+| `AccentViolet` | `#9E84F0` | Customization palette accent for active Pin/Fade controls. |
+| `AccentGreen` | `#2DB57F` | Customization palette accent for active Pin/Fade controls. |
+| `AccentAmber` | `#D69A2E` | Customization palette accent for active Pin/Fade controls. |
 | `DangerPin` | `#FF4B55` | Destructive/danger states such as close/delete. Not used for Pin/Fade customization. |
 
 YouTube red should remain YouTube-owned. PiPlay action accents should use cyan/purple rather than copying YouTube red.

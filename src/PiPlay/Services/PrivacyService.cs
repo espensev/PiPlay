@@ -56,8 +56,8 @@ public static class PrivacyService
     /// adverse worst-case clear (slow HDD, sub-GB profile; the cleared volume is disk cache + site
     /// storage, and Chromium caps the HTTP cache near 256-320 MB). On an SSD the clear finishes in
     /// about 1-2 s. Chosen high enough not to false-flag a slow-but-succeeding clear, and short of
-    /// 60 s. Retune only from logged real durations (MainWindow logs the measured ms).
-    /// See docs/superpowers/specs/2026-06-03-phase2-privacy-polish-design.md section 3.
+    /// 60 s. Retune only from logged real durations (MainWindow logs the measured ms). The durable
+    /// privacy behavior lives in docs/PiPlay_Product_Engineering_Spec.md and docs/QA_Checklist.md.
     /// </summary>
     public static readonly TimeSpan ClearTimeout = TimeSpan.FromSeconds(30);
 

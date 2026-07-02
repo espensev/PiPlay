@@ -37,12 +37,3 @@ docs/evidence/ui-smoke-*.png
 
 ## Owner's raw review inbox (un-curated drops; the processed copies live in docs/reviews/). Never shared.
 PRI-READ/
-
-## Raw v0.6.0 review artifact (input drop, kept local; not shared)
-PiPlay-v0.6.0-b22-full-review.md
-
-## Raw v0.7.1 comparison review artifact (input drop, kept local; not shared)
-PiPlay-v0.7.1-b24-comparison-review.md
-
-## v0.7.2 b25 audit brief (generated review packet, kept local; not shared)
-PiPlay-v0.7.2-b25-audit-brief.md

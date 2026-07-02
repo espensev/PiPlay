@@ -8,6 +8,19 @@
 |---|---|---|---|
 | **Double-audio: source "base" keeps playing after popout** | 2026-06-25 (pre-existing, not a v0.6.0 regression) | NEEDS STABLE SMOKE | The source is now muted+paused at popout launch and guarded by a short reassertion timer while the popout owns playback (`MainWindow.xaml.cs`, `YouTubeDomBridge.SuppressPlaybackAsync`). Release smoke still must verify ads, autoplay-next, and YouTube SPA re-renders do not restart source audio behind the placeholder. Worst historical case: mix/radio sources (`start_radio=1`). |
 
+## Current-ways review note (2026-06-26)
+
+The current local stack is deterministic-test green (`dotnet test PiPlay.sln -c Debug` = 687/687), but
+that is a headless contract gate, not runtime signoff. Do not RC-tag from the green suite alone. The next
+release evidence must come from the deployed Stable WebView2/YouTube smoke rows: duplicate-audio
+suppression, immediate popout close/unmute, paused-source launch, different-video replay, ads/autoplay-next,
+and SPA re-render transitions.
+
+The current visual path is also an intentional compromise, not the final owner target: DWM fixed corner
+modes, a 4 DIP resize band, whole-popout opacity, and dormant compact-player plumbing. A large rounded
+floating-card silhouette, chrome-only transparency, or Browse/Cinema/Compact main-window modes need separate
+design/ADR work instead of being folded into the current release cleanup.
+
 ## Remaining open product decisions
 
 | Item | Phase pressure | Current issue | Needed decision |
@@ -55,7 +68,7 @@ where the owner reported observed behavior, that signal stands until a runtime c
 |---|---|---|
 | 3.2 "Show popout" does not bring the popout back; duplicate risk | Toolbar button now flips label/tooltip/UIA name `Pop out video` ↔ `Bring video back`; the placeholder action uses the same `BringVideoBackAsync` path. The command captures fresh popout return state, closes the popout, and drives `ApplyReturnActionAsync`. Same-video return preserves paused/volume/mute/speed where the YouTube DOM allows it; different-video return navigates to the returned video/timestamp and replays paused/volume/mute/speed after the source video element is ready. | **Implemented in working tree.** Task 3b's post-navigation replay is implemented and covered headlessly, including no-sample fallback to launch playback settings. Manual QA still needs real-page WebView2/YouTube verification. |
 | 4 "Compact mode does not work" | "Compact" is no longer a user-facing popout toggle: the Settings control was removed, and `PlaybackModePolicy.CompactPlayerEnabled=false` forces new popouts to Normal while the compact plumbing remains dormant. It never changed the main-window layout. | **Terminology mismatch** — the owner's main-window "Compact Mode" is net-new and does not exist; the dormant popout compact plumbing is a different axis and should not be treated as the requested main-window mode. |
-| P1 "reduce transparency by default" | Global opacity default is `1.0` (`WindowOpacityPolicy.cs:18`); only Soft Glass ships translucent (`0.92` active / `0.78` idle, `ThemeCatalog.cs:235`). | Already opaque by default everywhere except Soft Glass; the remainder is an open sub-decision below. |
+| P1 "reduce transparency by default" | Global opacity default is `1.0` (`WindowOpacityPolicy.cs:18`); only Soft Glass ships slightly translucent (`0.97` active / `0.90` idle, `ThemeCatalog.cs`). | Already opaque by default everywhere except Soft Glass; the remainder is an open sub-decision below. |
 | 2.3 "auto-pick readable foreground" | `ThemeColors.PickReadableForeground` picks the best dark/white foreground, and the 2026-06-25 follow-up accepts any valid `#RRGGBB` accent/profile color. | Text foreground is now separated from the old hard reject; border/glow strength remains a future control axis. |
 
 ### Terminology to disambiguate (settled fact)

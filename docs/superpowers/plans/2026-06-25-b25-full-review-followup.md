@@ -1,8 +1,8 @@
 # b25 full review follow-up - triage and implementation plan
 
-**Input review:** `docs/reviews/2026-06-25-v0.7.2-b25-full-review.md`
+**Review chain:** Older June 25 b25 reviews were folded into this plan, active docs, and the retained June 26 review pair, then pruned.
 
-**Evaluation:** `docs/reviews/2026-06-25-v0.7.2-b25-full-review-evaluation.md`
+**Retained review status:** `docs/reviews/2026-06-26-piplay-b25-address-pass-review.md` and `docs/reviews/2026-06-26-piplay-b25-spec-conformance-review.md`
 
 **Goal:** turn the b25 full review into an actionable queue without undoing settled current-product
 decisions or reopening the already-reviewed v0.7.2-b25 release patch.
@@ -15,20 +15,9 @@ decisions or reopening the already-reviewed v0.7.2-b25 release patch.
   (`683/683`) and `git diff --check` with only line-ending normalization warnings.
 - Branch merge check after fetch: the local `fix/p1-webview-inset-and-prompt` branch is already
   merged into `main`; no remote branch remains unmerged into `main`.
-- Static review after stabilization is recorded in
-  `docs/reviews/2026-06-25-b25-followup-package-review.md`.
-- Automated QA readiness at `011e8ee` is recorded in the same review artifact: clean, full tests
-  683/683, non-mutating Release build gate, whitespace check, and clean tracked/untracked status.
-- Additional thorough PiPlay review is recorded in
-  `docs/reviews/2026-06-25-piplay-b25-code-review-thorough.md`.
-- Spec-tightening arbitration review is recorded in
-  `docs/reviews/2026-06-25-piplay-b25-spec-tightening-arbitration.md`.
-- Meta-review/severity calibration is recorded in
-  `docs/reviews/2026-06-25-piplay-b25-meta-review-of-arbitration.md`.
-- Review/audit prep docket is recorded in
-  `docs/reviews/2026-06-25-piplay-b25-review-audit-prep.md`.
-- Imported `docs/reviews/2026-06-25-spec-review-v2.md` appears to be a TerminalHQ/THQ review, not
-  PiPlay release evidence, unless the owner confirms otherwise.
+- Intermediate June 25 review/arbitration/package docs were folded into active docs and this plan, then pruned.
+- Current retained b25 review status lives in the June 26 address-pass and spec-conformance reviews.
+- The imported TerminalHQ/THQ review artifact was pruned from the PiPlay docs because it was not PiPlay release evidence.
 - Remaining open items are intentionally deferred gates: deployed visual QA, profile-accent owner
   decision, rounded-corner language, and video fit modes.
 
@@ -37,7 +26,7 @@ decisions or reopening the already-reviewed v0.7.2-b25 release patch.
 - [x] **Task 1 - Evaluate the full review against current HEAD.**
   - Confirmed current `HEAD` is the review's source label `068d970`.
   - Confirmed the review's major technical claims against source and docs.
-  - Saved the disposition in `docs/reviews/2026-06-25-v0.7.2-b25-full-review-evaluation.md`.
+  - Disposition is now summarized in `docs/reviews/README.md` and the retained June 26 review pair.
 
 - [ ] **Task 2 - Visual QA the b25 border outcome before more P1 code.**
   - Use the deployed Stable copy, not repo build output.
@@ -67,8 +56,7 @@ decisions or reopening the already-reviewed v0.7.2-b25 release patch.
   - Still requires Stable/WebView2 manual smoke because YouTube readiness is runtime-dependent.
 
 - [x] **Task 3c - Reconcile the new resume rule with normative REQ-RETURN-01.**
-  - Surfaced by the independent multi-agent review (`docs/reviews/2026-06-25-codex-p4-bring-video-back-review.md`);
-    NOT caught by the parallel package self-review in `011e8ee`.
+  - Surfaced by the June 25 review chain; NOT caught by the parallel package self-review in `011e8ee`.
   - Resolved as **Option A**: the popout's live paused/playing state wins when known; the source launch
     state is fallback only.
   - Product spec, requirements matrix, `SPEC_GAPS`, and QA checklist now state the same rule.
@@ -76,7 +64,7 @@ decisions or reopening the already-reviewed v0.7.2-b25 release patch.
     source was playing at popout launch.
 
 - [ ] **Task 3d - Make final P4 capture authoritative and close paths equivalent.**
-  - Surfaced by `docs/reviews/2026-06-25-piplay-b25-code-review-thorough.md`.
+  - Surfaced by the June 25 b25 code-review chain.
   - Done: explicit `Bring video back` now stops the sync timer before final capture and guards in-flight
     timer completions so stale reads cannot overwrite the final capture.
   - Make popout close button/system close either perform the same fresh capture as Source Window
@@ -94,7 +82,7 @@ decisions or reopening the already-reviewed v0.7.2-b25 release patch.
     canonical YouTube watch URL.
 
 - [x] **Task 3f - Reset media sampling across popout retarget/navigation.**
-  - Surfaced by `docs/reviews/2026-06-25-piplay-b25-spec-tightening-arbitration.md`.
+  - Surfaced by the June 25 b25 arbitration chain.
   - On retarget and allowed navigation start, media state is unknowned, the sync timer stops, and DOM
     sampling resumes only after successful navigation completion.
 

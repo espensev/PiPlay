@@ -10,6 +10,7 @@ reference and must be regenerated in the same PR as any theme catalog value chan
 Source of truth:
 
 - `src/PiPlay/Theme/ThemeCatalog.cs`
+- `src/PiPlay/Theme/ThemeColors.cs`
 - `src/PiPlay/Theme/ThemeResourceApplier.cs`
 - `src/PiPlay/Theme/Colors.xaml`
 - `src/PiPlay/Theme/ThemePreferenceResolver.cs`
@@ -40,7 +41,7 @@ differ enough. Both can be true: the perceived silhouette/feel is constrained by
 catalog does not capture —
 
 - The **video surface is opaque** and dominates the window, so palette/border tokens only show on thin chrome.
-- **Outer-window corners are DWM-owned**: three fixed OS radii only, and `soft`/`round` both resolve to `DWMWCP_ROUND` (identical) — there is no large "card" radius and no outer border or shadow following the curve, because the windows host WebView2 by HWND with `AllowsTransparency=False` (airspace; see the Inner Elevation note below).
+- **Outer-window corners are DWM-owned**: three fixed OS radii only. The redundant `soft` corner option was removed; legacy stored `soft` values normalize to `round`. There is no large "card" radius and no outer border or shadow following the curve, because the windows host WebView2 by HWND with `AllowsTransparency=False` (airspace; see the Inner Elevation note below).
 - **Default transparency is low** (only Soft Glass ships translucent), by design.
 
 The owner also requests a 4th **Blackout** preset and explicit border/shadow controls. These are
@@ -62,20 +63,20 @@ direction, not current code; the catalog tables below stay code-backed. Tracked 
 The preset default accent is separate from the surface palette. `ThemeResourceApplier` writes:
 
 - `AccentPrimary` from the selected `theme.accentColor`.
-- `AccentPrimaryLight` by blending the selected accent 30 percent toward white.
+- `AccentPrimaryLight` as an alias of `AccentHover` from `ThemeColors.DeriveAccentSet`.
 
 | Field | Sharp Dark | Minimal | Soft Glass | Difference |
 |---|---|---|---|---|
-| Default accent color | `#00D4FF` | `#5AA9E6` | `#A78BFA` | Sharp uses cyan, Minimal uses steel blue, Soft Glass uses violet. |
-| Default accent family | Cyan | Steel blue | Violet | The presets start from different color identities. |
-| Runtime `AccentPrimaryLight` from default accent | `#4CE1FF` | `#8CC3EE` | `#C1AEFC` | Hover/light accent differs because it is derived from each preset accent. |
-| XAML seed before startup apply | `#00D4FF` / `#5BE6FF` | Not seeded in XAML | Not seeded in XAML | `Colors.xaml` seeds the Sharp Dark fallback only; runtime apply replaces it. |
+| Default accent color | `#2BAED0` | `#3F84C0` | `#9E84F0` | Sharp uses muted cyan, Minimal uses steel blue, Soft Glass uses violet. |
+| Default accent family | Muted cyan | Steel blue | Violet | The presets start from different color identities. |
+| Runtime `AccentPrimaryLight` / `AccentHover` from default accent | `#51BDD8` | `#699FCE` | `#BBA9F4` | Hover/light accent differs because it is derived from each preset accent and theme profile. |
+| XAML seed before startup apply | `#2BAED0` / `#51BDD8` | Not seeded in XAML | Not seeded in XAML | `Colors.xaml` seeds the Sharp Dark fallback only; runtime apply replaces it. |
 
 Preset switching rule:
 
 - If the current accent equals the previous preset's default, selecting another preset adopts the new preset's default accent.
 - If the current accent is custom or deliberately chosen, it survives the preset switch.
-- The accent picker's preset quick-picks are the same for every preset: cyan `#00D4FF`, steel blue `#5AA9E6`, steel `#4A8FAB`, violet `#A78BFA`, green `#38D996`, amber `#FFC857`.
+- The accent picker's preset quick-picks are the same for every preset: cyan `#2BAED0`, steel blue `#3F84C0`, steel `#4A8FAB`, violet `#9E84F0`, green `#2DB57F`, amber `#D69A2E`.
 
 ## Behavior Defaults
 
@@ -84,10 +85,10 @@ Preset switching rule:
 | Default fade delay preset | `normal` | `long` | `short` | All three differ. Minimal lets the strip linger; Soft Glass hides it quickly. |
 | Default fade delay milliseconds | `2500` | `4000` | `1500` | Derived from the preset (`short`/`normal`/`long` = `1500`/`2500`/`4000`). |
 | Default popout top-bar auto-hide | `false` | `false` | `true` | Soft Glass auto-hides the popout strip by default; Sharp and Minimal keep it pinned. |
-| Default active window opacity | `1.0` | `1.0` | `0.92` | Soft Glass is translucent while active; Sharp and Minimal are opaque. |
-| Default idle window opacity | `1.0` | `1.0` | `0.78` | Soft Glass fades down while idle; Sharp and Minimal stay opaque. |
-| Active alpha byte | `255` / `0xFF` | `255` / `0xFF` | `235` / `0xEB` | Soft Glass engages layered-window opacity by default. |
-| Idle alpha byte | `255` / `0xFF` | `255` / `0xFF` | `199` / `0xC7` | Soft Glass idle state is visibly more transparent. |
+| Default active window opacity | `1.0` | `1.0` | `0.97` | Soft Glass is slightly translucent while active; Sharp and Minimal are opaque. |
+| Default idle window opacity | `1.0` | `1.0` | `0.90` | Soft Glass fades down lightly while idle; Sharp and Minimal stay opaque. |
+| Active alpha byte | `255` / `0xFF` | `255` / `0xFF` | `247` / `0xF7` | Soft Glass engages layered-window opacity by default. |
+| Idle alpha byte | `255` / `0xFF` | `255` / `0xFF` | `230` / `0xE6` | Soft Glass idle state is only slightly more transparent. |
 | Click-through | Off | Off | Off | No preset enables click-through; `WS_EX_TRANSPARENT` remains a non-goal. |
 
 Behavior values are resolved as:
@@ -241,10 +242,10 @@ The Settings "Corners" row can override the preset's whole corner profile. This 
 | `theme` | Selected preset radii | Selected preset DWM mode | Keeps Sharp, Minimal, or Soft Glass defaults. |
 | `square` | `SquareRadii` | `Square` | Forces all radii to `0` and disables native rounding. |
 | `small` | `SharpRadii` | `SmallRound` | Makes any preset use Sharp-style control radii with small native rounding. |
-| `soft` | `MinimalRadii` | `Round` | Makes any preset use Minimal-style control radii with round native corners. |
 | `round` | `SoftGlassRadii` | `Round` | Makes any preset use Soft Glass-style control radii with round native corners. |
 
-Selecting a theme preset resets `CornerStyle` back to `theme`.
+Selecting a theme preset resets `CornerStyle` back to `theme`. A legacy persisted `soft` value normalizes to
+`round` on load/save so old settings keep a rounded silhouette without exposing a duplicate option.
 
 ## Resource Keys Changed At Runtime
 
@@ -353,7 +354,7 @@ Current schema stores:
 | `theme.themeId` | One of `sharp-dark`, `minimal`, `soft-glass`; invalid values normalize to `sharp-dark`. |
 | `theme.accentColor` | Normalized `#RRGGBB`; invalid values normalize to Sharp Dark cyan or a legacy fallback. |
 | `theme.fadeDelayPreset` | `short`, `normal`, or `long`; preset defaults are Sharp Dark `normal`, Minimal `long`, Soft Glass `short`. |
-| `theme.cornerStyle` | `theme`, `square`, `small`, `soft`, or `round`; invalid values normalize to `theme`. |
+| `theme.cornerStyle` | `theme`, `square`, `small`, or `round`; invalid values normalize to `theme`, and legacy `soft` normalizes to `round`. |
 | `theme.stripAutoHide` | Nullable behavior override; `null` means follow preset. |
 | `theme.activeWindowOpacity` | Nullable behavior override; `null` means follow preset. |
 | `theme.idleWindowOpacity` | Nullable behavior override; `null` means follow preset. |
