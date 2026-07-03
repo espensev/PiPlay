@@ -268,17 +268,20 @@ public class XamlInvariantTests
     }
 
     [Fact]
-    public void Profile_selector_fills_identity_chip_with_profile_color()
+    public void Profile_selector_uses_profile_color_as_marker_not_nested_button_fill()
     {
-        var chip = XamlTestFiles.Load("MainWindow.xaml").Descendants(XamlTestFiles.Pres + "Border")
-            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "ProfileIdentityChip");
+        var doc = XamlTestFiles.Load("MainWindow.xaml");
+        var row = doc.Descendants(XamlTestFiles.Pres + "Grid")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "ProfileIdentityRow");
 
-        Assert.Contains("AccentColor", chip.Attribute("Background")?.Value);
+        var rail = row.Descendants(XamlTestFiles.Pres + "Border")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "ProfileIdentityColorRail");
+        Assert.Contains("AccentColor", rail.Attribute("Background")?.Value);
 
-        var label = chip.Elements(XamlTestFiles.Pres + "TextBlock").Single();
+        var label = row.Descendants(XamlTestFiles.Pres + "TextBlock").Single();
         Assert.Equal("{Binding Name}", label.Attribute("Text")?.Value);
-        Assert.Contains("AccentColor", label.Attribute("Foreground")?.Value);
-        Assert.Contains("AccentForegroundConverter", label.Attribute("Foreground")?.Value);
+        Assert.Equal("{DynamicResource TextPrimary}", label.Attribute("Foreground")?.Value);
+        Assert.DoesNotContain("AccentForegroundConverter", label.Attribute("Foreground")?.Value ?? "");
     }
 
     [Fact]
@@ -950,17 +953,21 @@ public class XamlInvariantTests
         Assert.Equal("Transparent", RestingBorderBrush("AccentButton"));
         Assert.Equal("Transparent", RestingBorderBrush("DarkTextBox"));
 
-        // DarkComboBox toggle button border must be transparent (resting, no grey box on the field).
+        // DarkComboBox toggle button border is the active profile frame, not a nested filled pill.
         // The toggle border is the inline Border x:Name="bd" inside the ToggleButton template;
         // the dropdown popup border (x:Name="DropDownBorder") intentionally keeps BorderSubtle.
         var comboStyle = styles.Descendants(XamlTestFiles.Pres + "Style")
             .Single(e => (string?)e.Attribute(XamlTestFiles.X + "Key") == "DarkComboBox");
+        var toggleButton = comboStyle.Descendants(XamlTestFiles.Pres + "ToggleButton")
+            .Single(b => (string?)b.Attribute(XamlTestFiles.X + "Name") == "ToggleButton");
         var comboDescBorders = comboStyle.Descendants(XamlTestFiles.Pres + "Border").ToList();
         var toggleBorder = comboDescBorders
             .Single(b => (string?)b.Attribute(XamlTestFiles.X + "Name") == "bd");
         var dropDownBorder = comboDescBorders
             .Single(b => (string?)b.Attribute(XamlTestFiles.X + "Name") == "DropDownBorder");
-        Assert.Equal("Transparent", toggleBorder.Attribute("BorderBrush")?.Value);
+        var comboFrameBinding = toggleButton.Attribute("BorderBrush")?.Value ?? "";
+        Assert.Contains("SelectedItem.AccentColor", comboFrameBinding);
+        Assert.Equal("{TemplateBinding BorderBrush}", toggleBorder.Attribute("BorderBrush")?.Value);
         Assert.Equal("{DynamicResource BorderSubtle}", dropDownBorder.Attribute("BorderBrush")?.Value);
 
         // DarkTextBox keyboard-focus trigger must still paint the accent ring (REQ-UI-02).
