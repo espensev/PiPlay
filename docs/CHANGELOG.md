@@ -5,6 +5,8 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 ## [Unreleased]
 
 ### Changed
+- **Profile selector identity:** saved profile colors now frame/mark the profile selector instead of
+  filling a nested chip inside the dropdown control.
 - **Bring video back (P4):** while a popout exists, the Source Window primary action and placeholder
   action now return playback to the Source Window instead of only focusing the popout. The return path
   captures fresh popout timestamp, paused state, volume, mute, and playback speed where the YouTube DOM
@@ -79,8 +81,8 @@ widened, the control borders and Soft Glass translucency are quieted, and the em
 removed. Published exact-source to Stable.
 
 ### Changed
-- **Profile color is identity, not app accent:** saved profile colors now fill the profile selector
-  chip and no longer override the global app accent when a profile is active; Settings Appearance
+- **Profile color is identity, not app accent:** saved profile colors became visible in the profile
+  selector and no longer override the global app accent when a profile is active; Settings Appearance
   always edits the global accent.
 - **Filled accent actions:** accent buttons now use the selected app accent as their fill with
   generated dark/white foreground text instead of reading as a heavy accent outline.

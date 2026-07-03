@@ -1115,7 +1115,7 @@ Quality requirements:
 - Profiles validate URLs before saving in the Phase 2 edit path.
 - Broken profile URLs must fail gracefully even in MVP.
 - **[REQ-PROFILE-01]** For fields that a profile is allowed to carry, a launched profile overrides the global default per field. Unset/null fields fall back to the global value.
-- `accentColor` is an optional per-profile **identity color**. It decorates profile UI (currently the filled profile chip) and must not replace the global app accent; Settings Appearance edits the global accent only. An optional active-profile popout border remains a future enhancement.
+- `accentColor` is an optional per-profile **identity color**. It decorates profile UI as the selector frame/row marker and must not replace the global app accent; Settings Appearance edits the global accent only. An optional active-profile popout border remains a future enhancement.
 - **[REQ-PROFILE-02]** Profiles store both bounds and monitor identity. Restore to the saved monitor when present; otherwise clamp to the nearest visible work area using `WindowPlacementService`.
 - Compact-mode placement exists as reserved data (`PlayerSettings.CompactMode` plus optional
   `Profile.Mode` override), but the user-facing Compact player is dormant in v0.7.2+. New popouts

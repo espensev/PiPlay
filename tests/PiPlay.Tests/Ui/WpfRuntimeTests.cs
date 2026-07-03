@@ -241,6 +241,35 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void Profile_combo_frame_uses_selected_profile_color() => StaTestThread.Invoke(() =>
+    {
+        var combo = new ComboBox
+        {
+            Style = (Style)Application.Current.FindResource("DarkComboBox"),
+            ItemsSource = new[]
+            {
+                new Profile
+                {
+                    Name = "Violet",
+                    Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                    AccentColor = "#A78BFA",
+                },
+            },
+            SelectedIndex = 0,
+        };
+
+        combo.Measure(new Size(200, 32));
+        combo.Arrange(new Rect(0, 0, 200, 32));
+        combo.ApplyTemplate();
+        var toggle = (ToggleButton)combo.Template.FindName("ToggleButton", combo)!;
+        toggle.ApplyTemplate();
+        var frame = (Border)toggle.Template.FindName("bd", toggle)!;
+
+        var brush = Assert.IsType<SolidColorBrush>(frame.BorderBrush);
+        Assert.Equal(ThemeColors.ParseColor("#A78BFA"), brush.Color);
+    });
+
+    [Fact]
     public void Theme_restyle_reaches_dynamic_surface_and_radius_consumers() => StaTestThread.Invoke(() =>
     {
         // The PR #18 replace-not-mutate mechanism, applied verbatim to the new tokens: a DarkButton
