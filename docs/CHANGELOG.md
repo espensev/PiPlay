@@ -4,6 +4,10 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [Unreleased]
 
+### Changed
+- **Profile selector identity:** saved profile colors now frame/mark the profile selector instead of
+  filling a nested chip inside the dropdown control.
+
 ## [0.7.2] - 2026-06-25
 
 Patch release (from 0.7.1, build 25): continues **P1 — borderless** by trimming the largest remaining
@@ -63,8 +67,8 @@ widened, the control borders and Soft Glass translucency are quieted, and the em
 removed. Published exact-source to Stable.
 
 ### Changed
-- **Profile color is identity, not app accent:** saved profile colors now fill the profile selector
-  chip and no longer override the global app accent when a profile is active; Settings Appearance
+- **Profile color is identity, not app accent:** saved profile colors became visible in the profile
+  selector and no longer override the global app accent when a profile is active; Settings Appearance
   always edits the global accent.
 - **Filled accent actions:** accent buttons now use the selected app accent as their fill with
   generated dark/white foreground text instead of reading as a heavy accent outline.
