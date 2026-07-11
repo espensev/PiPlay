@@ -19,7 +19,7 @@ public sealed class Profile
     /// </summary>
     public string? Mode { get; set; }
 
-    /// <summary>Optional per-profile identity color. <c>null</c> uses the neutral profile chip.</summary>
+    /// <summary>Optional per-profile identity color. <c>null</c> leaves the aligned identity rail transparent.</summary>
     public string? AccentColor { get; set; }
 
     public bool? Topmost { get; set; }

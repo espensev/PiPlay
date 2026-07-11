@@ -71,4 +71,18 @@ public class ThemeSettingsWriterTests
         Assert.Equal("#A78BFA", settings.Theme.AccentColor);
         Assert.Equal(ThemeCatalog.DefaultCornerStyle, settings.Theme.CornerStyle);
     }
+
+    [Fact]
+    public void Dark_app_accent_is_stored_exactly_while_presentation_is_derived_REQ_UI_01()
+    {
+        var settings = new AppSettings();
+
+        ThemeSettingsWriter.Apply(settings, "sharp-dark", "#131820", 2500, compactMode: false,
+            activeOpacityOverride: null, idleOpacityOverride: null, stripAutoHideOverride: null,
+            cornerStyle: "theme");
+
+        Assert.Equal("#131820", settings.Theme.AccentColor);
+        Assert.NotEqual(ThemeColors.ParseColor(settings.Theme.AccentColor),
+            ThemeColors.DeriveAccentSet(settings.Theme.AccentColor, ThemeCatalog.PresetFor("sharp-dark")).Primary);
+    }
 }

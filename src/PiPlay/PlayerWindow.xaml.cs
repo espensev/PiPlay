@@ -623,7 +623,13 @@ public partial class PlayerWindow : Window
         if (_fadeEnabled && _idleTimer.IsEnabled) RestartIdleTimer();
     }
 
-    private static Brush ResolveAccentBrush(string? accentColor) => ThemeColors.Brush(accentColor);
+    private static Brush ResolveAccentBrush(string? accentColor)
+    {
+        var surface = Application.Current.TryFindResource("SurfaceHover") as SolidColorBrush;
+        return surface is null
+            ? ThemeColors.Brush(accentColor)
+            : ThemeColors.ContrastBrush(accentColor, surface.Color);
+    }
 
     /// <summary>Reset the fade lifecycle to match <see cref="_fadeEnabled"/>: either show-and-arm or pin visible.</summary>
     private void ApplyFadeState()

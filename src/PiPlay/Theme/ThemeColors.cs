@@ -32,10 +32,22 @@ public static class ThemeColors
             Mix(color.B, 255, t));
     }
 
-    /// <summary>A frozen accent brush built from a hex, for runtime application to icon toggles.</summary>
+    /// <summary>A frozen exact-color brush for picker swatches and other raw-color previews.</summary>
     public static SolidColorBrush Brush(string? hex)
     {
         var brush = new SolidColorBrush(ParseColor(hex));
+        brush.Freeze();
+        return brush;
+    }
+
+    /// <summary>
+    /// A frozen presentation brush that preserves <paramref name="hex"/> when it is already visible
+    /// against <paramref name="adjacent"/>, otherwise applying the minimum contrast correction.
+    /// Stored/picker colors continue to use <see cref="Brush"/> and remain exact.
+    /// </summary>
+    public static SolidColorBrush ContrastBrush(string? hex, Color adjacent, double minimumRatio = 3.0)
+    {
+        var brush = new SolidColorBrush(EnsureContrast(ParseColor(hex), adjacent, minimumRatio));
         brush.Freeze();
         return brush;
     }
@@ -64,6 +76,50 @@ public static class ThemeColors
         var (la, lb) = (RelativeLuminance(a), RelativeLuminance(b));
         var (hi, lo) = la >= lb ? (la, lb) : (lb, la);
         return (hi + 0.05) / (lo + 0.05);
+    }
+
+    /// <summary>
+    /// Preserve <paramref name="color"/> byte-for-byte when it already meets the requested contrast.
+    /// Otherwise binary-search the smallest mix toward whichever black/white pole contrasts better
+    /// with <paramref name="adjacent"/>. This is a presentation transform only; callers persist the
+    /// original normalized RGB value.
+    /// </summary>
+    public static Color EnsureContrast(Color color, Color adjacent, double minimumRatio = 3.0)
+    {
+        var minimum = Math.Max(1.0, minimumRatio);
+        if (ContrastRatio(color, adjacent) >= minimum) return color;
+
+        var pole = ContrastRatio(Colors.White, adjacent) >= ContrastRatio(Colors.Black, adjacent)
+            ? Colors.White
+            : Colors.Black;
+        if (ContrastRatio(pole, adjacent) < minimum) return pole;
+
+        return MixTowardContrast(color, pole, adjacent, minimum);
+    }
+
+    /// <summary>
+    /// Return the smallest mix from <paramref name="from"/> toward <paramref name="toward"/> that
+    /// reaches <paramref name="minimumRatio"/> against <paramref name="adjacent"/>.
+    /// </summary>
+    public static Color MixTowardContrast(
+        Color from, Color toward, Color adjacent, double minimumRatio)
+    {
+        var minimum = Math.Max(1.0, minimumRatio);
+        if (ContrastRatio(from, adjacent) >= minimum) return from;
+        if (ContrastRatio(toward, adjacent) < minimum) return toward;
+
+        var low = 0.0;
+        var high = 1.0;
+        for (var i = 0; i < 24; i++)
+        {
+            var mid = (low + high) / 2.0;
+            if (ContrastRatio(Mix(from, toward, mid), adjacent) >= minimum)
+                high = mid;
+            else
+                low = mid;
+        }
+
+        return Mix(from, toward, high);
     }
 
     private static double RelativeLuminance(Color c) =>
@@ -107,21 +163,30 @@ public static class ThemeColors
     public static DerivedAccentSet DeriveAccentSet(string? baseAccent, ThemePreset preset)
     {
         var profile = AccentProfileFor(preset.Id);
-        var primary = ParseColor(baseAccent);
+        var requested = ParseColor(baseAccent);
+        var surfaceBase = ParseColor(preset.Palette.SurfaceBase);
         var surfaceRaised = ParseColor(preset.Palette.SurfaceRaised);
+        var surfaceHover = ParseColor(preset.Palette.SurfaceHover);
+        // REQ-UI-01 / spec section 20: arbitrary stored colors remain exact, while the presentation
+        // token clears the 3:1 non-text contrast floor on the lightest shipped dark interaction surface.
+        var primary = EnsureContrast(requested, surfaceHover);
 
         var hover = Mix(primary, Colors.White, profile.HoverWhiteMix);
-        var pressed = Mix(primary, Colors.Black, profile.PressedBlackMix);
+        var pressed = EnsureContrast(Mix(primary, Colors.Black, profile.PressedBlackMix), surfaceHover);
         var muted = Mix(primary, surfaceRaised, profile.MutedSurfaceMix);
         var border = Mix(primary, Colors.White, profile.BorderWhiteMix);
         var subtle = WithAlpha(primary, profile.SubtleAlpha);
         var glow = WithAlpha(primary, profile.GlowAlpha);
+        // Decorative shell tint: visibly carries the accent into the title bar without becoming a
+        // hard line, full fill, or another control boundary.
+        var shellTint = MixTowardContrast(surfaceBase, primary, surfaceBase, 1.20);
         var onAccent = PickReadableForeground(primary);
         // CON-1: re-pick the foreground against the DARKER pressed fill, not reuse OnAccent — a dim
         // accent (steel) may need to flip to white.
         var onAccentPressed = PickReadableForeground(pressed);
 
-        return new DerivedAccentSet(primary, hover, pressed, muted, border, subtle, glow, onAccent, onAccentPressed);
+        return new DerivedAccentSet(
+            primary, hover, pressed, muted, border, subtle, glow, shellTint, onAccent, onAccentPressed);
     }
 }
 
@@ -150,5 +215,6 @@ public sealed record DerivedAccentSet(
     Color Border,
     Color Subtle,
     Color Glow,
+    Color ShellTint,
     Color OnAccent,
     Color OnAccentPressed);

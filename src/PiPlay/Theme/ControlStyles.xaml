@@ -15,6 +15,8 @@
     <ResourceDictionary Source="Colors.xaml" />
   </ResourceDictionary.MergedDictionaries>
 
+  <theme:ContrastBrushConverter x:Key="ContrastBrushConverter" />
+
   <!-- Base text -->
   <Style TargetType="TextBlock">
     <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
@@ -376,13 +378,12 @@
         <ControlTemplate TargetType="ComboBox">
           <Grid>
             <ToggleButton x:Name="ToggleButton" Focusable="False" ClickMode="Press"
-                          BorderBrush="{Binding SelectedItem.AccentColor, RelativeSource={RelativeSource TemplatedParent}, TargetNullValue=Transparent, FallbackValue=Transparent}"
                           BorderThickness="{DynamicResource BorderThicknessDefault}"
                           IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
               <ToggleButton.Template>
                 <ControlTemplate TargetType="ToggleButton">
                   <Border x:Name="bd" Background="{DynamicResource SurfaceRaised}"
-                          BorderBrush="{TemplateBinding BorderBrush}"
+                          BorderBrush="Transparent"
                           BorderThickness="{TemplateBinding BorderThickness}"
                           CornerRadius="{DynamicResource RadiusInput}">
                     <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"

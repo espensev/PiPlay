@@ -57,6 +57,7 @@ public static class ThemeResourceApplier
         SetColorPair(resources, "AccentHover", set.Hover);
         SetColorPair(resources, "AccentPressed", set.Pressed);
         SetColorPair(resources, "AccentBorder", set.Border);
+        SetColorPair(resources, "AccentShellTint", set.ShellTint);
         SetColorPair(resources, "OnAccent", set.OnAccent);
         SetColorPair(resources, "OnAccentPressed", set.OnAccentPressed);
         // Keep AccentPrimaryLight defined as an alias to AccentHover for one migration pass.

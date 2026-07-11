@@ -106,20 +106,22 @@ public class ProfileServiceTests
     [InlineData(null, true)]
     [InlineData("#00D4FF", true)]
     [InlineData("#787878", true)]
+    [InlineData("#131820", true)]
     [InlineData("not-a-color", false)]
-    public void ValidateAccent_accepts_null_or_valid_hex_only(string? accent, bool ok)
+    public void ValidateAccent_accepts_null_or_valid_hex_only_REQ_PROFILE_01(string? accent, bool ok)
     {
         Assert.Equal(ok, ProfileService.ValidateAccent(accent));
     }
 
     [Fact]
-    public void NormalizeAccentForStorage_drops_invalid_and_preserves_valid_hex()
+    public void NormalizeAccentForStorage_drops_invalid_and_preserves_valid_hex_REQ_PROFILE_01()
     {
         Assert.Null(ProfileService.NormalizeAccentForStorage(null));
         Assert.Null(ProfileService.NormalizeAccentForStorage("not-a-color"));
         Assert.Equal("#00D4FF", ProfileService.NormalizeAccentForStorage("00d4ff"));
 
         Assert.Equal("#787878", ProfileService.NormalizeAccentForStorage("#787878"));
+        Assert.Equal("#131820", ProfileService.NormalizeAccentForStorage("#131820"));
     }
 
     // --- Update (Phase 2 edit path): position-preserving + collision-aware ---

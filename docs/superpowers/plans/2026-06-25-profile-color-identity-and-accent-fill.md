@@ -30,8 +30,8 @@
   - Keep profile color edits in the profile editor only.
 
 - [x] **Task 5 - Make profile color visible.**
-  - Show profile color as the selector frame/row marker instead of a filled inner chip.
-  - Keep profile text on the normal dark surface for readability.
+  - Fill the profile selector name chip with the profile color.
+  - Add foreground conversion so chip text remains as readable as possible.
   - Update markup/runtime tests.
 
 - [x] **Task 6 - Docs and validation.**
@@ -48,5 +48,5 @@
 ## Deferred follow-ups
 
 - Optional active-profile popout border.
-- Optional active-profile border/marker refinements.
+- Richer active-profile chip/control.
 - Large rounded-card WebView2/corner architecture.

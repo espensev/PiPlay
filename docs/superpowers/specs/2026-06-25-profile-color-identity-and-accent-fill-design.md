@@ -23,12 +23,12 @@ This pass changes the model:
 - Active profile color no longer changes `ResolvedAccentColor` or app-level accent resources.
 - Settings Appearance always edits the global app accent.
 - Profile editor color changes store a profile identity color, not an app accent override.
-- Profile colors are visibly used in the profile selector as a color frame/marker, not as a second filled button inside the dropdown control.
+- Profile colors are visibly used in the profile selector by filling the profile-name chip/pill.
 - `AccentButton` background uses `AccentPrimary`, hover uses `AccentHover`, pressed uses `AccentPressed`, and foreground uses the matching `OnAccent` / `OnAccentPressed`.
 - Nested `PopOutButton` text/icon foreground follows the button foreground.
 - Any valid `#RRGGBB` accent/profile color is accepted and normalized.
 - Invalid hex still fails and can fall back to the default accent.
-- Tests cover global-vs-profile accent resolution, button fill tokens, profile color marker/frame use, and wider color acceptance.
+- Tests cover global-vs-profile accent resolution, button fill tokens, profile color chip fill, and wider color acceptance.
 
 ## Settled decisions
 
@@ -39,7 +39,7 @@ This pass changes the model:
 3. Foreground choice is best-effort black/white.
    Some mid-tone colors cannot satisfy 4.5:1 against both dark and white, but the app should not reject them. It picks the higher-contrast candidate.
 4. The profile selector is the first identity surface.
-   The dropdown remains one dark control; profile color decorates its frame and row marker without turning the selected name into a second filled button.
+   The profile name appears in a filled chip using the profile color, giving the color a first-screen visual role without changing unrelated global chrome.
 
 ## Non-goals / out of scope
 
@@ -54,7 +54,7 @@ This pass changes the model:
 - Unit tests update `AccentReadabilityPolicy` and `ProfileService` from readability-gated to valid-hex-gated.
 - Unit tests update `ProfileAccentService` so resolved/committed app accent stays global.
 - WPF tests assert profile selection no longer recolors `AccentPrimary`.
-- Markup tests assert profile color decorates the selector marker/frame and `AccentButton` uses fill/foreground accent tokens.
+- Markup tests assert profile color fills the profile chip and `AccentButton` uses fill/foreground accent tokens.
 - Runtime tests assert filled accent buttons resolve background/foreground tokens and nested popout text follows the button foreground.
 
 ## Changes by file
@@ -64,7 +64,7 @@ This pass changes the model:
 | `src/PiPlay/Theme/ThemeColors.cs` | Make foreground choice best-effort instead of throwing in the mid-tone dead zone. |
 | `src/PiPlay/Theme/AccentReadabilityPolicy.cs` | Treat any valid hex as accepted; keep invalid fallback behavior. |
 | `src/PiPlay/Theme/ControlStyles.xaml` | Make `AccentButton` filled by accent tokens. |
-| `src/PiPlay/MainWindow.xaml` | Replace filled profile selector chips with a profile color marker; bind popout nested text foreground to the button foreground. |
+| `src/PiPlay/MainWindow.xaml` | Fill profile selector chips with profile color and bind readable foreground; bind popout nested text foreground to the button foreground. |
 | `src/PiPlay/MainWindow.xaml.cs` | Stop resolving active profile color as app accent; Settings edits global app accent. |
 | `src/PiPlay/Prompt.cs` | Treat profile accent as identity color and remove readability-copy assumptions. |
 | Tests | Update old readability/profile-override contracts to the new valid-hex/profile-identity model. |

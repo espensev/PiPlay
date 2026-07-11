@@ -286,9 +286,12 @@ public partial class MainWindow : Window
 
     private void ApplySourceAppearance(string accentColor)
     {
-        // One theme accent drives the Source Pin (overhaul Task 10): the toggle's checked glyph and
-        // the pinned hint share the accent brush built from Theme.AccentColor.
-        var pinBrush = ThemeColors.Brush(accentColor);
+        // One contrast-safe presentation accent drives the Source Pin and pinned hint. The persisted
+        // Theme.AccentColor remains exact; SurfaceHover is the live floor used by the shared resources.
+        var surface = Application.Current.TryFindResource("SurfaceHover") as SolidColorBrush;
+        var pinBrush = surface is null
+            ? ThemeColors.Brush(accentColor)
+            : ThemeColors.ContrastBrush(accentColor, surface.Color);
         ToggleAccent.SetCheckedBrush(PinToggle, pinBrush);
         PinnedHint.Foreground = pinBrush;
     }

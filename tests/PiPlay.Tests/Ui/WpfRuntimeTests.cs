@@ -120,7 +120,7 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void ThemeResourceApplier_derives_and_applies_the_accent_state_tokens() => StaTestThread.Invoke(() =>
+    public void ThemeResourceApplier_derives_and_applies_the_accent_state_tokens_REQ_UI_01() => StaTestThread.Invoke(() =>
     {
         // Phase B / Task 4: the applier derives the accent state set for the resolved (accent x theme)
         // and replaces every token + its Color companion, so DynamicResource consumers re-resolve.
@@ -136,14 +136,16 @@ public class WpfRuntimeTests : IDisposable
             Assert.Equal(color, brush.Color);
             Assert.Equal(color, (Color)res[key + "Color"]);   // companion Color in step
         }
+        AssertToken("AccentPrimary", expected.Primary);
         AssertToken("OnAccent", expected.OnAccent);
         AssertToken("AccentHover", expected.Hover);
         AssertToken("AccentPressed", expected.Pressed);
         AssertToken("OnAccentPressed", expected.OnAccentPressed);
         AssertToken("AccentBorder", expected.Border);
+        AssertToken("AccentShellTint", expected.ShellTint);
 
-        // CON-1 made visible at runtime: on the dim steel pressed fill the foreground is WHITE.
-        Assert.Equal(Colors.White, ((SolidColorBrush)res["OnAccentPressed"]).Color);
+        // CON-1 remains a contrast contract even when the presentation fill itself is lifted.
+        Assert.True(ThemeColors.ContrastRatio(expected.OnAccentPressed, expected.Pressed) >= 4.5);
 
         // AccentPrimaryLight is kept as an alias to AccentHover for one migration pass.
         Assert.Equal(expected.Hover, ((SolidColorBrush)res["AccentPrimaryLight"]).Color);
@@ -241,7 +243,7 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void Profile_combo_frame_uses_selected_profile_color() => StaTestThread.Invoke(() =>
+    public void Profile_combo_keeps_a_neutral_outer_frame_REQ_UI_01() => StaTestThread.Invoke(() =>
     {
         var combo = new ComboBox
         {
@@ -266,7 +268,70 @@ public class WpfRuntimeTests : IDisposable
         var frame = (Border)toggle.Template.FindName("bd", toggle)!;
 
         var brush = Assert.IsType<SolidColorBrush>(frame.BorderBrush);
-        Assert.Equal(ThemeColors.ParseColor("#A78BFA"), brush.Color);
+        Assert.Equal(Colors.Transparent, brush.Color);
+    });
+
+    [Fact]
+    public void Profile_identity_marker_keeps_valid_dark_color_visible_REQ_PROFILE_01() => StaTestThread.Invoke(() =>
+    {
+        var originalSurface = Application.Current.Resources["SurfaceHover"];
+        var preset = ThemeCatalog.PresetFor("sharp-dark");
+        try
+        {
+            var initialSurface = new SolidColorBrush(ThemeColors.ParseColor(preset.Palette.SurfaceHover));
+            initialSurface.Freeze();
+            Application.Current.Resources["SurfaceHover"] = initialSurface;
+
+            var window = new MainWindow();
+            var combo = (ComboBox)window.FindName("ProfilesCombo")!;
+            combo.ItemsSource = new[]
+            {
+                new Profile
+                {
+                    Name = "Dark identity",
+                    Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                    AccentColor = preset.Palette.SurfaceRaised,
+                },
+            };
+            combo.SelectedIndex = 0;
+            combo.Measure(new Size(150, 32));
+            combo.Arrange(new Rect(0, 0, 150, 32));
+            combo.ApplyTemplate();
+            combo.UpdateLayout();
+
+            var content = (ContentPresenter)combo.Template.FindName("ContentSite", combo)!;
+            content.ApplyTemplate();
+            var rail = Assert.IsType<Border>(FindVisualChild(content, "ProfileIdentityColorRail"));
+            rail.GetBindingExpression(Border.BackgroundProperty)?.UpdateTarget();
+            var first = Assert.IsType<SolidColorBrush>(rail.Background).Color;
+            var ratio = ThemeColors.ContrastRatio(first, initialSurface.Color);
+            Assert.True(ratio >= 3.0, $"Profile identity rail contrast is only {ratio:F2}:1.");
+
+            // The rail carries SurfaceHover through a DynamicResource-backed Tag into its
+            // MultiBinding, so an already-realized marker must reconvert on a live theme surface swap.
+            var replacementSurface = new SolidColorBrush(Color.FromRgb(0x3A, 0x43, 0x50));
+            replacementSurface.Freeze();
+            Application.Current.Resources["SurfaceHover"] = replacementSurface;
+            rail.Dispatcher.Invoke(() => { }, DispatcherPriority.DataBind);
+            var updated = Assert.IsType<SolidColorBrush>(rail.Background).Color;
+            Assert.NotEqual(first, updated);
+            Assert.True(ThemeColors.ContrastRatio(updated, replacementSurface.Color) >= 3.0);
+
+            combo.ItemsSource = new[]
+            {
+                new Profile { Name = "Plain", Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+            };
+            combo.SelectedIndex = 0;
+            combo.UpdateLayout();
+            content.ApplyTemplate();
+            rail = Assert.IsType<Border>(FindVisualChild(content, "ProfileIdentityColorRail"));
+            rail.GetBindingExpression(Border.BackgroundProperty)?.UpdateTarget();
+            Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(rail.Background).Color);
+        }
+        finally
+        {
+            Application.Current.Resources["SurfaceHover"] = originalSurface;
+        }
     });
 
     [Fact]
@@ -527,6 +592,24 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void MainWindow_dark_accent_uses_safe_primary_for_pin_and_hint_REQ_UI_01() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        w.ReplaceSettingsForTests(new AppSettings
+        {
+            Theme = new ThemeSettings { ThemeId = "sharp-dark", AccentColor = "#131820" },
+        });
+        var pin = (ToggleButton)w.FindName("PinToggle")!;
+        var hint = (TextBlock)w.FindName("PinnedHint")!;
+        var expected = ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color;
+
+        Assert.Equal(expected, ((SolidColorBrush)ToggleAccent.GetCheckedBrush(pin)!).Color);
+        Assert.Equal(expected, ((SolidColorBrush)hint.Foreground).Color);
+        Assert.True(ThemeColors.ContrastRatio(
+            expected, ThemeColors.ParseColor(ThemeCatalog.PresetFor("sharp-dark").Palette.SurfaceHover)) >= 3.0);
+    });
+
+    [Fact]
     public void MainWindow_resolves_popout_preferences_from_theme_overrides() => StaTestThread.Invoke(() =>
     {
         // Regression for PR #18 review: the ThemePreferenceResolver tests were correct, but
@@ -564,7 +647,7 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void PlayerWindow_applies_one_accent_to_pin_and_fade_and_the_delay() => StaTestThread.Invoke(() =>
+    public void PlayerWindow_applies_one_accent_to_pin_and_fade_and_the_delay_REQ_UI_01() => StaTestThread.Invoke(() =>
     {
         var w = new PlayerWindow(
             environment: null!,
@@ -589,6 +672,12 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal(Color.FromRgb(0xA7, 0x8B, 0xFA), ((SolidColorBrush)ToggleAccent.GetCheckedBrush(pin)!).Color);
         Assert.Equal(Color.FromRgb(0xA7, 0x8B, 0xFA), ((SolidColorBrush)ToggleAccent.GetCheckedBrush(fade)!).Color);
         Assert.Equal(TimeSpan.FromMilliseconds(1500), w.FadeIdleDelayForTests);
+
+        w.ApplyAppearance("#131820", 1500);
+        var surface = ((SolidColorBrush)Application.Current.Resources["SurfaceHover"]).Color;
+        var darkDisplay = ((SolidColorBrush)ToggleAccent.GetCheckedBrush(pin)!).Color;
+        Assert.True(ThemeColors.ContrastRatio(darkDisplay, surface) >= 3.0);
+        Assert.Equal(darkDisplay, ((SolidColorBrush)ToggleAccent.GetCheckedBrush(fade)!).Color);
     });
 
     [Fact]
@@ -1808,6 +1897,18 @@ public class WpfRuntimeTests : IDisposable
             }
         }
         return rows;
+    }
+
+    private static FrameworkElement? FindVisualChild(DependencyObject parent, string name)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is FrameworkElement element && element.Name == name) return element;
+            var nested = FindVisualChild(child, name);
+            if (nested is not null) return nested;
+        }
+        return null;
     }
 
     private const int WM_NCHITTEST = 0x0084;

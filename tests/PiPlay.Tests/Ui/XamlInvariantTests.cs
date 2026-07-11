@@ -268,7 +268,7 @@ public class XamlInvariantTests
     }
 
     [Fact]
-    public void Profile_selector_uses_profile_color_as_marker_not_nested_button_fill()
+    public void Profile_selector_uses_one_live_contrast_rail_not_nested_fill_REQ_PROFILE_01()
     {
         var doc = XamlTestFiles.Load("MainWindow.xaml");
         var row = doc.Descendants(XamlTestFiles.Pres + "Grid")
@@ -276,12 +276,36 @@ public class XamlInvariantTests
 
         var rail = row.Descendants(XamlTestFiles.Pres + "Border")
             .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "ProfileIdentityColorRail");
-        Assert.Contains("AccentColor", rail.Attribute("Background")?.Value);
+        Assert.Equal("4", rail.Attribute("Width")?.Value);
+        Assert.Equal("{DynamicResource SurfaceHover}", rail.Attribute("Tag")?.Value);
+        var multi = rail.Element(XamlTestFiles.Pres + "Border.Background")!
+            .Element(XamlTestFiles.Pres + "MultiBinding")!;
+        Assert.Equal("{StaticResource ContrastBrushConverter}", multi.Attribute("Converter")?.Value);
+        var bindings = multi.Elements(XamlTestFiles.Pres + "Binding").ToList();
+        Assert.Equal("AccentColor", bindings[0].Attribute("Path")?.Value);
+        Assert.Equal("Tag", bindings[1].Attribute("Path")?.Value);
+        Assert.Equal("{RelativeSource Self}", bindings[1].Attribute("RelativeSource")?.Value);
+        Assert.Single(row.Descendants(XamlTestFiles.Pres + "Border"));
+        Assert.Null(row.Attribute("Background"));
 
-        var label = row.Descendants(XamlTestFiles.Pres + "TextBlock").Single();
+        var label = row.Descendants(XamlTestFiles.Pres + "TextBlock")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "ProfileIdentityName");
         Assert.Equal("{Binding Name}", label.Attribute("Text")?.Value);
         Assert.Equal("{DynamicResource TextPrimary}", label.Attribute("Foreground")?.Value);
-        Assert.DoesNotContain("AccentForegroundConverter", label.Attribute("Foreground")?.Value ?? "");
+    }
+
+    [Fact]
+    public void Source_title_bar_carries_global_accent_as_a_gradient_wash_REQ_UI_01()
+    {
+        var title = XamlTestFiles.Load("MainWindow.xaml").Descendants(XamlTestFiles.Pres + "Grid")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "TitleBar");
+        var gradient = title.Element(XamlTestFiles.Pres + "Grid.Background")!
+            .Element(XamlTestFiles.Pres + "LinearGradientBrush")!;
+        var stops = gradient.Elements(XamlTestFiles.Pres + "GradientStop").ToList();
+
+        Assert.Equal("{DynamicResource AccentShellTintColor}", stops[0].Attribute("Color")?.Value);
+        Assert.Equal("{DynamicResource SurfaceBaseColor}", stops[1].Attribute("Color")?.Value);
+        Assert.Equal("0.62", stops[1].Attribute("Offset")?.Value);
     }
 
     [Fact]
@@ -808,7 +832,7 @@ public class XamlInvariantTests
     }
 
     [Fact]
-    public void Colors_xaml_accent_seeds_match_the_default_derived_set()
+    public void Colors_xaml_accent_seeds_match_the_default_derived_set_REQ_UI_01()
     {
         // The design-time / pre-Apply accent seeds must BE the derived set for the default accent
         // (cyan) under the default theme (sharp-dark), or a fresh launch flashes wrong accents before
@@ -822,6 +846,7 @@ public class XamlInvariantTests
         Assert.Equal(Hex(set.Hover), t["AccentPrimaryLightColor"]);   // alias to AccentHover
         Assert.Equal(Hex(set.Pressed), t["AccentPressedColor"]);
         Assert.Equal(Hex(set.Border), t["AccentBorderColor"]);
+        Assert.Equal(Hex(set.ShellTint), t["AccentShellTintColor"]);
         Assert.Equal(Hex(set.OnAccent), t["OnAccentColor"]);
         Assert.Equal(Hex(set.OnAccentPressed), t["OnAccentPressedColor"]);
     }
@@ -953,21 +978,17 @@ public class XamlInvariantTests
         Assert.Equal("Transparent", RestingBorderBrush("AccentButton"));
         Assert.Equal("Transparent", RestingBorderBrush("DarkTextBox"));
 
-        // DarkComboBox toggle button border is the active profile frame, not a nested filled pill.
+        // DarkComboBox remains one neutral dark control; profile identity lives only in the row rail.
         // The toggle border is the inline Border x:Name="bd" inside the ToggleButton template;
         // the dropdown popup border (x:Name="DropDownBorder") intentionally keeps BorderSubtle.
         var comboStyle = styles.Descendants(XamlTestFiles.Pres + "Style")
             .Single(e => (string?)e.Attribute(XamlTestFiles.X + "Key") == "DarkComboBox");
-        var toggleButton = comboStyle.Descendants(XamlTestFiles.Pres + "ToggleButton")
-            .Single(b => (string?)b.Attribute(XamlTestFiles.X + "Name") == "ToggleButton");
         var comboDescBorders = comboStyle.Descendants(XamlTestFiles.Pres + "Border").ToList();
         var toggleBorder = comboDescBorders
             .Single(b => (string?)b.Attribute(XamlTestFiles.X + "Name") == "bd");
         var dropDownBorder = comboDescBorders
             .Single(b => (string?)b.Attribute(XamlTestFiles.X + "Name") == "DropDownBorder");
-        var comboFrameBinding = toggleButton.Attribute("BorderBrush")?.Value ?? "";
-        Assert.Contains("SelectedItem.AccentColor", comboFrameBinding);
-        Assert.Equal("{TemplateBinding BorderBrush}", toggleBorder.Attribute("BorderBrush")?.Value);
+        Assert.Equal("Transparent", toggleBorder.Attribute("BorderBrush")?.Value);
         Assert.Equal("{DynamicResource BorderSubtle}", dropDownBorder.Attribute("BorderBrush")?.Value);
 
         // DarkTextBox keyboard-focus trigger must still paint the accent ring (REQ-UI-02).

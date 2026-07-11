@@ -74,7 +74,8 @@
           <Border x:Name="PreviewSwatch" Width="26" Height="26"
                   CornerRadius="{DynamicResource RadiusSwatch}"
                   BorderBrush="{DynamicResource BorderStrong}" BorderThickness="1"
-                  ToolTip="Accent preview" AutomationProperties.Name="Accent preview" />
+                  ToolTip="Stored color; very dark chrome cues are lifted for visibility"
+                  AutomationProperties.Name="Stored color preview" />
         </Grid>
       </StackPanel>
     </Grid>

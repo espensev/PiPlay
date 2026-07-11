@@ -30,7 +30,13 @@
     </Grid.RowDefinitions>
 
     <!-- Title bar -->
-    <Grid Grid.Row="0" Background="{DynamicResource SurfaceBase}">
+    <Grid x:Name="TitleBar" Grid.Row="0">
+      <Grid.Background>
+        <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+          <GradientStop Color="{DynamicResource AccentShellTintColor}" Offset="0" />
+          <GradientStop Color="{DynamicResource SurfaceBaseColor}" Offset="0.62" />
+        </LinearGradientBrush>
+      </Grid.Background>
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
@@ -99,8 +105,15 @@
                 </Grid.ColumnDefinitions>
                 <Border x:Name="ProfileIdentityColorRail" Width="4" MinHeight="16"
                         Margin="0,2,8,2" CornerRadius="{DynamicResource RadiusSwatch}"
-                        Background="{Binding AccentColor, TargetNullValue=#2D333B, FallbackValue=#2D333B}" />
-                <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                        Tag="{DynamicResource SurfaceHover}">
+                  <Border.Background>
+                    <MultiBinding Converter="{StaticResource ContrastBrushConverter}">
+                      <Binding Path="AccentColor" />
+                      <Binding Path="Tag" RelativeSource="{RelativeSource Self}" />
+                    </MultiBinding>
+                  </Border.Background>
+                </Border>
+                <TextBlock x:Name="ProfileIdentityName" Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
               </Grid>
             </DataTemplate>

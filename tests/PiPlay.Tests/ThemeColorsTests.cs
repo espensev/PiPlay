@@ -133,4 +133,64 @@ public class ThemeColorsTests
         Assert.Equal(profile.SubtleAlpha, set.Subtle.A);
         Assert.Equal(profile.GlowAlpha, set.Glow.A);
     }
+
+    [Theory]
+    [InlineData("sharp-dark")]
+    [InlineData("minimal")]
+    [InlineData("soft-glass")]
+    public void Dark_custom_app_accent_stays_visible_across_window_chrome_REQ_UI_01(string themeId)
+    {
+        var preset = ThemeCatalog.PresetFor(themeId);
+        var set = ThemeColors.DeriveAccentSet(preset.Palette.SurfaceRaised, preset);
+        var surfaces = new[]
+        {
+            preset.Palette.AppBackground,
+            preset.Palette.SurfaceBase,
+            preset.Palette.SurfaceRaised,
+            preset.Palette.SurfaceHover,
+        };
+
+        foreach (var surface in surfaces)
+        {
+            var ratio = Wcag.ContrastRatio(Hex(set.Primary), surface);
+            Assert.True(ratio >= 3.0,
+                $"{themeId}: derived AccentPrimary on {surface} is only {ratio:F2}:1.");
+        }
+
+        var shellRatio = Wcag.ContrastRatio(Hex(set.ShellTint), preset.Palette.SurfaceBase);
+        Assert.True(shellRatio >= 1.20,
+            $"{themeId}: AccentShellTint is only {shellRatio:F2}:1 against SurfaceBase.");
+    }
+
+    [Fact]
+    public void EnsureContrast_preserves_a_passing_color_and_only_changes_presentation_REQ_UI_01()
+    {
+        var violet = ThemeColors.ParseColor("#A78BFA");
+        var surface = ThemeColors.ParseColor(ThemeCatalog.PresetFor("sharp-dark").Palette.SurfaceHover);
+
+        Assert.Equal(violet, ThemeColors.EnsureContrast(violet, surface));
+
+        var dark = ThemeColors.ParseColor("#131820");
+        var visible = ThemeColors.EnsureContrast(dark, surface);
+        Assert.NotEqual(dark, visible);
+        Assert.True(ThemeColors.ContrastRatio(visible, surface) >= 3.0);
+    }
+
+    [Theory]
+    [InlineData("#000000")]
+    [InlineData("#050609")]
+    [InlineData("#131820")]
+    public void EnsureContrast_lifts_representative_dark_colors_in_every_theme_REQ_UI_01(string hex)
+    {
+        var raw = ThemeColors.ParseColor(hex);
+        foreach (var preset in ThemeCatalog.Presets)
+        {
+            var surface = ThemeColors.ParseColor(preset.Palette.SurfaceHover);
+            var visible = ThemeColors.EnsureContrast(raw, surface);
+            Assert.True(ThemeColors.ContrastRatio(visible, surface) >= 3.0,
+                $"{preset.Id}/{hex} did not reach 3:1.");
+        }
+    }
+
+    private static string Hex(Color color) => $"#{color.R:X2}{color.G:X2}{color.B:X2}";
 }
