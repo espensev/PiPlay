@@ -4,6 +4,12 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-14
+
+Interaction-cohesion release candidate for extended owner testing: Popout appearance controls are
+reachable from either window, Auto return no longer loops, opacity now ties the two app surfaces
+together, and the three presets have distinct live-previewed roles.
+
 ### Added
 - **Accent reach is adjustable from 0–100.** The default 50 preserves the v0.9.0 appearance exactly:
   full-accent toolbar glyphs and the same 1.45 title wash. Lower values fade the chrome reach; higher
