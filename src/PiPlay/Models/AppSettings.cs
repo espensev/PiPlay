@@ -100,6 +100,15 @@ public sealed class ThemeSettings
 {
     public string ThemeId { get; set; } = ThemeCatalog.DefaultThemeId;
     public string AccentColor { get; set; } = ThemeCatalog.DefaultAccentColor;
+
+    /// <summary>
+    /// How far the accent reaches into the chrome, 0–100 (Settings → Appearance). 0 paints only the
+    /// primary action; 50 restores full toolbar glyph accent plus the v0.9.0 wash; 100 keeps those glyphs
+    /// full and gives the title bar its strongest wash. A user preference, NOT a preset trait — a preset
+    /// switch must not reset it. Missing from an older settings.json → the property initializer keeps
+    /// the default, so no schema bump is needed.
+    /// </summary>
+    public int AccentIntensity { get; set; } = ThemeCatalog.DefaultAccentIntensity;
     public string FadeDelayPreset { get; set; } = ThemeCatalog.DefaultFadeDelayPreset;
 
     /// <summary>

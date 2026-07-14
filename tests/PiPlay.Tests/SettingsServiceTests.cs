@@ -103,6 +103,28 @@ public class SettingsServiceTests : IDisposable
         Assert.Equal("round", loaded.Theme.CornerStyle);   // normalized on save
     }
 
+    /// <summary>
+    /// A hand-edited settings.json cannot hand the theme layer an out-of-range accent dial. The
+    /// derivation clamps too, so this is defence in depth — it keeps the REPAIRED value in the file
+    /// rather than silently re-clamping a junk value on every read.
+    /// </summary>
+    [Fact]
+    public void Load_repairs_an_out_of_range_accent_intensity()
+    {
+        var svc = new SettingsService(_path);
+        var settings = new AppSettings();
+        settings.Theme.AccentIntensity = 4000;
+
+        svc.Save(settings);
+
+        Assert.Equal(100, svc.Load().Theme.AccentIntensity);
+
+        settings.Theme.AccentIntensity = -1;
+        svc.Save(settings);
+
+        Assert.Equal(0, svc.Load().Theme.AccentIntensity);
+    }
+
     [Fact]
     public void Legacy_settings_without_theme_seed_theme_from_player_preferences()
     {

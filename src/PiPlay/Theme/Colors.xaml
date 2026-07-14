@@ -46,6 +46,12 @@
   <Color x:Key="AccentPressedColor">#FF2492AF</Color>
   <Color x:Key="AccentBorderColor">#FF40B6D5</Color>
   <Color x:Key="AccentShellTintColor">#FF12343F</Color>
+  <!-- Toolbar glyph color at the DEFAULT accent intensity (50). Replaced at runtime by
+       ThemeResourceApplier; this seed covers design time and the pre-Apply instant, so it must BE the
+       derived default or a fresh launch flashes the wrong glyph color. Pinned by
+       XamlInvariantTests.Colors_xaml_accent_seeds_match_the_default_derived_set_REQ_UI_01 — do not
+       hand-edit; take the value the derivation produces. -->
+  <Color x:Key="AccentChromeGlyphColor">#FF2BAED0</Color>
   <Color x:Key="OnAccentColor">#FF06141A</Color>
   <Color x:Key="OnAccentPressedColor">#FF06141A</Color>
 
@@ -74,6 +80,7 @@
   <SolidColorBrush x:Key="AccentPressed" Color="{StaticResource AccentPressedColor}" />
   <SolidColorBrush x:Key="AccentBorder" Color="{StaticResource AccentBorderColor}" />
   <SolidColorBrush x:Key="AccentShellTint" Color="{StaticResource AccentShellTintColor}" />
+  <SolidColorBrush x:Key="AccentChromeGlyph" Color="{StaticResource AccentChromeGlyphColor}" />
   <SolidColorBrush x:Key="OnAccent" Color="{StaticResource OnAccentColor}" />
   <SolidColorBrush x:Key="OnAccentPressed" Color="{StaticResource OnAccentPressedColor}" />
 

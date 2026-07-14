@@ -89,6 +89,12 @@ public partial class PlayerWindow : Window
     /// <summary>Raised once when the player has closed, carrying the state needed to return (spec 14).</summary>
     public event EventHandler<PlayerReturnState>? PlayerClosed;
 
+    /// <summary>
+    /// Requests the Source-owned Settings workflow. The Popout exposes the affordance but deliberately
+    /// owns no global settings or persistence policy.
+    /// </summary>
+    internal event EventHandler? SettingsRequested;
+
     internal TimeSpan FadeIdleDelayForTests => _idleTimer.Interval;
 
     public PlayerWindow(
@@ -731,6 +737,9 @@ public partial class PlayerWindow : Window
     internal string ExpandToolTipForTests => (string)ExpandButton.ToolTip;
 
     // --- Controls fade (spec 11, Phase 2) ---
+
+    private void SettingsButton_Click(object sender, RoutedEventArgs e) =>
+        SettingsRequested?.Invoke(this, EventArgs.Empty);
 
     private void FadeToggle_Click(object sender, RoutedEventArgs e)
     {

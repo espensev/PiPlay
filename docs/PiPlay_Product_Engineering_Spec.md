@@ -229,6 +229,7 @@ Required:
 - Draggable from the top chrome/empty shell area.
 - Optional `Alt + drag anywhere` behavior later.
 - Pin/topmost toggle.
+- Settings gear that opens the same single Settings dialog used by the Source Window.
 - Close button.
 - Controls visible in MVP; hover/idle controls fade in Phase 2.
 - Remembered bounds and monitor placement.
@@ -279,15 +280,19 @@ Rules:
 - Must respect the same single-player lifecycle as manual popout.
 - Must be easy to disable.
 - **Trigger = playback-start** (decided 2026-06-06): `Auto` pops out a `/watch` video when it is
-  playing, **once per video** (keyed on the video id). Because autoplay is enabled, a freshly
+  playing, once for the currently armed video identity. Because autoplay is enabled, a freshly
   navigated video is usually already playing, so this is detected as "is playing", not a literal
   pause→play transition.
+- **One Source-first identity:** resolve the visible Source Window URL first. Use YouTube's canonical
+  URL only when the Source URL does not identify a video, and carry that exact resolved target into
+  the manual-popout lifecycle. Detection and launch must not independently choose different video ids.
 - **`/watch` only:** Shorts and embeds never auto-pop (they would otherwise pop on every scroll).
   Playlist autoplay-next pops each new video.
 - **Enabling Auto pops immediately:** turning `Auto` on while a `/watch` video is already playing pops
   *that* video right away — not only on the next video.
-- **No re-pop loop:** returning from a popout (which resumes source playback) does not re-pop the same
-  video. A different `/watch` video playing re-pops normally.
+- **No re-pop loop:** on every return path, arm the de-dup latch with the video that will be visible in
+  the Source Window *before* source navigation, seek, or resume can expose a playing edge. The returned
+  video therefore does not immediately re-pop; a different `/watch` video playing still pops normally.
 - Detection is best-effort (Q-6): a DOM hiccup means no auto-pop, never a crash.
 
 ### 6.2 Fade
@@ -351,26 +356,35 @@ Phase 4 optional polish.
 - Popout shell/title controls dim when idle.
 - Border/shadow remain subtle enough to locate the window.
 - Hover restores full chrome.
+- All three shipped presets default the popout top bar to auto-hide. Auto-hide engages only while
+  `Fade` is on; turning Fade off keeps the strip visible.
 
 ### 7.3 Whole popout opacity
 
-Phase 4 Opera-like advanced setting.
+Phase 4 Opera-like appearance setting.
 
-- Entire Popout Player may fade to a configured opacity when idle.
-- Hover restores full opacity.
-- Off by default.
+- The **In use** value applies to the Source Window title-bar **backdrop only** and to the entire active
+  Popout Player. It does not fade the Source WebView or the title-bar controls as a group.
+- The **When idle** value applies only to the entire Popout Player after the shared fade idle delay.
+- Hover/mouse movement restores the Popout Player to its configured In-use value, which may itself be
+  translucent.
 - Minimum normal setting should not go below 45% unless the user explicitly unlocks it.
 - Whole popout opacity must preserve normal mouse interaction with the Popout Player.
 - This is not video-safe chrome/background transparency: current layered-window alpha affects the
   hosted video surface too. A future transparency feature needs an explicit scope/target model.
+- Preset, corner, active/idle opacity, and accent changes preview live on the shared resources and every
+  open PiPlay surface. Done commits; title-bar close, Escape, or any other non-affirmative dismissal
+  restores the complete appearance that was active before Settings opened.
 
-Suggested defaults:
+Current preset defaults (active / idle; top-bar auto-hide):
 
-```text
-Idle whole-popout opacity:      85%
-Hover whole-popout opacity:     100%
-Minimum allowed normal setting: 45%
-```
+| Preset | Active | Idle | Auto-hide |
+|---|---:|---:|---|
+| Sharp Dark (`Crisp · 100%`) | 1.00 | 1.00 | On |
+| Minimal (`Quiet · 94%`) | 0.94 | 0.86 | On |
+| Soft Glass (`Glass · 82%`) | 0.82 | 0.72 | On |
+
+The normal Settings slider floor is 45% for both opacity values.
 
 ### 7.4 Click-through transparency
 
@@ -654,6 +668,7 @@ Required controls:
 
 - Close.
 - Pin/unpin topmost.
+- Settings (gear), routed to MainWindow's shared single-dialog Settings workflow.
 - Drag surface.
 - Resize edges/corners or resize border.
 
@@ -1117,8 +1132,8 @@ Quality requirements:
 - **[REQ-PROFILE-01]** For fields that a profile is allowed to carry, a launched profile overrides the global default per field. Unset/null fields fall back to the global value.
 - `accentColor` is an optional per-profile **identity color**, and it **drives the app accent** (roadmap **P2**, owner-confirmed 2026-07-14). The effective app accent = the active profile's `accentColor` when it has a valid one, else the global `theme.accentColor`. A profile with no color of its own **inherits** the global accent rather than blanking the app out. Selecting a profile therefore re-tints PiPlay: the toolbar glyphs, the primary action, and the Source Window title-bar wash.
   - This **reverses the v0.6.0 identity-only split**, which had held the profile color to a selector rail. The reason: the app accent reached almost nothing — in the normal window it painted the Pop-out button and a title-bar wash tuned so low it was near-imperceptible — so a per-profile accent changed one button and was not worth having. P2 was made worth having by giving the accent reach first. Design: `docs/superpowers/specs/2026-07-14-profile-accent-reach-design.md`.
-  - **Accent reach.** The functional toolbar row (Back / Reload / Home / Save / Edit / Delete) carries the accent. The window-management caption row (Settings / Minimize / Maximize / Close) stays neutral: the accent wash already sits behind it, so accenting those glyphs too would place accent on accent-tint. The accent adds **no** border, line, or fill anywhere — it re-colors chrome that already exists.
-  - **Editing.** Settings' accent picker edits whatever is currently painting the app — the active profile's color when that profile is overriding, the global default otherwise — and names its target in the hint above the picker, so a live preview is always truthful and Done always sticks. A profile's color is also editable in the profile editor.
+  - **Accent reach.** The functional toolbar row (Back / Reload / Home / Save / Edit / Delete) carries the accent. The window-management caption row (Settings / Minimize / Maximize / Close) stays neutral: the accent wash already sits behind it, so accenting those glyphs too would place accent on accent-tint. The accent adds **no** border, line, or fill anywhere — it re-colors chrome that already exists. The 0–100 reach preference defaults to 50. Its wash scales linearly over the full range (none at 0, the v0.9.0 1.45 target at 50, restrained 1.90 ceiling at 100), while toolbar glyphs reach the full presentation accent by 50 and remain full above it. Therefore 50 reproduces v0.9.0 exactly; lower values fade the reach and higher values deepen only the wash.
+  - **Editing.** Settings' accent picker edits whatever is currently painting the app — the active profile's color when that profile is overriding, the global default otherwise — and names its target in the hint above the picker, so a live preview is always truthful and Done always sticks. Done writes only that named target: applying an unrelated Appearance change with a colored profile active must not overwrite `Theme.AccentColor`. A preset switch may adopt a new preset default only for the global target; a profile-owned color remains exact even when it happens to equal the old preset default. A profile's color is also editable in the profile editor.
   - An optional active-profile popout border remains a future enhancement.
   - **Contrast contract.** Stored global/profile colors remain **exact**; only non-text *presentation*
     colors are minimally adjusted, and only enough to stay visible. The rail is lifted to at least a
@@ -1191,6 +1206,8 @@ Minimum quality bar:
 - Buttons have text labels or tooltips.
 - Pin state is visually obvious.
 - Fade state is understandable.
+- Settings is directly reachable from both the Source Window and Popout Player, and both entry points
+  activate the same single dialog rather than opening competing copies.
 - Close button is easy to find.
 - Error messages are readable.
 - Main controls are keyboard reachable where practical.
@@ -1272,7 +1289,9 @@ A build should not be called “release candidate” until the following pass.
 | Monitor removed | Restore after monitor change | Player appears on visible monitor |
 | Network loss | Disconnect network | Error state, no crash |
 | Phase 2 controls fade | Let player idle, then hover | Controls fade and restore reliably |
-| Phase 4 opacity | Enable whole-popout opacity | Player remains interactable; clicks do not pass through |
+| Popout Settings | Open Settings from the Popout gear, then invoke the Source gear | The same Settings dialog activates; no second dialog opens |
+| Phase 4 opacity | Select each preset and exercise active/idle | Source title-bar backdrop follows active only; whole Popout follows active/idle and remains interactable |
+| Appearance preview rollback | Preview a preset and corner, then dismiss without Done | All open surfaces revert to the complete pre-dialog appearance |
 
 ### 22.2 UX tests
 
@@ -1298,7 +1317,7 @@ These are pass/fail, not subjective. A build is not a release candidate until ev
 
 | ID | Check | Pass condition |
 |---|---|---|
-| UI-CHK-1 | All chrome icons render (window controls, navigation, save, Pin, Pop out, placeholder). | Every icon shows its intended symbol; **zero** empty boxes. (REQ-UI-02) |
+| UI-CHK-1 | All chrome icons render (window controls, navigation, save, Pin, Pop out, Popout Settings, placeholder). | Every icon shows its intended symbol; **zero** empty boxes. (REQ-UI-02) |
 | UI-CHK-2 | Profiles dropdown, closed. | Renders dark, matching the chrome — not a light platform control. (REQ-UI-01) |
 | UI-CHK-3 | Profiles dropdown, open. | The list and its items render dark; an empty list still looks intentional, not a blank light box. (REQ-UI-01) |
 | UI-CHK-4 | Tooltips. | Render dark and legible; none covers the control it describes. (REQ-UI-01) |
@@ -1471,15 +1490,16 @@ The following are normative defaults unless superseded by a later ADR or require
 | REQ-PRIVACY-01 / REQ-PRIVACY-02 | `Reset app state` and `Clear browser data` are separate actions. Reset keeps the YouTube session; clear browser data logs the user out. |
 | Section 16.3 | Popout resize is free by default; aspect lock is optional later. |
 | REQ-PROFILE-02 | Profiles store both bounds and monitor identity; restore same monitor when present, otherwise clamp to visible work area. |
-| Section 6.1 Auto | Trigger is playback-start, `/watch`-only, once per video id, off by default. Shorts and embeds are excluded, and return-resume does not re-pop the same video. |
-| Section 6.2 / 6.3 customization | First slice is fixed swatches for Pin/Fade active colors plus controls-fade idle-delay presets. Defaults preserve current cyan and 2500 ms fade timing; no hex picker, profile override, opacity UI, click-through, or transparent WebView2. |
+| Section 6.1 Auto | Trigger is playback-start, `/watch`-only, and off by default. Detection and launch share one Source-first target identity; every return arms the latch with the returned identity before navigation/resume, so it cannot immediately loop. Shorts and embeds are excluded. |
+| Sections 7.2 / 7.3 appearance | All presets default top-bar auto-hide on. Active/idle opacity defaults are Sharp Dark `1.00/1.00`, Minimal `0.94/0.86`, and Soft Glass `0.82/0.72`. Active also paints only the Source title-bar backdrop; active/idle paint the whole Popout. Preset/corner previews are live and non-affirmative dismissal reverts them completely. |
+| Section 6.2 / 6.3 initial customization (historical Phase 2 boundary) | The first slice was fixed Pin/Fade swatches plus delay presets. Later releases superseded its no-opacity/no-profile-override boundary with the shared accent/profile model and §§7.2–7.3 appearance controls. Click-through and transparent WebView2 remain out of scope. |
 | REQ-WINDOW-02 | Borderless resize targets use a 4 DIP black edge resize band and a 32 DIP corner length for diagonal resize. A visual border can remain 0-2 px; no visible size grip is required. |
 | Compact placement | Compact mode has reserved data (`PlayerSettings.CompactMode`, off by default, and optional `Profile.Mode`: `null` = global, `normal` = force normal, `compact` = force compact; legacy/internal `embed` normalizes to `compact`), but new popouts currently ignore it and force Normal while `PlaybackModePolicy.CompactPlayerEnabled=false`. |
 
 ### 25.2 Open decisions
 
 1. Should the Source Window be optional after launching a profile directly?
-2. Appearance / popout / compact directions from the 2026-06-23 owner review — the corner-silhouette architecture (accept the DWM limit vs lift WebView2 airspace), the transparency band, a main-window mode model (Browse / Cinema / Compact), optional active-profile popout border, and a "Restore video here" action — are tracked in `SPEC_GAPS_AND_OWNERSHIP.md` (2026-06-23 owner appearance / popout / compact review). The global-accent/profile-identity split and relaxed valid-hex accent gate are implemented in the 2026-06-25 follow-up pass.
+2. Appearance / popout / compact directions from the 2026-06-23 owner review — the corner-silhouette architecture (accept the DWM limit vs lift WebView2 airspace), the transparency band, a main-window mode model (Browse / Cinema / Compact), optional active-profile popout border, and a "Restore video here" action — are tracked in `SPEC_GAPS_AND_OWNERSHIP.md` (2026-06-23 owner appearance / popout / compact review). The old global-accent/profile-identity split was explicitly superseded by the 2026-07-14 P2 decision in §17: an active profile color now drives the app and the global accent remains its fallback. The relaxed valid-hex gate remains implemented.
 
 ---
 

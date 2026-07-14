@@ -179,6 +179,7 @@ public sealed class SettingsService
         s.Theme.AccentColor = ThemeCatalog.NormalizeAccentColor(s.Theme.AccentColor);
         s.Theme.FadeDelayPreset = ThemeCatalog.NormalizeFadeDelayPreset(s.Theme.FadeDelayPreset);
         s.Theme.CornerStyle = ThemeCatalog.NormalizeCornerStyle(s.Theme.CornerStyle);
+        s.Theme.AccentIntensity = ThemeCatalog.NormalizeAccentIntensity(s.Theme.AccentIntensity);
         s.Theme.ActiveWindowOpacity = NormalizeOptionalOpacity(s.Theme.ActiveWindowOpacity);
         s.Theme.IdleWindowOpacity = NormalizeOptionalOpacity(s.Theme.IdleWindowOpacity);
         // Schema ≤2 semantic switch (end-pass review F2): those files' null theme behavior

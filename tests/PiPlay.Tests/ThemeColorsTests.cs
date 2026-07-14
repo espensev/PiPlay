@@ -14,10 +14,10 @@ public class ThemeColorsTests
     }
 
     /// <summary>
-    /// The title-bar wash must be VISIBLE (it used to sit at 1.20:1, which is close to imperceptible —
-    /// that is why the accent effectively painted one button) but must remain a TINT. The ceiling is the
-    /// real guard: a saturated title bar re-adds the heavy framed look P1 exists to remove, so a future
-    /// nudge upward has to fail this test rather than quietly ship a banner. Owner-tunable via UI-CHK-9.
+    /// The title-bar wash must be VISIBLE at the default intensity (it used to sit at 1.20:1, which is
+    /// close to imperceptible — that is why the accent effectively painted one button) but must remain a
+    /// TINT. The ceiling is the real guard: a saturated title bar re-adds the heavy framed look P1 exists
+    /// to remove, so a future nudge upward has to fail this test rather than quietly ship a banner.
     /// </summary>
     [Theory]
     [InlineData("sharp-dark")]
@@ -38,6 +38,186 @@ public class ThemeColorsTests
             Assert.True(ratio <= 1.90,
                 $"{presetId}/{accent}: wash is {ratio:F2}:1 — that is a banner, not a tint.");
         }
+    }
+
+    // --- Accent intensity: the user's dial for how far the accent reaches (v0.10.0) ---
+
+    /// <summary>
+    /// The default is a compatibility point, not merely the middle of two arbitrary lerps. PiPlay
+    /// v0.9.0 shipped full-accent toolbar glyphs and this exact 1.45 wash; reach 50 must reproduce both
+    /// bytes so enabling the preference does not quietly weaken P2 for every existing user.
+    /// </summary>
+    [Fact]
+    public void Default_intensity_reproduces_the_deployed_v0_9_0_accent_reach()
+    {
+        var set = ThemeColors.DeriveAccentSet(
+            ThemeCatalog.DefaultAccentColor,
+            ThemeCatalog.PresetFor(ThemeCatalog.DefaultThemeId),
+            ThemeCatalog.DefaultAccentIntensity);
+
+        Assert.Equal(Color.FromRgb(0x2B, 0xAE, 0xD0), set.ChromeGlyph);
+        Assert.Equal(Color.FromRgb(0x12, 0x34, 0x3F), set.ShellTint);
+    }
+
+    /// <summary>
+    /// Intensity 0 must mean OFF, not "a bit less": no title-bar wash at all, and neutral chrome glyphs.
+    /// That is a legitimate choice — it restores the pre-v0.9.0 look where the accent painted only the
+    /// primary action. If 0 still tinted, the slider would have no true off.
+    /// </summary>
+    [Theory]
+    [InlineData("sharp-dark")]
+    [InlineData("minimal")]
+    [InlineData("soft-glass")]
+    public void Intensity_zero_turns_the_accent_reach_completely_off(string presetId)
+    {
+        var preset = ThemeCatalog.PresetFor(presetId);
+        var surfaceBase = ThemeColors.ParseColor(preset.Palette.SurfaceBase);
+        var textPrimary = ThemeColors.ParseColor(preset.Palette.TextPrimary);
+
+        var set = ThemeColors.DeriveAccentSet("#A78BFA", preset, 0);
+
+        Assert.Equal(surfaceBase, set.ShellTint);      // wash collapses INTO the surface = invisible
+        Assert.Equal(textPrimary, set.ChromeGlyph);    // toolbar glyphs go back to ordinary text color
+    }
+
+    /// <summary>
+    /// Glyph reach finishes at the midpoint. Above 50 the glyph stays fully accented while the
+    /// independently linear wash continues to deepen.
+    /// </summary>
+    [Theory]
+    [InlineData("sharp-dark")]
+    [InlineData("minimal")]
+    [InlineData("soft-glass")]
+    public void Intensity_fifty_and_above_gives_the_glyphs_the_full_accent(string presetId)
+    {
+        var preset = ThemeCatalog.PresetFor(presetId);
+        foreach (var intensity in new[] { 50, 75, 100 })
+        {
+            var set = ThemeColors.DeriveAccentSet("#A78BFA", preset, intensity);
+            Assert.Equal(set.Primary, set.ChromeGlyph);
+        }
+    }
+
+    [Theory]
+    [InlineData("sharp-dark")]
+    [InlineData("minimal")]
+    [InlineData("soft-glass")]
+    public void Intensity_twenty_five_is_halfway_through_the_glyph_curve(string presetId)
+    {
+        var preset = ThemeCatalog.PresetFor(presetId);
+        var surfaceHover = ThemeColors.ParseColor(preset.Palette.SurfaceHover);
+        var set = ThemeColors.DeriveAccentSet("#A78BFA", preset, 25);
+        var expected = ThemeColors.EnsureContrast(
+            ThemeColors.Mix(ThemeColors.ParseColor(preset.Palette.TextPrimary), set.Primary, 0.5),
+            surfaceHover);
+
+        Assert.Equal(expected, set.ChromeGlyph);
+    }
+
+    /// <summary>
+    /// The dial must actually be a dial: turning it up strictly increases the wash. A non-monotonic
+    /// mapping would make the slider feel broken.
+    /// </summary>
+    [Fact]
+    public void Raising_the_intensity_strictly_strengthens_the_wash()
+    {
+        var preset = ThemeCatalog.PresetFor("sharp-dark");
+        var surfaceBase = ThemeColors.ParseColor(preset.Palette.SurfaceBase);
+
+        var previous = 0.0;
+        foreach (var intensity in new[] { 0, 20, 40, 50, 60, 75, 80, 100 })
+        {
+            var ratio = ThemeColors.ContrastRatio(
+                ThemeColors.DeriveAccentSet("#00D4FF", preset, intensity).ShellTint, surfaceBase);
+            Assert.True(ratio > previous,
+                $"intensity {intensity} washes at {ratio:F2}:1, not stronger than the step below ({previous:F2}:1).");
+            previous = ratio;
+        }
+    }
+
+    /// <summary>
+    /// The top of the dial is still a TINT, never a banner — the guard that stops a future tweak from
+    /// turning "full reach" into a painted title bar (the heavy framed look P1 exists to remove).
+    /// <para>
+    /// 1.90 is written here as a LITERAL, deliberately never as a reference to
+    /// <c>ShellTintContrastCeiling</c>: a test that reads the constant it polices would let someone raise
+    /// the constant to 2.5 and stay green, which is the exact anti-pattern <c>ThemeCatalogTests</c> calls
+    /// out. The slack is not a raised ceiling — <c>MixTowardContrast</c> returns the smallest mix that
+    /// reaches AT LEAST its target, so a wash aimed at the design line realizes one 8-bit rounding step
+    /// above it (1.91). The design line is unchanged; only the quantization step is tolerated.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData("sharp-dark")]
+    [InlineData("minimal")]
+    [InlineData("soft-glass")]
+    public void The_top_of_the_dial_is_still_a_tint_not_a_banner(string presetId)
+    {
+        const double BannerLine = 1.90;
+        const double QuantizationSlack = 0.05;   // one 8-bit mix step, not design headroom
+
+        var preset = ThemeCatalog.PresetFor(presetId);
+        var surfaceBase = ThemeColors.ParseColor(preset.Palette.SurfaceBase);
+
+        foreach (var accent in new[] { "#00D4FF", "#A78BFA", "#38D996", "#FFC857", "#0B0E11", "#FFFFFF" })
+        {
+            var ratio = ThemeColors.ContrastRatio(
+                ThemeColors.DeriveAccentSet(accent, preset, 100).ShellTint, surfaceBase);
+
+            Assert.True(ratio <= BannerLine + QuantizationSlack,
+                $"{presetId}/{accent} @ full reach washes at {ratio:F2}:1 — that is a banner, not a tint.");
+        }
+    }
+
+    /// <summary>
+    /// The safety property that makes this dial shippable: at EVERY intensity, for every preset, and even
+    /// for a near-black accent, the toolbar glyph must stay legible. Without this, dragging the slider
+    /// could silently render the toolbar invisible.
+    /// </summary>
+    [Theory]
+    [InlineData("sharp-dark")]
+    [InlineData("minimal")]
+    [InlineData("soft-glass")]
+    public void Chrome_glyphs_stay_legible_at_every_intensity(string presetId)
+    {
+        var preset = ThemeCatalog.PresetFor(presetId);
+        var surfaceHover = ThemeColors.ParseColor(preset.Palette.SurfaceHover);
+
+        foreach (var accent in new[] { "#00D4FF", "#A78BFA", "#0B0E11", "#050609", "#FFFFFF" })
+        {
+            for (var intensity = 0; intensity <= 100; intensity += 10)
+            {
+                var glyph = ThemeColors.DeriveAccentSet(accent, preset, intensity).ChromeGlyph;
+                var ratio = ThemeColors.ContrastRatio(glyph, surfaceHover);
+                Assert.True(ratio >= 3.0,
+                    $"{presetId}/{accent} @ intensity {intensity}: glyph contrast is only {ratio:F2}:1.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Tamper gate for the dial's two endpoints, pinned as literals against the code constants.
+    /// <para>
+    /// The realized-wash guard above tolerates an 8-bit rounding step, so on its own someone could raise
+    /// <c>ShellTintContrastCeiling</c> a little and hide inside the slack. This closes that: the design
+    /// line is 1.90 and the floor is a true 1.00 (intensity 0 = the surface itself = no wash). Moving
+    /// either constant has to change this test, i.e. has to be a decision, not a nudge.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void The_dials_endpoints_are_the_agreed_design_values()
+    {
+        Assert.Equal(1.00, ThemeColors.ShellTintContrastFloor);
+        Assert.Equal(1.90, ThemeColors.ShellTintContrastCeiling);
+    }
+
+    [Fact]
+    public void Intensity_is_clamped_so_a_hand_edited_settings_file_cannot_break_the_chrome()
+    {
+        Assert.Equal(0, ThemeCatalog.NormalizeAccentIntensity(-40));
+        Assert.Equal(100, ThemeCatalog.NormalizeAccentIntensity(9999));
+        Assert.Equal(50, ThemeCatalog.NormalizeAccentIntensity(50));
+        Assert.Equal(ThemeCatalog.DefaultAccentIntensity, ThemeCatalog.NormalizeAccentIntensity(null));
     }
 
     [Fact]

@@ -2,10 +2,9 @@
 
 This document compares the current implementation of `Sharp Dark`, `Minimal`, and `Soft Glass` from the code, not from an older design note or a screenshot.
 
-For the next theme-system implementation flow, use
-`docs/superpowers/specs/2026-06-14-theme-v2-tight-scope-design.md` and
-`docs/superpowers/plans/2026-06-14-theme-v2-tight-scope.md`. This file remains the current-code
-reference and must be regenerated in the same PR as any theme catalog value changes.
+The dated design and plan under `docs/superpowers/` preserve the implementation history. This file is
+the current-code reference and supersedes their earlier behavior-default/apply-model values; regenerate
+it in the same PR as any theme catalog value changes.
 
 Source of truth:
 
@@ -14,6 +13,9 @@ Source of truth:
 - `src/PiPlay/Theme/ThemeResourceApplier.cs`
 - `src/PiPlay/Theme/Colors.xaml`
 - `src/PiPlay/Theme/ThemePreferenceResolver.cs`
+- `src/PiPlay/Services/WindowOpacityPolicy.cs`
+- `src/PiPlay/MainWindow.xaml` / `MainWindow.xaml.cs`
+- `src/PiPlay/PlayerWindow.xaml` / `PlayerWindow.xaml.cs`
 - `src/PiPlay/SettingsWindow.xaml`
 - `src/PiPlay/SettingsWindow.xaml.cs`
 
@@ -28,9 +30,9 @@ Terminology:
 
 | Preset | Intent | Main difference |
 |---|---|---|
-| Sharp Dark | Utility-first PiPlay dark shell | Darkest cool-black palette, cyan default accent, tightest radii, pristine native corners, normal fade, fully opaque popout defaults, compact density, no inner shadow. |
-| Minimal | Low-distraction daily browsing | Warm charcoal palette, steel-blue default accent, moderate radii, small native corners, long fade, fully opaque popout defaults, normal density, subtle inner shadow. |
-| Soft Glass | Desktop overlay / floating popout style | Cool blue palette, violet default accent, largest radii, rounded native corners, short fade, auto-hiding strip, translucent popout defaults, airy density, soft inner shadow. |
+| Sharp Dark | Utility-first PiPlay dark shell | `Crisp · 100%`: darkest cool-black palette, cyan default accent, tightest radii, pristine native corners, normal fade, auto-hiding strip, fully opaque defaults, compact density, no inner shadow. |
+| Minimal | Low-distraction daily browsing | `Quiet · 94%`: warm charcoal palette, steel-blue default accent, moderate radii, small native corners, long fade, auto-hiding strip, restrained `0.94 / 0.86` active/idle opacity, normal density, subtle inner shadow. |
+| Soft Glass | Desktop overlay / floating popout style | `Glass · 82%`: cool blue palette, violet default accent, largest radii, rounded native corners, short fade, auto-hiding strip, visible `0.82 / 0.72` active/idle translucency, airy density, soft inner shadow. |
 
 ## Token Differences vs Perceived Window Impact (2026-06-23 owner review)
 
@@ -42,7 +44,8 @@ catalog does not capture —
 
 - The **video surface is opaque** and dominates the window, so palette/border tokens only show on thin chrome.
 - **Outer-window corners are DWM-owned**: three fixed OS radii only. The redundant `soft` corner option was removed; legacy stored `soft` values normalize to `round`. There is no large "card" radius and no outer border or shadow following the curve, because the windows host WebView2 by HWND with `AllowsTransparency=False` (airspace; see the Inner Elevation note below).
-- **Default transparency is low** (only Soft Glass ships translucent), by design.
+- **Transparency is graduated and controlled**: Sharp Dark is opaque, Minimal is lightly translucent,
+  and Soft Glass is visibly translucent. The hosted Popout video follows whole-window alpha.
 
 The owner also requests a 4th **Blackout** preset and explicit border/shadow controls. These are
 direction, not current code; the catalog tables below stay code-backed. Tracked in
@@ -56,14 +59,15 @@ direction, not current code; the catalog tables below stay code-backed. Tracked 
 | Display name | `Sharp Dark` | `Minimal` | `Soft Glass` | Settings button labels are all different. |
 | Description | `The current utility-first PiPlay dark shell.` | `A quieter preset for daily browsing and low-distraction popouts.` | `A softer overlay-friendly preset for desktop popouts.` | Each preset is positioned for a different use case. |
 | Settings toggle | `ThemeSharpDarkPreset` | `ThemeMinimalPreset` | `ThemeSoftGlassPreset` | Three explicit Settings controls, each tagged with its theme id. |
-| Settings automation name | `Sharp Dark theme` | `Minimal theme` | `Soft Glass theme` | Screen-reader labels mirror the display names. |
+| Settings card cue | `Crisp · 100%` | `Quiet · 94%` | `Glass · 82%` | The cards state the active-opacity character at a glance. |
+| Settings automation name | `Sharp Dark theme — crisp and opaque` | `Minimal theme — quiet and warm` | `Soft Glass theme — airy and translucent` | Screen-reader labels carry the same three visual identities. |
 
 ## Default Accent
 
-The preset default accent is separate from the surface palette. `ThemeResourceApplier` writes:
-
-- `AccentPrimary` from the selected `theme.accentColor`.
-- `AccentPrimaryLight` as an alias of `AccentHover` from `ThemeColors.DeriveAccentSet`.
+The preset default accent is separate from the surface palette. `ThemeResourceApplier` derives the full
+accent set from the resolved global/profile color plus the user-owned reach: `AccentPrimary`, hover,
+pressed, border, title wash, toolbar glyph, and readable foreground tokens. `AccentPrimaryLight` remains
+a migration alias of `AccentHover`. Every brush is written together with its companion `*Color` entry.
 
 | Field | Sharp Dark | Minimal | Soft Glass | Difference |
 |---|---|---|---|---|
@@ -74,8 +78,11 @@ The preset default accent is separate from the surface palette. `ThemeResourceAp
 
 Preset switching rule:
 
-- If the current accent equals the previous preset's default, selecting another preset adopts the new preset's default accent.
-- If the current accent is custom or deliberately chosen, it survives the preset switch.
+- For the global target, an untouched previous-preset default advances to the new preset's default; a
+  custom global survives.
+- A profile-owned accent always survives exactly, even if its bytes equal the old preset default. While
+  that profile is active, an untouched hidden global fallback still advances normally for the day the
+  profile is deselected.
 - The accent picker's preset quick-picks are the same for every preset: cyan `#2BAED0`, steel blue `#3F84C0`, steel `#4A8FAB`, violet `#9E84F0`, green `#2DB57F`, amber `#D69A2E`.
 
 ## Behavior Defaults
@@ -84,11 +91,11 @@ Preset switching rule:
 |---|---|---|---|---|
 | Default fade delay preset | `normal` | `long` | `short` | All three differ. Minimal lets the strip linger; Soft Glass hides it quickly. |
 | Default fade delay milliseconds | `2500` | `4000` | `1500` | Derived from the preset (`short`/`normal`/`long` = `1500`/`2500`/`4000`). |
-| Default popout top-bar auto-hide | `false` | `false` | `true` | Soft Glass auto-hides the popout strip by default; Sharp and Minimal keep it pinned. |
-| Default active window opacity | `1.0` | `1.0` | `0.97` | Soft Glass is slightly translucent while active; Sharp and Minimal are opaque. |
-| Default idle window opacity | `1.0` | `1.0` | `0.90` | Soft Glass fades down lightly while idle; Sharp and Minimal stay opaque. |
-| Active alpha byte | `255` / `0xFF` | `255` / `0xFF` | `247` / `0xF7` | Soft Glass engages layered-window opacity by default. |
-| Idle alpha byte | `255` / `0xFF` | `255` / `0xFF` | `230` / `0xE6` | Soft Glass idle state is only slightly more transparent. |
+| Default popout top-bar auto-hide | `true` | `true` | `true` | Every preset reclaims the strip row after its own fade delay. Fade off keeps the bar visible. |
+| Default active window opacity | `1.0` | `0.94` | `0.82` | Sharp is crisp/opaque, Minimal restrained, Soft Glass visibly translucent. |
+| Default idle window opacity | `1.0` | `0.86` | `0.72` | Minimal and Soft Glass step down after the shared idle transition. |
+| Active Popout alpha byte | `255` / `0xFF` | `240` / `0xF0` | `209` / `0xD1` | `WindowOpacityPolicy.ToAlphaByte` rounds normalized opacity × 255. |
+| Idle Popout alpha byte | `255` / `0xFF` | `219` / `0xDB` | `184` / `0xB8` | Idle never becomes more opaque than active. |
 | Click-through | Off | Off | Off | No preset enables click-through; `WS_EX_TRANSPARENT` remains a non-goal. |
 
 Behavior values are resolved as:
@@ -98,6 +105,11 @@ Behavior values are resolved as:
 3. Normalized safe value.
 
 A `null` behavior value in schema 3 means "follow the selected preset", not "fall back to legacy player values".
+
+Opacity has deliberately asymmetric scope. The active value paints the Source Window title-bar
+**backdrop only** and the whole active Popout Player. The idle value paints only the whole Popout Player;
+it does not fade the Source surface. Popout alpha includes the hosted video and never enables
+click-through.
 
 ## Palette Values
 
@@ -272,10 +284,17 @@ Palette brushes and companion colors:
 - `DangerPin`
 - `DangerPinColor`
 
-Accent brushes:
+Accent brushes and their companion `*Color` entries:
 
 - `AccentPrimary`
-- `AccentPrimaryLight`
+- `AccentHover`
+- `AccentPressed`
+- `AccentBorder`
+- `AccentShellTint`
+- `AccentChromeGlyph` — toolbar glyph reach; neutral at 0 and full accent from 50–100.
+- `OnAccent`
+- `OnAccentPressed`
+- `AccentPrimaryLight` — migration alias of `AccentHover`.
 
 Radius resources:
 
@@ -326,16 +345,19 @@ When a preset button is clicked in Settings:
 1. The previous preset is captured.
 2. `ThemeId` is normalized from the clicked toggle tag.
 3. The new preset is loaded from `ThemeCatalog`.
-4. The accent becomes the new preset default **only if** the current accent still equals the previous
-   preset's default (`ThemeCatalog.AccentForThemeSwitch`). The point of that test is that **a custom
-   accent survives theme switches** — switching presets re-tints a default accent but never silently
-   discards one the user chose.
+4. When Settings is editing the **global** accent, it becomes the new preset default **only if** the
+   current value still equals the previous preset's default (`ThemeCatalog.AccentForThemeSwitch`). The
+   point of that test is that **a custom global accent survives theme switches**. When a colored profile
+   is driving the accent, its color is always profile-owned and stays exact — even if its bytes happen to
+   equal the previous preset default.
 5. `CornerStyle` resets to `theme`.
 6. `FadeIdleDelayMs` becomes the selected preset's default fade delay.
 7. `StripAutoHideOverride`, `ActiveOpacityOverride`, and `IdleOpacityOverride` reset to `null`.
 8. The Settings controls display the selected preset's default strip auto-hide and opacity behavior.
-9. Opacity preview fires for the displayed active/idle opacity values.
-10. Theme, accent, and corners apply to every open window when Settings closes.
+9. One complete live preview updates the shared theme/accent resources, Source title-bar backdrop,
+   native corners, and the whole open Popout (including active/idle opacity and strip behavior).
+10. Done commits the pending appearance. Title-bar close, Escape, or any other non-affirmative dismissal
+    restores the complete pre-dialog theme, accent, intensity, corners, opacity, and Popout appearance.
 
 The visible behavioral jump on preset click now spans every preset-owned axis:
 
@@ -344,10 +366,12 @@ The visible behavioral jump on preset click now spans every preset-owned axis:
 - radii,
 - native DWM corner mode (`Default` / `SmallRound` / `Round`),
 - fade delay preset (`normal` / `long` / `short`),
-- popout strip auto-hide (Soft Glass on, others off),
-- Soft Glass active/idle opacity,
+- graduated active/idle opacity (`1.00/1.00`, `0.94/0.86`, `0.82/0.72`),
 - control density (Sharp compact, Soft Glass airy),
 - inner elevation (Sharp none, Minimal subtle, Soft Glass soft; the ComboBox dropdown consumes `ElevationPopup`, `ElevationPanel` awaits a safe raised surface).
+
+Top-bar auto-hide is now shared (`true`) rather than a preset difference; the per-preset fade delay still
+makes its reveal/hide rhythm distinct.
 
 ## Persistence Fields
 
@@ -357,11 +381,14 @@ Current schema stores:
 |---|---|
 | `theme.themeId` | One of `sharp-dark`, `minimal`, `soft-glass`; invalid values normalize to `sharp-dark`. |
 | `theme.accentColor` | Normalized `#RRGGBB`; invalid values normalize to Sharp Dark cyan or a legacy fallback. |
+| `theme.accentIntensity` | User-owned 0–100 reach. Default 50 reproduces v0.9.0; preset switches do not reset it. |
 | `theme.fadeDelayPreset` | `short`, `normal`, or `long`; preset defaults are Sharp Dark `normal`, Minimal `long`, Soft Glass `short`. |
 | `theme.cornerStyle` | `theme`, `square`, `small`, or `round`; invalid values normalize to `theme`, and legacy `soft` normalizes to `round`. |
 | `theme.stripAutoHide` | Nullable behavior override; `null` means follow preset. |
 | `theme.activeWindowOpacity` | Nullable behavior override; `null` means follow preset. |
 | `theme.idleWindowOpacity` | Nullable behavior override; `null` means follow preset. |
+| `activeProfileName` | Name of the profile currently driving per-profile overrides, or `null`. |
+| `profiles[].accentColor` | Optional exact profile RGB; a valid active value drives the app accent and never replaces the global fallback. |
 
 Legacy mirrors are still written under `player` for older builds:
 
@@ -378,6 +405,7 @@ The theme preset does not change:
 
 - WebView2 page content.
 - YouTube rendering.
+- The user-owned accent intensity.
 - Browser data, cookies, or account state.
 - Current URL.
 - Saved profiles.
@@ -402,9 +430,8 @@ Every current preset-level difference falls into one of these buckets:
 4. Radii: twelve semantic radius tokens (all distinct across the three presets).
 5. Native DWM corner mode: all three differ (`Default` / `SmallRound` / `Round`).
 6. Fade delay preset: all three differ (`normal` / `long` / `short`).
-7. Popout strip auto-hide: Soft Glass differs from Sharp Dark and Minimal.
-8. Popout opacity defaults: Soft Glass differs from Sharp Dark and Minimal.
-9. Control density: heights, icon-button size, scrollbar thickness, and paddings (Sharp compact, Soft Glass airy; scrollbar ties between Minimal and Soft Glass; the default border is a uniform `1`).
-10. Inner elevation: popup/panel drop-shadow (Sharp none, Minimal subtle, Soft Glass soft). The ComboBox dropdown consumes `ElevationPopup`; `ElevationPanel` awaits a safe raised surface.
+7. Window opacity defaults: all three identities differ (`1.00/1.00`, `0.94/0.86`, `0.82/0.72`).
+8. Control density: heights, icon-button size, scrollbar thickness, and paddings (Sharp compact, Soft Glass airy; scrollbar ties between Minimal and Soft Glass; the default border is a uniform `1`).
+9. Inner elevation: popup/panel drop-shadow (Sharp none, Minimal subtle, Soft Glass soft). The ComboBox dropdown consumes `ElevationPopup`; `ElevationPanel` awaits a safe raised surface.
 
 Everything else is currently shared by all three presets or controlled by user overrides rather than by the preset itself.

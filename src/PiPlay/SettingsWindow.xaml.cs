@@ -65,10 +65,23 @@ public partial class SettingsWindow : Window
     internal event Action<double, double>? OpacityPreviewChanged;
     internal event Action<string>? AccentPreviewChanged;
 
+    /// <summary>Raised after a preset/corner selection so MainWindow can preview the complete shared
+    /// resource set while retaining ownership of the transaction and cancel/revert path.</summary>
+    internal event Action? ThemePreviewChanged;
+
+    /// <summary>Raised on every accent-intensity slider move so MainWindow can live-preview how far the
+    /// accent reaches into the chrome. Arg: the 0–100 intensity.</summary>
+    internal event Action<int>? AccentIntensityPreviewChanged;
+
+    /// <summary>How far the accent reaches into the chrome (0–100). Committed by Done.</summary>
+    internal int AccentIntensity { get; private set; } = ThemeCatalog.DefaultAccentIntensity;
+
     // True from construction until the ctor has seeded the sliders: Slider coerces Value to its
     // Minimum during InitializeComponent, which fires ValueChanged before our values are in.
     private bool _seedingOpacitySliders = true;
     private bool _seedingAccentPicker = true;
+    private bool _seedingAccentIntensity = true;
+    private readonly bool _accentFollowsThemePreset;
 
     public SettingsWindow(
         bool isBrowserReady,
@@ -80,8 +93,11 @@ public partial class SettingsWindow : Window
         double? idleOpacityOverride = null,
         bool? stripAutoHideOverride = null,
         string? cornerStyle = ThemeCatalog.DefaultCornerStyle,
-        string? accentEditContext = null)
+        string? accentEditContext = null,
+        int? accentIntensity = null,
+        bool accentFollowsThemePreset = true)
     {
+        _accentFollowsThemePreset = accentFollowsThemePreset;
         InitializeComponent();
         ApplyInitialBounds();
         // The dialog wears the theme/override corner shape itself, and re-applies it on chip
@@ -96,6 +112,12 @@ public partial class SettingsWindow : Window
         AccentTargetText.Text = string.IsNullOrWhiteSpace(accentEditContext)
             ? "Editing the app accent."
             : accentEditContext;
+
+        AccentIntensity = ThemeCatalog.NormalizeAccentIntensity(accentIntensity);
+        AccentIntensitySlider.Value = AccentIntensity;
+        _seedingAccentIntensity = false;
+        UpdateAccentIntensityValueText();
+
         CornerStyle = ThemeCatalog.NormalizeCornerStyle(cornerStyle);
         FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
         CompactMode = compactMode;
@@ -174,10 +196,12 @@ public partial class SettingsWindow : Window
         ThemeId = ThemeCatalog.NormalizeThemeId(((FrameworkElement)sender).Tag as string);
         // An explicit preset selection adopts the preset's defaults (review doc §2.1) — fade
         // delay, top-bar auto-hide, opacity levels, and theme-owned corners. The controls below
-        // can then fine-tune each one; manual changes after this click are overrides. The accent
-        // follows the §3.3 switch rule (custom accents survive) via the pure catalog helper.
+        // can then fine-tune each one; manual changes after this click are overrides. A GLOBAL accent
+        // follows the §3.3 switch rule (custom values survive). A profile-owned accent is always
+        // explicit, even if its bytes equal the old preset default, so a preset switch never rewrites it.
         var preset = ThemeCatalog.PresetFor(ThemeId);
-        AccentColor = ThemeCatalog.AccentForThemeSwitch(AccentColor, previousPreset, preset);
+        if (_accentFollowsThemePreset)
+            AccentColor = ThemeCatalog.AccentForThemeSwitch(AccentColor, previousPreset, preset);
         CornerStyle = ThemeCatalog.DefaultCornerStyle;
         FadeIdleDelayMs = ThemeCatalog.FadeDelayMillisecondsForPreset(preset.DefaultFadeDelayPreset);
         // Behavior returns to "follow the preset" (code review P2): the overrides reset to null
@@ -198,6 +222,7 @@ public partial class SettingsWindow : Window
         AppearanceChanged = true;
         ApplyAppearanceSelections();
         ApplyOwnCornerMode();
+        ThemePreviewChanged?.Invoke();
     }
 
     private void AccentPicker_PreviewColorChanged(string hex)
@@ -214,6 +239,7 @@ public partial class SettingsWindow : Window
         AppearanceChanged = true;
         ApplyAppearanceSelections();
         ApplyOwnCornerMode();
+        ThemePreviewChanged?.Invoke();
     }
 
     /// <summary>The dialog's own native corner shape follows the pending theme/override selection.</summary>
@@ -248,6 +274,20 @@ public partial class SettingsWindow : Window
 
     private static double? NormalizeOverride(double? value) =>
         WindowOpacityPolicy.NormalizeOptional(value);   // invalid input = no override, follow the preset
+
+    private void AccentIntensitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_seedingAccentIntensity) return;
+        AccentIntensity = ThemeCatalog.NormalizeAccentIntensity((int)Math.Round(AccentIntensitySlider.Value));
+        AppearanceChanged = true;
+        UpdateAccentIntensityValueText();
+        AccentIntensityPreviewChanged?.Invoke(AccentIntensity);
+    }
+
+    private void UpdateAccentIntensityValueText() =>
+        AccentIntensityValueText.Text = AccentIntensity == 0
+            ? "Off"
+            : $"{AccentIntensity}%";
 
     private void OpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {

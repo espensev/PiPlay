@@ -35,7 +35,8 @@ public static class ThemeResourceApplier
     public static void Apply(ResourceDictionary resources, ThemeSettings? theme, PlayerSettings player)
     {
         var preset = ThemeCatalog.PresetFor(theme?.ThemeId);
-        ApplyAccentOnly(resources, ThemePreferenceResolver.AccentColor(theme, player), preset);
+        ApplyAccentOnly(
+            resources, ThemePreferenceResolver.AccentColor(theme, player), preset, theme?.AccentIntensity);
         ApplyPalette(resources, preset.Palette);
         ApplyRadii(resources, ThemeCatalog.RadiiFor(preset, theme?.CornerStyle));
         ApplyDensity(resources, preset.Density);
@@ -50,14 +51,18 @@ public static class ThemeResourceApplier
     /// them. OnAccentPressed carries the CON-1 fix: a dim accent's pressed fill gets a readable
     /// foreground rather than the reused OnAccent.
     /// </summary>
-    public static void ApplyAccentOnly(ResourceDictionary resources, string accentColor, ThemePreset preset)
+    public static void ApplyAccentOnly(
+        ResourceDictionary resources, string accentColor, ThemePreset preset, int? accentIntensity = null)
     {
-        var set = ThemeColors.DeriveAccentSet(accentColor, preset);
+        var set = ThemeColors.DeriveAccentSet(accentColor, preset, accentIntensity);
         SetColorPair(resources, "AccentPrimary", set.Primary);
         SetColorPair(resources, "AccentHover", set.Hover);
         SetColorPair(resources, "AccentPressed", set.Pressed);
         SetColorPair(resources, "AccentBorder", set.Border);
         SetColorPair(resources, "AccentShellTint", set.ShellTint);
+        // The accent-reach dial's other half: toolbar glyphs ride this, not AccentPrimary, so intensity 0
+        // returns them to ordinary text color instead of leaving them stuck on the accent.
+        SetColorPair(resources, "AccentChromeGlyph", set.ChromeGlyph);
         SetColorPair(resources, "OnAccent", set.OnAccent);
         SetColorPair(resources, "OnAccentPressed", set.OnAccentPressed);
         // Keep AccentPrimaryLight defined as an alias to AccentHover for one migration pass.

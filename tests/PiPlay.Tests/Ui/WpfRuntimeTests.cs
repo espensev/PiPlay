@@ -148,6 +148,7 @@ public class WpfRuntimeTests : IDisposable
         AssertToken("OnAccentPressed", expected.OnAccentPressed);
         AssertToken("AccentBorder", expected.Border);
         AssertToken("AccentShellTint", expected.ShellTint);
+        AssertToken("AccentChromeGlyph", expected.ChromeGlyph);
 
         // CON-1 remains a contrast contract even when the presentation fill itself is lifted.
         Assert.True(ThemeColors.ContrastRatio(expected.OnAccentPressed, expected.Pressed) >= 4.5);
@@ -686,6 +687,150 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void MainWindow_active_opacity_reaches_only_the_source_title_bar_background() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        w.ReplaceSettingsForTests(new AppSettings
+        {
+            Theme = new ThemeSettings { ActiveWindowOpacity = 0.63 },
+        });
+
+        var backdrop = (Border)w.FindName("MainBarBackdrop")!;
+        var title = (TextBlock)w.FindName("TitleText")!;
+        Assert.Equal(0.63, backdrop.Opacity);
+        Assert.Equal(1.0, title.Opacity);   // text/buttons do not inherit the background fade
+        Assert.Equal(1.0, w.Opacity);       // browser/window stay opaque
+    });
+
+    [Fact]
+    public void MainWindow_full_theme_preview_and_cancel_restore_palette_and_bar_opacity() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        w.ReplaceSettingsForTests(new AppSettings
+        {
+            Theme = new ThemeSettings { ThemeId = "sharp-dark" },
+        });
+        var preview = new SettingsWindow(isBrowserReady: true, themeId: "soft-glass");
+
+        w.PreviewThemeForTests(preview);
+        Assert.Equal(ThemeColors.ParseColor("#0B1018"),
+            ((SolidColorBrush)Application.Current.Resources["AppBackground"]).Color);
+        Assert.Equal(0.82, ((Border)w.FindName("MainBarBackdrop")!).Opacity);
+
+        w.RevertAppearancePreviewForTests();
+        Assert.Equal(ThemeColors.ParseColor("#050609"),
+            ((SolidColorBrush)Application.Current.Resources["AppBackground"]).Color);
+        Assert.Equal(1.0, ((Border)w.FindName("MainBarBackdrop")!).Opacity);
+    });
+
+    /// <summary>
+    /// Cancelling Settings must undo the WHOLE preview transaction, and a palette check alone does not
+    /// prove that: RevertAppearancePreview's ApplyThemeResources repaints the accent from the GLOBAL
+    /// Theme.AccentColor, so with a colored profile active it is the FOLLOWING ApplyResolvedAccent that
+    /// puts the profile's color back. Drop that one line and dismissing Settings leaves the app wearing
+    /// the wrong color — a mutation the palette-only guard could not see. The open popout is the other
+    /// half: nothing else can show that the player was left on the previewed appearance.
+    /// </summary>
+    [Fact]
+    public void MainWindow_cancel_restores_the_profile_accent_and_the_open_player_REQ_UI_01() => StaTestThread.Invoke(() =>
+    {
+        var settings = new AppSettings
+        {
+            ActiveProfileName = "Violet",
+            Theme = new ThemeSettings
+            {
+                ThemeId = "sharp-dark",
+                AccentColor = "#00D4FF",       // the GLOBAL accent: what a half-done revert would paint
+                AccentIntensity = 50,
+                // Deliberately NOT the dialog's default ("normal" = 2500ms): a persisted value the
+                // preview cannot coincidentally restore, so the fade assertion below discriminates.
+                FadeDelayPreset = "long",      // 4000ms
+            },
+            Profiles =
+            {
+                new Profile
+                {
+                    Name = "Violet",
+                    Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                    AccentColor = "#A78BFA",   // the accent actually on screen
+                },
+            },
+        };
+
+        var w = new MainWindow();
+        w.ReplaceSettingsForTests(settings);
+        w.SelectProfileForTests("Violet");
+
+        var player = new PlayerWindow(
+            environment: null!,
+            url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            topmost: false,
+            placement: null,
+            defaultWidth: 960,
+            defaultHeight: 540,
+            fadeEnabled: true,
+            accentColor: "#A78BFA",
+            fadeIdleDelayMs: 4000);
+        w.AttachPlayerForTests(player);
+
+        // Preview a different preset AND a different reach, exactly as dragging in Settings would.
+        var preview = new SettingsWindow(isBrowserReady: true, themeId: "soft-glass", accentIntensity: 100);
+        w.PreviewThemeForTests(preview);
+
+        // The preview really did reach the open popout — otherwise the revert below proves nothing.
+        Assert.Equal((0.82, 0.72), player.WindowOpacityLevelsForTests);
+        Assert.Equal(TimeSpan.FromMilliseconds(2500), player.FadeIdleDelayForTests);
+
+        w.RevertAppearancePreviewForTests();
+
+        // The accent must return to the PROFILE's color at the PERSISTED reach — not the global accent,
+        // and not the previewed reach.
+        var expected = ThemeColors.DeriveAccentSet("#A78BFA", ThemeCatalog.PresetFor("sharp-dark"), 50);
+        Assert.Equal(expected.Primary, ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color);
+        Assert.Equal(expected.ChromeGlyph, ((SolidColorBrush)Application.Current.Resources["AccentChromeGlyph"]).Color);
+        Assert.Equal("#A78BFA", w.ResolvedAccentColorForTests);
+        Assert.Equal(50, w.EffectiveAccentIntensityForTests);
+
+        // ...and the open popout must be back on the persisted appearance, not the previewed one.
+        Assert.Equal((1.0, 1.0), player.WindowOpacityLevelsForTests);
+        Assert.Equal(TimeSpan.FromMilliseconds(4000), player.FadeIdleDelayForTests);
+
+        w.AttachPlayerForTests(null);
+        player.Close();
+    });
+
+    [Fact]
+    public void PlayerWindow_settings_button_raises_one_request_without_owning_settings() => StaTestThread.Invoke(() =>
+    {
+        var w = new PlayerWindow(
+            environment: null!,
+            url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            topmost: false,
+            placement: null,
+            defaultWidth: 960,
+            defaultHeight: 540,
+            fadeEnabled: true);
+        var requests = 0;
+        w.SettingsRequested += (_, _) => requests++;
+
+        ((Button)w.FindName("SettingsButton")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+
+        Assert.Equal(1, requests);
+    });
+
+    [Fact]
+    public void Existing_settings_dialog_is_raised_above_a_pinned_repeat_requester() => StaTestThread.Invoke(() =>
+    {
+        var source = new MainWindow();
+        var dialog = new SettingsWindow(isBrowserReady: true);
+        var pinnedRequester = new Window { Topmost = true };
+
+        source.PrepareExistingSettingsDialogForTests(dialog, pinnedRequester);
+
+        Assert.True(dialog.Topmost);
+    });
+
+    [Fact]
     public void PlayerWindow_accent_only_update_preserves_behavior_settings() => StaTestThread.Invoke(() =>
     {
         var w = new PlayerWindow(
@@ -920,6 +1065,68 @@ public class WpfRuntimeTests : IDisposable
         var w = NewPlayer();   // no mode argument -> PlaybackMode.Normal
         Assert.Equal(PlaybackModePolicy.NormalMinWidth, w.MinWidth);
         Assert.Equal(PlaybackModePolicy.NormalMinHeight, w.MinHeight);
+    });
+
+    /// <summary>
+    /// The accent-reach dial must survive a repaint that is not a Settings apply. Every accent repaint
+    /// goes through ApplyAccentEverywhere — profile switch, dialog dismiss, reset — and ApplyAccentOnly
+    /// DEFAULTS the intensity to the catalog value, so a repaint that forgets to pass the persisted dial
+    /// still compiles and still looks wired while snapping a user who chose 0 back to 50.
+    /// </summary>
+    [Fact]
+    public void MainWindow_repaints_with_the_persisted_accent_intensity_not_the_default() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        try
+        {
+            // Intensity 0 = the accent paints only the primary action: toolbar glyphs are ordinary text.
+            w.ReplaceSettingsForTests(new AppSettings { Theme = new ThemeSettings { AccentIntensity = 0 } });
+
+            var textPrimary = ThemeColors.ParseColor(ThemeCatalog.PresetFor("sharp-dark").Palette.TextPrimary);
+            Assert.Equal(0, w.EffectiveAccentIntensityForTests);
+            Assert.Equal(textPrimary, ((SolidColorBrush)Application.Current.Resources["AccentChromeGlyph"]).Color);
+        }
+        finally
+        {
+            w.ReplaceSettingsForTests(new AppSettings());   // restore App resources for other tests
+        }
+    });
+
+    /// <summary>
+    /// The intensity slider previews live, and the preview is VISUAL-ONLY: it must never write to
+    /// settings, or dismissing Settings without applying could not revert it.
+    /// </summary>
+    [Fact]
+    public void MainWindow_previews_accent_intensity_without_persisting_it() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        try
+        {
+            var settings = new AppSettings { Theme = new ThemeSettings { AccentIntensity = 100 } };
+            w.ReplaceSettingsForTests(settings);
+            var fullReach = ((SolidColorBrush)Application.Current.Resources["AccentChromeGlyph"]).Color;
+            var textPrimary = ThemeColors.ParseColor(ThemeCatalog.PresetFor("sharp-dark").Palette.TextPrimary);
+
+            // Drag the dial to 0. An intensity-only move must repaint even though the accent never
+            // changed — if the two preview channels did not travel as a pair, the slider would look dead.
+            w.QueueAccentIntensityPreviewForTests(0);
+            w.FlushAccentPreviewForTests();
+
+            Assert.Equal(textPrimary, ((SolidColorBrush)Application.Current.Resources["AccentChromeGlyph"]).Color);
+            Assert.Equal(100, settings.Theme.AccentIntensity);   // previewed, NOT persisted
+
+            // Dismiss without applying: rendering follows persisted state again.
+            w.CancelQueuedAccentPreviewForTests();
+            w.RevertPreviewedAccentForTests();
+
+            Assert.Equal(100, w.EffectiveAccentIntensityForTests);
+            Assert.Equal(fullReach, ((SolidColorBrush)Application.Current.Resources["AccentChromeGlyph"]).Color);
+        }
+        finally
+        {
+            w.CancelQueuedAccentPreviewForTests();
+            w.ReplaceSettingsForTests(new AppSettings());
+        }
     });
 
     [Fact]
@@ -1828,7 +2035,14 @@ public class WpfRuntimeTests : IDisposable
             .GetAwaiter().GetResult();
 
         Assert.Null(w.PendingUrlForTests);               // the seek path scripts a live core instead
-        Assert.Null(w.AutoLastHandledVideoIdForTests);   // de-dup key untouched on a plain return
+        Assert.Equal("AAAAAAAAAAA", w.AutoLastHandledVideoIdForTests);
+        Assert.Equal(AutoPopDecision.Skip, AutoPopoutPolicy.Decide(
+            autoEnabled: true,
+            isPlaying: true,
+            isWatchVideo: true,
+            currentVideoId: "AAAAAAAAAAA",
+            lastHandledVideoId: w.AutoLastHandledVideoIdForTests,
+            popoutActive: false));
     });
 
     [Fact]
@@ -1854,6 +2068,30 @@ public class WpfRuntimeTests : IDisposable
         Assert.False(w.IsChromeStripHitTestVisibleForTests);   // Q-8: hidden strip swallows no clicks
 
         w.OnUserActivityForTests();   // any reveal path must restore the layout row immediately
+        Assert.False(w.IsChromeStripCollapsedForTests);
+        Assert.True(w.IsChromeStripHitTestVisibleForTests);
+    });
+
+    [Fact]
+    public void Normal_mode_auto_hide_collapses_and_activity_restores_the_strip() => StaTestThread.Invoke(() =>
+    {
+        var w = new PlayerWindow(
+            environment: null!,
+            url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            topmost: false,
+            placement: null,
+            defaultWidth: 960,
+            defaultHeight: 540,
+            fadeEnabled: true,
+            mode: PlaybackMode.Normal,
+            stripAutoHide: true);
+
+        w.HideControlsForTests();
+        w.CompleteHideFadeForTests();
+        Assert.True(w.IsChromeStripCollapsedForTests);
+        Assert.False(w.IsChromeStripHitTestVisibleForTests);
+
+        w.OnUserActivityForTests();
         Assert.False(w.IsChromeStripCollapsedForTests);
         Assert.True(w.IsChromeStripHitTestVisibleForTests);
     });

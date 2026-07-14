@@ -232,7 +232,7 @@ public class ThemeCatalogTests
 
     [Fact]
     public void Sharp_dark_matches_the_v2_spec_literals() => AssertPresetMatchesSpec(
-        "sharp-dark", "Sharp Dark", "#2BAED0", "normal", stripAutoHide: false,
+        "sharp-dark", "Sharp Dark", "#2BAED0", "normal", stripAutoHide: true,
         activeOpacity: 1.0, idleOpacity: 1.0, DwmCornerMode.Default,
         new ThemePalette(
             AppBackground: "#050609", SurfaceBase: "#0B0E12", SurfaceRaised: "#131820",
@@ -244,8 +244,8 @@ public class ThemeCatalogTests
 
     [Fact]
     public void Minimal_matches_the_v2_spec_literals() => AssertPresetMatchesSpec(
-        "minimal", "Minimal", "#3F84C0", "long", stripAutoHide: false,
-        activeOpacity: 1.0, idleOpacity: 1.0, DwmCornerMode.SmallRound,
+        "minimal", "Minimal", "#3F84C0", "long", stripAutoHide: true,
+        activeOpacity: 0.94, idleOpacity: 0.86, DwmCornerMode.SmallRound,
         new ThemePalette(
             AppBackground: "#14120F", SurfaceBase: "#1C1A16", SurfaceRaised: "#26231E",
             SurfaceHover: "#312D27", BorderSubtle: "#2E2A23", BorderStrong: "#3C362D",
@@ -257,7 +257,7 @@ public class ThemeCatalogTests
     [Fact]
     public void Soft_glass_matches_the_v2_spec_literals() => AssertPresetMatchesSpec(
         "soft-glass", "Soft Glass", "#9E84F0", "short", stripAutoHide: true,
-        activeOpacity: 0.97, idleOpacity: 0.90, DwmCornerMode.Round,
+        activeOpacity: 0.82, idleOpacity: 0.72, DwmCornerMode.Round,
         new ThemePalette(
             AppBackground: "#0B1018", SurfaceBase: "#121A26", SurfaceRaised: "#1B2738",
             SurfaceHover: "#26354B", BorderSubtle: "#2A3A52", BorderStrong: "#3A4D6A",
@@ -336,18 +336,21 @@ public class ThemeCatalogTests
             sharp.DefaultFadeDelayPreset, minimal.DefaultFadeDelayPreset, soft.DefaultFadeDelayPreset,
         }.Distinct(StringComparer.Ordinal).Count());
 
-        // Soft Glass auto-hides its popout strip by default; Sharp and Minimal do not.
+        // Fade reclaims the top-bar row by default under every preset. The explicit override still
+        // lets a user reserve it, but a preset-following install never keeps a blank strip.
         Assert.True(soft.DefaultStripAutoHide);
-        Assert.False(sharp.DefaultStripAutoHide);
-        Assert.False(minimal.DefaultStripAutoHide);
+        Assert.True(sharp.DefaultStripAutoHide);
+        Assert.True(minimal.DefaultStripAutoHide);
 
-        // Soft Glass is the only translucent shell; Sharp and Minimal stay fully opaque.
-        Assert.True(soft.DefaultActiveWindowOpacity < 1.0 && soft.DefaultIdleWindowOpacity < 1.0,
-            "soft-glass should default to translucent active and idle opacity.");
+        // Opaque -> quiet -> glass is a strict, visible behavior axis. Every value remains inside
+        // the owner's 0-30% transparency direction (>= 0.70).
         Assert.Equal(1.0, sharp.DefaultActiveWindowOpacity);
         Assert.Equal(1.0, sharp.DefaultIdleWindowOpacity);
-        Assert.Equal(1.0, minimal.DefaultActiveWindowOpacity);
-        Assert.Equal(1.0, minimal.DefaultIdleWindowOpacity);
+        Assert.True(sharp.DefaultActiveWindowOpacity > minimal.DefaultActiveWindowOpacity);
+        Assert.True(minimal.DefaultActiveWindowOpacity > soft.DefaultActiveWindowOpacity);
+        Assert.True(sharp.DefaultIdleWindowOpacity > minimal.DefaultIdleWindowOpacity);
+        Assert.True(minimal.DefaultIdleWindowOpacity > soft.DefaultIdleWindowOpacity);
+        Assert.True(soft.DefaultIdleWindowOpacity >= 0.70);
     }
 
     // --- CON-1 (theme-v2 Phase B): derived accent tokens stay WCAG-safe in their PINNED pairings,

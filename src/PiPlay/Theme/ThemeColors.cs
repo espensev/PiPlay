@@ -15,18 +15,16 @@ public static class ThemeColors
     private const double MinimumPressedStateContrast = 1.10;
 
     /// <summary>
-    /// How strongly the accent washes into the Source Window title bar, as a contrast ratio against
-    /// <c>SurfaceBase</c>. This single number is the "how present is the wash" dial.
-    /// <para>
-    /// It was 1.20, which is close to imperceptible — the accent effectively painted one button. 1.45 is
-    /// a visible tint that still reads as a wash. It is deliberately NOT pushed further: a saturated
-    /// title bar re-adds the heavy "framed" look P1 exists to remove. QA row UI-CHK-9 governs this, and
-    /// <c>ThemeColorsTests</c> pins a ceiling so a future tweak cannot quietly turn it into a banner.
-    /// </para>
+    /// The title-bar wash at accent intensity 0 — a contrast ratio of 1.0 against <c>SurfaceBase</c> is
+    /// the surface itself, i.e. no wash at all. Intensity 0 means OFF, not "a bit less".
     /// </summary>
-    internal const double ShellTintContrastTarget = 1.45;
+    internal const double ShellTintContrastFloor = 1.00;
 
-    /// <summary>Upper bound on the wash. Above this it stops being a tint. Pinned by tests.</summary>
+    /// <summary>
+    /// The title-bar wash at accent intensity 100. Above this it stops being a tint and becomes a
+    /// saturated banner, which re-adds the heavy "framed" look P1 exists to remove — so this is a hard
+    /// ceiling, pinned by <c>ThemeColorsTests</c>, not a suggestion.
+    /// </summary>
     internal const double ShellTintContrastCeiling = 1.90;
 
     /// <summary>Parse a <c>#RRGGBB</c> hex (the normalized accent form) into an opaque color.</summary>
@@ -177,13 +175,18 @@ public static class ThemeColors
     /// algorithm"). Each theme reads the same base accent differently via its
     /// <see cref="ThemeAccentProfile"/> and its own raised surface.
     /// </summary>
-    public static DerivedAccentSet DeriveAccentSet(string? baseAccent, ThemePreset preset)
+    public static DerivedAccentSet DeriveAccentSet(
+        string? baseAccent, ThemePreset preset, int? accentIntensity = null)
     {
         var profile = AccentProfileFor(preset.Id);
         var requested = ParseColor(baseAccent);
         var surfaceBase = ParseColor(preset.Palette.SurfaceBase);
         var surfaceRaised = ParseColor(preset.Palette.SurfaceRaised);
         var surfaceHover = ParseColor(preset.Palette.SurfaceHover);
+        // How far the accent reaches into the chrome (user-set). The wash uses the full dial; glyphs
+        // finish their fade-in at the midpoint so default 50 reproduces v0.9.0 exactly.
+        var reach = ThemeCatalog.NormalizeAccentIntensity(accentIntensity) / 100.0;
+        var glyphReach = Math.Min(reach * 2.0, 1.0);
         // REQ-UI-01 / spec section 20: arbitrary stored colors remain exact, while the presentation
         // token clears the 3:1 non-text contrast floor on the lightest shipped dark interaction surface.
         var primary = EnsureContrast(requested, surfaceHover);
@@ -203,15 +206,26 @@ public static class ThemeColors
         var subtle = WithAlpha(primary, profile.SubtleAlpha);
         var glow = WithAlpha(primary, profile.GlowAlpha);
         // Decorative shell tint: visibly carries the accent into the title bar without becoming a
-        // hard line, full fill, or another control boundary.
-        var shellTint = MixTowardContrast(surfaceBase, primary, surfaceBase, ShellTintContrastTarget);
+        // hard line, full fill, or another control boundary. The user's intensity dial scales it from
+        // "no wash at all" up to the banner ceiling.
+        var shellTarget = ShellTintContrastFloor
+                          + (ShellTintContrastCeiling - ShellTintContrastFloor) * reach;
+        var shellTint = MixTowardContrast(surfaceBase, primary, surfaceBase, shellTarget);
+
+        // Toolbar chrome glyphs: neutral text at intensity 0, the full accent by 50. Above 50 only the
+        // wash deepens. Re-run EnsureContrast on the BLEND because a midpoint between two individually
+        // legible colors is not automatically legible - without this, the toolbar could disappear.
+        var chromeGlyph = EnsureContrast(
+            Mix(ParseColor(preset.Palette.TextPrimary), primary, glyphReach), surfaceHover);
+
         var onAccent = PickReadableForeground(primary);
         // CON-1: re-pick the foreground against the DARKER pressed fill, not reuse OnAccent — a dim
         // accent (steel) may need to flip to white.
         var onAccentPressed = PickReadableForeground(pressed);
 
         return new DerivedAccentSet(
-            primary, hover, pressed, muted, border, subtle, glow, shellTint, onAccent, onAccentPressed);
+            primary, hover, pressed, muted, border, subtle, glow, shellTint, chromeGlyph,
+            onAccent, onAccentPressed);
     }
 }
 
@@ -241,5 +255,7 @@ public sealed record DerivedAccentSet(
     Color Subtle,
     Color Glow,
     Color ShellTint,
+    /// <summary>Toolbar glyph color: ordinary text at accent intensity 0, the full accent from 50 up.</summary>
+    Color ChromeGlyph,
     Color OnAccent,
     Color OnAccentPressed);

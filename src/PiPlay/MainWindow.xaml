@@ -31,16 +31,22 @@
 
     <!-- Title bar -->
     <Grid x:Name="TitleBar" Grid.Row="0">
-      <Grid.Background>
-        <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
-          <GradientStop Color="{DynamicResource AccentShellTintColor}" Offset="0" />
-          <GradientStop Color="{DynamicResource SurfaceBaseColor}" Offset="0.62" />
-        </LinearGradientBrush>
-      </Grid.Background>
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
+
+      <!-- Background-only opacity: the existing Active opacity preference reaches the Source title
+           bar without fading its text/buttons or the WebView2 browsing surface. At 100% this is the
+           exact pre-change gradient. -->
+      <Border x:Name="MainBarBackdrop" Grid.ColumnSpan="2" IsHitTestVisible="False">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+            <GradientStop Color="{DynamicResource AccentShellTintColor}" Offset="0" />
+            <GradientStop Color="{DynamicResource SurfaceBaseColor}" Offset="0.62" />
+          </LinearGradientBrush>
+        </Border.Background>
+      </Border>
 
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0">
         <Image Source="Assets/piplay.ico" Width="20" Height="20" Margin="0,0,10,0" />

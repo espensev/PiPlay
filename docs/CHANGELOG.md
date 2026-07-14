@@ -4,6 +4,48 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-14
+
+Interaction-cohesion release candidate for extended owner testing: Popout appearance controls are
+reachable from either window, Auto return no longer loops, opacity now ties the two app surfaces
+together, and the three presets have distinct live-previewed roles.
+
+### Added
+- **Accent reach is adjustable from 0–100.** The default 50 preserves the v0.9.0 appearance exactly:
+  full-accent toolbar glyphs and the same 1.45 title wash. Lower values fade the chrome reach; higher
+  values keep the glyphs fully accented while deepening the wash toward its restrained ceiling.
+- **Settings is reachable from the Popout Player.** Its new gear opens the same single Settings dialog
+  as the Source Window, so appearance and privacy controls remain reachable while the popout is the
+  surface in use.
+
+### Changed
+- **The three preset cards now state their visible character:** Sharp Dark is `Crisp · 100%`, Minimal
+  is `Quiet · 94%`, and Soft Glass is `Glass · 82%`. All three presets now auto-hide the popout top bar
+  by default. Their active/idle opacity pairs are Sharp Dark `1.00 / 1.00`, Minimal `0.94 / 0.86`, and
+  Soft Glass `0.82 / 0.72`.
+- **Active opacity now ties the two PiPlay surfaces together.** The active value paints the Source
+  Window title-bar backdrop and the whole active Popout Player; the idle value still applies only to
+  the whole Popout Player.
+- **Preset and corner changes preview completely before commit.** Settings updates the shared theme,
+  native corners, Source title-bar backdrop, and open Popout Player live. Done keeps the pending look;
+  closing or cancelling Settings restores the complete pre-dialog appearance.
+
+### Fixed
+- **Auto now carries one Source-first video identity through detection and launch.** A stale YouTube
+  canonical URL can no longer substitute a different video for the visible Source URL. Every return
+  records the returned identity before source navigation/resume, preserving the no-re-pop latch without
+  preventing a later different eligible video from auto-popping.
+- **Auto no longer pops a video the Source has already left.** Auto reads the video identity, then
+  waits on a read of the page; if YouTube advanced to the next video in that instant, the popout opened
+  the previous video and — worse — the return seeked the Source, now on the new video, to the old one's
+  timestamp. Auto now abandons the launch when the address has moved on and re-evaluates on its next
+  pass, so what pops is always what the Source is showing.
+- **Settings no longer replaces the global accent with an active profile's color.** Pressing Done after
+  changing any Appearance control now commits the accent only to the target named above the picker, so
+  deselecting a colored profile reliably restores the user's unchanged global default.
+- **Theme switches no longer rewrite a coincidentally matching profile color.** A profile-owned accent
+  now stays exact when changing presets, even if it happens to equal the previous preset's default.
+
 ## [0.9.0] - 2026-07-14
 
 Minor release (from 0.8.0, build 30). **Your profile's color is now the app's color.** Pick a profile and

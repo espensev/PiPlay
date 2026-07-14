@@ -34,6 +34,110 @@ public class ThemeSettingsWriterTests
         Assert.Equal(preset.DefaultStripAutoHide, settings.Player.StripAutoHide);
     }
 
+    // --- Accent intensity: the user's "how far does the accent reach" dial ---
+
+    [Fact]
+    public void The_accent_intensity_dial_is_persisted_and_clamped()
+    {
+        var settings = new AppSettings();
+
+        ThemeSettingsWriter.Apply(settings, "sharp-dark", "#00D4FF", 1500, compactMode: false,
+            activeOpacityOverride: null, idleOpacityOverride: null, stripAutoHideOverride: null,
+            cornerStyle: "theme", accentIntensity: 0);
+
+        Assert.Equal(0, settings.Theme.AccentIntensity);   // 0 is a real choice, not "unset"
+
+        ThemeSettingsWriter.Apply(settings, "sharp-dark", "#00D4FF", 1500, compactMode: false,
+            activeOpacityOverride: null, idleOpacityOverride: null, stripAutoHideOverride: null,
+            cornerStyle: "theme", accentIntensity: 4000);
+
+        Assert.Equal(100, settings.Theme.AccentIntensity);
+    }
+
+    [Fact]
+    public void Settings_apply_routes_the_effective_accent_without_overwriting_the_global_fallback()
+    {
+        var settings = new AppSettings
+        {
+            ActiveProfileName = "Violet",
+            Theme = new ThemeSettings { AccentColor = "#2BAED0" },
+            Profiles =
+            {
+                new Profile
+                {
+                    Name = "Violet",
+                    Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                    AccentColor = "#A78BFA",
+                },
+            },
+        };
+
+        // The wheel was untouched: this is the broad AppearanceChanged path caused by another control.
+        ThemeSettingsWriter.Apply(settings, "sharp-dark", "#A78BFA", 2500, compactMode: false,
+            activeOpacityOverride: null, idleOpacityOverride: null, stripAutoHideOverride: null,
+            cornerStyle: "round", accentIntensity: 75);
+
+        Assert.Equal("#2BAED0", settings.Theme.AccentColor);
+        Assert.Equal("#A78BFA", settings.Profiles.Single().AccentColor);
+
+        // If the wheel is changed, the same Settings -> Done contract edits only the named profile.
+        ThemeSettingsWriter.Apply(settings, "sharp-dark", "#38D996", 2500, compactMode: false,
+            activeOpacityOverride: null, idleOpacityOverride: null, stripAutoHideOverride: null,
+            cornerStyle: "round", accentIntensity: 75);
+
+        Assert.Equal("#2BAED0", settings.Theme.AccentColor);
+        Assert.Equal("#38D996", settings.Profiles.Single().AccentColor);
+    }
+
+    [Fact]
+    public void Preset_switch_under_a_profile_advances_only_an_untouched_global_preset_default()
+    {
+        var settings = new AppSettings
+        {
+            ActiveProfileName = "Cyan profile",
+            Theme = new ThemeSettings
+            {
+                ThemeId = "sharp-dark",
+                AccentColor = ThemeCatalog.PresetFor("sharp-dark").DefaultAccentColor,
+            },
+            Profiles =
+            {
+                new Profile
+                {
+                    Name = "Cyan profile",
+                    Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                    // Equal bytes do not make this preset-owned: it is an explicit profile value.
+                    AccentColor = ThemeCatalog.PresetFor("sharp-dark").DefaultAccentColor,
+                },
+            },
+        };
+
+        ThemeSettingsWriter.Apply(settings, "soft-glass", settings.Profiles.Single().AccentColor!,
+            2500, compactMode: false, activeOpacityOverride: null, idleOpacityOverride: null,
+            stripAutoHideOverride: null, cornerStyle: "theme");
+
+        Assert.Equal(ThemeCatalog.PresetFor("soft-glass").DefaultAccentColor, settings.Theme.AccentColor);
+        Assert.Equal(ThemeCatalog.PresetFor("sharp-dark").DefaultAccentColor,
+            settings.Profiles.Single().AccentColor);
+    }
+
+    /// <summary>
+    /// The dial is a USER preference, like the accent color — an apply that does not carry it (a preset
+    /// switch, or any older caller that omits the argument) must LEAVE IT ALONE. If null were treated as
+    /// "reset to default", switching theme presets would silently wipe a user who had set the dial to 0.
+    /// </summary>
+    [Fact]
+    public void An_apply_that_does_not_carry_the_dial_leaves_the_saved_value_alone()
+    {
+        var settings = new AppSettings { Theme = new ThemeSettings { AccentIntensity = 0 } };
+
+        ThemeSettingsWriter.Apply(settings, "minimal", "#38D996", 1500, compactMode: false,
+            activeOpacityOverride: null, idleOpacityOverride: null, stripAutoHideOverride: null,
+            cornerStyle: "theme");   // a preset switch: says nothing about the dial
+
+        Assert.Equal(0, settings.Theme.AccentIntensity);
+    }
+
     [Fact]
     public void Explicit_overrides_write_normalized_and_mirror_their_effective_values()
     {

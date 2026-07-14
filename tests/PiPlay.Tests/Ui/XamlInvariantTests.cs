@@ -104,7 +104,7 @@ public class XamlInvariantTests
     {
         new object[] { "MainWindow.xaml", new[]
         {
-            "Browser", "UrlBox", "ProfilesCombo", "PinToggle", "AutoToggle", "TitleText", "PinnedHint", "PopOutButton",
+            "Browser", "UrlBox", "ProfilesCombo", "PinToggle", "AutoToggle", "TitleText", "PinnedHint", "MainBarBackdrop", "PopOutButton",
             "PopOutButtonIcon", "PopOutButtonText",
             "BackButton", "ReloadButton", "HomeButton", "SaveProfileButton",
             "EditProfileButton", "DeleteProfileButton",
@@ -113,7 +113,7 @@ public class XamlInvariantTests
         }},
         new object[] { "PlayerWindow.xaml", new[]
         {
-            "ChromeStrip", "FadeToggle", "PinToggle", "ExpandButton", "CloseButton", "Player",
+            "ChromeStrip", "SettingsButton", "FadeToggle", "PinToggle", "ExpandButton", "CloseButton", "Player",
             "ErrorBar", "ErrorText", "FallbackButton", "ErrorDismissButton",
         }},
         new object[] { "SettingsWindow.xaml", new[]
@@ -182,8 +182,8 @@ public class XamlInvariantTests
             .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "ThemeHintText")
             .Attribute("Text")?.Value;
 
-        Assert.Contains("Accent and opacity preview live", hint);
-        Assert.DoesNotContain("Theme, accent, and corners preview live", hint);
+        Assert.Contains("Presets, accent, corners, and opacity preview live", hint);
+        Assert.Contains("Done keeps the changes", hint);
         Assert.DoesNotContain("chips", hint, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -306,7 +306,9 @@ public class XamlInvariantTests
         Assert.Equal("{StaticResource IconButton}", style.Attribute("BasedOn")?.Value);
         var setter = Assert.Single(style.Elements(XamlTestFiles.Pres + "Setter"));
         Assert.Equal("Foreground", setter.Attribute("Property")?.Value);
-        Assert.Equal("{DynamicResource AccentPrimary}", setter.Attribute("Value")?.Value);
+        // AccentChromeGlyph, NOT AccentPrimary: the glyph rides the user's accent-intensity dial, so at
+        // intensity 0 it returns to ordinary text color instead of being stuck on the accent.
+        Assert.Equal("{DynamicResource AccentChromeGlyph}", setter.Attribute("Value")?.Value);
     }
 
     [Fact]
@@ -339,9 +341,9 @@ public class XamlInvariantTests
     [Fact]
     public void Source_title_bar_carries_global_accent_as_a_gradient_wash_REQ_UI_01()
     {
-        var title = XamlTestFiles.Load("MainWindow.xaml").Descendants(XamlTestFiles.Pres + "Grid")
-            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "TitleBar");
-        var gradient = title.Element(XamlTestFiles.Pres + "Grid.Background")!
+        var backdrop = XamlTestFiles.Load("MainWindow.xaml").Descendants(XamlTestFiles.Pres + "Border")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "MainBarBackdrop");
+        var gradient = backdrop.Element(XamlTestFiles.Pres + "Border.Background")!
             .Element(XamlTestFiles.Pres + "LinearGradientBrush")!;
         var stops = gradient.Elements(XamlTestFiles.Pres + "GradientStop").ToList();
 
@@ -506,7 +508,7 @@ public class XamlInvariantTests
             "SaveProfileButton", "EditProfileButton", "DeleteProfileButton",
             "PinToggle", "AutoToggle", "PopOutButton", "PlaceholderBringBackButton",
         }},
-        new object[] { "PlayerWindow.xaml", new[] { "FadeToggle", "PinToggle", "ExpandButton", "CloseButton" } },
+        new object[] { "PlayerWindow.xaml", new[] { "SettingsButton", "FadeToggle", "PinToggle", "ExpandButton", "CloseButton" } },
         new object[] { "SettingsWindow.xaml", new[] { "CloseButton", "DoneButton" } },
     };
 
@@ -527,6 +529,29 @@ public class XamlInvariantTests
             Assert.False(string.IsNullOrWhiteSpace(byName[name].Attribute("ToolTip")?.Value),
                 $"{name} is missing a ToolTip (UI-CHK-4).");
         }
+    }
+
+    [Fact]
+    public void Popout_settings_affordance_reuses_the_shared_settings_contract()
+    {
+        var settings = XamlTestFiles.Load("PlayerWindow.xaml").Descendants()
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "SettingsButton");
+
+        Assert.Equal("{StaticResource IconButton}", settings.Attribute("Style")?.Value);
+        Assert.Equal("\uE713", settings.Attribute("Content")?.Value);
+        Assert.Equal("Settings", settings.Attribute("ToolTip")?.Value);
+        Assert.Equal("Settings", settings.Attribute("AutomationProperties.Name")?.Value);
+        Assert.Equal("SettingsButton_Click", settings.Attribute("Click")?.Value);
+    }
+
+    [Fact]
+    public void Popout_fade_copy_does_not_promise_row_collapse_when_the_override_is_off()
+    {
+        var fade = XamlTestFiles.Load("PlayerWindow.xaml").Descendants()
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "FadeToggle");
+
+        Assert.Equal("Fade top bar when idle", fade.Attribute("AutomationProperties.Name")?.Value);
+        Assert.Contains("Settings controls whether its row also hides", fade.Attribute("ToolTip")?.Value);
     }
 
     // --- Strip auto-hide layout (spec 7.2, Phase 4 Task 4) ---
@@ -561,21 +586,67 @@ public class XamlInvariantTests
     }
 
     [Fact]
-    public void Opacity_settings_are_labeled_as_whole_popout_opacity()
+    public void Opacity_settings_explain_source_bar_and_whole_popout_scope()
     {
         var settings = XamlTestFiles.Load("SettingsWindow.xaml");
         Assert.Contains(settings.Descendants(XamlTestFiles.Pres + "TextBlock"),
-            e => e.Attribute("Text")?.Value == "Whole popout opacity");
+            e => e.Attribute("Text")?.Value == "Opacity");
 
         var active = settings.Descendants(XamlTestFiles.Pres + "Slider")
             .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "ActiveOpacitySlider");
         var idle = settings.Descendants(XamlTestFiles.Pres + "Slider")
             .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "IdleOpacitySlider");
 
-        Assert.Equal("Active whole popout opacity", active.Attribute("AutomationProperties.Name")?.Value);
+        Assert.Equal("Source top bar and active whole popout opacity", active.Attribute("AutomationProperties.Name")?.Value);
         Assert.Equal("Idle whole popout opacity", idle.Attribute("AutomationProperties.Name")?.Value);
-        Assert.Contains("Whole popout opacity", active.Attribute("ToolTip")?.Value);
-        Assert.Contains("Whole popout opacity", idle.Attribute("ToolTip")?.Value);
+        Assert.Contains("Source top bar", active.Attribute("ToolTip")?.Value);
+        Assert.Contains("whole popout", idle.Attribute("ToolTip")?.Value, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The cards advertise each preset's opacity to the user. Asserting the literal "Quiet · 94%" against
+    /// the literal in the XAML compares a copy of the number to a copy of the number and lets the two
+    /// drift from the preset they describe: retune Minimal to 0.90, fix the one red catalog test, and
+    /// Settings still promises 94% while the preset applies 90%. The expected label is therefore DERIVED
+    /// from ThemeCatalog — the only source that decides what the preset actually does.
+    /// </summary>
+    [Theory]
+    [InlineData("sharp-dark", "Crisp")]
+    [InlineData("minimal", "Quiet")]
+    [InlineData("soft-glass", "Glass")]
+    public void Theme_preset_cards_advertise_the_opacity_the_preset_actually_applies(string presetId, string role)
+    {
+        var preset = ThemeCatalog.PresetFor(presetId);
+        var expected = $"{role} · {Math.Round(preset.DefaultActiveWindowOpacity * 100)}%";
+
+        var texts = XamlTestFiles.Load("SettingsWindow.xaml")
+            .Descendants(XamlTestFiles.Pres + "TextBlock")
+            .Select(e => e.Attribute("Text")?.Value)
+            .Where(v => v is not null)
+            .ToHashSet();
+
+        Assert.Contains(expected, texts);
+    }
+
+    /// <summary>
+    /// Same drift, on the swatch: the card paints a hardcoded hex that is supposed to BE the preset's
+    /// default accent. Change the preset's accent and the card keeps selling the old color.
+    /// </summary>
+    [Theory]
+    [InlineData("sharp-dark")]
+    [InlineData("minimal")]
+    [InlineData("soft-glass")]
+    public void Theme_preset_swatches_paint_the_preset_default_accent(string presetId)
+    {
+        var expected = ThemeCatalog.PresetFor(presetId).DefaultAccentColor;
+
+        var backgrounds = XamlTestFiles.Load("SettingsWindow.xaml")
+            .Descendants(XamlTestFiles.Pres + "Border")
+            .Select(e => e.Attribute("Background")?.Value)
+            .Where(v => v is not null)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        Assert.Contains(expected, backgrounds);
     }
 
     // --- Compact error bar (spec 10.3 / Q-6, Stage 4) ---
@@ -910,6 +981,10 @@ public class XamlInvariantTests
         Assert.Equal(Hex(set.Pressed), t["AccentPressedColor"]);
         Assert.Equal(Hex(set.Border), t["AccentBorderColor"]);
         Assert.Equal(Hex(set.ShellTint), t["AccentShellTintColor"]);
+        // The toolbar glyph seed rides the DEFAULT accent intensity (the derive above passes none, so it
+        // takes DefaultAccentIntensity) — without this the seed is a magic value and a fresh launch can
+        // flash the wrong glyph color before ThemeResourceApplier runs.
+        Assert.Equal(Hex(set.ChromeGlyph), t["AccentChromeGlyphColor"]);
         Assert.Equal(Hex(set.OnAccent), t["OnAccentColor"]);
         Assert.Equal(Hex(set.OnAccentPressed), t["OnAccentPressedColor"]);
     }

@@ -116,6 +116,22 @@ public static class ThemeCatalog
     /// corner profile (radius set + native corner mode), never individual per-control values.</summary>
     public const string DefaultCornerStyle = "theme";
 
+    /// <summary>
+    /// How far the accent reaches into the chrome, 0–100 (user-set, Settings → Appearance).
+    /// <para>
+    /// 0 = the accent paints only the primary action (the pre-v0.9.0 look: no title-bar wash, neutral
+    /// toolbar glyphs). At 50 the glyphs have reached full accent and the wash matches v0.9.0's 1.45
+    /// target exactly. From 50–100 only the wash deepens, up to its restrained ceiling. This is a user
+    /// preference, not a preset trait — switching theme presets must not reset it, the same way a custom
+    /// accent survives a preset switch.
+    /// </para>
+    /// </summary>
+    public const int DefaultAccentIntensity = 50;
+
+    /// <summary>Clamps to 0–100; null (missing from settings.json) falls back to the default.</summary>
+    public static int NormalizeAccentIntensity(int? intensity) =>
+        intensity is null ? DefaultAccentIntensity : Math.Clamp(intensity.Value, 0, 100);
+
     // Corner profiles (theme-v2 tight-scope spec §"Rounding targets"). Sharp is intentionally tight
     // (modern without going soft); minimal is visibly softer; soft-glass gets the largest popout
     // radius because it is the floating overlay theme. Ordered sharp ≤ minimal ≤ soft-glass per token.
@@ -182,7 +198,7 @@ public static class ThemeCatalog
             "The current utility-first PiPlay dark shell.",
             DefaultAccentColor,
             DefaultFadeDelayPreset,
-            DefaultStripAutoHide: false,
+            DefaultStripAutoHide: true,
             DefaultActiveWindowOpacity: WindowOpacityPolicy.Default,
             DefaultIdleWindowOpacity: WindowOpacityPolicy.Default,
             // Near-black and cool (theme-v2 tight-scope spec §"Palette targets"): the darkest base
@@ -204,12 +220,13 @@ public static class ThemeCatalog
             "Minimal",
             "A quieter preset for daily browsing and low-distraction popouts.",
             "#3F84C0",
-            // Calmer daily shell: longer fade delay so the strip lingers (theme-v2 spec §"behavior
-            // defaults"); strip stays pinned and the window stays opaque.
+            // Calmer daily shell: longer fade delay so the strip lingers, then the bar still
+            // reclaims its row. A restrained opacity step separates it from Sharp without turning
+            // it into the overlay-oriented Soft Glass preset.
             DefaultFadeDelayPreset: "long",
-            DefaultStripAutoHide: false,
-            DefaultActiveWindowOpacity: WindowOpacityPolicy.Default,
-            DefaultIdleWindowOpacity: WindowOpacityPolicy.Default,
+            DefaultStripAutoHide: true,
+            DefaultActiveWindowOpacity: 0.94,
+            DefaultIdleWindowOpacity: 0.86,
             // Warm charcoal palette (theme-v2 tight-scope spec §"Palette targets").
             Palette: new(
                 AppBackground: "#14120F", SurfaceBase: "#1C1A16",
@@ -233,8 +250,8 @@ public static class ThemeCatalog
             // light idle fade, not the old heavy see-through (owner review: "low, controlled, not heavy").
             DefaultFadeDelayPreset: "short",
             DefaultStripAutoHide: true,
-            DefaultActiveWindowOpacity: 0.97,
-            DefaultIdleWindowOpacity: 0.90,
+            DefaultActiveWindowOpacity: 0.82,
+            DefaultIdleWindowOpacity: 0.72,
             // Blue/cool translucent-overlay palette with quieted borders and secondary text
             // (theme-v2 tight-scope spec §"Palette targets").
             Palette: new(
@@ -328,10 +345,10 @@ public static class ThemeCatalog
     public static bool IsValidHex(string? color) => NormalizeHex6(color) is not null;
 
     /// <summary>
-    /// Accent rule for an explicit theme switch (end-pass review §3.3): adopt the next preset's
-    /// default accent only when the current accent IS the previous preset's default — a
-    /// deliberately chosen custom accent survives theme switches. Pure so the rule is testable
-    /// without the Settings dialog and reusable once arbitrary (color-wheel) accents exist.
+    /// Global-accent rule for an explicit theme switch (end-pass review §3.3): adopt the next preset's
+    /// default only when the current global IS the previous preset's default — a deliberately chosen
+    /// custom global survives theme switches. Profile-owned accents do not use this substitution. The
+    /// pure helper keeps the rule testable without the Settings dialog.
     /// Inputs are normalized before comparison.
     /// </summary>
     public static string AccentForThemeSwitch(string? currentAccent, ThemePreset previousPreset, ThemePreset nextPreset)
