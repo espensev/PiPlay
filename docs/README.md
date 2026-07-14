@@ -5,7 +5,7 @@ PiPlay is a Windows desktop utility for watching YouTube in a movable, resizable
 native PiPlay window, so move, resize, pin, fade, and monitor restore behave like
 a real desktop tool.
 
-**Status:** Beta candidate (v0.5.0) | **Platform:** Windows | **Stack:** WPF on .NET 10 | Microsoft Edge WebView2 Evergreen Runtime
+**Status:** Beta candidate | **Current repo stamp:** `VERSION` + `BUILD_NUMBER` | **Platform:** Windows | **Stack:** WPF on .NET 10 | Microsoft Edge WebView2 Evergreen Runtime
 
 ## Documents
 
@@ -32,17 +32,17 @@ Dated specs, plans, and worklogs under `docs/superpowers/` are immutable change-
 Only retained review artifacts live under `docs/reviews/`; folded one-off reviews should be deleted
 once their useful facts are captured in active docs or the matching change-pass record. Build-specific
 QA evidence may live under `docs/evidence/`, but stale screenshots should be pruned once their facts
-are folded forward.
+are folded forward. Meta-cleanup records are not retained after this policy is folded here; keeping
+cleanup-about-cleanup plans makes the active intent less clear.
 
 ## Current Theme Flow
 
-The current theme-system flow is tracked by
+The theme implementation history is tracked by
 [`docs/superpowers/specs/2026-06-14-theme-v2-tight-scope-design.md`](superpowers/specs/2026-06-14-theme-v2-tight-scope-design.md)
 and
 [`docs/superpowers/plans/2026-06-14-theme-v2-tight-scope.md`](superpowers/plans/2026-06-14-theme-v2-tight-scope.md).
-Phase A identity values are reflected in the current code. `Theme_Preset_Differences.md` remains the
-current-code reference and must be refreshed in the same PR as any later theme catalog or effective
-preset-comparison changes.
+`Theme_Preset_Differences.md` is the current-code reference and must be refreshed in the same PR as
+any theme catalog or effective preset-comparison changes.
 
 ## Requirements
 

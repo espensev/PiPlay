@@ -831,7 +831,7 @@ public class WpfRuntimeTests : IDisposable
         var w = new MainWindow();
         Assert.IsType<TextBox>(w.FindName("UrlBox"));
         Assert.IsType<Button>(w.FindName("PopOutButton"));
-        Assert.IsType<Button>(w.FindName("PlaceholderShowPopoutButton"));
+        Assert.IsType<Button>(w.FindName("PlaceholderBringBackButton"));
         Assert.IsType<ComboBox>(w.FindName("ProfilesCombo"));
         Assert.IsType<Border>(w.FindName("SourcePlaceholder"));
         Assert.IsType<Border>(w.FindName("RuntimeErrorPanel"));
@@ -840,16 +840,16 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void Popout_action_state_flips_label_tooltip_and_uia_name_together() => StaTestThread.Invoke(() =>
     {
-        // Q-6 / REQ-UI-02 (overhaul Task 6): while a popout is open the primary action must say
-        // show/focus, and the accessible name must flip in the same code path as the label.
+        // Q-6 / REQ-UI-02 / P4: while a popout is open the primary action returns playback, and
+        // the accessible name must flip in the same code path as the label.
         var w = new MainWindow();
         var btn = (Button)w.FindName("PopOutButton")!;
         var label = (TextBlock)w.FindName("PopOutButtonText")!;
 
         w.ApplyPopoutActionState(hasPlayer: true);
-        Assert.Equal("Show popout", label.Text);
-        Assert.Equal("Show popout", System.Windows.Automation.AutomationProperties.GetName(btn));
-        Assert.Contains("front", (string)btn.ToolTip);
+        Assert.Equal("Bring video back", label.Text);
+        Assert.Equal("Bring video back", System.Windows.Automation.AutomationProperties.GetName(btn));
+        Assert.Contains("Return playback", (string)btn.ToolTip);
 
         w.ApplyPopoutActionState(hasPlayer: false);
         Assert.Equal("Pop out video", label.Text);
@@ -858,15 +858,15 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void Source_placeholder_show_popout_button_is_accessible_recovery_action() => StaTestThread.Invoke(() =>
+    public void Source_placeholder_bring_back_button_is_accessible_recovery_action() => StaTestThread.Invoke(() =>
     {
         var w = new MainWindow();
-        var button = (Button)w.FindName("PlaceholderShowPopoutButton")!;
+        var button = (Button)w.FindName("PlaceholderBringBackButton")!;
 
         Assert.Same(Application.Current.FindResource("AccentButton"), button.Style);
-        Assert.Equal("Show popout", button.Content);
-        Assert.Equal("Show popout", System.Windows.Automation.AutomationProperties.GetName(button));
-        Assert.Contains("front", (string)button.ToolTip);
+        Assert.Equal("Bring video back", button.Content);
+        Assert.Equal("Bring video back", System.Windows.Automation.AutomationProperties.GetName(button));
+        Assert.Contains("Return playback", (string)button.ToolTip);
 
         w.ShowSourcePlaceholder(true);
         Assert.Equal(Visibility.Visible, button.Visibility);
@@ -1765,7 +1765,15 @@ public class WpfRuntimeTests : IDisposable
         var w = new MainWindow();
         w.SeedPopoutReturnForTests(sourceVideoId: "AAAAAAAAAAA");
 
-        w.ApplyReturnActionAsync(new PlayerReturnState { VideoId = "BBBBBBBBBBB", LastKnownSeconds = 42 })
+        w.ApplyReturnActionAsync(new PlayerReturnState
+            {
+                VideoId = "BBBBBBBBBBB",
+                LastKnownSeconds = 42,
+                Paused = true,
+                Volume = 0.35,
+                Muted = true,
+                PlaybackRate = 1.25,
+            })
             .GetAwaiter().GetResult();   // Navigate completes synchronously (no core to script)
 
         // The browser never initializes in the test lane, so the navigation queues — the queued
@@ -1773,6 +1781,41 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal("https://www.youtube.com/watch?v=BBBBBBBBBBB&t=42s", w.PendingUrlForTests);
         // De-dup key armed before navigating: Auto must not instantly re-pop the returned video.
         Assert.Equal("BBBBBBBBBBB", w.AutoLastHandledVideoIdForTests);
+        Assert.NotNull(w.PendingReturnReplayForTests);
+        Assert.Equal("BBBBBBBBBBB", w.PendingReturnReplayForTests!.VideoId);
+        Assert.Equal(42, w.PendingReturnReplayForTests.LastKnownSeconds);
+        Assert.True(w.PendingReturnReplayForTests.Paused);
+        Assert.Equal(0.35, w.PendingReturnReplayForTests.Volume);
+        Assert.True(w.PendingReturnReplayForTests.Muted);
+        Assert.Equal(1.25, w.PendingReturnReplayForTests.PlaybackRate);
+    });
+
+    [Fact]
+    public void Return_to_a_different_video_without_popout_sample_replays_launch_settings() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        w.SeedPopoutReturnForTests(
+            sourceVideoId: "AAAAAAAAAAA",
+            sourceWasPlayingAtPopout: true,
+            sourceVolumeAtPopout: 0.72,
+            sourceMutedAtPopout: false,
+            sourcePlaybackRateAtPopout: 1.5);
+
+        w.ApplyReturnActionAsync(new PlayerReturnState
+            {
+                VideoId = "BBBBBBBBBBB",
+                LastKnownSeconds = 7,
+            })
+            .GetAwaiter().GetResult();
+
+        Assert.Equal("https://www.youtube.com/watch?v=BBBBBBBBBBB&t=7s", w.PendingUrlForTests);
+        Assert.NotNull(w.PendingReturnReplayForTests);
+        Assert.Equal("BBBBBBBBBBB", w.PendingReturnReplayForTests!.VideoId);
+        Assert.Equal(7, w.PendingReturnReplayForTests.LastKnownSeconds);
+        Assert.False(w.PendingReturnReplayForTests.Paused);
+        Assert.Equal(0.72, w.PendingReturnReplayForTests.Volume);
+        Assert.False(w.PendingReturnReplayForTests.Muted);
+        Assert.Equal(1.5, w.PendingReturnReplayForTests.PlaybackRate);
     });
 
     [Fact]
@@ -1898,19 +1941,24 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void Profile_mode_picker_round_trips_the_durable_token() => StaTestThread.Invoke(() =>
+    public void Profile_mode_picker_hides_dormant_compact_and_round_trips_the_token() => StaTestThread.Invoke(() =>
     {
-        Assert.Equal("compact", Prompt.BuildModePicker("compact").SelectedMode());
+        // Compact is dormant (PlaybackModePolicy.CompactPlayerEnabled == false): the picker hides the
+        // dead "Compact player" option, so a stored compact/embed profile falls back to "Use global".
+        Assert.False(PlaybackModePolicy.CompactPlayerEnabled);
+
         Assert.Equal("normal", Prompt.BuildModePicker("normal").SelectedMode());
         Assert.Null(Prompt.BuildModePicker(null).SelectedMode());
-        Assert.Equal("compact", Prompt.BuildModePicker("embed").SelectedMode());   // legacy alias
-        Assert.Null(Prompt.BuildModePicker("bogus").SelectedMode());               // unknown -> global
+        Assert.Null(Prompt.BuildModePicker("bogus").SelectedMode());     // unknown -> global
+        Assert.Null(Prompt.BuildModePicker("compact").SelectedMode());   // dead option hidden -> global
+        Assert.Null(Prompt.BuildModePicker("embed").SelectedMode());     // legacy alias likewise
 
-        // Changing the selection is reflected by the getter (covers the editor round-trip).
+        // Only "Use global default" + "Normal page" are offered; the getter reflects the selection.
         var (element, selectedMode) = Prompt.BuildModePicker(null);
         var combo = (ComboBox)element;
-        combo.SelectedIndex = 2;   // "Compact player"
-        Assert.Equal("compact", selectedMode());
+        Assert.Equal(2, combo.Items.Count);
+        combo.SelectedIndex = 1;   // "Normal page"
+        Assert.Equal("normal", selectedMode());
     });
 
     // --- Dark theme is actually wired at runtime (rebuts the stale "renders light" reports) ---

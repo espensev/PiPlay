@@ -301,7 +301,7 @@ public partial class SettingsWindow : Window
     {
         SelectByTag(ThemeId, ThemeSharpDarkPreset, ThemeMinimalPreset, ThemeSoftGlassPreset);
         SelectByTag(CornerStyle, CornerStyleThemeChip, CornerStyleSquareChip, CornerStyleSmallChip,
-            CornerStyleSoftChip, CornerStyleRoundChip);
+            CornerStyleRoundChip);
         SelectDelay(FadeIdleDelayMs, FadeDelayShortPreset, FadeDelayNormalPreset, FadeDelayLongPreset);
     }
 

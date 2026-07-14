@@ -17,6 +17,19 @@ public class ReturnPolicyTests
         Assert.Equal(expected, ReturnPolicy.Decide(lastKnownSeconds, wasPlaying));
     }
 
+    [Theory]
+    [InlineData(120, true, true, ReturnAction.Seek)]
+    [InlineData(120, false, false, ReturnAction.SeekAndPlay)]
+    [InlineData(null, true, true, ReturnAction.None)]
+    [InlineData(null, false, false, ReturnAction.Play)]
+    [InlineData(120, true, null, ReturnAction.SeekAndPlay)]
+    [InlineData(0, true, true, ReturnAction.Seek)]
+    public void Popout_paused_state_overrides_source_launch_state_when_known(
+        int? lastKnownSeconds, bool sourceWasPlaying, bool? returnedPaused, ReturnAction expected)
+    {
+        Assert.Equal(expected, ReturnPolicy.Decide(lastKnownSeconds, sourceWasPlaying, returnedPaused));
+    }
+
     // Video-aware overload (overhaul Task 3): a popout that ended on a DIFFERENT video must make
     // the source NAVIGATE there; seeking the original video to the new video's timestamp is the
     // corruption this fixes.
@@ -29,7 +42,7 @@ public class ReturnPolicyTests
         int? lastKnownSeconds, bool wasPlaying)
     {
         Assert.Equal(ReturnAction.Navigate,
-            ReturnPolicy.Decide(lastKnownSeconds, wasPlaying, "newVideo0001", "oldVideo0001"));
+            ReturnPolicy.Decide(lastKnownSeconds, wasPlaying, returnedPaused: true, "newVideo0001", "oldVideo0001"));
     }
 
     [Theory]
@@ -41,5 +54,36 @@ public class ReturnPolicyTests
         string? returnedId, string? sourceId, int? lastKnownSeconds, bool wasPlaying, ReturnAction expected)
     {
         Assert.Equal(expected, ReturnPolicy.Decide(lastKnownSeconds, wasPlaying, returnedId, sourceId));
+    }
+
+    [Fact]
+    public void Same_video_with_returned_paused_state_uses_the_popout_state()
+    {
+        Assert.Equal(ReturnAction.Seek,
+            ReturnPolicy.Decide(120, sourceWasPlaying: true, returnedPaused: true, "sameVideo001", "sameVideo001"));
+        Assert.Equal(ReturnAction.SeekAndPlay,
+            ReturnPolicy.Decide(120, sourceWasPlaying: false, returnedPaused: false, "sameVideo001", "sameVideo001"));
+    }
+
+    // Q-1 suppression mutes the source at popout launch; return must always undo that. The popout's
+    // reported value wins; otherwise the pre-suppression launch value; otherwise mute is forced false
+    // so a return with no captured popout state can never leave the source silent.
+    [Fact]
+    public void ResolveReturnSettings_prefers_popout_then_launch_and_forces_unmute()
+    {
+        var known = ReturnPolicy.ResolveReturnSettings(0.4, true, 1.5, 0.9, false, 1.0);
+        Assert.Equal(0.4, known.Volume);
+        Assert.True(known.Muted);
+        Assert.Equal(1.5, known.PlaybackRate);
+
+        var launchFallback = ReturnPolicy.ResolveReturnSettings(null, null, null, 0.9, true, 1.0);
+        Assert.Equal(0.9, launchFallback.Volume);
+        Assert.True(launchFallback.Muted);   // the user had the source muted before popout: keep it muted
+        Assert.Equal(1.0, launchFallback.PlaybackRate);
+
+        var bothUnknown = ReturnPolicy.ResolveReturnSettings(null, null, null, null, null, null);
+        Assert.Null(bothUnknown.Volume);
+        Assert.False(bothUnknown.Muted);     // forced un-mute: suppression is always undone
+        Assert.Null(bothUnknown.PlaybackRate);
     }
 }

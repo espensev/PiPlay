@@ -98,10 +98,13 @@ internal static class Prompt
 
     /// <summary>
     /// Build the profile playback-mode picker (spec 10, Phase 3 / spec 17 edit path): a dark combo
-    /// offering "Use global default", "Normal page", and "Compact player". Internal and returns a
-    /// getter so a WPF test can round-trip the selection without showing the modal editor. The
-    /// getter yields the durable <see cref="Models.Profile.Mode"/> token (null / "normal" /
-    /// "compact"); an unknown incoming value is normalized to "use global".
+    /// offering "Use global default", "Normal page", and — only while the Compact player is enabled
+    /// (<see cref="PlaybackModePolicy.CompactPlayerEnabled"/>) — "Compact player". Internal and returns
+    /// a getter so a WPF test can round-trip the selection without showing the modal editor. The getter
+    /// yields the durable <see cref="Models.Profile.Mode"/> token (null / "normal" / "compact"); an
+    /// unknown incoming value is normalized to "use global". While Compact is dormant the dead option is
+    /// hidden (so the picker never offers a mode the popout launcher would ignore) and a stored
+    /// "compact"/"embed" profile falls back to "Use global default".
     /// </summary>
     internal static (FrameworkElement Element, Func<string?> SelectedMode) BuildModePicker(string? current)
     {
@@ -110,16 +113,23 @@ internal static class Prompt
         ComboBoxItem Item(string text, string? mode) => new() { Content = text, Tag = mode };
         var useGlobal = Item("Use global default", null);
         var normal = Item("Normal page", PlaybackModePolicy.ProfileModeNormal);
-        var compact = Item("Compact player", PlaybackModePolicy.ProfileModeCompact);
 
         var combo = new ComboBox { Style = Style("DarkComboBox"), Margin = new Thickness(0, 0, 0, 12) };
         combo.Items.Add(useGlobal);
         combo.Items.Add(normal);
-        combo.Items.Add(compact);
+
+        // Compact is dormant (PlaybackModePolicy.CompactPlayerEnabled): hide the dead option. Built via
+        // a conditional expression rather than `if (const)` so the flag flips cleanly when it is ever
+        // re-enabled, without an unreachable-code warning while it is false.
+        ComboBoxItem? compact = PlaybackModePolicy.CompactPlayerEnabled
+            ? Item("Compact player", PlaybackModePolicy.ProfileModeCompact)
+            : null;
+        if (compact is not null) combo.Items.Add(compact);
+
         combo.SelectedItem = normalized switch
         {
             PlaybackModePolicy.ProfileModeNormal => normal,
-            PlaybackModePolicy.ProfileModeCompact => compact,
+            PlaybackModePolicy.ProfileModeCompact when compact is not null => compact,
             _ => useGlobal,
         };
 

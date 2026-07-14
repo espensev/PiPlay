@@ -10,6 +10,18 @@ public sealed class PlayerReturnState
     /// <summary>Last known player timestamp. Nullable; 0 is valid and distinct from unknown.</summary>
     public int? LastKnownSeconds { get; set; }
 
+    /// <summary>Last known paused state from the popout. Null means unknown, so the source fallback applies.</summary>
+    public bool? Paused { get; set; }
+
+    /// <summary>Last known media volume from the popout video element, in the 0..1 range.</summary>
+    public double? Volume { get; set; }
+
+    /// <summary>Last known muted state from the popout video element.</summary>
+    public bool? Muted { get; set; }
+
+    /// <summary>Last known playback rate from the popout video element.</summary>
+    public double? PlaybackRate { get; set; }
+
     /// <summary>
     /// The video the player was LAST on (overhaul Task 3). The popout can move off its launch
     /// video — compact recommendations/playlist auto-advance, normal-page SPA navigation — and the

@@ -116,7 +116,7 @@ public class ThemeCatalogTests
     [InlineData("THEME", "theme")]
     [InlineData("Square", "square")]
     [InlineData("small", "small")]
-    [InlineData("soft", "soft")]
+    [InlineData("soft", "round")]   // "soft" is a legacy alias for "round" (deduped 2026-06)
     [InlineData("round", "round")]
     [InlineData("bogus", "theme")]
     public void Corner_style_normalizes_to_the_catalog_vocabulary(string? input, string expected)
@@ -140,8 +140,10 @@ public class ThemeCatalogTests
             Assert.Equal(ThemeCatalog.PresetFor("sharp-dark").Radii, ThemeCatalog.RadiiFor(preset, "small"));
             Assert.Equal(DwmCornerMode.SmallRound, ThemeCatalog.DwmCornersFor(preset, "small"));
 
-            Assert.Equal(ThemeCatalog.PresetFor("minimal").Radii, ThemeCatalog.RadiiFor(preset, "soft"));
-            Assert.Equal(DwmCornerMode.Round, ThemeCatalog.DwmCornersFor(preset, "soft"));
+            // "soft" is a legacy alias for "round" (both were always DWMWCP_ROUND): it resolves
+            // identically to "round" now — same radii and native corner.
+            Assert.Equal(ThemeCatalog.RadiiFor(preset, "round"), ThemeCatalog.RadiiFor(preset, "soft"));
+            Assert.Equal(ThemeCatalog.DwmCornersFor(preset, "round"), ThemeCatalog.DwmCornersFor(preset, "soft"));
 
             Assert.Equal(ThemeCatalog.PresetFor("soft-glass").Radii, ThemeCatalog.RadiiFor(preset, "round"));
             Assert.Equal(DwmCornerMode.Round, ThemeCatalog.DwmCornersFor(preset, "round"));

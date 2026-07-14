@@ -71,6 +71,8 @@ public partial class PlayerWindow : Window
     private bool _closing;
     private bool _capturedReturn;
     private bool _nudgedPlay;
+    private bool _nudgePlayOnInitialPause;
+    private bool _finalReturnPlaybackCaptured;
 
     // Compact (shell) mode only: the host side of the IFrame-API bridge (spec 10.3), the one-shot
     // "the IFrame API never came up" watchdog, and the one-way fallback latch.
@@ -104,7 +106,8 @@ public partial class PlayerWindow : Window
         double constantWindowOpacity = WindowOpacityPolicy.Default,
         double idleWindowOpacity = WindowOpacityPolicy.Default,
         bool stripAutoHide = false,
-        DwmCornerMode dwmCornerMode = DwmCornerMode.Default)
+        DwmCornerMode dwmCornerMode = DwmCornerMode.Default,
+        bool nudgePlayOnInitialPause = true)
     {
         InitializeComponent();
         BorderlessWindowHelper.EnableExpandedResizeZones(this);
@@ -112,6 +115,7 @@ public partial class PlayerWindow : Window
         _environment = environment;
         _currentUrl = url;
         _mode = mode;
+        _nudgePlayOnInitialPause = nudgePlayOnInitialPause;
         _currentTarget = fallbackTarget;
         _returnState.VideoId = fallbackTarget?.VideoId;   // the launch video until navigation says otherwise
 
@@ -242,6 +246,7 @@ public partial class PlayerWindow : Window
         {
             _activeNavigationId = e.NavigationId;
             BeginNavigation();
+            ResetPlaybackSamplingForNavigation();
             return;
         }
 
@@ -280,8 +285,11 @@ public partial class PlayerWindow : Window
     {
         _currentTarget = target;
         _returnState.VideoId = target.VideoId;
-        _returnState.LastKnownSeconds = null;
+        ResetReturnMediaStateForNewTarget();
         _nudgedPlay = false;
+        _finalReturnPlaybackCaptured = false;
+        _navCompleted = false;
+        _syncTimer.Stop();
         // The navigation tears down any fullscreen element with no exit event reaching a handler
         // that still believes the OLD page's element is up — drop the latch, keep the window state
         // (yanking the window around mid-retarget would be worse than staying expanded).
@@ -319,6 +327,7 @@ public partial class PlayerWindow : Window
     {
         // A superseded navigation may complete after a newer one has started. It must not mark the
         // new document ready or restart polling against a page that is still loading.
+        // CompleteNavigation sets _navCompleted for the current generation.
         if (_activeNavigationId != e.NavigationId ||
             !CompleteNavigation(_navigationGeneration, e.IsSuccess)) return;
 
@@ -357,6 +366,22 @@ public partial class PlayerWindow : Window
         return true;
     }
 
+    private void ResetPlaybackSamplingForNavigation()
+    {
+        _navCompleted = false;
+        if (PlaybackModePolicy.UsesDomSyncTimer(_mode)) _syncTimer.Stop();
+        ResetReturnMediaStateForNewTarget();
+    }
+
+    private void ResetReturnMediaStateForNewTarget()
+    {
+        _returnState.LastKnownSeconds = null;
+        _returnState.Paused = null;
+        _returnState.Volume = null;
+        _returnState.Muted = null;
+        _returnState.PlaybackRate = null;
+    }
+
     // --- Compact shell bridge + error/fallback path (spec 10.3 / Q-6, Stage 4) ---
 
     private void ShellBridge_Ready(object? sender, EventArgs e) => _shellReadyTimer.Stop();
@@ -367,6 +392,8 @@ public partial class PlayerWindow : Window
         _shellReadyTimer.Stop();
         // Compact mode's source of truth for the return timestamp is the IFrame API, not the DOM.
         _returnState.LastKnownSeconds = state.CurrentTime;
+        // Compact shell protocol does not currently report paused/volume/mute/rate; normal mode
+        // captures those from the DOM bridge.
         // Protocol v3: the shell reports the CURRENT video (playlist auto-advance and in-iframe
         // clicks are invisible to the host). PlayerShellProtocol.Parse already rejected malformed
         // ids at the wire (the parse IS the trust boundary), so a non-empty value here is a
@@ -485,6 +512,10 @@ public partial class PlayerWindow : Window
     internal string? CurrentFallbackVideoIdForTests => _currentTarget?.VideoId;
     internal string? ReturnVideoIdForTests => _returnState.VideoId;
     internal int? ReturnSecondsForTests => _returnState.LastKnownSeconds;
+    internal bool? ReturnPausedForTests => _returnState.Paused;
+    internal double? ReturnVolumeForTests => _returnState.Volume;
+    internal bool? ReturnMutedForTests => _returnState.Muted;
+    internal double? ReturnPlaybackRateForTests => _returnState.PlaybackRate;
     internal PlacementData? LaunchPlacementForTests => _placement;
 
     // Strip auto-hide seams (Wpf lane): drive the collapse/reveal state machine headlessly.
@@ -507,7 +538,10 @@ public partial class PlayerWindow : Window
 
     private async void SyncTimer_Tick(object? sender, EventArgs e)
     {
-        if (_closing) return;
+        // Two independent guards, both required: the popout must not sample while it is closing or
+        // once the final return state is frozen (bring-back/close), and never before the active
+        // navigation completed.
+        if (_closing || _finalReturnPlaybackCaptured || !_navCompleted) return;
         var core = Player.CoreWebView2;
         // Authentication/error surfaces can complete inside the normal player during redirects,
         // but they have no video state to read. Keep the cheap URL-shape check outside WebView IPC.
@@ -517,23 +551,49 @@ public partial class PlayerWindow : Window
         try
         {
             var state = await YouTubeDomBridge.ReadPlayerStateAsync(core);
-            if (state is null || !IsSyncPollCurrent(generation)) return;
+            if (state is null || !IsSyncPollCurrent(generation) || _finalReturnPlaybackCaptured) return;
 
             // The popout is the active surface now: if it came up paused, nudge play once
             // (play() is an allowed control per spec 19). Best-effort; never forced again.
-            if (!_nudgedPlay && state.Paused)
+            // REQ-RETURN-07: a popout launched from a paused source is never auto-nudged.
+            if (_nudgePlayOnInitialPause && !_nudgedPlay && state.Paused)
             {
                 _nudgedPlay = true;
                 await YouTubeDomBridge.PlayAsync(core);
-                if (!IsSyncPollCurrent(generation)) return;
+                if (!IsSyncPollCurrent(generation) || _finalReturnPlaybackCaptured) return;
             }
 
-            _returnState.LastKnownSeconds = state.CurrentTime;
+            ApplyReturnPlaybackState(state);
         }
         finally
         {
             EndSyncPoll();
         }
+    }
+
+    internal async Task<PlayerReturnState> CaptureReturnStateNowAsync()
+    {
+        _finalReturnPlaybackCaptured = true;
+        _syncTimer.Stop();
+        await CaptureCurrentPlaybackStateAsync();
+        CaptureReturnWindowState();
+        return _returnState;
+    }
+
+    private async Task CaptureCurrentPlaybackStateAsync()
+    {
+        if (!PlaybackModePolicy.UsesDomSyncTimer(_mode) || Player.CoreWebView2 is null) return;
+        var state = await YouTubeDomBridge.ReadPlayerStateAsync(Player.CoreWebView2);
+        if (state is not null) ApplyReturnPlaybackState(state);
+    }
+
+    private void ApplyReturnPlaybackState(PlayerState state)
+    {
+        _returnState.LastKnownSeconds = state.CurrentTime;
+        _returnState.Paused = state.Paused;
+        _returnState.Volume = state.Volume;
+        _returnState.Muted = state.Muted;
+        _returnState.PlaybackRate = state.PlaybackRate;
     }
 
     private bool TryBeginSyncPoll(out int generation)
@@ -931,6 +991,16 @@ public partial class PlayerWindow : Window
         // Set this before stopping timers/disposing state so every outstanding await can recognize
         // an intentional shutdown and decline to publish stale state or show failure UI.
         _closing = true;
+        _finalReturnPlaybackCaptured = true;
+        CaptureReturnWindowState();
+    }
+
+    /// <summary>
+    /// Also driven by <see cref="CaptureReturnStateNowAsync"/> when the source window brings
+    /// playback back without closing the popout first.
+    /// </summary>
+    private void CaptureReturnWindowState()
+    {
         if (_capturedReturn) return;
         _capturedReturn = true;
 

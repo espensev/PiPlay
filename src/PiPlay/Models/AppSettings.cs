@@ -104,7 +104,8 @@ public sealed class ThemeSettings
 
     /// <summary>
     /// Corner profile override (review doc §8.1): "theme" (default) follows the selected preset's
-    /// radii + native corner mode; "square"/"small"/"soft"/"round" swap the whole profile. A
+    /// radii + native corner mode; "square"/"small"/"round" swap the whole profile (legacy "soft"
+    /// normalizes to "round" — both were always DWMWCP_ROUND). A
     /// missing value deserializes to null and sanitizes to "theme", so existing settings.json
     /// files keep preset-owned corners.
     /// </summary>

@@ -109,7 +109,7 @@ public class XamlInvariantTests
             "BackButton", "ReloadButton", "HomeButton", "SaveProfileButton",
             "EditProfileButton", "DeleteProfileButton",
             "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton",
-            "SourcePlaceholder", "PlaceholderShowPopoutButton", "PlaceholderNoteText", "RuntimeErrorPanel", "RuntimeErrorText",
+            "SourcePlaceholder", "PlaceholderBringBackButton", "PlaceholderNoteText", "RuntimeErrorPanel", "RuntimeErrorText",
         }},
         new object[] { "PlayerWindow.xaml", new[]
         {
@@ -125,7 +125,7 @@ public class XamlInvariantTests
             "ThemeSharpDarkPreset", "ThemeMinimalPreset", "ThemeSoftGlassPreset",
             "AccentTargetText", "AccentPicker",
             "CornerStyleThemeChip", "CornerStyleSquareChip", "CornerStyleSmallChip",
-            "CornerStyleSoftChip", "CornerStyleRoundChip",
+            "CornerStyleRoundChip",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
             "ActiveOpacitySlider", "ActiveOpacityValueText", "IdleOpacitySlider", "IdleOpacityValueText",
             "StripAutoHideToggle",
@@ -255,16 +255,16 @@ public class XamlInvariantTests
     }
 
     [Fact]
-    public void Source_placeholder_has_show_popout_action()
+    public void Source_placeholder_has_bring_video_back_action()
     {
         var button = XamlTestFiles.Load("MainWindow.xaml").Descendants(XamlTestFiles.Pres + "Button")
-            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "PlaceholderShowPopoutButton");
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "PlaceholderBringBackButton");
 
-        Assert.Equal("Show popout", button.Attribute("Content")?.Value);
+        Assert.Equal("Bring video back", button.Attribute("Content")?.Value);
         Assert.Equal("{StaticResource AccentButton}", button.Attribute("Style")?.Value);
-        Assert.Equal("PlaceholderShowPopoutButton_Click", button.Attribute("Click")?.Value);
-        Assert.Equal("Show popout", button.Attribute("AutomationProperties.Name")?.Value);
-        Assert.Contains("front", button.Attribute("ToolTip")?.Value);
+        Assert.Equal("PlaceholderBringBackButton_Click", button.Attribute("Click")?.Value);
+        Assert.Equal("Bring video back", button.Attribute("AutomationProperties.Name")?.Value);
+        Assert.Contains("Return playback", button.Attribute("ToolTip")?.Value);
     }
 
     [Fact]
@@ -459,7 +459,7 @@ public class XamlInvariantTests
             "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton",
             "BackButton", "ReloadButton", "HomeButton", "UrlBox", "ProfilesCombo",
             "SaveProfileButton", "EditProfileButton", "DeleteProfileButton",
-            "PinToggle", "AutoToggle", "PopOutButton", "PlaceholderShowPopoutButton",
+            "PinToggle", "AutoToggle", "PopOutButton", "PlaceholderBringBackButton",
         }},
         new object[] { "PlayerWindow.xaml", new[] { "FadeToggle", "PinToggle", "ExpandButton", "CloseButton" } },
         new object[] { "SettingsWindow.xaml", new[] { "CloseButton", "DoneButton" } },
@@ -513,6 +513,24 @@ public class XamlInvariantTests
 
         Assert.Equal((WindowOpacityPolicy.UiFloor * 100).ToString(), slider.Attribute("Minimum")?.Value);
         Assert.Equal((WindowOpacityPolicy.Max * 100).ToString(), slider.Attribute("Maximum")?.Value);
+    }
+
+    [Fact]
+    public void Opacity_settings_are_labeled_as_whole_popout_opacity()
+    {
+        var settings = XamlTestFiles.Load("SettingsWindow.xaml");
+        Assert.Contains(settings.Descendants(XamlTestFiles.Pres + "TextBlock"),
+            e => e.Attribute("Text")?.Value == "Whole popout opacity");
+
+        var active = settings.Descendants(XamlTestFiles.Pres + "Slider")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "ActiveOpacitySlider");
+        var idle = settings.Descendants(XamlTestFiles.Pres + "Slider")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "IdleOpacitySlider");
+
+        Assert.Equal("Active whole popout opacity", active.Attribute("AutomationProperties.Name")?.Value);
+        Assert.Equal("Idle whole popout opacity", idle.Attribute("AutomationProperties.Name")?.Value);
+        Assert.Contains("Whole popout opacity", active.Attribute("ToolTip")?.Value);
+        Assert.Contains("Whole popout opacity", idle.Attribute("ToolTip")?.Value);
     }
 
     // --- Compact error bar (spec 10.3 / Q-6, Stage 4) ---
@@ -914,7 +932,7 @@ public class XamlInvariantTests
             "ThemeSharpDarkPreset", "ThemeMinimalPreset", "ThemeSoftGlassPreset",
             "AccentPicker",
             "CornerStyleThemeChip", "CornerStyleSquareChip", "CornerStyleSmallChip",
-            "CornerStyleSoftChip", "CornerStyleRoundChip",
+            "CornerStyleRoundChip",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
             "ActiveOpacitySlider", "IdleOpacitySlider",
             "StripAutoHideToggle",

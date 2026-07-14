@@ -22,10 +22,11 @@ Mark each: pass / issue (link) / skipped.
 - [ ] youtube.com loads without crashing.
 - [ ] A `watch?v=` URL loads and plays.
 - [ ] Warm WebView: after the Popout Player has played for about 3 s, its timestamp is within 2 s of (expected source timestamp + elapsed playback time); target ≤1 s.
-- [ ] Source audio stops on popout — no duplicate audio. **(Q-1)**
+- [ ] Source audio stops on popout — no duplicate audio through launch, ads, autoplay-next, and YouTube SPA re-render. **(Q-1)**
 - [ ] Source Placeholder is visible with no WebView bleed-through.
-- [ ] Closing the player after popping out from a playing source returns and resumes. **(Q-2, REQ-RETURN-01)**
-- [ ] Closing the player after popping out from a paused source returns at the timestamp and stays paused. **(REQ-RETURN-01)**
+- [ ] Closing the player after popping out from a playing source returns at the timestamp and follows the popout's live play/pause state. **(Q-2, REQ-RETURN-01)**
+- [ ] Popping out from a paused source does not auto-start playback; closing without pressing play returns at the timestamp and stays paused. **(REQ-RETURN-01)**
+- [ ] Popping out from a paused source, pressing play in the popout, then closing returns at the timestamp and resumes. **(REQ-RETURN-01)**
 - [ ] Seek player to 0, then close — source returns to 0, not a stale timestamp.
 - [ ] Rapid double-click on Pop out opens only one player.
 - [ ] Launching PiPlay while it is already running focuses the existing instance — no second process or WebView2 user-data contention. **(REQ-APP-01)**
@@ -42,7 +43,7 @@ Mark each: pass / issue (link) / skipped.
 
 ## 2. Window quality (Q-7)
 - [ ] Player drags smoothly from the chrome area; video controls still work.
-- [ ] **Phase 3 — resize zones:** edge resize feels native on the Source Window and Popout Player **with the pointer over the video/page surface itself** (the WebView2 area — the originally reported dead zone), not only over the chrome strip/toolbar: left/right/bottom resize cursors appear without pixel-perfect aiming on the 10 DIP inset band (`REQ-WINDOW-02`; the visible band is the accepted Task 1 trade-off).
+- [ ] **Phase 3 — resize zones:** edge resize feels native on the Source Window and Popout Player **with the pointer over the video/page surface itself** (the WebView2 area — the originally reported dead zone), not only over the chrome strip/toolbar: left/right/bottom resize cursors appear without pixel-perfect aiming on the 4 DIP inset band (`REQ-WINDOW-02`; the visible band is the accepted Task 1 trade-off).
 - [ ] **Phase 3 — resize zones:** corner resize feels native on the Source Window and Popout Player **including corners reached over the player surface**: each corner gives diagonal resize over the first/last ~32 DIP along the edge band, and normal page-mode player remains usable at 320x180.
 - [ ] **Phase 3 — resize zones:** expanded resize zones do not swallow controls: Source caption buttons and Popout Fade/Pin/Expand/Close remain clickable outside the outer resize band.
 - [ ] Pin/topmost is obvious and independent for the player and the Source Window.
@@ -60,7 +61,7 @@ captures and record the evidence per column, never write per-state procedures.
 | Behavior (one procedure) | Popout Standard | Fullview Faded |
 |---|---|---|
 | Wheel scroll needs one click into the page first (wheel focus-routing; documented owner decision 2026-06-10), then wheel/touchpad/page-scrollbar scroll works — including at reduced opacity. | | |
-| Wheel over the 10 DIP resize band is inert by design (the band belongs to the window, not the page); in-page scroll just inside the band is unaffected. | | |
+| Wheel over the 4 DIP resize band is inert by design (the band belongs to the window, not the page); in-page scroll just inside the band is unaffected. | | |
 | Expand button on the strip toggles full-monitor expand and back; glyph and tooltip flip Expand/Restore together. | | |
 | Restore stays reachable while expanded: the strip (or its top-edge reveal under auto-hide) exposes the restore button; Esc restores after clicking the strip once (WPF focus). | | |
 | Close while expanded, pop out again: the next popout launches at the prior normal bounds, never expanded. | | |
@@ -71,26 +72,21 @@ captures and record the evidence per column, never write per-state procedures.
 - [ ] Settings → Appearance Accent color: picking a chip recolors the Source Pin, Popout Pin, AND Popout Fade glyphs to the SAME accent (one accent, not separate Pin/Fade colors), live on the open popout, and persists across restart.
 - [ ] Settings → Appearance fade delay Short / Normal / Long changes the controls-fade idle timing; Normal is the default 2.5 s behavior.
 - [ ] The player stays clickable at all times — clicks do **not** pass through. **(Q-8)**
-- [ ] Whole-window opacity: Active and When-idle sliders apply live to the open popout; idle dims after the fade delay and movement over the player restores it.
-- [ ] Whole-window opacity cannot drop below the 45% floor from the UI; the player stays fully interactable at every opacity. **(Q-8)**
+- [ ] Whole popout opacity: Active and When-idle sliders apply live to the open popout; idle dims after the fade delay and movement over the player restores it.
+- [ ] Whole popout opacity cannot drop below the 45% floor from the UI; the player stays fully interactable at every opacity. **(Q-8)** This is not video-safe chrome-only transparency; video also fades.
 - [ ] Auto-hide top bar (with Fade on): the strip collapses after the fade and the video fills the window; hovering the top edge reveals it.
 - [ ] **Overhaul Task 5 — Settings fits short displays:** on (or simulating) a ~768 px work area, the Settings window caps at the work area, the sections scroll, the title-bar close button never scrolls away, and all four sections are reachable in order: Privacy, Appearance, Playback, Advanced.
-- [ ] Settings → Playback copy states the Compact player applies to NEW Popout Players only; an already-open popout is unaffected by toggling it.
+- [ ] Settings exposes no Compact player toggle/copy; new popouts use Normal while `PlaybackModePolicy.CompactPlayerEnabled=false`.
 - [ ] **Overhaul Tasks 9-10 — Theme preset + accent smoke:** Settings → Appearance shows a Theme row (Sharp Dark / Minimal / Soft Glass) and a single Accent color chip row. Selecting a preset checks it and adopts that preset's default accent. The chosen accent recolors the primary "Pop out video" button, the URL caret/focus, and the Pin/Fade glyphs LIVE on the open main window (DynamicResource); a newly launched Popout Player also uses it. Restart and confirm the accent persists and is applied at startup. A hand-edited invalid `theme.themeId`/`accentColor` in settings.json falls back to Sharp Dark / cyan without crashing.
+- [ ] **Video-aware return (Normal mode):** let the popout move to a different video (playlist auto-advance or normal-page in-page navigation), then close it — the source NAVIGATES to that video at the popout's timestamp instead of seeking the original video, then replays play/pause, volume/mute, and speed where YouTube permits; with Auto on, the returned video does not instantly re-pop.
+- [ ] **Bring video back (P4):** pop out a video, pause/change volume/mute/speed in the popout, then click **Bring video back** in the Source Window — playback returns to the Source Window with timestamp and play/pause preserved, and volume/mute/speed preserved where YouTube permits.
+- [ ] **Plain X-close/Alt-F4 return:** pop out a video, pause/change volume/mute/speed in the popout, then close the popout from its window chrome — playback returns to the Source Window with timestamp and play/pause preserved, and volume/mute/speed preserved where YouTube permits. Repeat once by closing immediately after popout launch to confirm the source does not return silent.
 
-## 3.5 Compact player (Phase 3)
-- [ ] Global Settings compact-player preference defaults off; when enabled, new popouts use compact mode.
-- [ ] Profile mode override works: Use global, Normal, and Compact each resolve correctly.
-- [ ] Compact mode opens a normal `/watch` video in an embedded player, keeps source paused, and returns with the expected timestamp/resume state.
-- [ ] Compact mode handles playlists and playlist-only URLs according to the compact-player design.
-- [ ] Compact mode minimum size is at least 480x270; saved smaller bounds clamp up rather than opening unusably small.
-- [ ] Compact mode fallback is clear for unavailable/restricted/embed-disabled videos and can reopen the same target in normal mode.
-- [ ] Compact error bar also appears on a failed shell load and on an IFrame API that never responds (watchdog timeout); it auto-dismisses if playback recovers (e.g. playlist advance), and the fallback lands at the best-known timestamp.
-- [ ] Compact mode keeps YouTube controls/branding visible; no click-through or transparent WebView2 behavior is introduced.
-- [ ] **Overhaul Task 3 — recommendations stay in PiPlay:** clicking a recommendation or end-screen video inside the compact player retargets THIS popout in compact mode (no second window, no external browser); channel/search/non-YouTube targets still open in the system browser.
-- [ ] **Overhaul Task 3 — retargeted fallback:** after a recommendation retarget, force the error path (e.g. an embed-disabled video) — the error bar's "Open normal page" reopens the NEW video, not the launch video.
-- [ ] **Overhaul Task 3 — video-aware return (both modes):** let the popout move to a different video (compact recommendation click, playlist auto-advance, or normal-page in-page navigation), then close it — the source NAVIGATES to that video at the popout's timestamp instead of seeking the original video; with Auto on, the returned video does not instantly re-pop.
-- [ ] **Overhaul Task 4 — compact YouTube fullscreen:** the YouTube fullscreen button inside the compact player expands the popout window; exiting restores it; it does NOT un-expand a window the user expanded with the strip button first.
+## 3.5 Compact player plumbing (dormant)
+- [ ] `PlaybackModePolicy.CompactPlayerEnabled` remains `false` for this release.
+- [ ] New popouts resolve to Normal even if `PlayerSettings.CompactMode` or `Profile.Mode=compact` exists in settings data.
+- [ ] Settings exposes no Compact player toggle.
+- [ ] If Compact is deliberately re-enabled later, restore the compact-player manual rows from history, including recommendation retarget/fallback and compact YouTube fullscreen, then re-run them before release.
 
 ## 4. Recovery / errors (Q-6)
 - [ ] Missing WebView2 runtime: friendly message, no crash.
@@ -134,4 +130,4 @@ Binary pass/fail (spec section 22.2 Chrome acceptance). Prefer ChatGPT-operated 
 
 - [ ] **UI-CHK-5** Address/URL field text is legible at 100/125/150 % DPI — no clipping or faint text.
 - [ ] **UI-CHK-6** Icons share weight, corner style, and active-color behavior across the chrome.
-- [ ] **UI-CHK-7** Accessible names (overhaul Task 7, REQ-UI-02): a screen reader (Narrator / Accessibility Insights) announces real names for every icon-only control — main chrome (Settings/Minimize/Maximize/Close), navigation (Back/Reload/Home), URL box, profiles combo + Save/Edit/Delete, Pin, Auto, the popout action (name flips with "Pop out video"/"Show popout"), popout Fade/Pin/Expand/Close, Settings close, and the Prompt dialog close.
+- [ ] **UI-CHK-7** Accessible names (overhaul Task 7, REQ-UI-02): a screen reader (Narrator / Accessibility Insights) announces real names for every icon-only control — main chrome (Settings/Minimize/Maximize/Close), navigation (Back/Reload/Home), URL box, profiles combo + Save/Edit/Delete, Pin, Auto, the popout action (name flips with "Pop out video"/"Bring video back"), popout Fade/Pin/Expand/Close, Settings close, and the Prompt dialog close.

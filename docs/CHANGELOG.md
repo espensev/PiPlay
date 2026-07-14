@@ -4,6 +4,22 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [Unreleased]
 
+### Changed
+- **Bring video back (P4):** while a popout exists, the Source Window primary action and placeholder
+  action now return playback to the Source Window instead of only focusing the popout. The return path
+  captures fresh popout timestamp, paused state, volume, mute, and playback speed where the YouTube DOM
+  exposes them. If the popout ends on a different video, the Source Window now navigates there and
+  replays the captured play/pause, volume/mute, and playback-speed state after the returned video is
+  available.
+- **Return resume rule (REQ-RETURN-01):** return follows the popout's live play/pause state when known;
+  source-was-playing at launch is now fallback-only. PiPlay only nudges a newly opened popout into
+  playback when the source was already playing at launch.
+- **Source audio suppression:** while playback is detached, the Source Window now mutes+pauses the source
+  and reasserts suppression so ads, autoplay-next, and SPA re-renders are less likely to produce duplicate
+  audio behind the placeholder.
+- **Whole popout opacity wording (P3):** Settings now labels the existing layered-window opacity feature
+  as whole-popout opacity, making clear it is not video-safe chrome-only transparency.
+
 ## [0.7.3] - 2026-07-14
 
 Patch release (from 0.7.2, build 26). Two efficiency/customization reviews, remediated: the app stops
@@ -123,8 +139,8 @@ widened, the control borders and Soft Glass translucency are quieted, and the em
 removed. Published exact-source to Stable.
 
 ### Changed
-- **Profile color is identity, not app accent:** saved profile colors now fill the profile selector
-  chip and no longer override the global app accent when a profile is active; Settings Appearance
+- **Profile color is identity, not app accent:** saved profile colors became visible in the profile
+  selector and no longer override the global app accent when a profile is active; Settings Appearance
   always edits the global accent.
 - **Filled accent actions:** accent buttons now use the selected app accent as their fill with
   generated dark/white foreground text instead of reading as a heavy accent outline.

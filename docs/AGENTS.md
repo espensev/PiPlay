@@ -25,7 +25,7 @@ Use these names everywhere — UI, code, comments, tests, commits, issues:
 | Source Window | The main PiPlay browser window. |
 | Source Placeholder | The black area shown while the video is popped out. |
 | Pin | Keep the active surface always-on-top. |
-| Fade | Hover/idle fading of controls (and optional whole-window opacity). |
+| Fade | Hover/idle fading of controls (and optional whole-popout opacity). |
 | Auto | Auto-pop-out of supported watch videos; off by default. |
 
 `Detach`, `PlayerWindow`, and `MainWindow` are **internal-only** names (the code already uses `MainWindow`/`PlayerWindow`). Never surface them in user-facing text.

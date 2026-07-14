@@ -1,6 +1,6 @@
 # PiPlay Product & Engineering Specification
 
-**Status:** Draft 0.11 (beta candidate)
+**Status:** Draft 0.12 (beta candidate)
 **Project:** PiPlay
 **Purpose:** Quality-first Windows desktop app for playing YouTube videos in a movable, resizable Video Popout window.
 **Primary platform:** Windows desktop
@@ -76,7 +76,7 @@ Use these terms consistently in the UI, code, docs, issues, and tests.
 | **Source Window** | The main PiPlay browser window that launched the popout. | Engineering docs and diagnostics. |
 | **Source Placeholder** | The black placeholder shown while the video is popped out. | UI copy: `Playing in Video Popout`. |
 | **Pin** | Keep the active PiPlay surface above other windows. | UI toggle: `Pin`. |
-| **Fade** | Hover/idle fading of Popout controls, chrome, or optional whole-window opacity. | UI toggle: `Fade`. |
+| **Fade** | Hover/idle fading of Popout controls, chrome, or optional whole-popout opacity. | UI toggle: `Fade`. |
 | **Auto** | Automatically pop out supported YouTube watch videos when enabled. | UI toggle: `Auto`; off by default. |
 
 Prefer **Pop out video**, **Video Popout**, and **Popout Player** in user-facing UI.
@@ -152,12 +152,12 @@ Suggested tokens:
 | `BorderSubtle` | `#30363D` | Thin outlines and window borders. |
 | `TextPrimary` | `#F3F5F7` | Primary text/icons. |
 | `TextSecondary` | `#A7ADB4` | Labels, inactive text. |
-| `AccentCyan` | `#00D4FF` | PiPlay brand/action accent. |
-| `AccentCyanLight` | `#5BE6FF` | Gradient highlight. |
+| `AccentCyan` | `#2BAED0` | PiPlay brand/action accent. |
+| `AccentCyanLight` | `#51BDD8` | Derived hover/light accent. |
 | `AccentPurple` | `#6D3BFF` | Secondary popout/action accent. |
-| `AccentViolet` | `#A78BFA` | Customization palette accent for active Pin/Fade controls. |
-| `AccentGreen` | `#38D996` | Customization palette accent for active Pin/Fade controls. |
-| `AccentAmber` | `#FFC857` | Customization palette accent for active Pin/Fade controls. |
+| `AccentViolet` | `#9E84F0` | Customization palette accent for active Pin/Fade controls. |
+| `AccentGreen` | `#2DB57F` | Customization palette accent for active Pin/Fade controls. |
+| `AccentAmber` | `#D69A2E` | Customization palette accent for active Pin/Fade controls. |
 | `DangerPin` | `#FF4B55` | Destructive/danger states such as close/delete. Not used for Pin/Fade customization. |
 
 YouTube red should remain YouTube-owned. PiPlay action accents should use cyan/purple rather than copying YouTube red.
@@ -264,7 +264,7 @@ Scope by phase:
 - **Phase 2:** controls fade, `Auto`, profile edit/validation, and small Pin/Fade appearance
   customization.
 - **Phase 3:** compact-mode polish and any deferred playback/profile refinements.
-- **Phase 4:** chrome fade and whole-window opacity.
+- **Phase 4:** chrome fade and whole-popout opacity.
 
 ### 6.1 Auto
 
@@ -301,7 +301,7 @@ Rules:
 - Conservative by default.
 - Hover or mouse movement always restores full controls.
 - Chrome fade is Phase 4 polish.
-- Whole-window opacity is a Phase 4 advanced sub-setting, not the default meaning of Fade.
+- Whole-popout opacity is a Phase 4 advanced sub-setting, not the default meaning of Fade.
 - Fade never implies click-through behavior.
 - Phase 2 customization may expose constrained controls-fade idle-delay presets. The default remains
   2500 ms; initial presets are Short = 1500 ms, Normal = 2500 ms, and Long = 4000 ms.
@@ -352,7 +352,7 @@ Phase 4 optional polish.
 - Border/shadow remain subtle enough to locate the window.
 - Hover restores full chrome.
 
-### 7.3 Whole-window opacity
+### 7.3 Whole popout opacity
 
 Phase 4 Opera-like advanced setting.
 
@@ -360,13 +360,15 @@ Phase 4 Opera-like advanced setting.
 - Hover restores full opacity.
 - Off by default.
 - Minimum normal setting should not go below 45% unless the user explicitly unlocks it.
-- Whole-window opacity must preserve normal mouse interaction with the Popout Player.
+- Whole popout opacity must preserve normal mouse interaction with the Popout Player.
+- This is not video-safe chrome/background transparency: current layered-window alpha affects the
+  hosted video surface too. A future transparency feature needs an explicit scope/target model.
 
 Suggested defaults:
 
 ```text
-Idle window opacity:            85%
-Hover window opacity:           100%
+Idle whole-popout opacity:      85%
+Hover whole-popout opacity:     100%
 Minimum allowed normal setting: 45%
 ```
 
@@ -479,9 +481,11 @@ PiPlay should support multiple playback modes, but only one should be the defaul
 > **"Playback mode" vs "UX/layout mode" (terminology).** The modes in this section describe how the
 > *Popout Player* plays video. They are a different axis from any main-window UX/layout mode (e.g. the
 > Browse / Cinema / Compact / Popout modes proposed in the 2026-06-23 owner review). In particular, the
-> **Compact player** setting selects the popout's playback surface (Mode B/C); it is *not* a
-> main-window compact layout, which is not implemented. Do not call a main-window layout "Compact"
-> unqualified. See `SPEC_GAPS_AND_OWNERSHIP.md` (2026-06-23 owner appearance / popout / compact review).
+> **Compact player** plumbing describes the popout's playback surface (Mode B/C), but new popouts
+> currently resolve to Normal because `PlaybackModePolicy.CompactPlayerEnabled = false`; Settings no
+> longer exposes a Compact player toggle. This is *not* a main-window compact layout, which is not
+> implemented. Do not call a main-window layout "Compact" unqualified. See
+> `SPEC_GAPS_AND_OWNERSHIP.md` (2026-06-23 owner appearance / popout / compact review).
 
 ### 10.1 Mode A — Normal YouTube page mode
 
@@ -548,6 +552,10 @@ Quality requirement:
 - Compact mode must be opt-in until it matches normal mode reliability for the common path.
 - Compact embed/IFrame mode must respect YouTube embedded-player viewport constraints. Do not use the normal-mode 320x180 minimum for embed mode; prefer at least 480x270 for a 16:9 player with controls, or define a separate compact-mode minimum before shipping.
 - **Resolved (Phase 3, Stage 1):** compact mode uses a separate **480x270** minimum window size, distinct from the 320x180 normal minimum. The minimums and the global/profile mode precedence are owned by the pure `PlaybackModePolicy` (`Profile.Mode` ?? global `PlayerSettings.CompactMode`).
+- **Current v0.7.2+ state:** compact embed/shell mode is dormant. `ResolveEffectivePopoutMode` returns
+  Normal while `CompactPlayerEnabled=false`; `Profile.Mode` and `PlayerSettings.CompactMode` remain
+  reserved/migration data and must not be described as user-facing until compact is deliberately
+  re-enabled.
 
 ### 10.3 Mode C — PiPlay shell mode with YouTube IFrame API
 
@@ -702,7 +710,9 @@ Minimum methods:
 Task<PlayerState?> ReadPlayerStateAsync(CoreWebView2 webView);
 Task PauseAsync(CoreWebView2 webView);
 Task PlayAsync(CoreWebView2 webView);
+Task SeekAndPauseAsync(CoreWebView2 webView, int seconds);
 Task SeekAndPlayAsync(CoreWebView2 webView, int seconds);
+Task ApplyPlaybackSettingsAsync(CoreWebView2 webView, double? volume, bool? muted, double? playbackRate);
 Task<string?> ReadCanonicalUrlAsync(CoreWebView2 webView);
 ```
 
@@ -835,10 +845,9 @@ Visual target:
 - Small PiPlay popout icon near the text or centered.
 - Keep the surrounding YouTube page visible where practical.
 
-> The 2026-06-23 owner review asks the placeholder to offer a direct action (e.g. **[Show popout]** /
-> **[Restore video here]**) rather than static text only. The `[Show popout]` activate path already
-> exists (`ActivateExistingPlayer`); a `[Restore video here]` detach-while-open action is an open
-> sub-decision because it interacts with REQ-RETURN-01 — see `SPEC_GAPS_AND_OWNERSHIP.md` (2026-06-23).
+> The 2026-06-25 b25 follow-up changed the placeholder's direct action from focus-only
+> **[Show popout]** to **[Bring video back]**. The command captures fresh popout return state, closes
+> the popout, and drives the normal return path so playback returns to the Source Window.
 
 Implementation tiers:
 
@@ -874,9 +883,11 @@ Video Popout must be guarded:
 if (!_browserReady || _popoutInProgress)
     return;
 
+// A popout already exists: the Source Window primary action is now "Bring video back" (P4),
+// so route to the return path instead of opening or merely focusing a second player (ADR-0005).
 if (_player is not null)
 {
-    _player.Activate();
+    await BringVideoBackAsync();
     return;
 }
 ```
@@ -900,7 +911,7 @@ When the Popout Player closes:
 ```text
 Popout Player closing
   ↓
-Capture last known timestamp, bounds, topmost state, fade state
+Capture last known timestamp, paused state, volume, mute, playback speed, bounds, topmost state, fade state
   ↓
 Stop sync timer
   ↓
@@ -908,11 +919,13 @@ Notify Source Window
   ↓
 Source Window hides Source Placeholder and shows source WebView
   ↓
-Source Window seeks source video to last known timestamp if available
+If the popout ended on a different video, Source Window navigates there and replays captured playback state after the source video element is ready
+  ↓
+Otherwise Source Window seeks source video to last known timestamp if available
   ↓
 Source Window resumes playback only if REQ-RETURN-01 allows it
   ↓
-Settings are saved
+Settings are saved before and after source-return scripting so popout placement survives return-script failure
 ```
 
 Important details:
@@ -920,14 +933,25 @@ Important details:
 - `LastKnownSeconds` must be nullable.
 - `0` is a valid known timestamp.
 - Unknown timestamp and known-zero timestamp must not be conflated.
-- **[REQ-RETURN-01]** Source playback must resume on return only if the source was playing when Video Popout started. If the source was paused when popped out, return to the same video/timestamp and remain paused.
-- `sourceWasPlayingAtPopout` is captured before PiPlay pauses the source; do not infer it later from close-time state.
+- **[REQ-RETURN-01]** Source playback follows the Popout Player's live paused/playing state when that
+  state is known at return. If the popout paused state is unknown, fall back to whether the source was
+  playing when Video Popout started.
+- `sourceWasPlayingAtPopout` is captured before PiPlay suppresses the source and is a fallback only.
+- **[REQ-RETURN-07]** If the source was paused at popout launch, PiPlay must not auto-nudge the Popout
+  Player into playing; a return to playing state from that path must come from user action inside the
+  popout. Launch intent is passed into the Popout Player for the whole session, not just suppressed as
+  a one-shot nudge. (PiPlay does not force-pause a watch page that autoplays on its own — that residual
+  is a runtime-QA concern, not a guarantee.)
 
 Recommended model:
 
 ```csharp
 public int? LastKnownSeconds { get; private set; }
-public bool SourceWasPlayingAtPopout { get; private set; }
+public bool? PopoutPausedAtReturn { get; private set; }
+public double? PopoutVolumeAtReturn { get; private set; }
+public bool? PopoutMutedAtReturn { get; private set; }
+public double? PopoutPlaybackRateAtReturn { get; private set; }
+public bool SourceWasPlayingAtPopoutFallback { get; private set; }
 ```
 
 ---
@@ -1012,11 +1036,12 @@ Required:
 - Native-feeling edge and corner resize.
 - Free resize by default.
 - Letterbox rather than crop video when aspect ratio differs.
-- **[REQ-WINDOW-02]** Phase 3 window-quality target: borderless windows use an invisible resize hit
-  area that is larger than the visible outline. The implementation target is a 10 DIP edge resize
-  zone for mouse/pen use and a 32 DIP corner length for diagonal resize. The corner length is
-  measured along the edge band; it is not a full 32 x 32 DIP square that steals clicks from
-  content. A visible outline, if drawn, should stay subtle (0-2 px).
+- **[REQ-WINDOW-02]** Phase 3 window-quality target: borderless windows use an edge resize hit area
+  owned by the top-level window because the WebView2 child consumes hit testing over the video. The
+  current P1 implementation target is a 4 DIP black edge band for mouse/pen use and a 32 DIP corner
+  length for diagonal resize. The corner length is measured along the edge band; it is not a full
+  32 x 32 DIP square that steals clicks from content. A visible outline, if drawn, should stay subtle
+  (0-2 px).
 
 Future optional behavior:
 
@@ -1092,9 +1117,9 @@ Quality requirements:
 - **[REQ-PROFILE-01]** For fields that a profile is allowed to carry, a launched profile overrides the global default per field. Unset/null fields fall back to the global value.
 - `accentColor` is an optional per-profile **identity color**. It decorates profile UI as one leading selector/row rail and must not replace the global app accent; Settings Appearance edits the global accent only. Stored global/profile colors remain exact, while non-text presentation colors may be minimally contrast-adjusted against the active dark surface. An optional active-profile popout border remains a future enhancement.
 - **[REQ-PROFILE-02]** Profiles store both bounds and monitor identity. Restore to the saved monitor when present; otherwise clamp to the nearest visible work area using `WindowPlacementService`.
-- Compact-mode placement is resolved for Phase 3: global player default plus optional profile
-  override. MVP/profile precedence still does not imply compact mode is shipped until the Phase 3
-  compact-player sweep lands.
+- Compact-mode placement exists as reserved data (`PlayerSettings.CompactMode` plus optional
+  `Profile.Mode` override), but the user-facing Compact player is dormant in v0.7.2+. New popouts
+  force Normal while `PlaybackModePolicy.CompactPlayerEnabled=false`.
 
 ---
 
@@ -1219,8 +1244,9 @@ A build should not be called “release candidate” until the following pass.
 | Video Popout timestamp | Press Pop out during playback | Warm WebView: after the Popout Player has been playing for about 3 s, player timestamp is within 2 s of expected source timestamp plus elapsed time; target ≤1 s |
 | Source pause | Pop out during playback | Source audio stops |
 | Placeholder | Pop out | Source Placeholder visible, no WebView bleed-through |
-| Close player | Close Popout Player after source was playing | Source returns and resumes playback |
-| Close paused source | Pop out while source is paused, then close | Source returns at timestamp and stays paused (`REQ-RETURN-01`) |
+| Close player | Close Popout Player after source was playing | Source returns at timestamp and follows the popout's live play/pause state |
+| Close paused source | Pop out while source is paused, then close without pressing play | Source returns at timestamp and stays paused (`REQ-RETURN-01`) |
+| Paused source, user plays in popout | Pop out while source is paused, press play in the popout, then close | Source returns at timestamp and resumes (`REQ-RETURN-01`) |
 | Timestamp zero | Seek player to 0 and close | Source returns to 0, not stale timestamp |
 | Double-click popout | Rapidly click Pop out | Only one player opens |
 | Playlist watch URL | Pop out `watch?v=X&list=PL...` | Preserves video `X` and playlist context |
@@ -1234,7 +1260,7 @@ A build should not be called “release candidate” until the following pass.
 | Monitor removed | Restore after monitor change | Player appears on visible monitor |
 | Network loss | Disconnect network | Error state, no crash |
 | Phase 2 controls fade | Let player idle, then hover | Controls fade and restore reliably |
-| Phase 4 opacity | Enable whole-window opacity | Player remains interactable; clicks do not pass through |
+| Phase 4 opacity | Enable whole-popout opacity | Player remains interactable; clicks do not pass through |
 
 ### 22.2 UX tests
 
@@ -1333,7 +1359,7 @@ MVP should defer:
 - `Auto`.
 - Profile edit/validation beyond graceful failure and basic overwrite handling.
 - Chrome fade.
-- Whole-window opacity.
+- Whole-popout opacity.
 - Full custom compact player UI.
 - Local `player.html` IFrame API shell.
 - Global hotkeys.
@@ -1394,8 +1420,9 @@ Phase 2 landing status:
 
 ### Phase 3 — Compact player upgrade
 
-- First window-quality preflight: expand borderless resize zones per `REQ-WINDOW-02`.
-- Resolve compact-mode placement as global player default plus optional profile override.
+- Maintain borderless resize zones per `REQ-WINDOW-02` (current P1 target: 4 DIP edge band plus
+  32 DIP corner length).
+- Keep compact-mode placement data dormant unless the Compact player is explicitly re-enabled.
 - Add embed mode improvements.
 - Add local `player.html` wrapper.
 - Use YouTube IFrame API for compact mode.
@@ -1408,7 +1435,7 @@ Phase 2 landing status:
 - Tray/minimize behavior.
 - Optional global hotkeys.
 - Chrome fade.
-- Whole-window opacity and size presets.
+- Whole-popout opacity and size presets.
 - Import/export profiles.
 - Better accessibility and high-contrast support.
 
@@ -1425,7 +1452,8 @@ The following are normative defaults unless superseded by a later ADR or require
 | ID / source | Decision |
 |---|---|
 | ADR-0005 | PiPlay is single-player for now. A popout request while a player exists activates the existing player rather than opening another. |
-| REQ-RETURN-01 | Return resumes playback only if the source was playing when Video Popout started; otherwise the source returns paused. |
+| REQ-RETURN-01 | Return follows the Popout Player's live paused/playing state when known; if unknown, return falls back to whether the source was playing when Video Popout started. |
+| REQ-RETURN-07 | If the source was paused at popout launch, PiPlay must not auto-nudge the Popout Player into playing; launch-from-paused intent is passed into the popout for the session, and a return to playing must come from user action inside the popout. The principled companion to REQ-RETURN-01 (Option A). |
 | REQ-NAV-01 | The allowlist is a guardrail, not a blocker: the Source Window allows YouTube plus Google sign-in (including regional domains); other links open in the system browser without per-link prompts. |
 | REQ-NAV-02 | The Popout Player stays on YouTube plus the Google sign-in surface and never wanders onto unrelated sites; unrelated navigation is blocked or opened externally. |
 | REQ-PRIVACY-01 / REQ-PRIVACY-02 | `Reset app state` and `Clear browser data` are separate actions. Reset keeps the YouTube session; clear browser data logs the user out. |
@@ -1433,8 +1461,8 @@ The following are normative defaults unless superseded by a later ADR or require
 | REQ-PROFILE-02 | Profiles store both bounds and monitor identity; restore same monitor when present, otherwise clamp to visible work area. |
 | Section 6.1 Auto | Trigger is playback-start, `/watch`-only, once per video id, off by default. Shorts and embeds are excluded, and return-resume does not re-pop the same video. |
 | Section 6.2 / 6.3 customization | First slice is fixed swatches for Pin/Fade active colors plus controls-fade idle-delay presets. Defaults preserve current cyan and 2500 ms fade timing; no hex picker, profile override, opacity UI, click-through, or transparent WebView2. |
-| REQ-WINDOW-02 | Borderless resize targets use a 10 DIP invisible edge resize zone and a 32 DIP corner length for diagonal resize. A visual border can remain 0-2 px; no visible size grip is required. |
-| Compact placement | Compact mode is both a global player preference (`PlayerSettings.CompactMode`, off by default) and an optional per-profile override (`Profile.Mode`: `null` = global, `normal` = force normal, `compact` = force compact). Legacy/internal `embed` normalizes to `compact`. |
+| REQ-WINDOW-02 | Borderless resize targets use a 4 DIP black edge resize band and a 32 DIP corner length for diagonal resize. A visual border can remain 0-2 px; no visible size grip is required. |
+| Compact placement | Compact mode has reserved data (`PlayerSettings.CompactMode`, off by default, and optional `Profile.Mode`: `null` = global, `normal` = force normal, `compact` = force compact; legacy/internal `embed` normalizes to `compact`), but new popouts currently ignore it and force Normal while `PlaybackModePolicy.CompactPlayerEnabled=false`. |
 
 ### 25.2 Open decisions
 
@@ -1521,7 +1549,8 @@ Implementation target for `REQ-WINDOW-02`:
 
 ```text
 Previous baseline:       6 DIP WindowChrome resize border on both primary windows
-Mouse/pen edge target:   10 DIP invisible resize zone
+Interim expanded target: 10 DIP invisible resize zone
+Current P1 edge target:  4 DIP black resize band tied to BorderlessResizeHitTestPolicy.ResizeBorderDip
 Mouse/pen corner target: 32 DIP corner length along the edge band
 Visual outline:          0-2 px, optional/subtle
 Touch-first future:      use explicit 40 x 40 effective-pixel affordances only in a touch/posture pass
@@ -1529,7 +1558,7 @@ Touch-first future:      use explicit 40 x 40 effective-pixel affordances only i
 
 ### 26.6 Transparency implementation caution
 
-For MVP, keep the WebView/video surface opaque. Implement controls fade first. Whole-window opacity may use normal window opacity if it works reliably with WebView2, but it must be tested for input, rendering, and performance.
+For MVP, keep the WebView/video surface opaque. Implement controls fade first. Whole-popout opacity may use layered window alpha if it works reliably with WebView2, but it must be tested for input, rendering, and performance.
 
 Do not make the WebView itself transparent and do not implement click-through behavior.
 
@@ -1568,3 +1597,4 @@ These references support the current technical direction and should be rechecked
 | 0.9 | 2026-06-07 | Added and implemented `REQ-WINDOW-02` for larger borderless resize zones: previous 6 DIP baseline, 10 DIP edge target, 32 DIP corner length, and Win32 hit-test naming. |
 | 0.10 | 2026-06-07 | Planned the Phase 3 compact-player sweep and resolved compact-mode placement as global default plus optional profile override. |
 | 0.11 | 2026-06-10 | Beta candidate cut (v0.4.0-beta): release-facing copy cleaned for beta publication without changing requirements. Phase 4 §7.2/§7.3 resolution notes and the overlay compliance record remain tracked on the 2026-06-10 overlay/opacity plan (Task 6). |
+| 0.12 | 2026-06-25 | Aligned the living spec with the v0.7.2 P1 surface: the current resize band is 4 DIP with 32 DIP corner acquisition, and the Compact player is dormant behind `PlaybackModePolicy.CompactPlayerEnabled=false` while its settings/profile data remains reserved. |
