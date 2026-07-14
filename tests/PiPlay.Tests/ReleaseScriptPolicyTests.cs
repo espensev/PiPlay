@@ -148,19 +148,45 @@ public class ReleaseScriptPolicyTests
     public void Publish_serializes_concurrent_runs()
     {
         var publish = Script("scripts/Publish-Stable.ps1");
+        var lockScript = Script("scripts/PublishLock.ps1");
 
         // Two publishes at once would interleave on bin\publish, on the deploy root mid-swap, and on
-        // tag creation. Both the repo and the deploy root are locked, and the lock is taken before
-        // any expensive or destructive step.
-        Assert.Contains("function New-PublishLock", publish);
-        Assert.Contains("$script:repoLock = New-PublishLock", publish);
-        Assert.Contains("$script:deployLock = New-PublishLock", publish);
-        Assert.Contains("Another PiPlay publish is already running against", publish);
-        Assert.Contains("System.Threading.AbandonedMutexException", publish);   // a crashed publish leaves no stale lock
+        // tag creation. Both the repo and the deploy root are locked, before any expensive step.
+        Assert.Contains("function New-PublishLock", lockScript);
+        Assert.Contains("Another PiPlay publish is already running against", lockScript);
+        Assert.Contains("System.Threading.AbandonedMutexException", lockScript);   // a crashed publish leaves no stale lock
 
-        var lockTaken = publish.IndexOf("$script:repoLock = New-PublishLock", StringComparison.Ordinal);
+        Assert.Contains("New-PublishLock -Key \"repo|$repoRoot\"", publish);
+        Assert.Contains("New-PublishLock -Key \"deploy|$DeployRoot\"", publish);
+
+        var lockTaken = publish.IndexOf("New-PublishLock -Key \"repo|$repoRoot\"", StringComparison.Ordinal);
         var build = publish.IndexOf("Building + publishing the Stable channel Release", StringComparison.Ordinal);
         Assert.True(lockTaken >= 0 && lockTaken < build, "The publish lock must be taken before the build.");
+    }
+
+    [Fact]
+    public void Publish_releases_its_locks_on_every_exit_path()
+    {
+        var publish = Script("scripts/Publish-Stable.ps1");
+        var lockScript = Script("scripts/PublishLock.ps1");
+
+        // A mutex belongs to the THREAD that took it, and PowerShell's console host reuses its pipeline
+        // thread. A publish that ended without releasing left the mutex owned by the still-alive prompt
+        // thread, so the NEXT publish (another process) was told "another publish is already running"
+        // with nothing running - clearing only if the GC happened to finalize the handle. The release
+        // must therefore be in a finally, which PowerShell honours on success, throw, AND exit.
+        // (scripts\Test-PublishLock.ps1 case 3 is the behavioural guard.)
+        Assert.Contains("function Close-PublishLocks", lockScript);
+        Assert.Contains("ReleaseMutex()", lockScript);
+
+        var lockTaken = publish.IndexOf("New-PublishLock -Key \"repo|$repoRoot\"", StringComparison.Ordinal);
+        var tryOpen = publish.IndexOf("\ntry {", lockTaken, StringComparison.Ordinal);
+        var release = publish.IndexOf("Close-PublishLocks", tryOpen < 0 ? lockTaken : tryOpen, StringComparison.Ordinal);
+        var finallyBlock = publish.IndexOf("\nfinally {", lockTaken, StringComparison.Ordinal);
+
+        Assert.True(tryOpen > lockTaken, "The publish body must be wrapped in a try after the lock is taken.");
+        Assert.True(finallyBlock > tryOpen, "That try must have a finally.");
+        Assert.True(release > finallyBlock, "Close-PublishLocks must run from the finally, not the success path.");
     }
 
     [Fact]

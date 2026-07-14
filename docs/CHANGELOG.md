@@ -34,7 +34,10 @@ the copy you test from. No feature or visual changes beyond a visible pressed st
   checks the tag it is about to create before running the tests, the build, or the deploy — it used to
   replace Stable successfully and only then fail at tag creation.
 - **Concurrent publishes are refused:** two runs at once would interleave on the publish output, the
-  deploy root mid-swap, and tag creation. A publish now locks the repo and the deploy root.
+  deploy root mid-swap, and tag creation. A publish now locks the repo and the deploy root — and
+  releases those locks on every exit path. (A mutex belongs to the thread that took it and PowerShell
+  reuses its prompt thread, so a lock left unreleased would tell the *next* publish that one was
+  already running when none was, clearing only when the garbage collector got around to it.)
 - **A rollback that cannot fully restore now keeps the backup instead of deleting it.** Every rollback
   step is necessarily best-effort, so a second lock could defeat the restore silently — and the backup
   was then deleted anyway while the publish reported a successful rollback, destroying the last copy of

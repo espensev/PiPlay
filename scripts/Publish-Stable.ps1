@@ -70,6 +70,7 @@ $ErrorActionPreference = "Stop"
 
 . (Join-Path $PSScriptRoot "NativeCommand.ps1")
 . (Join-Path $PSScriptRoot "DeploySwap.ps1")
+. (Join-Path $PSScriptRoot "PublishLock.ps1")
 
 if (-not [System.IO.Path]::IsPathRooted($DeployRoot)) {
     # A bare token like '--help' binds positionally to -DeployRoot and would deploy a full
@@ -99,36 +100,6 @@ function Invoke-Git {
 function Get-GitDirtyEntries {
     $status = @(Invoke-Git @("status", "--porcelain", "--untracked-files=all"))
     return @($status | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-}
-
-function New-PublishLock {
-    param(
-        [Parameter(Mandatory = $true)][string]$Key,
-        [Parameter(Mandatory = $true)][string]$What
-    )
-
-    # Two concurrent publishes would interleave on the repo's bin\publish tree, on the deploy root
-    # mid-swap, and on stable tag creation. Fail fast instead of corrupting either side. Windows
-    # releases an abandoned mutex when its owner dies, so a crashed publish never leaves a stale lock.
-    $sha = [System.Security.Cryptography.SHA256]::Create()
-    try {
-        $bytes = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Key.ToLowerInvariant()))
-    } finally {
-        $sha.Dispose()
-    }
-    $name = "Local\PiPlayPublish-" + (([System.BitConverter]::ToString($bytes) -replace '-', '').Substring(0, 32))
-
-    $mutex = New-Object System.Threading.Mutex($false, $name)
-    $acquired = $false
-    try {
-        $acquired = $mutex.WaitOne(0)
-    } catch [System.Threading.AbandonedMutexException] {
-        $acquired = $true   # the previous owner died holding it; ownership transfers to us
-    }
-    if (-not $acquired) {
-        throw "Another PiPlay publish is already running against $What. Wait for it to finish (or stop it) and re-run."
-    }
-    return $mutex
 }
 
 function Assert-StableTag {
@@ -187,10 +158,14 @@ if ($AllowVersionBump) {
     Write-Warning "-AllowVersionBump was passed. VERSION/BUILD_NUMBER may be stamped after sourceCommit; this deploy will be marked NOT release evidence unless the resulting tree is committed and republished exact-source."
 }
 
-# Serialize publishes before anything expensive or destructive happens. Held for the life of this
-# process; script scope keeps the mutexes rooted so the GC cannot finalize them out from under us.
-$script:repoLock = New-PublishLock -Key "repo|$repoRoot" -What "this repository ($repoRoot)"
-$script:deployLock = New-PublishLock -Key "deploy|$DeployRoot" -What "this deploy root ($DeployRoot)"
+# Serialize publishes before anything expensive or destructive happens. The locks are held for exactly
+# as long as this script body runs: the finally at the bottom releases them on EVERY exit path, because
+# a mutex belongs to the thread that took it and PowerShell's console host outlives (and reuses) that
+# thread. See Close-PublishLocks.
+New-PublishLock -Key "repo|$repoRoot" -What "this repository ($repoRoot)" | Out-Null
+New-PublishLock -Key "deploy|$DeployRoot" -What "this deploy root ($DeployRoot)" | Out-Null
+
+try {
 
 # 0. Tag preflight. The stable tag used to be checked only AFTER the test lane, the build, and the
 # destructive deploy - so a colliding tag replaced Stable and only then failed at the very last step.
@@ -412,3 +387,11 @@ Write-Host "Deployed exe : $deployExe"
 Write-Host "Data folder  : $(Join-Path $DeployRoot $dataFolderName) (preserved across redeploys)"
 Write-Host "`nRun it:  & '$deployExe'"
 exit 0
+
+}
+finally {
+    # Runs on success, on any throw, and on `exit` (PowerShell honours finally for all three). The body
+    # above is deliberately left at top-level indentation: this try/finally exists only to guarantee the
+    # lock release, and re-indenting 200 lines would bury the real diff.
+    Close-PublishLocks
+}
