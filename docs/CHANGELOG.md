@@ -4,6 +4,38 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-14
+
+Minor release (from 0.8.0, build 30). **Your profile's color is now the app's color.** Pick a profile and
+PiPlay takes on its accent — the toolbar, the primary action, and the title bar.
+
+The reason this is worth having now: the accent barely painted anything. In the normal window it colored
+the **Pop-out button** and a title-bar wash tuned so faint you had to look for it; everything else was
+conditional, transient, or buried in Settings. So per-profile color would have changed one button. The
+accent was given real reach first, and only then wired to the profile. Both shipped together.
+
+### Added
+- **The active profile drives the app accent (P2).** Selecting a profile re-tints PiPlay: the toolbar
+  glyphs, the Pop-out button, and the Source Window title-bar wash all take that profile's color. A
+  profile with no color of its own inherits the global accent rather than blanking the app out. This
+  reverses the v0.6.0 decision that held a profile's color to a small identity rail.
+- **The accent now reaches the toolbar.** Back, Reload, Home, Save, Edit, and Delete carry the accent
+  instead of flat grey. The window-management controls (Settings, Minimize, Maximize, Close) stay neutral
+  on purpose — the accent wash already sits behind them, and Close keeps its red hover. Nothing gained a
+  border, a line, or a fill: this re-colors chrome that was already there, so it does not undo the
+  borderless work.
+
+### Changed
+- **The title-bar wash is actually visible now.** It was tuned to a 1.20:1 contrast target against the
+  window surface — close to imperceptible. It is now 1.45:1: a tint you can see, still a tint. It is
+  deliberately not pushed further, and a test pins a ceiling so it cannot quietly become a saturated
+  banner.
+- **The accent picker in Settings edits whatever is painting the app, and tells you which.** With a
+  colored profile active it edits *that profile's* color and names it in the hint; otherwise it edits the
+  global default. Previously it always wrote to the global — which, once a profile could override the
+  accent, would have meant picking a color, watching it preview, pressing Done, and seeing the app snap
+  straight back.
+
 ## [0.8.0] - 2026-07-14
 
 > **Build 30** rebuilds this same 0.8.0 code after a documentation pass — **no code change** from build 29.

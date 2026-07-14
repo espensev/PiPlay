@@ -1,20 +1,21 @@
 # PiPlay UI Specification — Priority UX Improvements
 
 > **Source:** owner, 2026-06-25 (delivered after the v0.6.0 cheap-cleanup review). This is the
-> forward roadmap toward the "floating media player" vision. See the conflict + scope notes recorded
-> in `SPEC_GAPS_AND_OWNERSHIP.md` (esp. **P2 reverses the v0.6.0 profile-identity split**, and
-> P1/P3/P7/P8 require the deferred transparency/WebView2 architecture lift).
+> forward roadmap toward the "floating media player" vision. P1/P3/P7/P8 require the deferred
+> transparency/WebView2 architecture lift; scope notes are in `SPEC_GAPS_AND_OWNERSHIP.md`.
 >
-> **Status as of v0.8.0-b29 — parts of this roadmap have SHIPPED; read the sections below as the
+> **Status as of v0.9.0 — parts of this roadmap have SHIPPED; read the sections below as the
 > original owner brief, not as a list of current defects:**
 > - **P1** is largely delivered through v0.7.2 (DWM frame, 4 DIP resize band, 4 DIP WebView inset).
 >   Its remaining items are the chrome band / separators / letterbox tray.
+> - **P2 SHIPPED in v0.9.0.** The profile color now drives the app accent, and the accent was given
+>   real reach first (the toolbar row carries it; the title-bar wash is no longer near-imperceptible) —
+>   without it, P2 would only have re-tinted a single button. The **CONFLICT flag below is resolved**:
+>   the owner confirmed the reversal of the v0.6.0 identity-only split, and the product spec now agrees.
 > - **P4's core dock/undock shipped in v0.8.0** — the toolbar and placeholder actions now flip to
 >   "Bring video back" and return playback to the Source Window (see `docs/CHANGELOG.md` [0.8.0]).
 >   Its "Current Problems" text below is therefore **stale**. Not all of its acceptance bullets are met
 >   (no placeholder at all, seamless transfer, playlist position), so P4 is **not** signed off.
-> - **P2 is BLOCKED on an owner decision** — it contradicts the shipped spec. Do not implement it until
->   the conflict recorded in `SPEC_GAPS_AND_OWNERSHIP.md` is called.
 > - **P3, P5, P6, P7, P8** remain open as written.
 
 ---
@@ -50,8 +51,11 @@ Prevent: Double borders, Double shadows, Layered frame appearance.
 
 # Priority 2 — Make Profile Color the Global Accent
 
-> **CONFLICT:** this reverses the v0.6.0 decision (profile color = identity chip, global app accent
-> separate). Confirm before implementing.
+> **RESOLVED + SHIPPED (v0.9.0).** This did reverse the v0.6.0 decision (profile color = identity chip,
+> global app accent separate); the owner confirmed the reversal on 2026-07-14 and the product spec now
+> agrees. It shipped together with the accent-reach work, because on its own it would have re-tinted a
+> single button — the app accent barely painted anything. Design:
+> `docs/superpowers/specs/2026-07-14-profile-accent-reach-design.md`.
 
 ## Goal
 The selected profile color should become the application's primary accent color and consistently

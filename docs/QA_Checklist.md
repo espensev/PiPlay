@@ -140,3 +140,17 @@ Binary pass/fail (spec section 22.2 Chrome acceptance). Prefer ChatGPT-operated 
   the profile identity rail stays visible against the row it sits on — including a **very dark** profile
   color (which is contrast-lifted for presentation only) and a profile with **no** color (rail fully
   transparent, gutter retained, rows do not shift).
+- [ ] **UI-CHK-10** *(accent reach + P2, v0.9.0 — OWNER JUDGEMENT, the real gate)* Selecting a profile
+  with a color visibly **re-tints the app**: the toolbar glyphs (Back/Reload/Home/Save/Edit/Delete), the
+  Pop-out button, and the title-bar wash all take that color. Selecting a profile with **no** color falls
+  back to the global accent. Then judge the two tunables by eye and say if they are wrong:
+  - **Is the wash right?** It was raised from a near-imperceptible 1.20:1 to 1.45:1
+    (`ThemeColors.ShellTintContrastTarget` — one constant, easy to change either way). Too weak? Too loud?
+  - **Are accented toolbar glyphs right,** or do they read as busy? The caption row (Settings/Minimize/
+    Maximize/Close) is deliberately left neutral; confirm that split looks intentional rather than
+    inconsistent.
+  - Window controls unchanged, **Close still hovers red**. No new border, line, or fill anywhere.
+- [ ] **UI-CHK-11** *(accent editing, v0.9.0)* With a **colored** profile active, open Settings: the hint
+  above the accent picker names that profile, the preview is live, and **Done sticks** (it edits that
+  profile's color, not the global). With **no** profile (or a colorless one) active, the hint says "app
+  accent" and Done edits the global default.

@@ -22,21 +22,22 @@ modes, a 4 DIP resize band, whole-popout opacity, and dormant compact-player plu
 floating-card silhouette, chrome-only transparency, or Browse/Cinema/Compact main-window modes need separate
 design/ADR work instead of being folded into the current release cleanup.
 
-## ⚠️ Open owner decision: does a profile's color become the app accent? (P2)
+## ✅ CLOSED: does a profile's color become the app accent? (P2)
 
-**Two active docs currently contradict each other. Do not implement P2 until this is called.**
+**Resolved 2026-07-14 — YES.** The owner confirmed: a profile's color drives the app accent. The v0.6.0
+identity-only split is reversed, and the contradiction between the spec and roadmap P2 is gone (both
+updated).
 
-- `PiPlay_Product_Engineering_Spec.md` (§ profile settings): a profile's `accentColor` is an **identity
-  color** that *"must not replace the global app accent"*. This is the v0.6.0 decision and **what the code
-  does today**.
-- `PiPlay_UI_Priority_Improvements.md` **P2**: *"the selected profile color should become the
-  application's primary accent"* — and it carries its own `CONFLICT: this reverses the v0.6.0 decision`
-  flag.
+The decision hinged on *why* P2 had looked pointless: the accent reached almost nothing. In the normal
+window it painted the **Pop-out button** and a title-bar wash tuned to a 1.20:1 contrast target — close to
+imperceptible. Everything else was conditional (Pin/Auto when on), transient (caret, focus ring), or hidden
+(Settings, error states). Owner: *"that would be ok, BUT it just changed one button."* So the accent was
+given reach **first** — the functional toolbar row now carries it and the wash was raised to 1.45:1 — and
+only then was it wired to the profile. Shipped together.
 
-Either the roadmap copy is rewritten to stop proposing the reversal, or the spec is rewritten and P2
-becomes real feature work. **Whichever way it goes, update the loser** — this has already been re-raised as
-a defect more than once because both docs read as authoritative. Recorded here 2026-07-14 because its only
-previous carrier (the b25 follow-up plan) was pruned; see `docs/reviews/2026-07-14-doc-cleanup-audit.md`.
+See `docs/superpowers/specs/2026-07-14-profile-accent-reach-design.md`. **The accent's strength is
+owner-tunable by eye** — `ThemeColors.ShellTintContrastTarget` is the single dial, and QA row **UI-CHK-9**
+governs it.
 
 ## Remaining open product decisions
 

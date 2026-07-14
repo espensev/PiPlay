@@ -267,6 +267,48 @@ public class XamlInvariantTests
         Assert.Contains("Return playback", button.Attribute("ToolTip")?.Value);
     }
 
+    /// <summary>
+    /// Accent reach (P2, 2026-07-14): the FUNCTIONAL toolbar row carries the app accent so a profile
+    /// switch visibly re-tints the app. The CAPTION row must stay neutral — the accent shell-tint wash
+    /// already sits behind it, so accenting those glyphs too would put accent on accent-tint. This test
+    /// is the guard for that split; it is the whole reason the accent is not simply set on IconButton.
+    /// </summary>
+    [Fact]
+    public void Toolbar_glyphs_carry_the_accent_but_window_controls_stay_neutral_REQ_UI_01()
+    {
+        var doc = XamlTestFiles.Load("MainWindow.xaml");
+
+        string? StyleOf(string name) => doc.Descendants(XamlTestFiles.Pres + "Button")
+            .Single(b => (string?)b.Attribute(XamlTestFiles.X + "Name") == name)
+            .Attribute("Style")?.Value;
+
+        foreach (var accented in new[]
+                 {
+                     "BackButton", "ReloadButton", "HomeButton",
+                     "SaveProfileButton", "EditProfileButton", "DeleteProfileButton",
+                 })
+        {
+            Assert.Equal("{StaticResource AccentIconButton}", StyleOf(accented));
+        }
+
+        // Window management stays neutral. Close additionally keeps its own red-hover style.
+        foreach (var neutral in new[] { "SettingsButton", "MinimizeButton", "MaximizeButton" })
+        {
+            Assert.Equal("{StaticResource IconButton}", StyleOf(neutral));
+        }
+        Assert.Equal("{StaticResource CloseIconButton}", StyleOf("CloseButton"));
+
+        // AccentIconButton must override ONLY the foreground — it inherits IconButton for everything
+        // else, so the two rows cannot drift apart in size, radius, or hover behaviour.
+        var style = XamlTestFiles.Load("Theme/ControlStyles.xaml")
+            .Descendants(XamlTestFiles.Pres + "Style")
+            .Single(e => (string?)e.Attribute(XamlTestFiles.X + "Key") == "AccentIconButton");
+        Assert.Equal("{StaticResource IconButton}", style.Attribute("BasedOn")?.Value);
+        var setter = Assert.Single(style.Elements(XamlTestFiles.Pres + "Setter"));
+        Assert.Equal("Foreground", setter.Attribute("Property")?.Value);
+        Assert.Equal("{DynamicResource AccentPrimary}", setter.Attribute("Value")?.Value);
+    }
+
     [Fact]
     public void Profile_selector_uses_one_live_contrast_rail_not_nested_fill_REQ_PROFILE_01()
     {
@@ -394,9 +436,12 @@ public class XamlInvariantTests
 
     // --- Glyph icon-font fallback (REQ-UI-02: no .notdef boxes) + tooltips (UI-CHK-4) ---
 
+    // AccentIconButton is BasedOn IconButton, so it inherits the icon FontFamily and cannot drop a glyph
+    // to a .notdef box (REQ-UI-02) — it only overrides Foreground.
     private static readonly HashSet<string> IconFontStyles = new()
     {
-        "{StaticResource IconButton}", "{StaticResource CloseIconButton}", "{StaticResource PinToggle}",
+        "{StaticResource IconButton}", "{StaticResource AccentIconButton}",
+        "{StaticResource CloseIconButton}", "{StaticResource PinToggle}",
     };
 
     [Theory]

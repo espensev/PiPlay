@@ -14,6 +14,21 @@ public static class ThemeColors
 {
     private const double MinimumPressedStateContrast = 1.10;
 
+    /// <summary>
+    /// How strongly the accent washes into the Source Window title bar, as a contrast ratio against
+    /// <c>SurfaceBase</c>. This single number is the "how present is the wash" dial.
+    /// <para>
+    /// It was 1.20, which is close to imperceptible — the accent effectively painted one button. 1.45 is
+    /// a visible tint that still reads as a wash. It is deliberately NOT pushed further: a saturated
+    /// title bar re-adds the heavy "framed" look P1 exists to remove. QA row UI-CHK-9 governs this, and
+    /// <c>ThemeColorsTests</c> pins a ceiling so a future tweak cannot quietly turn it into a banner.
+    /// </para>
+    /// </summary>
+    internal const double ShellTintContrastTarget = 1.45;
+
+    /// <summary>Upper bound on the wash. Above this it stops being a tint. Pinned by tests.</summary>
+    internal const double ShellTintContrastCeiling = 1.90;
+
     /// <summary>Parse a <c>#RRGGBB</c> hex (the normalized accent form) into an opaque color.</summary>
     public static Color ParseColor(string? hex)
     {
@@ -189,7 +204,7 @@ public static class ThemeColors
         var glow = WithAlpha(primary, profile.GlowAlpha);
         // Decorative shell tint: visibly carries the accent into the title bar without becoming a
         // hard line, full fill, or another control boundary.
-        var shellTint = MixTowardContrast(surfaceBase, primary, surfaceBase, 1.20);
+        var shellTint = MixTowardContrast(surfaceBase, primary, surfaceBase, ShellTintContrastTarget);
         var onAccent = PickReadableForeground(primary);
         // CON-1: re-pick the foreground against the DARKER pressed fill, not reuse OnAccent — a dim
         // accent (steel) may need to flip to white.

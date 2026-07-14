@@ -166,6 +166,17 @@
   </Style>
 
   <!-- Close icon button: red (DangerPin) hover -->
+  <!-- Toolbar chrome that carries the app accent (roadmap P2 + accent reach, 2026-07-14).
+       Only the FUNCTIONAL toolbar row uses this - Back/Reload/Home and the profile actions. The caption
+       row (Settings/Minimize/Maximize/Close) deliberately stays neutral on plain IconButton: the accent
+       shell-tint wash already sits BEHIND the caption row, so accenting those glyphs too would put
+       accent on accent-tint and is exactly where contrast dies. Close additionally keeps its red hover.
+       AccentPrimary is already contrast-corrected for presentation (EnsureContrast vs SurfaceHover), so
+       even a very dark profile color leaves these glyphs legible. Pinned by XamlInvariantTests. -->
+  <Style TargetType="Button" x:Key="AccentIconButton" BasedOn="{StaticResource IconButton}">
+    <Setter Property="Foreground" Value="{DynamicResource AccentPrimary}" />
+  </Style>
+
   <Style TargetType="Button" x:Key="CloseIconButton" BasedOn="{StaticResource IconButton}">
     <Setter Property="Template">
       <Setter.Value>

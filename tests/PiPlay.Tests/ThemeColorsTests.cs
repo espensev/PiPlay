@@ -13,6 +13,33 @@ public class ThemeColorsTests
         Assert.Equal(Color.FromRgb(0xA7, 0x8B, 0xFA), ThemeColors.ParseColor("a78bfa"));
     }
 
+    /// <summary>
+    /// The title-bar wash must be VISIBLE (it used to sit at 1.20:1, which is close to imperceptible —
+    /// that is why the accent effectively painted one button) but must remain a TINT. The ceiling is the
+    /// real guard: a saturated title bar re-adds the heavy framed look P1 exists to remove, so a future
+    /// nudge upward has to fail this test rather than quietly ship a banner. Owner-tunable via UI-CHK-9.
+    /// </summary>
+    [Theory]
+    [InlineData("sharp-dark")]
+    [InlineData("minimal")]
+    [InlineData("soft-glass")]
+    public void Shell_tint_wash_is_visible_but_never_a_banner(string presetId)
+    {
+        var preset = ThemeCatalog.PresetFor(presetId);
+        var surfaceBase = ThemeColors.ParseColor(preset.Palette.SurfaceBase);
+
+        foreach (var accent in new[] { "#00D4FF", "#A78BFA", "#38D996", "#FFC857", "#0B0E11" })
+        {
+            var shell = ThemeColors.DeriveAccentSet(accent, preset).ShellTint;
+            var ratio = ThemeColors.ContrastRatio(shell, surfaceBase);
+
+            Assert.True(ratio > 1.20,
+                $"{presetId}/{accent}: wash is {ratio:F2}:1 — no more visible than the old imperceptible 1.20.");
+            Assert.True(ratio <= 1.90,
+                $"{presetId}/{accent}: wash is {ratio:F2}:1 — that is a banner, not a tint.");
+        }
+    }
+
     [Fact]
     public void ParseColor_falls_back_to_the_catalog_default_for_junk()
     {

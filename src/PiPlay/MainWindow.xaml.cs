@@ -658,7 +658,7 @@ public partial class MainWindow : Window
             idleOpacityOverride: _settings.Theme.IdleWindowOpacity,
             stripAutoHideOverride: _settings.Theme.StripAutoHide,
             cornerStyle: EffectiveCornerStyle,
-            accentEditContext: "Editing the app accent.")
+            accentEditContext: AccentEditContext)
         {
             Owner = this,
             Topmost = Topmost,
@@ -768,6 +768,17 @@ public partial class MainWindow : Window
 
     internal string ResolvedAccentColor =>
         ProfileAccentService.ResolvedAccentColor(_settings, EffectiveAccentColor);
+
+    /// <summary>
+    /// Tells Settings which color its accent picker is about to edit (P2, spec decision 7). The picker
+    /// always edits whatever is painting the app, so it must say which — otherwise a user editing "the
+    /// app accent" while a colored profile is active would not know they were changing that profile.
+    /// </summary>
+    internal string AccentEditContext =>
+        ProfileAccentService.AccentOverridingProfile(_settings) is { } profile
+            ? $"Editing the color for profile “{profile.Name}” — it is driving the app accent. "
+              + "Deselect the profile to edit the default accent instead."
+            : "Editing the app accent.";
 
     internal void LivePreviewAccent(string hex)
     {

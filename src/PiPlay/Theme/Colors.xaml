@@ -45,7 +45,7 @@
   <Color x:Key="AccentHoverColor">#FF51BDD8</Color>
   <Color x:Key="AccentPressedColor">#FF2492AF</Color>
   <Color x:Key="AccentBorderColor">#FF40B6D5</Color>
-  <Color x:Key="AccentShellTintColor">#FF0F242C</Color>
+  <Color x:Key="AccentShellTintColor">#FF12343F</Color>
   <Color x:Key="OnAccentColor">#FF06141A</Color>
   <Color x:Key="OnAccentPressedColor">#FF06141A</Color>
 

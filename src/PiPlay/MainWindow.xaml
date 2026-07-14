@@ -78,11 +78,11 @@
       </Grid.ColumnDefinitions>
 
       <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="8,0,4,0" VerticalAlignment="Center">
-        <Button x:Name="BackButton" Style="{StaticResource IconButton}" Click="BackButton_Click"
+        <Button x:Name="BackButton" Style="{StaticResource AccentIconButton}" Click="BackButton_Click"
                 Content="&#xE72B;" ToolTip="Back" AutomationProperties.Name="Back" />
-        <Button x:Name="ReloadButton" Style="{StaticResource IconButton}" Click="ReloadButton_Click"
+        <Button x:Name="ReloadButton" Style="{StaticResource AccentIconButton}" Click="ReloadButton_Click"
                 Content="&#xE72C;" ToolTip="Reload" AutomationProperties.Name="Reload" />
-        <Button x:Name="HomeButton" Style="{StaticResource IconButton}" Click="HomeButton_Click"
+        <Button x:Name="HomeButton" Style="{StaticResource AccentIconButton}" Click="HomeButton_Click"
                 Content="&#xE80F;" ToolTip="YouTube home" AutomationProperties.Name="YouTube home" />
       </StackPanel>
 
@@ -119,13 +119,13 @@
             </DataTemplate>
           </ComboBox.ItemTemplate>
         </ComboBox>
-        <Button x:Name="SaveProfileButton" Style="{StaticResource IconButton}" Click="SaveProfileButton_Click"
+        <Button x:Name="SaveProfileButton" Style="{StaticResource AccentIconButton}" Click="SaveProfileButton_Click"
                 Content="&#xE74E;" ToolTip="Save current page as a profile" Margin="2,0,0,0"
                 AutomationProperties.Name="Save profile" />
-        <Button x:Name="EditProfileButton" Style="{StaticResource IconButton}" Click="EditProfileButton_Click"
+        <Button x:Name="EditProfileButton" Style="{StaticResource AccentIconButton}" Click="EditProfileButton_Click"
                 Content="&#xE70F;" ToolTip="Edit selected profile" Margin="2,0,0,0" IsEnabled="False"
                 AutomationProperties.Name="Edit profile" />
-        <Button x:Name="DeleteProfileButton" Style="{StaticResource IconButton}" Click="DeleteProfileButton_Click"
+        <Button x:Name="DeleteProfileButton" Style="{StaticResource AccentIconButton}" Click="DeleteProfileButton_Click"
                 Content="&#xE74D;" ToolTip="Delete selected profile" Margin="2,0,0,0" IsEnabled="False"
                 AutomationProperties.Name="Delete profile" />
       </StackPanel>
