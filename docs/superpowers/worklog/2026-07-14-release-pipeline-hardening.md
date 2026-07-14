@@ -45,33 +45,58 @@ recurring synchronous disk I/O on the UI thread, and the rotation check no longe
 entry. The DWM border-suppression record — a test-only observation that was kept for every top-level
 window ever shown and never reclaimed — is now gated off in production entirely.
 
-## The bug the harness caught
+## Bugs the tests caught that reading the code did not
 
-`Move-Item` on a directory whose child is locked **half-moves it and still throws**. The first rollback
-implementation replayed only the moves it had *recorded as successful*, so the half-moved directory was
-skipped — and then the backup holding the only copy of those children was deleted. Real data loss, found
-on the first run of `scripts/Test-DeploySwap.ps1` (case C3), not by reading the code.
+**1. Half-moved directories (harness case C3, found on the harness's first run).** `Move-Item` on a
+directory whose child is locked **half-moves it and still throws**. The first rollback replayed only the
+moves it had *recorded as successful*, so the half-moved directory was skipped — and then the backup
+holding the only copy of those children was deleted. Rollback now restores from what the backup
+**actually holds** (`Restore-DeployBackup`), merging into any directory that still exists.
 
-Rollback now restores from what the backup **actually holds** (`Restore-DeployBackup`), merging into any
-directory that still exists.
+**2. The same shape again, on the other side (harness case H).** An adversarial review found the rollback
+still deleted the backup *unconditionally*. Every rollback step is necessarily best-effort, so a second
+lock (an AV scan of freshly written binaries is the realistic one) can defeat both the removal of a
+moved-in file and the restore over it — and the backup was then destroyed anyway while the publish
+reported "the previous copy was rolled back". The backup is now deleted **only once it is empty**;
+otherwise it is preserved and its path reported.
+
+**3. The publish lock never let go (`Test-PublishLock.ps1` case 3).** A mutex belongs to the thread that
+took it, and PowerShell's console host reuses its prompt thread — so a finished publish left the mutex
+*owned*, and the next publish from any other process was told "another publish is already running" when
+none was, clearing only when the GC happened to finalize the handle. Safety was never at risk; liveness
+was, nondeterministically, in the only sanctioned promote path. Now released from a `finally`.
+
+**4. Two logging races.** The writer thread re-read shared state instead of capturing the queue it was
+started for, so a fast start-then-exit could null it out from under a not-yet-scheduled writer, which
+then returned without draining — losing every queued entry silently. And a transient write failure
+discarded the whole coalesced batch *and* the overflow accounting meant to make the loss visible.
+
+The adversarial pass raised 12 candidate findings; 4 survived refutation, all 4 were real, and all 4 were
+bugs in this session's own work.
 
 ## Verification
 
-- `dotnet test PiPlay.sln --configuration Debug` — **719/719** (707 before; +12 new).
-- `scripts/Test-DeploySwap.ps1` — **29/29**: clean swap, corrupt staged payload (live copy untouched),
-  failure mid-swap on a locked file (previous copy rolled back, runtime data intact), both
-  interrupted-publish recovery shapes, and the drive-root guard.
+- `dotnet test PiPlay.sln --configuration Debug` — **721/721** (707 before; +14 new).
+- `scripts/Test-DeploySwap.ps1` — **35/35**: clean swap, corrupt staged payload (live copy untouched),
+  failure mid-swap on a locked file, a rollback that *cannot* restore (backup preserved, not deleted),
+  both interrupted-publish recovery shapes, and the drive-root guard.
+- `scripts/Test-PublishLock.ps1` — **8/8**: the lock really blocks another process, and releasing frees
+  it immediately rather than at the GC's convenience.
 - Tag preflight demonstrated against the **live** collision (`stable-v0.7.2-b25` @ `9e602ed` vs HEAD):
   failed in ~1 s at step [0], before tests, build, or deploy.
 - `scripts/Publish-Stable.ps1` (exact-source, clean tree) — full lane green: staged swap → 21 artifacts
-  re-hash clean → tag `stable-v0.7.3-b26` → final verification with no escape hatch → **RELEASE VERIFIED**.
-- Post-deploy: no `.staging`/`.backup` leftovers; `PiPlayData` (settings + WebView2 session) preserved.
+  re-hash clean → tag `stable-v0.7.3-b27` → final verification with no escape hatch → **RELEASE VERIFIED**.
+- Post-deploy: no `.staging`/`.backup` leftovers; `PiPlayData` (settings + WebView2 session) preserved;
+  the real publish lock confirmed FREE from a separate process.
 
 ## Disposition
 
-- Branch `fix/profile-selector-frame`; commits `4a9863a`, `94f47ae`, `68e8962`, `3fdad1a`.
-- Tag `stable-v0.7.3-b26` created **locally**; nothing pushed.
-- Manual-test executable: `E:\Dev_test_implemenations\PiPlay\PiPlay.exe` (v0.7.3 b26, RELEASE VERIFIED).
+- Branch `fix/profile-selector-frame`; commits `4a9863a`, `94f47ae`, `68e8962`, `3fdad1a`, `8d6becd`,
+  `9a52395`.
+- Tag `stable-v0.7.3-b27` created **locally**; nothing pushed.
+- `stable-v0.7.3-b26` also exists locally. Its provenance is sound, but it is the build containing the
+  three defects above, and it is superseded — safe to delete (`git tag -d stable-v0.7.3-b26`).
+- Manual-test executable: `E:\Dev_test_implemenations\PiPlay\PiPlay.exe` (v0.7.3 b27, RELEASE VERIFIED).
 
 ## Still open
 
