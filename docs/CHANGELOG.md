@@ -10,6 +10,22 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   accent now washes into the Source Window title bar, while profile identity uses one contrast-safe
   leading rail in the closed selector and dropdown rows—no filled inner chip or colored outer frame.
 
+### Fixed
+- **Navigation-safe Popout return state:** timestamp polling is single-flight and bound to the active
+  successful navigation, so a slow or superseded page read cannot overwrite the return timestamp.
+  Closing during WebView startup is also treated as an intentional shutdown instead of a load error.
+- **Distinct pressed feedback for very dark accents:** presentation-corrected dark colors keep their
+  exact stored hex while now retaining a visible pressed state across every theme preset.
+
+### Performance
+- **Lower steady-state WebView work:** Auto now rejects non-watch, already-handled, and active-Popout
+  states before crossing the WebView script boundary.
+- **Bounded customization preview work:** color-wheel previews coalesce to roughly 30 updates per
+  second, update only accent surfaces on an open Popout, and reuse the frozen hue-disc bitmap for the
+  same size and DPI.
+- **Single-pass startup settings:** production startup loads settings once and deserializes the file
+  from one parsed JSON document before showing the Source Window.
+
 ## [0.7.2] - 2026-06-25
 
 Patch release (from 0.7.1, build 25): continues **P1 — borderless** by trimming the largest remaining

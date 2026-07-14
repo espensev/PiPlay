@@ -65,6 +65,10 @@ public partial class PlayerWindow : Window
     private readonly DispatcherTimer _opacityHoverPoll;
 
     private bool _navCompleted;
+    private int _navigationGeneration;
+    private ulong? _activeNavigationId;
+    private bool _syncTickInProgress;
+    private bool _closing;
     private bool _capturedReturn;
     private bool _nudgedPlay;
 
@@ -184,6 +188,7 @@ public partial class PlayerWindow : Window
         try
         {
             await Player.EnsureCoreWebView2Async(_environment);
+            if (_closing) return;
 
             var core = Player.CoreWebView2;
             core.Settings.AreDevToolsEnabled = false;
@@ -219,6 +224,9 @@ public partial class PlayerWindow : Window
         }
         catch (Exception ex)
         {
+            // EnsureCoreWebView2Async can finish by throwing after an intentional close. Closing is
+            // already the user's answer; do not resurrect the window with a failure prompt.
+            if (_closing) return;
             Log.Error("Failed to initialize the Popout Player.", ex);
             Prompt.ShowInfo(this, "Video Popout", "PiPlay couldn't start the popout player.\n\n" + ex.Message);
             Close();
@@ -232,6 +240,8 @@ public partial class PlayerWindow : Window
         if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri) &&
             NavigationPolicy.IsAllowed(uri, NavigationSurface.Player))
         {
+            _activeNavigationId = e.NavigationId;
+            BeginNavigation();
             return;
         }
 
@@ -307,7 +317,11 @@ public partial class PlayerWindow : Window
 
     private void Core_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
-        _navCompleted = true;
+        // A superseded navigation may complete after a newer one has started. It must not mark the
+        // new document ready or restart polling against a page that is still loading.
+        if (_activeNavigationId != e.NavigationId ||
+            !CompleteNavigation(_navigationGeneration, e.IsSuccess)) return;
+
         // A compact shell that failed to load outright can never message the host — surface the
         // error bar now instead of waiting out the watchdog (spec 10.3 / Q-6, Stage 4).
         if (_mode == PlaybackMode.Compact && !e.IsSuccess)
@@ -315,10 +329,32 @@ public partial class PlayerWindow : Window
             _shellReadyTimer.Stop();
             ShowShellError(PlayerShellErrorPolicy.ShellLoadFailedMessage);
         }
+    }
+
+    private int BeginNavigation()
+    {
+        if (_closing) return _navigationGeneration;
+        _navigationGeneration++;
+        _navCompleted = false;
+        _syncTimer.Stop();
+        return _navigationGeneration;
+    }
+
+    private bool CompleteNavigation(int generation, bool succeeded)
+    {
+        if (_closing || generation != _navigationGeneration) return false;
+
+        _navCompleted = succeeded;
+        if (!succeeded)
+        {
+            _syncTimer.Stop();
+            return true;
+        }
+
         // Normal mode polls the YouTube page DOM for the timestamp; compact mode reads it from the
-        // shell bridge (IFrame API). The mode-specific choice lives in PlaybackModePolicy so the
-        // "one source of truth for the timestamp" invariant is unit-testable (spec 10.3).
+        // shell bridge (IFrame API). A failed navigation never starts either source.
         if (PlaybackModePolicy.UsesDomSyncTimer(_mode) && !_syncTimer.IsEnabled) _syncTimer.Start();
+        return true;
     }
 
     // --- Compact shell bridge + error/fallback path (spec 10.3 / Q-6, Stage 4) ---
@@ -458,22 +494,60 @@ public partial class PlayerWindow : Window
     internal void HideControlsForTests() => HideControls();
     internal void CompleteHideFadeForTests() => OnHideFadeCompleted();
 
+    // Navigation/polling seams: WebView2 navigation event args cannot be constructed in the WPF
+    // lane, so drive the same generation state machine directly without initializing WebView2.
+    internal int BeginNavigationForTests() => BeginNavigation();
+    internal bool CompleteNavigationForTests(int generation, bool succeeded) =>
+        CompleteNavigation(generation, succeeded);
+    internal bool IsSyncTimerRunningForTests => _syncTimer.IsEnabled;
+    internal bool IsClosingForTests => _closing;
+    internal bool TryBeginSyncPollForTests(out int generation) => TryBeginSyncPoll(out generation);
+    internal bool IsSyncPollCurrentForTests(int generation) => IsSyncPollCurrent(generation);
+    internal void EndSyncPollForTests() => EndSyncPoll();
+
     private async void SyncTimer_Tick(object? sender, EventArgs e)
     {
-        if (!_navCompleted || Player.CoreWebView2 is null) return;
-        var state = await YouTubeDomBridge.ReadPlayerStateAsync(Player.CoreWebView2);
-        if (state is null) return;
+        if (_closing) return;
+        var core = Player.CoreWebView2;
+        // Authentication/error surfaces can complete inside the normal player during redirects,
+        // but they have no video state to read. Keep the cheap URL-shape check outside WebView IPC.
+        if (core is null || !YouTubeUrlHelper.IsWatchUrl(core.Source)
+            || !TryBeginSyncPoll(out var generation)) return;
 
-        // The popout is the active surface now: if it came up paused, nudge play once
-        // (play() is an allowed control per spec 19). Best-effort; never forced again.
-        if (!_nudgedPlay && state.Paused)
+        try
         {
-            _nudgedPlay = true;
-            await YouTubeDomBridge.PlayAsync(Player.CoreWebView2);
-        }
+            var state = await YouTubeDomBridge.ReadPlayerStateAsync(core);
+            if (state is null || !IsSyncPollCurrent(generation)) return;
 
-        _returnState.LastKnownSeconds = state.CurrentTime;
+            // The popout is the active surface now: if it came up paused, nudge play once
+            // (play() is an allowed control per spec 19). Best-effort; never forced again.
+            if (!_nudgedPlay && state.Paused)
+            {
+                _nudgedPlay = true;
+                await YouTubeDomBridge.PlayAsync(core);
+                if (!IsSyncPollCurrent(generation)) return;
+            }
+
+            _returnState.LastKnownSeconds = state.CurrentTime;
+        }
+        finally
+        {
+            EndSyncPoll();
+        }
     }
+
+    private bool TryBeginSyncPoll(out int generation)
+    {
+        generation = _navigationGeneration;
+        if (_closing || _syncTickInProgress || !_navCompleted) return false;
+        _syncTickInProgress = true;
+        return true;
+    }
+
+    private bool IsSyncPollCurrent(int generation) =>
+        !_closing && _navCompleted && generation == _navigationGeneration;
+
+    private void EndSyncPoll() => _syncTickInProgress = false;
 
     // --- Chrome ---
 
@@ -607,11 +681,7 @@ public partial class PlayerWindow : Window
 
     internal void ApplyAppearance(string? accentColor, int fadeIdleDelayMs, bool stripAutoHide = false)
     {
-        // One theme accent drives both Popout Pin and Popout Fade (overhaul Task 10); the brush is
-        // shared (frozen) across the two toggles.
-        var accentBrush = ResolveAccentBrush(accentColor);
-        ToggleAccent.SetCheckedBrush(PinToggle, accentBrush);
-        ToggleAccent.SetCheckedBrush(FadeToggle, accentBrush);
+        ApplyAccent(accentColor);
         _idleTimer.Interval = TimeSpan.FromMilliseconds(
             PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs));
 
@@ -621,6 +691,16 @@ public partial class PlayerWindow : Window
         UpdateActivityProbe();
 
         if (_fadeEnabled && _idleTimer.IsEnabled) RestartIdleTimer();
+    }
+
+    /// <summary>Apply only the live accent surface; behavior and native-window settings stay put.</summary>
+    internal void ApplyAccent(string? accentColor)
+    {
+        // One theme accent drives both Popout Pin and Popout Fade (overhaul Task 10); the brush is
+        // shared (frozen) across the two toggles.
+        var accentBrush = ResolveAccentBrush(accentColor);
+        ToggleAccent.SetCheckedBrush(PinToggle, accentBrush);
+        ToggleAccent.SetCheckedBrush(FadeToggle, accentBrush);
     }
 
     private static Brush ResolveAccentBrush(string? accentColor)
@@ -848,6 +928,9 @@ public partial class PlayerWindow : Window
 
     private void PlayerWindow_Closing(object? sender, CancelEventArgs e)
     {
+        // Set this before stopping timers/disposing state so every outstanding await can recognize
+        // an intentional shutdown and decline to publish stale state or show failure UI.
+        _closing = true;
         if (_capturedReturn) return;
         _capturedReturn = true;
 

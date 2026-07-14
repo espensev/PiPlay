@@ -20,6 +20,23 @@ public enum AutoPopDecision
 /// </summary>
 public static class AutoPopoutPolicy
 {
+    /// <summary>
+    /// Whether the caller needs the comparatively expensive WebView player-state probe. URL and
+    /// lifecycle facts are already available without crossing the WebView2 script boundary, so
+    /// reject those cases first.
+    /// </summary>
+    public static bool NeedsPlayerState(
+        bool autoEnabled,
+        bool isWatchVideo,
+        string? currentVideoId,
+        string? lastHandledVideoId,
+        bool popoutActive)
+    {
+        if (!autoEnabled || popoutActive) return false;
+        if (!isWatchVideo || string.IsNullOrEmpty(currentVideoId)) return false;
+        return !string.Equals(currentVideoId, lastHandledVideoId, StringComparison.Ordinal);
+    }
+
     public static AutoPopDecision Decide(
         bool autoEnabled,
         bool isPlaying,
@@ -28,12 +45,9 @@ public static class AutoPopoutPolicy
         string? lastHandledVideoId,
         bool popoutActive)
     {
-        if (!autoEnabled) return AutoPopDecision.Skip;
-        if (!isPlaying) return AutoPopDecision.Skip;
-        if (!isWatchVideo || string.IsNullOrEmpty(currentVideoId)) return AutoPopDecision.Skip;
-        if (popoutActive) return AutoPopDecision.Skip;
-        if (string.Equals(currentVideoId, lastHandledVideoId, StringComparison.Ordinal))
+        if (!NeedsPlayerState(autoEnabled, isWatchVideo, currentVideoId, lastHandledVideoId, popoutActive))
             return AutoPopDecision.Skip;
+        if (!isPlaying) return AutoPopDecision.Skip;
         return AutoPopDecision.Pop;
     }
 }

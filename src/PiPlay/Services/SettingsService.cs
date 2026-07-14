@@ -37,8 +37,9 @@ public sealed class SettingsService
             }
 
             var json = File.ReadAllText(_path);
-            var seedThemeFromLegacy = !HasThemeBlock(json);
-            var settings = JsonSerializer.Deserialize<AppSettings>(json, Options);
+            using var document = JsonDocument.Parse(json);
+            var seedThemeFromLegacy = !HasThemeBlock(document.RootElement);
+            var settings = document.RootElement.Deserialize<AppSettings>(Options);
             if (settings is null)
             {
                 Log.Warn("Settings deserialized to null; quarantining and using defaults.");
@@ -207,19 +208,11 @@ public sealed class SettingsService
         return s;
     }
 
-    private static bool HasThemeBlock(string json)
+    private static bool HasThemeBlock(JsonElement root)
     {
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            return doc.RootElement.ValueKind == JsonValueKind.Object
-                && doc.RootElement.TryGetProperty("theme", out var theme)
-                && theme.ValueKind != JsonValueKind.Null;
-        }
-        catch
-        {
-            return false;
-        }
+        return root.ValueKind == JsonValueKind.Object
+            && root.TryGetProperty("theme", out var theme)
+            && theme.ValueKind != JsonValueKind.Null;
     }
 
     private static double? NormalizeOptionalOpacity(double? value) =>

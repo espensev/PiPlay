@@ -681,6 +681,66 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void PlayerWindow_accent_only_update_preserves_behavior_settings() => StaTestThread.Invoke(() =>
+    {
+        var w = new PlayerWindow(
+            environment: null!,
+            url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            topmost: false,
+            placement: null,
+            defaultWidth: 960,
+            defaultHeight: 540,
+            fadeEnabled: true,
+            accentColor: "#38D996",
+            fadeIdleDelayMs: 4000,
+            constantWindowOpacity: 0.72,
+            idleWindowOpacity: 0.48,
+            stripAutoHide: true);
+
+        w.ApplyAccent("#A78BFA");
+
+        var pin = (ToggleButton)w.FindName("PinToggle")!;
+        var fade = (ToggleButton)w.FindName("FadeToggle")!;
+        Assert.Equal(Color.FromRgb(0xA7, 0x8B, 0xFA), ((SolidColorBrush)ToggleAccent.GetCheckedBrush(pin)!).Color);
+        Assert.Same(ToggleAccent.GetCheckedBrush(pin), ToggleAccent.GetCheckedBrush(fade));
+        Assert.Equal(TimeSpan.FromMilliseconds(4000), w.FadeIdleDelayForTests);
+        Assert.Equal((0.72, 0.48), w.WindowOpacityLevelsForTests);
+        Assert.True(w.StripAutoHideForTests);
+    });
+
+    [Fact]
+    public void PlayerWindow_sync_poll_is_generation_bound_single_flight_and_success_gated() => StaTestThread.Invoke(() =>
+    {
+        var w = NewPlayer();
+
+        var failedGeneration = w.BeginNavigationForTests();
+        Assert.False(w.IsSyncTimerRunningForTests);
+        Assert.True(w.CompleteNavigationForTests(failedGeneration, succeeded: false));
+        Assert.False(w.IsSyncTimerRunningForTests);   // failed normal navigation never polls
+        Assert.False(w.TryBeginSyncPollForTests(out _));
+
+        var readyGeneration = w.BeginNavigationForTests();
+        Assert.True(w.CompleteNavigationForTests(readyGeneration, succeeded: true));
+        Assert.True(w.IsSyncTimerRunningForTests);
+        Assert.True(w.TryBeginSyncPollForTests(out var pollGeneration));
+        Assert.False(w.TryBeginSyncPollForTests(out _));   // the async tick is single-flight
+
+        var replacementGeneration = w.BeginNavigationForTests();
+        Assert.False(w.IsSyncTimerRunningForTests);        // navigation start stops polling
+        Assert.False(w.IsSyncPollCurrentForTests(pollGeneration));
+        Assert.False(w.CompleteNavigationForTests(readyGeneration, succeeded: true));
+        Assert.False(w.IsSyncTimerRunningForTests);        // stale completion cannot restart it
+        w.EndSyncPollForTests();
+
+        Assert.True(w.CompleteNavigationForTests(replacementGeneration, succeeded: true));
+        Assert.True(w.IsSyncTimerRunningForTests);
+        w.Close();
+        Assert.True(w.IsClosingForTests);
+        Assert.False(w.IsSyncTimerRunningForTests);
+        Assert.False(w.TryBeginSyncPollForTests(out _));
+    });
+
+    [Fact]
     public void Reset_clears_dirty_ui_without_a_live_browser() => StaTestThread.Invoke(() =>
     {
         var w = new MainWindow();

@@ -192,5 +192,32 @@ public class ThemeColorsTests
         }
     }
 
+    [Theory]
+    [InlineData("#000000")]
+    [InlineData("#050609")]
+    [InlineData("#101010")]
+    [InlineData("#131820")]
+    public void Dark_accent_pressed_state_remains_visible_and_readable_REQ_UI_01(string hex)
+    {
+        foreach (var preset in ThemeCatalog.Presets)
+        {
+            var set = ThemeColors.DeriveAccentSet(hex, preset);
+            var surface = preset.Palette.SurfaceHover;
+            var stateDelta = Wcag.ContrastRatio(Hex(set.Primary), Hex(set.Pressed));
+            var pressedOnSurface = Wcag.ContrastRatio(Hex(set.Pressed), surface);
+            var foregroundOnPrimary = Wcag.ContrastRatio(Hex(set.OnAccent), Hex(set.Primary));
+            var foregroundOnPressed = Wcag.ContrastRatio(Hex(set.OnAccentPressed), Hex(set.Pressed));
+
+            Assert.True(stateDelta >= 1.10,
+                $"{preset.Id}/{hex}: Primary-to-Pressed is only {stateDelta:F2}:1.");
+            Assert.True(pressedOnSurface >= 3.0,
+                $"{preset.Id}/{hex}: Pressed on SurfaceHover is only {pressedOnSurface:F2}:1.");
+            Assert.True(foregroundOnPrimary >= 4.5,
+                $"{preset.Id}/{hex}: OnAccent is only {foregroundOnPrimary:F2}:1.");
+            Assert.True(foregroundOnPressed >= 4.5,
+                $"{preset.Id}/{hex}: OnAccentPressed is only {foregroundOnPressed:F2}:1.");
+        }
+    }
+
     private static string Hex(Color color) => $"#{color.R:X2}{color.G:X2}{color.B:X2}";
 }

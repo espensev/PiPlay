@@ -12,6 +12,8 @@ namespace PiPlay.Theme;
 /// </summary>
 public static class ThemeColors
 {
+    private const double MinimumPressedStateContrast = 1.10;
+
     /// <summary>Parse a <c>#RRGGBB</c> hex (the normalized accent form) into an opaque color.</summary>
     public static Color ParseColor(string? hex)
     {
@@ -172,7 +174,15 @@ public static class ThemeColors
         var primary = EnsureContrast(requested, surfaceHover);
 
         var hover = Mix(primary, Colors.White, profile.HoverWhiteMix);
-        var pressed = EnsureContrast(Mix(primary, Colors.Black, profile.PressedBlackMix), surfaceHover);
+        var darkerPressed = EnsureContrast(
+            Mix(primary, Colors.Black, profile.PressedBlackMix), surfaceHover);
+        // Very dark stored colors are lifted to the minimum 3:1 presentation floor. Darkening that
+        // boundary color and correcting it back to 3:1 can land on the same RGB as Primary, erasing
+        // the pressed state. Keep the normal darker recipe whenever it remains visible; only that
+        // collapsed edge case takes the smallest lighter step that clears a 1.10:1 state delta.
+        var pressed = ContrastRatio(primary, darkerPressed) >= MinimumPressedStateContrast
+            ? darkerPressed
+            : MixTowardContrast(primary, Colors.White, primary, MinimumPressedStateContrast);
         var muted = Mix(primary, surfaceRaised, profile.MutedSurfaceMix);
         var border = Mix(primary, Colors.White, profile.BorderWhiteMix);
         var subtle = WithAlpha(primary, profile.SubtleAlpha);

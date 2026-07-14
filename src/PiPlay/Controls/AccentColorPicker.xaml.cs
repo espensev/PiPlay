@@ -9,6 +9,9 @@ namespace PiPlay.Controls;
 
 public partial class AccentColorPicker : UserControl
 {
+    private static readonly object DiscCacheGate = new();
+    private static readonly Dictionary<DiscCacheKey, BitmapSource> DiscCache = [];
+
     public static readonly DependencyProperty SelectedColorProperty =
         DependencyProperty.Register(nameof(SelectedColor), typeof(string), typeof(AccentColorPicker),
             new FrameworkPropertyMetadata(ThemeCatalog.DefaultAccentColor,
@@ -260,38 +263,82 @@ public partial class AccentColorPicker : UserControl
             HueSatDisc.ActualWidth > 0 ? HueSatDisc.ActualWidth : HueSatDisc.Width,
             HueSatDisc.ActualHeight > 0 ? HueSatDisc.ActualHeight : HueSatDisc.Height)));
         var dpi = VisualTreeHelper.GetDpi(this);
-        var discScale = dpi.DpiScaleX;
-        var pixelSize = Math.Max(1, (int)Math.Round(logicalSize * discScale));
-        var bitmap = new WriteableBitmap(pixelSize, pixelSize, 96.0 * discScale, 96.0 * discScale, PixelFormats.Pbgra32, null);
-        var pixels = new int[pixelSize * pixelSize];
-        var center = (pixelSize - 1) / 2.0;
-        var radius = center;
+        var pixelWidth = Math.Max(1, (int)Math.Round(logicalSize * dpi.DpiScaleX));
+        var pixelHeight = Math.Max(1, (int)Math.Round(logicalSize * dpi.DpiScaleY));
+        HueSatDisc.Source = GetCachedDisc(
+            pixelWidth,
+            pixelHeight,
+            96.0 * dpi.DpiScaleX,
+            96.0 * dpi.DpiScaleY);
+        MoveThumb();
+    }
 
-        for (var y = 0; y < pixelSize; y++)
+    internal static BitmapSource GetCachedDiscForTests(
+        int pixelWidth,
+        int pixelHeight,
+        double dpiX = 96.0,
+        double dpiY = 96.0) => GetCachedDisc(pixelWidth, pixelHeight, dpiX, dpiY);
+
+    private static BitmapSource GetCachedDisc(int pixelWidth, int pixelHeight, double dpiX, double dpiY)
+    {
+        pixelWidth = Math.Max(1, pixelWidth);
+        pixelHeight = Math.Max(1, pixelHeight);
+        dpiX = NormalizeDpi(dpiX);
+        dpiY = NormalizeDpi(dpiY);
+        var key = new DiscCacheKey(pixelWidth, pixelHeight, dpiX, dpiY);
+
+        lock (DiscCacheGate)
         {
-            for (var x = 0; x < pixelSize; x++)
+            if (DiscCache.TryGetValue(key, out var cached))
+                return cached;
+
+            var bitmap = CreateDisc(pixelWidth, pixelHeight, dpiX, dpiY);
+            DiscCache.Add(key, bitmap);
+            return bitmap;
+        }
+    }
+
+    private static BitmapSource CreateDisc(int pixelWidth, int pixelHeight, double dpiX, double dpiY)
+    {
+        var bitmap = new WriteableBitmap(
+            pixelWidth, pixelHeight, dpiX, dpiY, PixelFormats.Pbgra32, null);
+        var pixels = new int[pixelWidth * pixelHeight];
+        var centerX = (pixelWidth - 1) / 2.0;
+        var centerY = (pixelHeight - 1) / 2.0;
+        var radiusX = Math.Max(centerX, 0.5);
+        var radiusY = Math.Max(centerY, 0.5);
+
+        for (var y = 0; y < pixelHeight; y++)
+        {
+            for (var x = 0; x < pixelWidth; x++)
             {
-                var dx = x - center;
-                var dy = y - center;
+                // Work in normalized logical coordinates so asymmetric X/Y DPI still renders a
+                // circular disc when WPF maps the cached bitmap back into device-independent units.
+                var dx = (x - centerX) / radiusX;
+                var dy = (y - centerY) / radiusY;
                 var distance = Math.Sqrt(dx * dx + dy * dy);
-                if (distance > radius)
+                if (distance > 1.0)
                 {
-                    pixels[y * pixelSize + x] = 0x00000000;
+                    pixels[y * pixelWidth + x] = 0x00000000;
                     continue;
                 }
 
                 var hue = ((Math.Atan2(dy, dx) * 180.0 / Math.PI) + 360.0) % 360.0;
-                var saturation = Math.Clamp(distance / radius, 0.0, 1.0);
+                var saturation = Math.Clamp(distance, 0.0, 1.0);
                 var color = ColorMath.HsvToRgb(hue, saturation, 1.0);
-                pixels[y * pixelSize + x] = unchecked((int)(0xFF000000u | ((uint)color.R << 16) | ((uint)color.G << 8) | color.B));
+                pixels[y * pixelWidth + x] = unchecked(
+                    (int)(0xFF000000u | ((uint)color.R << 16) | ((uint)color.G << 8) | color.B));
             }
         }
 
-        bitmap.WritePixels(new Int32Rect(0, 0, pixelSize, pixelSize), pixels, pixelSize * 4, 0);
+        bitmap.WritePixels(
+            new Int32Rect(0, 0, pixelWidth, pixelHeight), pixels, pixelWidth * 4, 0);
         bitmap.Freeze();
-        HueSatDisc.Source = bitmap;
-        MoveThumb();
+        return bitmap;
     }
+
+    private static double NormalizeDpi(double dpi) =>
+        double.IsFinite(dpi) && dpi > 0.0 ? Math.Round(dpi, 4) : 96.0;
 
     private void MoveThumb()
     {
@@ -307,4 +354,6 @@ public partial class AccentColorPicker : UserControl
     }
 
     private static string Hex(Color color) => $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+
+    private readonly record struct DiscCacheKey(int PixelWidth, int PixelHeight, double DpiX, double DpiY);
 }

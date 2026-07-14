@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
+using PiPlay.Models;
 using PiPlay.Services;
 using PiPlay.Theme;
 
@@ -56,12 +57,12 @@ public partial class App : Application
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         StartPipeServer();
 
-        // Apply the theme accent to the shared resource brushes BEFORE the first window parses
-        // (overhaul Task 9). A separate read-only load is acceptable — the applier only reads and
-        // MainWindow re-loads for its own use; a failure here must never block startup.
+        // Load once, then use the same sanitized object both for the resources parsed by the first
+        // window and for MainWindow itself. A failure here must never block startup.
+        AppSettings? bootSettings = null;
         try
         {
-            var bootSettings = new SettingsService().Load();
+            bootSettings = new SettingsService().Load();
             ThemeResourceApplier.Apply(Resources, bootSettings.Theme, bootSettings.Player);
         }
         catch (Exception ex)
@@ -69,7 +70,7 @@ public partial class App : Application
             Log.Error("Failed to apply theme resources at startup; using defaults.", ex);
         }
 
-        var main = new MainWindow();
+        var main = bootSettings is null ? new MainWindow() : new MainWindow(bootSettings);
         MainWindow = main;
         main.Show();
 

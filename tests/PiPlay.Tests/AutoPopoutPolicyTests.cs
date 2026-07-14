@@ -33,4 +33,21 @@ public class AutoPopoutPolicyTests
         Assert.Equal(expected, AutoPopoutPolicy.Decide(
             autoEnabled, isPlaying, isWatchVideo, currentVideoId, lastHandledVideoId, popoutActive));
     }
+
+    [Theory]
+    [InlineData(true,  true,  A,    null, false, true)]
+    [InlineData(true,  true,  A,    B,    false, true)]
+    [InlineData(false, true,  A,    null, false, false)]
+    [InlineData(true,  false, A,    null, false, false)]
+    [InlineData(true,  true,  null, null, false, false)]
+    [InlineData(true,  true,  "",   null, false, false)]
+    [InlineData(true,  true,  A,    A,    false, false)]
+    [InlineData(true,  true,  A,    null, true,  false)]
+    public void NeedsPlayerState_rejects_skip_cases_before_the_WebView_probe(
+        bool autoEnabled, bool isWatchVideo, string? currentVideoId,
+        string? lastHandledVideoId, bool popoutActive, bool expected)
+    {
+        Assert.Equal(expected, AutoPopoutPolicy.NeedsPlayerState(
+            autoEnabled, isWatchVideo, currentVideoId, lastHandledVideoId, popoutActive));
+    }
 }

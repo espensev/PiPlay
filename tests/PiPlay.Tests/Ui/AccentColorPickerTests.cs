@@ -93,4 +93,19 @@ public class AccentColorPickerTests
 
         Assert.Equal(ThemeCatalog.AccentOptions, presets);
     });
+
+    [Fact]
+    public void AccentColorPicker_reuses_a_frozen_disc_for_the_same_pixel_size_and_dpi() => StaTestThread.Invoke(() =>
+    {
+        var first = AccentColorPicker.GetCachedDiscForTests(185, 185, 120.0, 120.0);
+        var repeated = AccentColorPicker.GetCachedDiscForTests(185, 185, 120.0, 120.0);
+        var differentDpi = AccentColorPicker.GetCachedDiscForTests(185, 185, 144.0, 144.0);
+
+        Assert.Same(first, repeated);
+        Assert.True(first.IsFrozen);
+        Assert.Equal(185, first.PixelWidth);
+        Assert.Equal(185, first.PixelHeight);
+        Assert.NotSame(first, differentDpi);
+        Assert.True(differentDpi.IsFrozen);
+    });
 }

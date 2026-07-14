@@ -44,18 +44,38 @@ public partial class MainWindow : Window
     private bool _autoTickInProgress;
     private string? _autoLastHandledVideoId;
 
+    // Color-wheel mouse moves can arrive much faster than WPF can present a frame. Keep only the
+    // latest requested accent and apply it at most once per ~33 ms preview frame.
+    private readonly System.Windows.Threading.DispatcherTimer _accentPreviewTimer;
+    private string? _pendingAccentPreview;
+    private string? _lastAppliedAccentPreview;
+
+    // Shutdown owns the final settings save. A PlayerWindow close raised from this path still
+    // contributes its placement/state, but must not drive the Source WebView or save a second time.
+    private bool _mainWindowClosing;
+
     // Guards both privacy actions against re-entrancy (double-click, reopen mid-clear).
     private bool _privacyActionInProgress;
     // True only while Clear browser data is running, so the popout's return handler does not
     // drive source playback against a session that is being wiped.
     private bool _clearingBrowserData;
 
-    public MainWindow()
+    public MainWindow() : this(initialSettings: null)
+    {
+    }
+
+    internal MainWindow(AppSettings? initialSettings)
     {
         InitializeComponent();
         BorderlessWindowHelper.EnableExpandedResizeZones(this);
 
-        _settings = _settingsService.Load();
+        _settings = initialSettings ?? _settingsService.Load();
+        _accentPreviewTimer = new System.Windows.Threading.DispatcherTimer(
+            System.Windows.Threading.DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(33),
+        };
+        _accentPreviewTimer.Tick += AccentPreviewTimer_Tick;
         // Assembly-qualified pack URI (not the short form): resolves against the PiPlay assembly
         // regardless of Application.ResourceAssembly, so it loads in production and under tests.
         Icon = new System.Windows.Media.Imaging.BitmapImage(
@@ -346,11 +366,22 @@ public partial class MainWindow : Window
             var src = core.Source;
             YouTubeUrlHelper.TryParse(src, out var target);
 
+            var isWatchVideo = YouTubeUrlHelper.IsWatchUrl(src);
+            if (!AutoPopoutPolicy.NeedsPlayerState(
+                    autoEnabled: true,
+                    isWatchVideo,
+                    currentVideoId: target.VideoId,
+                    lastHandledVideoId: _autoLastHandledVideoId,
+                    popoutActive: _popoutInProgress || _player is not null))
+            {
+                return;
+            }
+
             var state = await YouTubeDomBridge.ReadPlayerStateAsync(core);
             var decision = AutoPopoutPolicy.Decide(
                 autoEnabled: true,
                 isPlaying: state is { Paused: false },
-                isWatchVideo: YouTubeUrlHelper.IsWatchUrl(src),
+                isWatchVideo,
                 currentVideoId: target.VideoId,
                 lastHandledVideoId: _autoLastHandledVideoId,
                 popoutActive: _popoutInProgress || _player is not null);
@@ -530,9 +561,15 @@ public partial class MainWindow : Window
         // animate:false — the event fires per drag tick; restarting the 150ms fade each tick would
         // stair-step and churn animation timers. The drag itself is the animation.
         dialog.OpacityPreviewChanged += (constant, idle) => _player?.ApplyWindowOpacity(constant, idle, animate: false);
-        dialog.AccentPreviewChanged += LivePreviewAccent;
+        dialog.AccentPreviewChanged += QueueAccentPreview;
 
-        if (dialog.ShowDialog() != true)
+        var accepted = dialog.ShowDialog() == true;
+        // A final pointer update can still be waiting for the 33 ms coalescing tick when the user
+        // clicks Apply. Commit that latest visual value before clearing the preview session; the
+        // persisted writer below remains the source of truth for accepted settings.
+        if (accepted) ApplyPendingAccentPreview();
+        CancelQueuedAccentPreview();
+        if (!accepted)
         {
             // Dismissed without applying: undo live previews back to the persisted levels/accent.
             _player?.ApplyWindowOpacity(EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity);
@@ -632,6 +669,40 @@ public partial class MainWindow : Window
         ApplyAccentEverywhere(ThemeCatalog.NormalizeAccentColor(hex));
     }
 
+    private void QueueAccentPreview(string hex)
+    {
+        if (!ThemeCatalog.IsValidHex(hex)) return;
+
+        var normalized = ThemeCatalog.NormalizeAccentColor(hex);
+        if (string.Equals(normalized, _pendingAccentPreview, StringComparison.OrdinalIgnoreCase)) return;
+        if (_pendingAccentPreview is null
+            && string.Equals(normalized, _lastAppliedAccentPreview, StringComparison.OrdinalIgnoreCase)) return;
+
+        _pendingAccentPreview = normalized;
+        if (!_accentPreviewTimer.IsEnabled) _accentPreviewTimer.Start();
+    }
+
+    private void AccentPreviewTimer_Tick(object? sender, EventArgs e) => ApplyPendingAccentPreview();
+
+    private void ApplyPendingAccentPreview()
+    {
+        _accentPreviewTimer.Stop();
+        var accent = _pendingAccentPreview;
+        _pendingAccentPreview = null;
+        if (accent is null
+            || string.Equals(accent, _lastAppliedAccentPreview, StringComparison.OrdinalIgnoreCase)) return;
+
+        LivePreviewAccent(accent);
+        _lastAppliedAccentPreview = accent;
+    }
+
+    private void CancelQueuedAccentPreview()
+    {
+        _accentPreviewTimer.Stop();
+        _pendingAccentPreview = null;
+        _lastAppliedAccentPreview = null;
+    }
+
     private string CommitAccent(string hex)
     {
         return ProfileAccentService.CommitAccent(_settings, hex);
@@ -644,7 +715,7 @@ public partial class MainWindow : Window
         ThemeResourceApplier.ApplyAccentOnly(Application.Current.Resources, accentColor,
             ThemeCatalog.PresetFor(_settings.Theme.ThemeId));
         ApplySourceAppearance(accentColor);
-        ApplyOpenPlayerAppearance(accentColor);
+        _player?.ApplyAccent(accentColor);
     }
 
     private void ApplyThemeResources()
@@ -705,6 +776,10 @@ public partial class MainWindow : Window
     // The dismiss-without-apply / edit-cancel revert path (ShowDialog() != true), exposed so the
     // revert can be asserted without driving a modal dialog.
     internal void RevertPreviewedAccentForTests() => ApplyResolvedAccent();
+
+    internal void QueueAccentPreviewForTests(string hex) => QueueAccentPreview(hex);
+    internal void FlushAccentPreviewForTests() => ApplyPendingAccentPreview();
+    internal bool HasPendingAccentPreviewForTests => _pendingAccentPreview is not null;
 
     internal void SelectProfileForTests(string? name)
     {
@@ -957,6 +1032,12 @@ public partial class MainWindow : Window
                 if (state.Placement.Height >= 180) _settings.Player.LastHeight = state.Placement.Height;
             }
 
+            if (_mainWindowClosing)
+            {
+                Log.Info("Captured Video Popout state during app shutdown.");
+                return;
+            }
+
             // Return to the source (spec 14). LastKnownSeconds is nullable; 0 is a valid timestamp.
             ShowSourcePlaceholder(false);
             await ApplyReturnActionAsync(state);
@@ -1046,7 +1127,9 @@ public partial class MainWindow : Window
     {
         try
         {
+            _mainWindowClosing = true;
             _autoTimer?.Stop();
+            CancelQueuedAccentPreview();
             // Close the Popout Player too (its handler captures/persists player state).
             if (_player is not null) { try { _player.Close(); } catch { /* ignore */ } }
 
