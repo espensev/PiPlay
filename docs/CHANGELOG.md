@@ -4,6 +4,14 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-07-14
+
+Patch release (from 0.7.2, build 26). Two efficiency/customization reviews, remediated: the app stops
+paying for work nobody asked for (a Popout DOM read four times a second regardless of state, an app-wide
+resource sweep per pointer move during a color drag, a 190 KB bitmap rebuilt every time Settings opens,
+settings parsed four times before the first window), and the release pipeline stops being able to break
+the copy you test from. No feature or visual changes beyond a visible pressed state on very dark accents.
+
 ### Changed
 - **Visible dark accents without nested profile controls:** dark custom app accents are lifted only
   for presentation so action/chrome cues stay visible while the stored hex remains exact. The global
@@ -36,7 +44,6 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 - **No per-window bookkeeping for border suppression:** the DWM border-suppression record was a
   test-only observation kept for every top-level window ever shown and never reclaimed. Production now
   records nothing at all.
-
 - **Lower steady-state WebView work:** Auto now rejects non-watch, already-handled, and active-Popout
   states before crossing the WebView script boundary.
 - **Bounded customization preview work:** color-wheel previews coalesce to roughly 30 updates per
