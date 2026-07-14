@@ -1,5 +1,12 @@
 # Review - Profile Selector Frame
 
+> **Archive note (2026-07-14):** the design spec and plan this review cites were **pruned** after their
+> live content was folded into the product spec and `SPEC_GAPS_AND_OWNERSHIP.md` — see
+> [2026-07-14-doc-cleanup-audit.md](2026-07-14-doc-cleanup-audit.md). The citations below are left intact
+> as the record of what was reviewed at the time; the paths no longer resolve. The reviewed work shipped
+> in v0.7.3 (b28). **This review is retained because its low-severity follow-up findings were never
+> individually closed out** — it is now their only carrier.
+
 **Date:** 2026-07-11
 
 **Surface:** `origin/main...HEAD` (`5bff7d8...00df3e7`)

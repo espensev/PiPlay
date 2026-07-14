@@ -3,7 +3,7 @@ name: Spec check
 # Soft gate: a PR that changes code under src/, scripts/, or tests/ must either add a dated design
 # spec under docs/superpowers/specs/YYYY-MM-DD-*-design.md OR carry an explicit
 # "Spec-Exception: <reason>" line in its body.
-# See docs/Feature_Workflow.md and docs/superpowers/specs/2026-06-06-feature-workflow-enforcement-design.md.
+# See docs/Feature_Workflow.md (the gate's contract and its known limitation are documented there).
 #
 # Runs UNCONDITIONALLY (no paths: filter) and decides inside the job, so it always reports a conclusive
 # status and is safe to mark as a required branch-protection check (a path-filtered required check can

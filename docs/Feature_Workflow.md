@@ -174,6 +174,16 @@ Two GitHub Actions checks run on every pull request:
   change), add a line `Spec-Exception: <reason>` to the PR description; the check then passes and
   records the reason.
 
+  **Known limitation, accepted deliberately:** *any* changed dated `-design.md` satisfies the gate. It
+  proves a spec **moved**, not that the spec is good or that it describes the change in the PR. It is a
+  prompt to think, not a quality bar — reviewers still have to read the spec. The gate also runs
+  unconditionally (no `paths:` filter) and decides inside the job, because a path-filtered required check
+  can hang a PR in "pending" forever.
+
+  **Deliberately not built:** machine-readable plans, a JSON plan-as-source-of-truth with runtime task
+  state, an agent roster, or an observer process. The workflow is intentionally a set of conventions plus
+  one CI gate, not a framework.
+
 After a check's first successful run on GitHub, make it a required branch-protection check for `main`
 so red commits cannot merge unnoticed.
 

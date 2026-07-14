@@ -10,8 +10,8 @@ Full orientation: `docs/AGENTS.md` (terminology, quality bar, conventions) and t
 - Deploy ONLY via `.\scripts\Publish-Stable.ps1` (ADR-0007 — the only sanctioned promote path).
 - NEVER present a launch of repo build output (`src\...\bin\...` or `bin\publish\...`) as manual-QA
   or release verification. Stale binaries lie about what the code does.
-- Repo builds are for the automated dev loop only: `dotnet run`, the deterministic test gate, and
-  the `run-piplay` skill's change-verification smoke.
+- Repo builds are for the automated dev loop only: `dotnet run` and the deterministic test gate
+  (`dotnet test PiPlay.sln --configuration Debug`).
 - Before any manual test pass, verify what is actually deployed:
 
   ```powershell
@@ -27,7 +27,8 @@ Full orientation: `docs/AGENTS.md` (terminology, quality bar, conventions) and t
   counter (moves on every publish). Both live as plain files at the repo root.
 - Release-candidate publishes are exact-source by default:
   1. Choose the version move first: feature → minor, fix → patch, breaking/milestone → major.
-  2. Edit `VERSION` and increment `BUILD_NUMBER`, update `CHANGELOG.md`, and commit those stamps.
+  2. Edit `VERSION` and increment `BUILD_NUMBER`, update `docs/CHANGELOG.md` (there is no root
+     changelog — that is deliberate), and commit those stamps.
   3. Run `.\scripts\Publish-Stable.ps1` from a clean tree. The script uses the committed stamps,
      refuses dirty release evidence, deploys Stable, verifies it, and creates the local tag
      `stable-vX.Y.Z-bN` on that exact commit.

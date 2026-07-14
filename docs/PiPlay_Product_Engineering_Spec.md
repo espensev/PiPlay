@@ -750,7 +750,7 @@ Save format should include:
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 4,
   "lastUrl": "https://www.youtube.com/",
   "mainWindow": {
     "topmost": false,
@@ -1115,7 +1115,16 @@ Quality requirements:
 - Profiles validate URLs before saving in the Phase 2 edit path.
 - Broken profile URLs must fail gracefully even in MVP.
 - **[REQ-PROFILE-01]** For fields that a profile is allowed to carry, a launched profile overrides the global default per field. Unset/null fields fall back to the global value.
-- `accentColor` is an optional per-profile **identity color**. It decorates profile UI as one leading selector/row rail and must not replace the global app accent; Settings Appearance edits the global accent only. Stored global/profile colors remain exact, while non-text presentation colors may be minimally contrast-adjusted against the active dark surface. An optional active-profile popout border remains a future enhancement.
+- `accentColor` is an optional per-profile **identity color**. It decorates profile UI as one leading selector/row rail and must not replace the global app accent; Settings Appearance edits the global accent only. An optional active-profile popout border remains a future enhancement.
+  *(An owner decision is open on whether this stays true — see the P2 conflict in `SPEC_GAPS_AND_OWNERSHIP.md`.)*
+  - **Contrast contract.** Stored global/profile colors remain **exact**; only non-text *presentation*
+    colors are minimally adjusted, and only enough to stay visible. The rail is lifted to at least a
+    **3:1** ratio (`ThemeColors.EnsureContrast`, default `minimumRatio = 3.0`) against **`SurfaceHover`**,
+    which is deliberately the reference: it is the lightest surface the rail can sit on, so a color that
+    clears 3:1 there stays discernible on `SurfaceRaised`, `SurfaceBase`, and `AppBackground` too. The
+    Source Window title-bar accent wash is held to a lower floor against `SurfaceBase` — it is a tint, not
+    a cue, and must stay restrained. A profile with **no** color yields a fully transparent rail while the
+    gutter is retained, so rows do not shift when a color is added or removed.
 - **[REQ-PROFILE-02]** Profiles store both bounds and monitor identity. Restore to the saved monitor when present; otherwise clamp to the nearest visible work area using `WindowPlacementService`.
 - Compact-mode placement exists as reserved data (`PlayerSettings.CompactMode` plus optional
   `Profile.Mode` override), but the user-facing Compact player is dormant in v0.7.2+. New popouts
@@ -1222,7 +1231,7 @@ Initial release style:
 - No trimming.
 - No single-file publish.
 - Include WebView2 runtime check or installer guidance.
-- **[REQ-RELEASE-01]** Sign the published executable and any installer with the SevIQ code-signing certificate before distribution, to establish provenance and avoid SmartScreen warnings.
+- **[REQ-RELEASE-01]** Sign the published executable and any installer with the SevIQ code-signing certificate before distribution, to establish provenance and avoid SmartScreen warnings. **Status: deferred / non-gating** — signing is optional today and is not part of release evidence (provenance comes from the exact-source commit, the stable tag, and `Verify-StableDeploy.ps1`). This requirement revives if PiPlay is ever distributed publicly under a real, non-self-signed certificate. See `SPEC_GAPS_AND_OWNERSHIP.md`.
 
 Future:
 

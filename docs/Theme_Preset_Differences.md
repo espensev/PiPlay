@@ -291,8 +291,9 @@ Radius resources:
 - `RadiusSwatch`
 - `RadiusScrollbarThumb`
 - `RadiusToolTip`
-- `ControlCornerRadius`
-- `ButtonCornerRadius`
+- `ControlCornerRadius` — *migration alias, no XAML consumers left; still written and pinned by tests.
+  Safe to drop in a future pass.*
+- `ButtonCornerRadius` — *migration alias, same status.*
 
 Density resources (doubles and `Thickness`):
 
@@ -325,7 +326,10 @@ When a preset button is clicked in Settings:
 1. The previous preset is captured.
 2. `ThemeId` is normalized from the clicked toggle tag.
 3. The new preset is loaded from `ThemeCatalog`.
-4. The accent becomes the new preset default only if the current accent still equals the previous preset default.
+4. The accent becomes the new preset default **only if** the current accent still equals the previous
+   preset's default (`ThemeCatalog.AccentForThemeSwitch`). The point of that test is that **a custom
+   accent survives theme switches** — switching presets re-tints a default accent but never silently
+   discards one the user chose.
 5. `CornerStyle` resets to `theme`.
 6. `FadeIdleDelayMs` becomes the selected preset's default fade delay.
 7. `StripAutoHideOverride`, `ActiveOpacityOverride`, and `IdleOpacityOverride` reset to `null`.

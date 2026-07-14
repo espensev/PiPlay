@@ -6,11 +6,12 @@
 
 | Bug | Reported | Status | Detail |
 |---|---|---|---|
-| **Double-audio: source "base" keeps playing after popout** | 2026-06-25 (pre-existing, not a v0.6.0 regression) | NEEDS STABLE SMOKE | The source is now muted+paused at popout launch and guarded by a short reassertion timer while the popout owns playback (`MainWindow.xaml.cs`, `YouTubeDomBridge.SuppressPlaybackAsync`). Release smoke still must verify ads, autoplay-next, and YouTube SPA re-renders do not restart source audio behind the placeholder. Worst historical case: mix/radio sources (`start_radio=1`). |
+| **Double-audio: source "base" keeps playing after popout** | 2026-06-25 (pre-existing, not a v0.6.0 regression) | NEEDS STABLE SMOKE — **fix released in v0.8.0 (b29), so the smoke is now runnable** | The source is muted+paused at popout launch and guarded by a ~1 Hz reassertion timer while the popout owns playback (`MainWindow.xaml.cs`, `YouTubeDomBridge.SuppressPlaybackAsync`). **Until b29 this fix existed only on an unmerged branch, so every deployed Stable the owner tested still had the bug and the smoke was impossible to run.** It is now in the deployed copy and still unconfirmed. Reassertion is periodic, so watch for a *brief* leak at the moment of an ad / autoplay-next / SPA re-render — not merely "audio stops on popout." Worst historical case: mix/radio sources (`start_radio=1`). |
 
-## Current-ways review note (2026-06-26)
+## Current-ways review note (2026-06-26, test count refreshed 2026-07-14)
 
-The current local stack is deterministic-test green (`dotnet test PiPlay.sln -c Debug` = 687/687), but
+The current local stack is deterministic-test green (`dotnet test PiPlay.sln -c Debug` = 731/731 as of
+2026-07-14 / v0.8.0-b29 — re-run for the current count rather than trusting this number), but
 that is a headless contract gate, not runtime signoff. Do not RC-tag from the green suite alone. The next
 release evidence must come from the deployed Stable WebView2/YouTube smoke rows: duplicate-audio
 suppression, immediate popout close/unmute, paused-source launch, different-video replay, ads/autoplay-next,
@@ -21,11 +22,36 @@ modes, a 4 DIP resize band, whole-popout opacity, and dormant compact-player plu
 floating-card silhouette, chrome-only transparency, or Browse/Cinema/Compact main-window modes need separate
 design/ADR work instead of being folded into the current release cleanup.
 
+## ⚠️ Open owner decision: does a profile's color become the app accent? (P2)
+
+**Two active docs currently contradict each other. Do not implement P2 until this is called.**
+
+- `PiPlay_Product_Engineering_Spec.md` (§ profile settings): a profile's `accentColor` is an **identity
+  color** that *"must not replace the global app accent"*. This is the v0.6.0 decision and **what the code
+  does today**.
+- `PiPlay_UI_Priority_Improvements.md` **P2**: *"the selected profile color should become the
+  application's primary accent"* — and it carries its own `CONFLICT: this reverses the v0.6.0 decision`
+  flag.
+
+Either the roadmap copy is rewritten to stop proposing the reversal, or the spec is rewritten and P2
+becomes real feature work. **Whichever way it goes, update the loser** — this has already been re-raised as
+a defect more than once because both docs read as authoritative. Recorded here 2026-07-14 because its only
+previous carrier (the b25 follow-up plan) was pruned; see `docs/reviews/2026-07-14-doc-cleanup-audit.md`.
+
 ## Remaining open product decisions
 
 | Item | Phase pressure | Current issue | Needed decision |
 |---|---|---|---|
 | Source Window after direct profile launch | Future/profile polish | Profiles can be launch targets, but the app has not decided whether direct launch can run without a visible Source Window. | Decide whether Source Window remains required, can start minimized/hidden, or becomes optional. |
+| Fresh DOM capture on popout X-close | Return fidelity | Closing the popout with **X** returns the last *timer-sampled* state, not a fresh read: `CaptureCurrentPlaybackStateAsync` runs only on the Bring-video-back path (`CaptureReturnStateNowAsync`). So an X-close can return a timestamp up to one poll interval stale. | Decide whether to add an async close-deferral that takes a fresh DOM read before the popout tears down, or accept the sampled value. |
+| Return target loses playlist context | Return fidelity | `PlayerReturnState` carries only `VideoId`. A different-video return rebuilds a plain watch URL, so playlist/mix position (list + index) can be dropped on the way back to the Source Window. | Decide whether the return state should carry list/index context. |
+| Pure-function seam for playback scripting | Test coverage | The playback-settings script build and player-state parse are still inline, so there is no locale-regression test pinning `ToString("R", InvariantCulture)` for the volume/rate values crossing into JS. | Decide whether to extract `BuildPlaybackSettingsScript` / `ParsePlayerState` as pure functions and pin them. |
+
+## Deferred requirements
+
+| Requirement | Status | Why | What would revive it |
+|---|---|---|---|
+| **REQ-RELEASE-01** (code signing) | **Deferred — not a release gate** | The owner signs locally with a **self-signed** certificate, which proves nothing that the commit hash does not already prove. Release provenance is the exact-source commit, the `stable-vX.Y.Z-bN` tag, and `Verify-StableDeploy.ps1`. v0.8.0-b29 released unsigned. | Public distribution under a real (non-self-signed) certificate, where SmartScreen reputation and third-party provenance actually matter. **Until then, do not add an Authenticode check to the release-evidence path.** |
 
 ## 2026-06-23 owner appearance / popout / compact review
 
@@ -66,7 +92,7 @@ where the owner reported observed behavior, that signal stands until a runtime c
 
 | Owner claim | Code finding (file:line) | Status |
 |---|---|---|
-| 3.2 "Show popout" does not bring the popout back; duplicate risk | Toolbar button now flips label/tooltip/UIA name `Pop out video` ↔ `Bring video back`; the placeholder action uses the same `BringVideoBackAsync` path. The command captures fresh popout return state, closes the popout, and drives `ApplyReturnActionAsync`. Same-video return preserves paused/volume/mute/speed where the YouTube DOM allows it; different-video return navigates to the returned video/timestamp and replays paused/volume/mute/speed after the source video element is ready. | **Implemented in working tree.** Task 3b's post-navigation replay is implemented and covered headlessly, including no-sample fallback to launch playback settings. Manual QA still needs real-page WebView2/YouTube verification. |
+| 3.2 "Show popout" does not bring the popout back; duplicate risk | Toolbar button now flips label/tooltip/UIA name `Pop out video` ↔ `Bring video back`; the placeholder action uses the same `BringVideoBackAsync` path. The command captures fresh popout return state, closes the popout, and drives `ApplyReturnActionAsync`. Same-video return preserves paused/volume/mute/speed where the YouTube DOM allows it; different-video return navigates to the returned video/timestamp and replays paused/volume/mute/speed after the source video element is ready. | **Released in v0.8.0 (b29)** and deployed to Stable. Task 3b's post-navigation replay is covered headlessly, including no-sample fallback to launch playback settings. Manual QA still needs real-page WebView2/YouTube verification against the deployed copy. |
 | 4 "Compact mode does not work" | "Compact" is no longer a user-facing popout toggle: the Settings control was removed, and `PlaybackModePolicy.CompactPlayerEnabled=false` forces new popouts to Normal while the compact plumbing remains dormant. It never changed the main-window layout. | **Terminology mismatch** — the owner's main-window "Compact Mode" is net-new and does not exist; the dormant popout compact plumbing is a different axis and should not be treated as the requested main-window mode. |
 | P1 "reduce transparency by default" | Global opacity default is `1.0` (`WindowOpacityPolicy.cs:18`); only Soft Glass ships slightly translucent (`0.97` active / `0.90` idle, `ThemeCatalog.cs`). | Already opaque by default everywhere except Soft Glass; the remainder is an open sub-decision below. |
 | 2.3 "auto-pick readable foreground" | `ThemeColors.PickReadableForeground` picks the best dark/white foreground, and the 2026-06-25 follow-up accepts any valid `#RRGGBB` accent/profile color. | Text foreground is now separated from the old hard reject; border/glow strength remains a future control axis. |
@@ -99,8 +125,8 @@ single popout through the existing return pipeline.
 
 | Item | Ready status | Notes |
 |---|---|---|
-| Accent/profile split | Implemented on main | The 2026-06-25 pass makes `Profile.AccentColor` identity-only and keeps `theme.accentColor` global. The 2026-07-11 follow-up removes the later selector frame, uses one contrast-safe profile rail, and carries the global accent into the Source Window title-bar wash without changing stored colors. Optional active-profile popout border remains future work. Designs: `docs/superpowers/specs/2026-06-25-profile-color-identity-and-accent-fill-design.md`, `docs/superpowers/specs/2026-07-11-profile-identity-rail-and-accent-wash-design.md`. |
-| Accent gate relax + filled accent actions | Implemented on main | Any valid `#RRGGBB` accent/profile color is accepted; invalid hex is still blocked/defaulted. `AccentButton` now uses accent fill tokens with generated dark/white foreground instead of an outline-only treatment. Design: `docs/superpowers/specs/2026-06-25-profile-color-identity-and-accent-fill-design.md`; plan: `docs/superpowers/plans/2026-06-25-profile-color-identity-and-accent-fill.md`. |
+| Accent/profile split | Implemented on main | The 2026-06-25 pass makes `Profile.AccentColor` identity-only and keeps `theme.accentColor` global. The 2026-07-11 follow-up removes the later selector frame, uses one contrast-safe profile rail, and carries the global accent into the Source Window title-bar wash without changing stored colors. Optional active-profile popout border remains future work. The contrast contract is in the product spec (§ profile settings); the design specs behind these passes were pruned on 2026-07-14 after their live content was folded forward — see `docs/reviews/2026-07-14-doc-cleanup-audit.md`. |
+| Accent gate relax + filled accent actions | Implemented on main | Any valid `#RRGGBB` accent/profile color is accepted; invalid hex is still blocked/defaulted. `AccentButton` now uses accent fill tokens with generated dark/white foreground instead of an outline-only treatment. |
 | Borderless resize zones | Implemented on main | Previous implementations used `WindowChrome.ResizeBorderThickness="6"` and then a 10 DIP inset. The current v0.7.2 P1 implementation uses a 4 DIP black edge resize band (`BorderlessResizeHitTestPolicy.ResizeBorderDip`) plus 32 DIP corner length via native hit testing, without adding a visible size grip or touch-first 40 x 40 target. Manual DPI resize QA remains a release-candidate check. |
 | Compact player plumbing | Dormant on main | Stages 1–4 shipped earlier, but the 2026-06-25 popout-look cleanup removed the Settings Compact toggle and set `PlaybackModePolicy.CompactPlayerEnabled=false`, so new popouts always resolve to Normal. `PlaybackMode.Compact`, `PlaybackModePolicy`, the player shell/IFrame assets, `PlayerSettings.CompactMode`, and `Profile.Mode` are retained as reserved/dormant plumbing, not a release-facing mode. **2026-06-26:** the per-profile Edit-profile playback-mode picker also hides the dead "Compact player" option while `CompactPlayerEnabled=false` (a stored `compact`/`embed` profile falls back to Use-global), closing the gap where Settings dropped the toggle but the profile editor still offered it. Compact manual QA is only a release gate if compact is deliberately re-enabled. |
 | Return resume rule (REQ-RETURN-01) | Implemented on main | Option A is now the normative rule: the popout's live paused/playing state wins when known, and the source launch state is fallback only. A paused source no longer gets auto-nudged into playing unless it was playing at launch; if the user presses play in the popout, return follows that live state. |

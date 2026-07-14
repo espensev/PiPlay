@@ -1,5 +1,11 @@
 # Review - Profile Identity Rail and Accent Wash (address-pass)
 
+> **Archive note (2026-07-14):** the design spec and plan this review cites were **pruned** after their
+> live content (the contrast contract; the open deployed-Stable visual-QA gate) was folded into
+> `PiPlay_Product_Engineering_Spec.md` and `QA_Checklist.md` (row **UI-CHK-9**) — see
+> [2026-07-14-doc-cleanup-audit.md](2026-07-14-doc-cleanup-audit.md). The citations below are left intact
+> as the record of what was reviewed; the paths no longer resolve. The reviewed work shipped in v0.7.3 (b28).
+
 **Date:** 2026-07-11
 
 **Surface:** merge delta `origin/main..HEAD` = commit `a9bb197` exactly. `HEAD~1` and `origin/main`

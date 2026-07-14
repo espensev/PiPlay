@@ -111,8 +111,9 @@ captures and record the evidence per column, never write per-state procedures.
 
 ## 7. Packaging
 - [ ] `bin/` and `obj/` excluded from the repo / ZIP.
-- [ ] Release binaries signed with the SevIQ code-signing certificate before manifest hashes are
-  written (`Publish-Stable.ps1 -SignScript <path>`), or explicitly recorded as unsigned/internal.
+- [ ] Signing status recorded (locally self-signed / unsigned-internal). **Not a gate** — signing is
+  optional via `Publish-Stable.ps1 -SignScript <path>`; release provenance is the exact-source commit,
+  the stable tag, and `Verify-StableDeploy.ps1`. See `SPEC_GAPS_AND_OWNERSHIP.md` (REQ-RELEASE-01).
 - [ ] Release notes mention the WebView2 Evergreen runtime requirement.
 
 ## 8. Chrome / visual identity (REQ-UI-01, REQ-UI-02)
@@ -131,3 +132,11 @@ Binary pass/fail (spec section 22.2 Chrome acceptance). Prefer ChatGPT-operated 
 - [ ] **UI-CHK-5** Address/URL field text is legible at 100/125/150 % DPI — no clipping or faint text.
 - [ ] **UI-CHK-6** Icons share weight, corner style, and active-color behavior across the chrome.
 - [ ] **UI-CHK-7** Accessible names (overhaul Task 7, REQ-UI-02): a screen reader (Narrator / Accessibility Insights) announces real names for every icon-only control — main chrome (Settings/Minimize/Maximize/Close), navigation (Back/Reload/Home), URL box, profiles combo + Save/Edit/Delete, Pin, Auto, the popout action (name flips with "Pop out video"/"Bring video back"), popout Fade/Pin/Expand/Close, Settings close, and the Prompt dialog close.
+- [ ] **UI-CHK-8** *(P1 borderless, open)* The 4 DIP black band around the hosted video reads as
+  **letterbox/canvas** — not as a grey frame and not as a second app frame — on both windows at
+  **100 / 125 / 150 % DPI**. This is a *visual read*, distinct from the resize-feel rows in §4.
+- [ ] **UI-CHK-9** *(profile rail + accent wash, open)* Across **every theme preset** and at 100/125/150 %
+  DPI: the Source Window title-bar accent wash stays a restrained **tint**, never a saturated banner; and
+  the profile identity rail stays visible against the row it sits on — including a **very dark** profile
+  color (which is contrast-lifted for presentation only) and a profile with **no** color (rail fully
+  transparent, gutter retained, rows do not shift).
