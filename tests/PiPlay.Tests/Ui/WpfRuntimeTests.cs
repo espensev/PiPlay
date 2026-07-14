@@ -687,6 +687,74 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void MainWindow_active_opacity_reaches_only_the_source_title_bar_background() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        w.ReplaceSettingsForTests(new AppSettings
+        {
+            Theme = new ThemeSettings { ActiveWindowOpacity = 0.63 },
+        });
+
+        var backdrop = (Border)w.FindName("MainBarBackdrop")!;
+        var title = (TextBlock)w.FindName("TitleText")!;
+        Assert.Equal(0.63, backdrop.Opacity);
+        Assert.Equal(1.0, title.Opacity);   // text/buttons do not inherit the background fade
+        Assert.Equal(1.0, w.Opacity);       // browser/window stay opaque
+    });
+
+    [Fact]
+    public void MainWindow_full_theme_preview_and_cancel_restore_palette_and_bar_opacity() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        w.ReplaceSettingsForTests(new AppSettings
+        {
+            Theme = new ThemeSettings { ThemeId = "sharp-dark" },
+        });
+        var preview = new SettingsWindow(isBrowserReady: true, themeId: "soft-glass");
+
+        w.PreviewThemeForTests(preview);
+        Assert.Equal(ThemeColors.ParseColor("#0B1018"),
+            ((SolidColorBrush)Application.Current.Resources["AppBackground"]).Color);
+        Assert.Equal(0.82, ((Border)w.FindName("MainBarBackdrop")!).Opacity);
+
+        w.RevertAppearancePreviewForTests();
+        Assert.Equal(ThemeColors.ParseColor("#050609"),
+            ((SolidColorBrush)Application.Current.Resources["AppBackground"]).Color);
+        Assert.Equal(1.0, ((Border)w.FindName("MainBarBackdrop")!).Opacity);
+    });
+
+    [Fact]
+    public void PlayerWindow_settings_button_raises_one_request_without_owning_settings() => StaTestThread.Invoke(() =>
+    {
+        var w = new PlayerWindow(
+            environment: null!,
+            url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            topmost: false,
+            placement: null,
+            defaultWidth: 960,
+            defaultHeight: 540,
+            fadeEnabled: true);
+        var requests = 0;
+        w.SettingsRequested += (_, _) => requests++;
+
+        ((Button)w.FindName("SettingsButton")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+
+        Assert.Equal(1, requests);
+    });
+
+    [Fact]
+    public void Existing_settings_dialog_is_raised_above_a_pinned_repeat_requester() => StaTestThread.Invoke(() =>
+    {
+        var source = new MainWindow();
+        var dialog = new SettingsWindow(isBrowserReady: true);
+        var pinnedRequester = new Window { Topmost = true };
+
+        source.PrepareExistingSettingsDialogForTests(dialog, pinnedRequester);
+
+        Assert.True(dialog.Topmost);
+    });
+
+    [Fact]
     public void PlayerWindow_accent_only_update_preserves_behavior_settings() => StaTestThread.Invoke(() =>
     {
         var w = new PlayerWindow(
@@ -1891,7 +1959,14 @@ public class WpfRuntimeTests : IDisposable
             .GetAwaiter().GetResult();
 
         Assert.Null(w.PendingUrlForTests);               // the seek path scripts a live core instead
-        Assert.Null(w.AutoLastHandledVideoIdForTests);   // de-dup key untouched on a plain return
+        Assert.Equal("AAAAAAAAAAA", w.AutoLastHandledVideoIdForTests);
+        Assert.Equal(AutoPopDecision.Skip, AutoPopoutPolicy.Decide(
+            autoEnabled: true,
+            isPlaying: true,
+            isWatchVideo: true,
+            currentVideoId: "AAAAAAAAAAA",
+            lastHandledVideoId: w.AutoLastHandledVideoIdForTests,
+            popoutActive: false));
     });
 
     [Fact]
@@ -1917,6 +1992,30 @@ public class WpfRuntimeTests : IDisposable
         Assert.False(w.IsChromeStripHitTestVisibleForTests);   // Q-8: hidden strip swallows no clicks
 
         w.OnUserActivityForTests();   // any reveal path must restore the layout row immediately
+        Assert.False(w.IsChromeStripCollapsedForTests);
+        Assert.True(w.IsChromeStripHitTestVisibleForTests);
+    });
+
+    [Fact]
+    public void Normal_mode_auto_hide_collapses_and_activity_restores_the_strip() => StaTestThread.Invoke(() =>
+    {
+        var w = new PlayerWindow(
+            environment: null!,
+            url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            topmost: false,
+            placement: null,
+            defaultWidth: 960,
+            defaultHeight: 540,
+            fadeEnabled: true,
+            mode: PlaybackMode.Normal,
+            stripAutoHide: true);
+
+        w.HideControlsForTests();
+        w.CompleteHideFadeForTests();
+        Assert.True(w.IsChromeStripCollapsedForTests);
+        Assert.False(w.IsChromeStripHitTestVisibleForTests);
+
+        w.OnUserActivityForTests();
         Assert.False(w.IsChromeStripCollapsedForTests);
         Assert.True(w.IsChromeStripHitTestVisibleForTests);
     });

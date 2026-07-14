@@ -119,6 +119,20 @@ public class SettingsWindowAppearanceTests : IDisposable
     });
 
     [Fact]
+    public void SettingsWindow_preset_click_requests_one_full_theme_preview() => StaTestThread.Invoke(() =>
+    {
+        var w = new SettingsWindow(isBrowserReady: true, themeId: "sharp-dark");
+        var previews = 0;
+        w.ThemePreviewChanged += () => previews++;
+
+        ((ToggleButton)w.FindName("ThemeSoftGlassPreset")!).RaiseEvent(
+            new RoutedEventArgs(ButtonBase.ClickEvent));
+
+        Assert.Equal(1, previews);
+        Assert.Equal("soft-glass", w.ThemeId);
+    });
+
+    [Fact]
     public void SettingsWindow_preset_click_preserves_a_profile_owned_accent_even_when_it_matches_the_old_default() =>
         StaTestThread.Invoke(() =>
         {

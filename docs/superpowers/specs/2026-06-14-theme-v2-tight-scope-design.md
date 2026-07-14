@@ -3,9 +3,18 @@
 Canonical theme-flow contract: this supersedes the earlier 2026-06-14 theme-differentiation draft,
 which was pruned after its useful direction was folded here.
 
-Status: implementation spec. Imported from `piplay-theme-v2-tight-scope-docs.zip`, then checked
-against the local source tree on 2026-06-14. Phase A (theme identity values, exact gates, and
-`docs/Theme_Preset_Differences.md`) is now reflected in the current checkout. Phases B-E remain
+> **Current-implementation supersession (2026-07-14):** this dated document preserves the original
+> theme-v2 rationale and phase history. The current behavior table below has been reconciled to the
+> current follow-up decisions: all presets default top-bar auto-hide on; Sharp/Minimal/Soft use active/
+> idle opacity `1.00/1.00`, `0.94/0.86`, and `0.82/0.72`; active opacity also paints only the Source
+> title-bar backdrop while active/idle paint the whole Popout. Settings cards read `Crisp · 100%`,
+> `Quiet · 94%`, and `Glass · 82%`. Preset/corner appearance previews live across open surfaces and
+> non-affirmative dismissal restores the complete pre-dialog look. For current-code detail,
+> `docs/Theme_Preset_Differences.md` is authoritative.
+
+Status: historical implementation spec. Imported from `piplay-theme-v2-tight-scope-docs.zip`, then
+checked against the local source tree on 2026-06-14. At that snapshot, Phase A (theme identity values,
+exact gates, and `docs/Theme_Preset_Differences.md`) was reflected in the checkout and Phases B-E were
 pending. The original focused validation at import time passed:
 `dotnet test PiPlay.sln --configuration Debug --filter "FullyQualifiedName~ThemeCatalogTests|FullyQualifiedName~ThemeColorsTests|FullyQualifiedName~ThemePreferenceResolverTests|FullyQualifiedName~ThemeSettingsWriterTests|FullyQualifiedName~XamlInvariantTests"` = 97 passed.
 
@@ -22,7 +31,7 @@ Done means:
 - WebView2 remains safe: no transparent WPF window hacks, no clipping the video surface, no click-through.
 - The current browse/popout behavior, profile behavior, privacy behavior, and the current “double/fullview-like” state investigation are not touched by this work.
 
-## Current baseline from the 2026-06-14 checkout
+## Baseline from the 2026-06-14 checkout (historical)
 
 Already in place:
 
@@ -37,7 +46,7 @@ Already in place:
 - XAML now uses semantic `Radius*` resources for control `CornerRadius` values.
 - `docs/Theme_Preset_Differences.md` reflects the current Phase A catalog values.
 
-Remaining gap:
+Remaining gap at that snapshot:
 
 - Only two accent tokens are live today: `AccentPrimary` and `AccentPrimaryLight`.
 - Primary button foreground is still hardcoded to `#FF06141A`; this blocks a safe full color wheel.
@@ -78,7 +87,8 @@ A theme implementation is done when all of the following are true:
 - `WpfRuntimeTests` prove that applying each preset replaces palette, radius, accent, density, border, and elevation resources in already-realized controls.
 - The URL/search box still does not clip text at 150% DPI.
 - Popout WebView2 resize, borderless hit-test zones, and no-click-through invariants remain unchanged.
-- Settings copy honestly reflects the apply model: theme/accent/corners apply on close; opacity previews live while dragging.
+- Settings copy honestly reflects the apply model: preset, accent, intensity, corner, and opacity changes
+  preview live; Done commits, while title-bar close/Escape restores the complete pre-dialog appearance.
 - No color wheel lands before dynamic `OnAccent` and contrast-safe accent variants.
 - `docs/Theme_Preset_Differences.md` is refreshed in the same PR that changes catalog values and
   refreshed again if later density/elevation work changes the effective preset comparison.
@@ -219,12 +229,18 @@ Rounding rule:
 | Field | Sharp Dark | Minimal | Soft Glass | Media Glow, deferred |
 |---|---|---|---|---|
 | DWM corner mode | `Default` | `SmallRound` | `Round` | `Round` |
-| Default accent | Cyan `#00D4FF` | Steel blue `#5AA9E6` | Violet `#A78BFA` | Cyan or violet; decide later |
+| Default accent | Cyan `#2BAED0` | Steel blue `#3F84C0` | Violet `#9E84F0` | Cyan or violet; decide later |
 | Recommended sharp muted variant | Steel `#4A8FAB` | N/A | N/A | N/A |
 | Fade delay preset | `normal` | `long` | `short` | `normal` |
-| Strip auto-hide | `false` | `false` | `true` | `true` |
-| Active popout opacity | `1.00` | `1.00` | `0.92` | `0.94` |
-| Idle popout opacity | `1.00` | `1.00` | `0.78` | `0.82` |
+| Settings card cue | `Crisp · 100%` | `Quiet · 94%` | `Glass · 82%` | Decide later |
+| Strip auto-hide | `true` | `true` | `true` | `true` |
+| Active opacity | `1.00` | `0.94` | `0.82` | `0.94` |
+| Idle Popout opacity | `1.00` | `0.86` | `0.72` | `0.82` |
+
+The original June 14 targets were strip auto-hide `false / false / true` and active/idle opacity
+`1.00/1.00`, `1.00/1.00`, `0.92/0.78`. They remain historical input, not current defaults. Active
+opacity now also reaches the Source title-bar backdrop only; idle remains Popout-only, and Popout alpha
+still includes the hosted video.
 
 Default accent rule:
 
@@ -566,6 +582,10 @@ Done when:
 
 - Settings explains the model clearly: theme = rules, accent = identity, corners = override.
 
+Current follow-up: the preset cards communicate `Crisp · 100%`, `Quiet · 94%`, and
+`Glass · 82%`; preset/corner selection previews across the Source Window, Settings, and open Popout,
+with Done-to-commit and complete rollback on non-affirmative dismissal.
+
 ### Phase E — Color wheel pass
 
 Scope:
@@ -628,7 +648,8 @@ Runtime tests:
     `OnAccentPressed`.
   - realized consumers re-resolve density, border, and elevation tokens.
   - `SettingsWindow` preset click shows selected theme/accent/corner state correctly.
-  - opacity preview/rollback behavior is unchanged.
+  - preset/corner/accent/opacity preview updates every open surface, and non-affirmative dismissal
+    restores the complete pre-dialog appearance.
   - URL/search box remains unclipped at 150% DPI using a host where `DensityControlHeight` drives the arranged height.
 
 Manual smoke:

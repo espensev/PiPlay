@@ -36,8 +36,11 @@ Mark each: pass / issue (link) / skipped.
 - [ ] Source Window external non-YouTube link opens in the system browser without hijacking the WebView.
 - [ ] Popout Player blocks or externally redirects off-YouTube navigation; the player never wanders.
 - [ ] Sign-in / new-window popup is handled intentionally on the allowed Google auth surface.
-- [ ] With Auto on, navigating to a `/watch` video that plays auto-starts the popout **once**.
-- [ ] Returning from an Auto popout does **not** re-pop the same video; a *different* video does.
+- [ ] With Auto on, navigating to a `/watch` video that plays auto-starts the popout once for the
+  currently armed identity. If the page's canonical URL is stale/different, the visible Source URL wins
+  and the Popout opens that same video (one Source-first identity from detection through launch).
+- [ ] Every return path re-arms Auto with the video restored to the Source Window before playback
+  resumes: the returned video does **not** immediately re-pop; a *different* playing video does.
 - [ ] A Short (`/shorts/`) does **not** auto-pop; enabling Auto on an already-playing video pops it **immediately**.
 - [ ] Toggling Auto off stops auto-popping; the setting persists across restarts; manual Pop out is unaffected.
 
@@ -66,6 +69,7 @@ captures and record the evidence per column, never write per-state procedures.
 | Restore stays reachable while expanded: the strip (or its top-edge reveal under auto-hide) exposes the restore button; Esc restores after clicking the strip once (WPF focus). | | |
 | Close while expanded, pop out again: the next popout launches at the prior normal bounds, never expanded. | | |
 | Auto-hide reveal-then-resize beat (Task 1 residual): with the strip collapsed, the TOP edge band is dead until the top-edge hover reveals the strip; after the reveal, top-edge resize works. | | |
+| The Popout Settings gear opens the same single Settings dialog as the Source Window gear; invoking the other entry point activates that dialog instead of opening a second copy. | | |
 
 ## 3. Fade and appearance (Q-8)
 - [ ] Popout controls fade after idle and restore on hover / mouse-move.
@@ -74,7 +78,20 @@ captures and record the evidence per column, never write per-state procedures.
 - [ ] The player stays clickable at all times — clicks do **not** pass through. **(Q-8)**
 - [ ] Whole popout opacity: Active and When-idle sliders apply live to the open popout; idle dims after the fade delay and movement over the player restores it.
 - [ ] Whole popout opacity cannot drop below the 45% floor from the UI; the player stays fully interactable at every opacity. **(Q-8)** This is not video-safe chrome-only transparency; video also fades.
-- [ ] Auto-hide top bar (with Fade on): the strip collapses after the fade and the video fills the window; hovering the top edge reveals it.
+- [ ] Opacity scope is exact: **In use** changes only the Source title-bar backdrop (not the Source
+  WebView or title-bar controls as a group) and the whole active Popout; **When idle** changes only the
+  whole Popout. Movement restores the configured In-use level, not necessarily 100%.
+- [ ] Select each preset with no behavior overrides and verify active/idle opacity: Sharp Dark
+  `1.00 / 1.00`, Minimal `0.94 / 0.86`, Soft Glass `0.82 / 0.72`.
+- [ ] Auto-hide top bar defaults **on for Sharp Dark, Minimal, and Soft Glass**. With Fade on, each strip
+  collapses after its preset delay and top-edge hover reveals it; turning Fade off keeps it visible.
+- [ ] The preset cards communicate the intended look: Sharp Dark `Crisp · 100%`, Minimal
+  `Quiet · 94%`, Soft Glass `Glass · 82%`; their tooltips/accessible names describe crisp/opaque,
+  quiet/warm, and airy/translucent respectively.
+- [ ] Full appearance preview transaction: with Source and Popout open, click every preset and corner
+  option. Shared theme resources, native corners, Source title-bar backdrop, and the whole Popout update
+  live. Dismiss with title-bar close and again with Escape: every surface returns to its exact pre-dialog
+  appearance. Repeat and press Done: the previewed values persist after restart.
 - [ ] **Overhaul Task 5 — Settings fits short displays:** on (or simulating) a ~768 px work area, the Settings window caps at the work area, the sections scroll, the title-bar close button never scrolls away, and all four sections are reachable in order: Privacy, Appearance, Playback, Advanced.
 - [ ] Settings exposes no Compact player toggle/copy; new popouts use Normal while `PlaybackModePolicy.CompactPlayerEnabled=false`.
 - [ ] **Overhaul Tasks 9-10 — Theme preset + accent smoke:** Settings → Appearance shows a Theme row (Sharp Dark / Minimal / Soft Glass) and a single Accent color chip row. Selecting a preset checks it and adopts that preset's default accent. The chosen accent recolors the primary "Pop out video" button, the URL caret/focus, and the Pin/Fade glyphs LIVE on the open main window (DynamicResource); a newly launched Popout Player also uses it. Restart and confirm the accent persists and is applied at startup. A hand-edited invalid `theme.themeId`/`accentColor` in settings.json falls back to Sharp Dark / cyan without crashing.
@@ -120,7 +137,7 @@ captures and record the evidence per column, never write per-state procedures.
 
 Binary pass/fail (spec section 22.2 Chrome acceptance). Prefer ChatGPT-operated screenshot capture when local UI/screenshot access is available; otherwise capture manually. Save evidence into `docs/evidence/` per `Chrome_UI_Screenshot_Test_Procedure.md`, including the MUI-01 through MUI-12 manual UI cases where reachable, and attach as proof. A build is **not** a release candidate until every item passes — this is an equal gate to the functional checks (spec section 22.5 Definition of Done).
 
-- [ ] **UI-CHK-1** All chrome icons render (window controls, navigation, save, Pin, Pop out, placeholder) — **zero** empty boxes. **(REQ-UI-02)**
+- [ ] **UI-CHK-1** All chrome icons render (window controls, navigation, save, Pin, Pop out, Popout Settings, placeholder) — **zero** empty boxes. **(REQ-UI-02)**
 - [ ] **UI-CHK-2** Profiles dropdown (closed) renders dark, not a light platform control. **(REQ-UI-01)**
 - [ ] **UI-CHK-3** Profiles dropdown (open) + its items render dark; empty list looks intentional, not a blank light box. **(REQ-UI-01)**
 - [ ] **UI-CHK-4** Tooltips render dark and do not occlude the control they describe (esp. caption buttons). **(REQ-UI-01)**
@@ -131,7 +148,7 @@ Binary pass/fail (spec section 22.2 Chrome acceptance). Prefer ChatGPT-operated 
 
 - [ ] **UI-CHK-5** Address/URL field text is legible at 100/125/150 % DPI — no clipping or faint text.
 - [ ] **UI-CHK-6** Icons share weight, corner style, and active-color behavior across the chrome.
-- [ ] **UI-CHK-7** Accessible names (overhaul Task 7, REQ-UI-02): a screen reader (Narrator / Accessibility Insights) announces real names for every icon-only control — main chrome (Settings/Minimize/Maximize/Close), navigation (Back/Reload/Home), URL box, profiles combo + Save/Edit/Delete, Pin, Auto, the popout action (name flips with "Pop out video"/"Bring video back"), popout Fade/Pin/Expand/Close, Settings close, and the Prompt dialog close.
+- [ ] **UI-CHK-7** Accessible names (overhaul Task 7, REQ-UI-02): a screen reader (Narrator / Accessibility Insights) announces real names for every icon-only control — main chrome (Settings/Minimize/Maximize/Close), navigation (Back/Reload/Home), URL box, profiles combo + Save/Edit/Delete, Pin, Auto, the popout action (name flips with "Pop out video"/"Bring video back"), popout Fade/Pin/Settings/Expand/Close, Settings close, and the Prompt dialog close.
 - [ ] **UI-CHK-8** *(P1 borderless, open)* The 4 DIP black band around the hosted video reads as
   **letterbox/canvas** — not as a grey frame and not as a second app frame — on both windows at
   **100 / 125 / 150 % DPI**. This is a *visual read*, distinct from the resize-feel rows in §4.
@@ -157,3 +174,6 @@ Binary pass/fail (spec section 22.2 Chrome acceptance). Prefer ChatGPT-operated 
   accent" and Done edits the global default. Regression check: note the global color, select a colored
   profile, change only another Appearance control, press Done, then deselect the profile; the original
   global color must return unchanged.
+- [ ] **UI-CHK-12** *(preset cards + preview)* The three Settings cards visibly read `Crisp · 100%`,
+  `Quiet · 94%`, and `Glass · 82%`; preset/corner clicks preview across Source and Popout immediately,
+  and a non-Done dismissal restores the exact starting look without a flash of persisted state.

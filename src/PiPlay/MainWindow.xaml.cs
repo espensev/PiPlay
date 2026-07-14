@@ -80,6 +80,12 @@ public partial class MainWindow : Window
     // True only while Clear browser data is running, so the popout's return handler does not
     // drive source playback against a session that is being wiped.
     private bool _clearingBrowserData;
+    // One shared Settings surface can be requested from either window. Keep the instance so a second
+    // request activates it instead of opening a competing modal dialog with a different owner.
+    private SettingsWindow? _settingsDialog;
+    // Full preset preview companion to _previewAccentIntensity. Accent-only preview must derive against
+    // the pending preset, not snap back to the persisted one while Settings is open.
+    private string? _previewThemeId;
 
     public MainWindow() : this(initialSettings: null)
     {
@@ -121,6 +127,7 @@ public partial class MainWindow : Window
         ApplyTopmost(_settings.MainWindow.Topmost);
         ApplyAuto(_settings.AutoPopout);
         ApplySourceAppearance();
+        ApplySourceBarOpacity();
         LoadProfilesIntoCombo();
         ApplyChannelTitle();
     }
@@ -506,7 +513,10 @@ public partial class MainWindow : Window
             if (decision == AutoPopDecision.Pop)
             {
                 Log.Info("Auto: playback detected on a new video; starting Video Popout.");
-                await StartVideoPopoutAsync();
+                // Carry the exact identity Auto just evaluated into launch. Re-resolving through a
+                // stale YouTube SPA canonical can silently substitute another video and break the
+                // once-per-video return latch.
+                await StartVideoPopoutAsync(target);
             }
         }
         catch (Exception ex)
@@ -655,9 +665,21 @@ public partial class MainWindow : Window
     /// <summary>Whether Clear browser data can run right now (browser initialized + live core).</summary>
     internal bool CanClearBrowserData => _browserReady && Browser.CoreWebView2 is not null;
 
-    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    private void SettingsButton_Click(object sender, RoutedEventArgs e) => OpenSettings(this);
+
+    private void Player_SettingsRequested(object? sender, EventArgs e) =>
+        OpenSettings(sender as Window ?? this);
+
+    private void OpenSettings(Window owner)
     {
         if (_privacyActionInProgress) return;
+
+        if (_settingsDialog is not null)
+        {
+            PrepareExistingSettingsDialog(_settingsDialog, owner);
+            _settingsDialog.Activate();
+            return;
+        }
 
         var dialog = new SettingsWindow(
             isBrowserReady: CanClearBrowserData,
@@ -673,17 +695,32 @@ public partial class MainWindow : Window
             accentIntensity: EffectiveAccentIntensity,
             accentFollowsThemePreset: ProfileAccentService.AccentOverridingProfile(_settings) is null)
         {
-            Owner = this,
-            Topmost = Topmost,
+            Owner = owner,
+            // A Source-owned dialog still has to clear an already-pinned Popout, and vice versa.
+            Topmost = owner.Topmost || Topmost || (_player?.Topmost ?? false),
         };
+        _settingsDialog = dialog;
         // Live preview (spec 7.3 / plan Task 3): slider moves apply to the open popout immediately.
         // animate:false — the event fires per drag tick; restarting the 150ms fade each tick would
         // stair-step and churn animation timers. The drag itself is the animation.
-        dialog.OpacityPreviewChanged += (constant, idle) => _player?.ApplyWindowOpacity(constant, idle, animate: false);
+        dialog.OpacityPreviewChanged += (constant, idle) =>
+        {
+            ApplySourceBarOpacity(constant);
+            _player?.ApplyWindowOpacity(constant, idle, animate: false);
+        };
         dialog.AccentPreviewChanged += QueueAccentPreview;
         dialog.AccentIntensityPreviewChanged += QueueAccentIntensityPreview;
+        dialog.ThemePreviewChanged += () => PreviewTheme(dialog);
 
-        var accepted = dialog.ShowDialog() == true;
+        bool accepted;
+        try
+        {
+            accepted = dialog.ShowDialog() == true;
+        }
+        finally
+        {
+            _settingsDialog = null;
+        }
         // A final pointer update can still be waiting for the 33 ms coalescing tick when the user
         // clicks Apply. Commit that latest visual value before clearing the preview session; the
         // persisted writer below remains the source of truth for accepted settings.
@@ -691,9 +728,7 @@ public partial class MainWindow : Window
         CancelQueuedAccentPreview();
         if (!accepted)
         {
-            // Dismissed without applying: undo live previews back to the persisted levels/accent.
-            _player?.ApplyWindowOpacity(EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity);
-            ApplyResolvedAccent();
+            RevertAppearancePreview();
             return;
         }
 
@@ -716,6 +751,17 @@ public partial class MainWindow : Window
                 _ = PerformClearBrowserDataAsync();
                 break;
         }
+    }
+
+    private void PrepareExistingSettingsDialog(SettingsWindow dialog, Window requester)
+    {
+        if (dialog.WindowState == WindowState.Minimized)
+            SystemCommands.RestoreWindow(dialog);
+
+        // ShowDialog keeps the first requester as Owner for the lifetime of the modal session.
+        // Re-parenting a visible modal is unsafe; raising its topmost level is enough to keep a
+        // repeat request from leaving Settings behind either pinned PiPlay window.
+        dialog.Topmost = dialog.Topmost || requester.Topmost || Topmost || (_player?.Topmost ?? false);
     }
 
     private void PerformResetAppState()
@@ -745,6 +791,7 @@ public partial class MainWindow : Window
         ApplyAuto(false);
         ApplyThemeResources();
         ApplySourceAppearance();
+        ApplySourceBarOpacity();
         ApplyOwnCornerMode();
         ApplyOpenPlayerAppearance();
         UpdateAutoDetector();   // Auto is off after reset → stop the detector
@@ -768,6 +815,7 @@ public partial class MainWindow : Window
         // from Theme.AccentColor and cannot know an active profile override by itself.
         ApplyThemeResources();
         ApplyAccentResourcesAndSource(ResolvedAccentColor);
+        ApplySourceBarOpacity();
         ApplyOwnCornerMode();
         // Apply the open player's complete appearance once. Calling ApplyResolvedAccent above would
         // also send an accent-only player update, duplicating this accepted-Settings repaint.
@@ -862,6 +910,7 @@ public partial class MainWindow : Window
         _lastAppliedAccentPreview = null;
         _lastAppliedAccentIntensityPreview = null;
         _previewAccentIntensity = null;   // stop overriding: rendering follows persisted settings again
+        _previewThemeId = null;
     }
 
     private void ApplyResolvedAccent() => ApplyAccentEverywhere(ResolvedAccentColor);
@@ -878,7 +927,7 @@ public partial class MainWindow : Window
         // omitting it here still compiles and still looks wired — while silently snapping a user who
         // chose 0 or 100 back to 50 on every profile switch, dialog cancel, and reset.
         ThemeResourceApplier.ApplyAccentOnly(Application.Current.Resources, accentColor,
-            ThemeCatalog.PresetFor(_settings.Theme.ThemeId), EffectiveAccentIntensity);
+            ThemeCatalog.PresetFor(_previewThemeId ?? _settings.Theme.ThemeId), EffectiveAccentIntensity);
         ApplySourceAppearance(accentColor);
     }
 
@@ -894,6 +943,45 @@ public partial class MainWindow : Window
     {
         ThemeResourceApplier.Apply(Application.Current.Resources, _settings.Theme, _settings.Player);
     }
+
+    private void PreviewTheme(SettingsWindow dialog)
+    {
+        _previewThemeId = dialog.ThemeId;
+        _previewAccentIntensity = dialog.AccentIntensity;
+        var previewTheme = new ThemeSettings
+        {
+            ThemeId = dialog.ThemeId,
+            AccentColor = dialog.AccentColor,
+            AccentIntensity = dialog.AccentIntensity,
+            CornerStyle = dialog.CornerStyle,
+        };
+        ThemeResourceApplier.Apply(Application.Current.Resources, previewTheme, _settings.Player);
+        ApplySourceAppearance(dialog.AccentColor);
+        ApplySourceBarOpacity(dialog.ConstantWindowOpacity);
+
+        var cornerMode = ThemeCatalog.DwmCornersFor(
+            ThemeCatalog.PresetFor(dialog.ThemeId), dialog.CornerStyle);
+        ApplyOwnCornerMode(cornerMode);
+        _player?.ApplyAppearance(dialog.AccentColor, dialog.FadeIdleDelayMs, dialog.StripAutoHide);
+        _player?.ApplyWindowOpacity(dialog.ConstantWindowOpacity, dialog.IdleWindowOpacity, animate: false);
+        _player?.ApplyCornerMode(cornerMode);
+    }
+
+    private void RevertAppearancePreview()
+    {
+        // Dismissed without applying: undo the complete preview transaction, not just its accent.
+        CancelQueuedAccentPreview();
+        ApplyThemeResources();
+        ApplyResolvedAccent();
+        ApplySourceBarOpacity();
+        ApplyOwnCornerMode();
+        ApplyOpenPlayerAppearance();
+    }
+
+    private void ApplySourceBarOpacity() => ApplySourceBarOpacity(EffectiveActiveWindowOpacity);
+
+    private void ApplySourceBarOpacity(double opacity) =>
+        MainBarBackdrop.Opacity = WindowOpacityPolicy.Normalize(opacity);
 
     private int EffectiveFadeIdleDelayMs =>
         ThemePreferenceResolver.FadeIdleDelayMs(_settings.Theme, _settings.Player);
@@ -915,11 +1003,13 @@ public partial class MainWindow : Window
 
     /// <summary>Apply the theme/override native corner preference to this window's own HWND.
     /// No-op before SourceInitialized (which applies the initial mode).</summary>
-    private void ApplyOwnCornerMode()
+    private void ApplyOwnCornerMode() => ApplyOwnCornerMode(EffectiveDwmCornerMode);
+
+    private void ApplyOwnCornerMode(DwmCornerMode cornerMode)
     {
         var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero) return;
-        WindowOpacityApplier.SetCornerMode(hwnd, EffectiveDwmCornerMode);
+        WindowOpacityApplier.SetCornerMode(hwnd, cornerMode);
         WindowOpacityApplier.SetBorderColor(hwnd, suppress: true);   // P1 borderless: no Win11 DWM frame hairline
     }
 
@@ -940,6 +1030,7 @@ public partial class MainWindow : Window
         _settings = settings;
         ApplyThemeResources();
         ApplySourceAppearance();   // refresh the imperative pin/hint accent from the injected settings
+        ApplySourceBarOpacity();
         LoadProfilesIntoCombo();
     }
 
@@ -956,6 +1047,10 @@ public partial class MainWindow : Window
     internal void QueueAccentIntensityPreviewForTests(int intensity) => QueueAccentIntensityPreview(intensity);
     internal void CancelQueuedAccentPreviewForTests() => CancelQueuedAccentPreview();
     internal int EffectiveAccentIntensityForTests => EffectiveAccentIntensity;
+    internal void PreviewThemeForTests(SettingsWindow dialog) => PreviewTheme(dialog);
+    internal void RevertAppearancePreviewForTests() => RevertAppearancePreview();
+    internal void PrepareExistingSettingsDialogForTests(SettingsWindow dialog, Window requester) =>
+        PrepareExistingSettingsDialog(dialog, requester);
 
     internal void SelectProfileForTests(string? name)
     {
@@ -1041,7 +1136,7 @@ public partial class MainWindow : Window
     private async void PlaceholderBringBackButton_Click(object sender, RoutedEventArgs e) =>
         await BringVideoBackAsync();
 
-    private async Task StartVideoPopoutAsync()
+    private async Task StartVideoPopoutAsync(YouTubeTarget? resolvedTarget = null)
     {
         // Guards (spec 13.4): browser ready, no popout in flight, single player (ADR-0005).
         if (!_browserReady || _popoutInProgress) return;
@@ -1064,8 +1159,9 @@ public partial class MainWindow : Window
             _sourcePlaybackRateAtPopout = launchState?.PlaybackRate;
             var seconds = launchState?.CurrentTime;
 
-            // 2) Resolve the currently playing video (canonical URL first, then the address bar).
-            var target = await ResolvePopoutTargetAsync(core);
+            // 2) Resolve the currently visible Source video first; canonical is only a fallback for
+            // pages whose address does not expose a playable target.
+            var target = resolvedTarget ?? await ResolvePopoutTargetAsync(core);
             if (target is null || string.IsNullOrEmpty(target.VideoId))
             {
                 Prompt.ShowInfo(this, "Pop out video", "Open a YouTube video first, then press Pop out video.");
@@ -1109,6 +1205,7 @@ public partial class MainWindow : Window
                 EffectiveStripAutoHide, EffectiveDwmCornerMode,
                 nudgePlayOnInitialPause: _sourceWasPlayingAtPopout);
             _player.PlayerClosed += Player_OnClosed;
+            _player.SettingsRequested += Player_SettingsRequested;
             _player.Show();
 
             if (target.FallbackReason is not null) Log.Info($"Popout fallback: {target.FallbackReason}");
@@ -1211,12 +1308,7 @@ public partial class MainWindow : Window
     private static async Task<YouTubeTarget?> ResolvePopoutTargetAsync(CoreWebView2 core)
     {
         var canonical = await YouTubeDomBridge.ReadCanonicalUrlAsync(core);
-        if (!string.IsNullOrEmpty(canonical) &&
-            YouTubeUrlHelper.TryParse(canonical, out var fromCanonical) && fromCanonical.VideoId is not null)
-        {
-            return fromCanonical;
-        }
-        return YouTubeUrlHelper.TryParse(core.Source, out var fromSource) ? fromSource : null;
+        return PopoutTargetResolver.Resolve(core.Source, canonical);
     }
 
     internal void ShowSourcePlaceholder(bool visible, string? note = null)
@@ -1332,6 +1424,15 @@ public partial class MainWindow : Window
         var action = ReturnPolicy.Decide(state.LastKnownSeconds, _sourceWasPlayingAtPopout,
             state.Paused, state.VideoId, _popoutSourceVideoId);
 
+        // Arm before any WebView script await: the Auto timer can run as soon as Player_OnClosed
+        // clears _player. A seek/play return leaves the original Source video visible; a Navigate
+        // return exposes the player's final video. Either way, return-resume is not a new Auto edge.
+        var returnedSourceVideoId = action == ReturnAction.Navigate
+            ? state.VideoId
+            : _popoutSourceVideoId ?? state.VideoId;
+        if (!string.IsNullOrEmpty(returnedSourceVideoId))
+            _autoLastHandledVideoId = returnedSourceVideoId;
+
         if (action != ReturnAction.Navigate && core is not null)
         {
             // Popout live value wins; else the pre-suppression launch value; else forced un-mute so
@@ -1349,7 +1450,6 @@ public partial class MainWindow : Window
                 // auto-advance, SPA navigation): bring the source to where the user
                 // actually is. The timestamp rides the watch URL; Auto's de-dup key
                 // updates FIRST so the returned video is not instantly re-popped.
-                _autoLastHandledVideoId = state.VideoId;
                 _pendingReturnReplay = CloneForReturnReplay(
                     state, _sourceWasPlayingAtPopout,
                     _sourceVolumeAtPopout, _sourceMutedAtPopout, _sourcePlaybackRateAtPopout);

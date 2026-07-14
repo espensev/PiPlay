@@ -198,7 +198,7 @@ public static class ThemeCatalog
             "The current utility-first PiPlay dark shell.",
             DefaultAccentColor,
             DefaultFadeDelayPreset,
-            DefaultStripAutoHide: false,
+            DefaultStripAutoHide: true,
             DefaultActiveWindowOpacity: WindowOpacityPolicy.Default,
             DefaultIdleWindowOpacity: WindowOpacityPolicy.Default,
             // Near-black and cool (theme-v2 tight-scope spec §"Palette targets"): the darkest base
@@ -220,12 +220,13 @@ public static class ThemeCatalog
             "Minimal",
             "A quieter preset for daily browsing and low-distraction popouts.",
             "#3F84C0",
-            // Calmer daily shell: longer fade delay so the strip lingers (theme-v2 spec §"behavior
-            // defaults"); strip stays pinned and the window stays opaque.
+            // Calmer daily shell: longer fade delay so the strip lingers, then the bar still
+            // reclaims its row. A restrained opacity step separates it from Sharp without turning
+            // it into the overlay-oriented Soft Glass preset.
             DefaultFadeDelayPreset: "long",
-            DefaultStripAutoHide: false,
-            DefaultActiveWindowOpacity: WindowOpacityPolicy.Default,
-            DefaultIdleWindowOpacity: WindowOpacityPolicy.Default,
+            DefaultStripAutoHide: true,
+            DefaultActiveWindowOpacity: 0.94,
+            DefaultIdleWindowOpacity: 0.86,
             // Warm charcoal palette (theme-v2 tight-scope spec §"Palette targets").
             Palette: new(
                 AppBackground: "#14120F", SurfaceBase: "#1C1A16",
@@ -249,8 +250,8 @@ public static class ThemeCatalog
             // light idle fade, not the old heavy see-through (owner review: "low, controlled, not heavy").
             DefaultFadeDelayPreset: "short",
             DefaultStripAutoHide: true,
-            DefaultActiveWindowOpacity: 0.97,
-            DefaultIdleWindowOpacity: 0.90,
+            DefaultActiveWindowOpacity: 0.82,
+            DefaultIdleWindowOpacity: 0.72,
             // Blue/cool translucent-overlay palette with quieted borders and secondary text
             // (theme-v2 tight-scope spec §"Palette targets").
             Palette: new(

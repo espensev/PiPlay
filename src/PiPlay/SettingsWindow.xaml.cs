@@ -65,6 +65,10 @@ public partial class SettingsWindow : Window
     internal event Action<double, double>? OpacityPreviewChanged;
     internal event Action<string>? AccentPreviewChanged;
 
+    /// <summary>Raised after a preset/corner selection so MainWindow can preview the complete shared
+    /// resource set while retaining ownership of the transaction and cancel/revert path.</summary>
+    internal event Action? ThemePreviewChanged;
+
     /// <summary>Raised on every accent-intensity slider move so MainWindow can live-preview how far the
     /// accent reaches into the chrome. Arg: the 0–100 intensity.</summary>
     internal event Action<int>? AccentIntensityPreviewChanged;
@@ -218,6 +222,7 @@ public partial class SettingsWindow : Window
         AppearanceChanged = true;
         ApplyAppearanceSelections();
         ApplyOwnCornerMode();
+        ThemePreviewChanged?.Invoke();
     }
 
     private void AccentPicker_PreviewColorChanged(string hex)
@@ -234,6 +239,7 @@ public partial class SettingsWindow : Window
         AppearanceChanged = true;
         ApplyAppearanceSelections();
         ApplyOwnCornerMode();
+        ThemePreviewChanged?.Invoke();
     }
 
     /// <summary>The dialog's own native corner shape follows the pending theme/override selection.</summary>

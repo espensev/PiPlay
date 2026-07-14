@@ -135,20 +135,44 @@
                    Margin="0,0,0,6" />
         <!-- Accent previews live; Done commits while the title-bar close dismisses. -->
         <TextBlock x:Name="ThemeHintText"
-                   Text="Accent and opacity preview live; Done applies theme and corner changes."
+                   Text="Presets, accent, corners, and opacity preview live; Done keeps the changes."
                    TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,0,0,8" />
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+        <UniformGrid Columns="3" Margin="0,0,0,14">
           <ToggleButton x:Name="ThemeSharpDarkPreset" Style="{StaticResource PresetToggle}"
-                        Content="Sharp Dark" Tag="sharp-dark" Click="ThemePreset_Click"
-                        ToolTip="Sharp Dark theme" AutomationProperties.Name="Sharp Dark theme" />
+                        Height="58" Background="#0B0E12" Tag="sharp-dark" Click="ThemePreset_Click"
+                        ToolTip="Crisp, compact, and fully opaque"
+                        AutomationProperties.Name="Sharp Dark theme — crisp and opaque">
+            <StackPanel>
+              <TextBlock Text="Sharp Dark" HorizontalAlignment="Center" FontWeight="SemiBold" />
+              <Border Width="24" Height="3" Margin="0,5,0,3" HorizontalAlignment="Center"
+                      Background="#2BAED0" CornerRadius="{DynamicResource RadiusSwatch}" />
+              <TextBlock Text="Crisp · 100%" HorizontalAlignment="Center" FontSize="10" />
+            </StackPanel>
+          </ToggleButton>
           <ToggleButton x:Name="ThemeMinimalPreset" Style="{StaticResource PresetToggle}"
-                        Content="Minimal" Tag="minimal" Click="ThemePreset_Click"
-                        ToolTip="Minimal theme" AutomationProperties.Name="Minimal theme" />
+                        Height="58" Background="#1C1A16" Tag="minimal" Click="ThemePreset_Click"
+                        ToolTip="Quiet, warm, and lightly translucent"
+                        AutomationProperties.Name="Minimal theme — quiet and warm">
+            <StackPanel>
+              <TextBlock Text="Minimal" HorizontalAlignment="Center" FontWeight="SemiBold" />
+              <Border Width="24" Height="3" Margin="0,5,0,3" HorizontalAlignment="Center"
+                      Background="#3F84C0" CornerRadius="{DynamicResource RadiusSwatch}" />
+              <TextBlock Text="Quiet · 94%" HorizontalAlignment="Center" FontSize="10" />
+            </StackPanel>
+          </ToggleButton>
           <ToggleButton x:Name="ThemeSoftGlassPreset" Style="{StaticResource PresetToggle}"
-                        Content="Soft Glass" Tag="soft-glass" Click="ThemePreset_Click"
-                        ToolTip="Soft Glass theme" AutomationProperties.Name="Soft Glass theme" />
-        </StackPanel>
+                        Height="58" Margin="0" Background="#121A26" Tag="soft-glass" Click="ThemePreset_Click"
+                        ToolTip="Airy, cool, and visibly translucent"
+                        AutomationProperties.Name="Soft Glass theme — airy and translucent">
+            <StackPanel>
+              <TextBlock Text="Soft Glass" HorizontalAlignment="Center" FontWeight="SemiBold" />
+              <Border Width="24" Height="3" Margin="0,5,0,3" HorizontalAlignment="Center"
+                      Background="#9E84F0" CornerRadius="{DynamicResource RadiusSwatch}" />
+              <TextBlock Text="Glass · 82%" HorizontalAlignment="Center" FontSize="10" />
+            </StackPanel>
+          </ToggleButton>
+        </UniformGrid>
 
         <TextBlock Text="Accent color" FontSize="12" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,0,0,6" />
@@ -233,23 +257,27 @@
                         AutomationProperties.Name="Fade delay Long" />
         </StackPanel>
 
-        <!-- Whole popout opacity (spec 7.3, Phase 4). Sliders floor at 45% (QA §3); values
+        <!-- Active opacity also reaches the Source title-bar BACKGROUND (not its controls/browser),
+             while the Popout implementation remains whole-window alpha. Sliders floor at 45%; values
              10-45% are honored only when hand-edited into settings.json (the explicit unlock). -->
-        <TextBlock Text="Whole popout opacity" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+        <TextBlock Text="Opacity" FontSize="12" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,12,0,6" />
+        <TextBlock Text="In use affects the Source top bar and whole Popout; idle affects only the whole Popout."
+                   TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextSecondary}"
+                   Margin="0,0,0,6" />
         <Grid Margin="0,0,0,6">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="72" />
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="44" />
           </Grid.ColumnDefinitions>
-          <TextBlock Text="Active" FontSize="12" Foreground="{DynamicResource TextPrimary}"
+          <TextBlock Text="In use" FontSize="12" Foreground="{DynamicResource TextPrimary}"
                      VerticalAlignment="Center" />
           <Slider x:Name="ActiveOpacitySlider" Grid.Column="1" Minimum="45" Maximum="100"
                   SmallChange="1" LargeChange="10" IsMoveToPointEnabled="True"
                   VerticalAlignment="Center" ValueChanged="OpacitySlider_ValueChanged"
-                  ToolTip="Whole popout opacity while you interact with it (45-100%)"
-                  AutomationProperties.Name="Active whole popout opacity" />
+                  ToolTip="Source top bar and whole Popout opacity while in use (45-100%)"
+                  AutomationProperties.Name="Source top bar and active whole popout opacity" />
           <TextBlock x:Name="ActiveOpacityValueText" Grid.Column="2" FontSize="12" TextAlignment="Right"
                      Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
         </Grid>

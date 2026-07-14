@@ -46,9 +46,13 @@
                    FontSize="12" Foreground="{DynamicResource TextSecondary}" />
 
         <StackPanel Grid.Column="1" Orientation="Horizontal">
+          <Button x:Name="SettingsButton" Style="{StaticResource IconButton}" Width="30" Height="30"
+                  Content="&#xE713;" Click="SettingsButton_Click" ToolTip="Settings"
+                  AutomationProperties.Name="Settings" />
           <ToggleButton x:Name="FadeToggle" Style="{StaticResource PinToggle}" Width="30" Height="30"
-                        Content="&#xE7B3;" Click="FadeToggle_Click" ToolTip="Fade controls when idle"
-                        AutomationProperties.Name="Fade controls when idle" />
+                        Content="&#xE7B3;" Click="FadeToggle_Click"
+                        ToolTip="Fade the top bar when idle; Settings controls whether its row also hides"
+                        AutomationProperties.Name="Fade top bar when idle" />
           <ToggleButton x:Name="PinToggle" Style="{StaticResource PinToggle}" Width="30" Height="30"
                         Content="&#xE840;" Click="PinToggle_Click" ToolTip="Pin on top"
                         AutomationProperties.Name="Pin popout on top" />
