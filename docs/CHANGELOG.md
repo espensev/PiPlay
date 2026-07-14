@@ -4,21 +4,43 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [Unreleased]
 
-### Changed
+## [0.8.0] - 2026-07-14
+
+Minor release (from 0.7.3, build 28). Playback now moves **both ways**: a popout can hand the video back
+to the Source Window, and the source stops playing behind it while it is gone. Everything below had been
+finished but stranded on a diverged branch that never reached a build — including the fix for the
+doubled-audio bug — so this is the first release you can actually test any of it in.
+
+### Added
 - **Bring video back (P4):** while a popout exists, the Source Window primary action and placeholder
-  action now return playback to the Source Window instead of only focusing the popout. The return path
+  action return playback to the Source Window instead of only focusing the popout. The return path
   captures fresh popout timestamp, paused state, volume, mute, and playback speed where the YouTube DOM
-  exposes them. If the popout ends on a different video, the Source Window now navigates there and
-  replays the captured play/pause, volume/mute, and playback-speed state after the returned video is
-  available.
+  exposes them. If the popout ends on a different video, the Source Window navigates there and replays
+  the captured play/pause, volume/mute, and playback-speed state once the returned video is available.
+
+### Fixed
+- **Doubled audio while a video is popped out.** The source used to be paused exactly once,
+  fire-and-forget, and never muted — so YouTube would start it again behind the placeholder on an ad,
+  an autoplay-next, or an SPA re-render, and you heard the same audio twice (worst on mixes and radios,
+  which advance on their own). The source is now muted *and* paused when the popout takes over, that
+  suppression is re-asserted for as long as the popout owns playback, and the source is force-unmuted on
+  return so it can never come back silent. Re-assertion is periodic rather than instantaneous, so a brief
+  leak at the moment of a transition is still possible; that is what release smoke on ads, autoplay-next,
+  and SPA re-renders needs to confirm.
+
+### Changed
 - **Return resume rule (REQ-RETURN-01):** return follows the popout's live play/pause state when known;
   source-was-playing at launch is now fallback-only. PiPlay only nudges a newly opened popout into
   playback when the source was already playing at launch.
-- **Source audio suppression:** while playback is detached, the Source Window now mutes+pauses the source
-  and reasserts suppression so ads, autoplay-next, and SPA re-renders are less likely to produce duplicate
-  audio behind the placeholder.
-- **Whole popout opacity wording (P3):** Settings now labels the existing layered-window opacity feature
-  as whole-popout opacity, making clear it is not video-safe chrome-only transparency.
+- **The dead "Compact player" option is gone from the profile editor.** The compact kill switch
+  (`CompactPlayerEnabled=false`) already forced every popout to Normal, but the Edit-profile playback-mode
+  picker still offered Compact, so the option did nothing. A stored compact/embed profile now falls back
+  to Use-global; the option reappears automatically if compact is ever re-enabled.
+- **Corner styles: "Soft" dropped.** It shared `DWMWCP_ROUND` with "Round" — DWM exposes only three radii
+  — so the two were identical at the window silhouette. A stored `soft` normalizes to `round` and keeps
+  its rounded corner.
+- **Whole popout opacity wording (P3):** Settings labels the existing layered-window opacity feature as
+  whole-popout opacity, making clear it is not video-safe chrome-only transparency.
 
 ## [0.7.3] - 2026-07-14
 
