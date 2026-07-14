@@ -723,6 +723,82 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal(1.0, ((Border)w.FindName("MainBarBackdrop")!).Opacity);
     });
 
+    /// <summary>
+    /// Cancelling Settings must undo the WHOLE preview transaction, and a palette check alone does not
+    /// prove that: RevertAppearancePreview's ApplyThemeResources repaints the accent from the GLOBAL
+    /// Theme.AccentColor, so with a colored profile active it is the FOLLOWING ApplyResolvedAccent that
+    /// puts the profile's color back. Drop that one line and dismissing Settings leaves the app wearing
+    /// the wrong color — a mutation the palette-only guard could not see. The open popout is the other
+    /// half: nothing else can show that the player was left on the previewed appearance.
+    /// </summary>
+    [Fact]
+    public void MainWindow_cancel_restores_the_profile_accent_and_the_open_player_REQ_UI_01() => StaTestThread.Invoke(() =>
+    {
+        var settings = new AppSettings
+        {
+            ActiveProfileName = "Violet",
+            Theme = new ThemeSettings
+            {
+                ThemeId = "sharp-dark",
+                AccentColor = "#00D4FF",       // the GLOBAL accent: what a half-done revert would paint
+                AccentIntensity = 50,
+                // Deliberately NOT the dialog's default ("normal" = 2500ms): a persisted value the
+                // preview cannot coincidentally restore, so the fade assertion below discriminates.
+                FadeDelayPreset = "long",      // 4000ms
+            },
+            Profiles =
+            {
+                new Profile
+                {
+                    Name = "Violet",
+                    Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                    AccentColor = "#A78BFA",   // the accent actually on screen
+                },
+            },
+        };
+
+        var w = new MainWindow();
+        w.ReplaceSettingsForTests(settings);
+        w.SelectProfileForTests("Violet");
+
+        var player = new PlayerWindow(
+            environment: null!,
+            url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            topmost: false,
+            placement: null,
+            defaultWidth: 960,
+            defaultHeight: 540,
+            fadeEnabled: true,
+            accentColor: "#A78BFA",
+            fadeIdleDelayMs: 4000);
+        w.AttachPlayerForTests(player);
+
+        // Preview a different preset AND a different reach, exactly as dragging in Settings would.
+        var preview = new SettingsWindow(isBrowserReady: true, themeId: "soft-glass", accentIntensity: 100);
+        w.PreviewThemeForTests(preview);
+
+        // The preview really did reach the open popout — otherwise the revert below proves nothing.
+        Assert.Equal((0.82, 0.72), player.WindowOpacityLevelsForTests);
+        Assert.Equal(TimeSpan.FromMilliseconds(2500), player.FadeIdleDelayForTests);
+
+        w.RevertAppearancePreviewForTests();
+
+        // The accent must return to the PROFILE's color at the PERSISTED reach — not the global accent,
+        // and not the previewed reach.
+        var expected = ThemeColors.DeriveAccentSet("#A78BFA", ThemeCatalog.PresetFor("sharp-dark"), 50);
+        Assert.Equal(expected.Primary, ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color);
+        Assert.Equal(expected.ChromeGlyph, ((SolidColorBrush)Application.Current.Resources["AccentChromeGlyph"]).Color);
+        Assert.Equal("#A78BFA", w.ResolvedAccentColorForTests);
+        Assert.Equal(50, w.EffectiveAccentIntensityForTests);
+
+        // ...and the open popout must be back on the persisted appearance, not the previewed one.
+        Assert.Equal((1.0, 1.0), player.WindowOpacityLevelsForTests);
+        Assert.Equal(TimeSpan.FromMilliseconds(4000), player.FadeIdleDelayForTests);
+
+        w.AttachPlayerForTests(null);
+        player.Close();
+    });
+
     [Fact]
     public void PlayerWindow_settings_button_raises_one_request_without_owning_settings() => StaTestThread.Invoke(() =>
     {

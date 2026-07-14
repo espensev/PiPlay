@@ -21,4 +21,27 @@ public static class PopoutTargetResolver
         if (hasSource) return fromSource;
         return hasCanonical ? fromCanonical : null;
     }
+
+    /// <summary>
+    /// Auto reads the video identity off the address BEFORE it awaits its own DOM read, so the YouTube
+    /// SPA can advance the Source underneath that await (autoplay-next, or a click landing in that
+    /// instant). Honoring the captured identity blindly would pop video A while the Source has already
+    /// moved to B, and latch A as "the video the Source was on" — so the return seeks the Source, now
+    /// showing B, to A's timestamp. That wrong-video seek is exactly what ReturnPolicy's Navigate branch
+    /// exists to prevent, and it cannot see this because both ids it compares say A.
+    ///
+    /// So the captured identity stands until the LIVE address positively contradicts it. An address with
+    /// no video id is NOT evidence of a move — pages whose URL hides the id are the whole reason the
+    /// caller captured an identity instead of re-resolving — so it keeps the captured target rather than
+    /// abandoning the launch.
+    /// </summary>
+    public static bool CapturedTargetStillMatchesSource(YouTubeTarget? captured, string? liveSource)
+    {
+        if (captured is null || string.IsNullOrEmpty(captured.VideoId)) return false;
+
+        if (!YouTubeUrlHelper.TryParse(liveSource, out var live) || string.IsNullOrEmpty(live.VideoId))
+            return true;
+
+        return string.Equals(captured.VideoId, live.VideoId, StringComparison.Ordinal);
+    }
 }

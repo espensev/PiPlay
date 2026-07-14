@@ -603,18 +603,50 @@ public class XamlInvariantTests
         Assert.Contains("whole popout", idle.Attribute("ToolTip")?.Value, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
-    public void Theme_preset_cards_communicate_three_distinct_roles()
+    /// <summary>
+    /// The cards advertise each preset's opacity to the user. Asserting the literal "Quiet · 94%" against
+    /// the literal in the XAML compares a copy of the number to a copy of the number and lets the two
+    /// drift from the preset they describe: retune Minimal to 0.90, fix the one red catalog test, and
+    /// Settings still promises 94% while the preset applies 90%. The expected label is therefore DERIVED
+    /// from ThemeCatalog — the only source that decides what the preset actually does.
+    /// </summary>
+    [Theory]
+    [InlineData("sharp-dark", "Crisp")]
+    [InlineData("minimal", "Quiet")]
+    [InlineData("soft-glass", "Glass")]
+    public void Theme_preset_cards_advertise_the_opacity_the_preset_actually_applies(string presetId, string role)
     {
+        var preset = ThemeCatalog.PresetFor(presetId);
+        var expected = $"{role} · {Math.Round(preset.DefaultActiveWindowOpacity * 100)}%";
+
         var texts = XamlTestFiles.Load("SettingsWindow.xaml")
             .Descendants(XamlTestFiles.Pres + "TextBlock")
             .Select(e => e.Attribute("Text")?.Value)
             .Where(v => v is not null)
             .ToHashSet();
 
-        Assert.Contains("Crisp · 100%", texts);
-        Assert.Contains("Quiet · 94%", texts);
-        Assert.Contains("Glass · 82%", texts);
+        Assert.Contains(expected, texts);
+    }
+
+    /// <summary>
+    /// Same drift, on the swatch: the card paints a hardcoded hex that is supposed to BE the preset's
+    /// default accent. Change the preset's accent and the card keeps selling the old color.
+    /// </summary>
+    [Theory]
+    [InlineData("sharp-dark")]
+    [InlineData("minimal")]
+    [InlineData("soft-glass")]
+    public void Theme_preset_swatches_paint_the_preset_default_accent(string presetId)
+    {
+        var expected = ThemeCatalog.PresetFor(presetId).DefaultAccentColor;
+
+        var backgrounds = XamlTestFiles.Load("SettingsWindow.xaml")
+            .Descendants(XamlTestFiles.Pres + "Border")
+            .Select(e => e.Attribute("Background")?.Value)
+            .Where(v => v is not null)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        Assert.Contains(expected, backgrounds);
     }
 
     // --- Compact error bar (spec 10.3 / Q-6, Stage 4) ---

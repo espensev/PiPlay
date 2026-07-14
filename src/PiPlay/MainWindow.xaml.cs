@@ -1049,6 +1049,9 @@ public partial class MainWindow : Window
     internal int EffectiveAccentIntensityForTests => EffectiveAccentIntensity;
     internal void PreviewThemeForTests(SettingsWindow dialog) => PreviewTheme(dialog);
     internal void RevertAppearancePreviewForTests() => RevertAppearancePreview();
+    /// Lets the cancel-transaction guard observe the half of the revert that only an OPEN popout can
+    /// show. Without a player attached, dropping ApplyOpenPlayerAppearance from the revert is invisible.
+    internal void AttachPlayerForTests(PlayerWindow? player) => _player = player;
     internal void PrepareExistingSettingsDialogForTests(SettingsWindow dialog, Window requester) =>
         PrepareExistingSettingsDialog(dialog, requester);
 
@@ -1161,6 +1164,18 @@ public partial class MainWindow : Window
 
             // 2) Resolve the currently visible Source video first; canonical is only a fallback for
             // pages whose address does not expose a playable target.
+            //
+            // A caller-supplied identity (Auto) is carried, not re-resolved, so a stale canonical cannot
+            // substitute another video. But Auto captured it BEFORE its own DOM read, and the Source can
+            // have SPA-advanced during that await. Abandon rather than pop a video the Source has already
+            // left: the next tick re-evaluates whatever is actually on screen.
+            if (resolvedTarget is not null
+                && !PopoutTargetResolver.CapturedTargetStillMatchesSource(resolvedTarget, core.Source))
+            {
+                Log.Info("Auto: the Source moved to another video while detecting playback; abandoning this launch.");
+                return;
+            }
+
             var target = resolvedTarget ?? await ResolvePopoutTargetAsync(core);
             if (target is null || string.IsNullOrEmpty(target.VideoId))
             {
