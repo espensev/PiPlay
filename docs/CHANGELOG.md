@@ -6,6 +6,11 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [0.8.0] - 2026-07-14
 
+> **Build 30** rebuilds this same 0.8.0 code after a documentation pass — **no code change** from build 29.
+> The rebuild exists so the deployed Stable copy sits on HEAD: a docs commit landing after the tag leaves
+> the deploy one commit behind, and `Verify-StableDeploy.ps1` fails closed on exactly that drift, which is
+> the gate the owner runs before any manual test pass.
+
 Minor release (from 0.7.3, build 28). Playback now moves **both ways**: a popout can hand the video back
 to the Source Window, and the source stops playing behind it while it is gone. Everything below had been
 finished but stranded on a diverged branch that never reached a build — including the fix for the
