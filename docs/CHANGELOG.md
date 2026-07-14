@@ -4,6 +4,17 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-07-14
+
+Patch on the interaction-cohesion release, from an adversarial review of everything 0.10.0 carried.
+
+### Fixed
+- **Auto no longer pops a video the Source has already left.** Auto reads the video's identity, then
+  waits on a read of the page. If YouTube advanced to the next video in that instant, the popout opened
+  the *previous* video — and, worse, coming back seeked the Source, now on the new video, to the old
+  one's timestamp. Auto now abandons the launch when the address has moved on and re-evaluates on its
+  next pass, so what pops out is always what the Source is showing.
+
 ## [0.10.0] - 2026-07-14
 
 Interaction-cohesion release candidate for extended owner testing: Popout appearance controls are
@@ -35,11 +46,6 @@ together, and the three presets have distinct live-previewed roles.
   canonical URL can no longer substitute a different video for the visible Source URL. Every return
   records the returned identity before source navigation/resume, preserving the no-re-pop latch without
   preventing a later different eligible video from auto-popping.
-- **Auto no longer pops a video the Source has already left.** Auto reads the video identity, then
-  waits on a read of the page; if YouTube advanced to the next video in that instant, the popout opened
-  the previous video and — worse — the return seeked the Source, now on the new video, to the old one's
-  timestamp. Auto now abandons the launch when the address has moved on and re-evaluates on its next
-  pass, so what pops is always what the Source is showing.
 - **Settings no longer replaces the global accent with an active profile's color.** Pressing Done after
   changing any Appearance control now commits the accent only to the target named above the picker, so
   deselecting a colored profile reliably restores the user's unchanged global default.
