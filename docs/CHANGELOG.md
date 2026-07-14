@@ -16,8 +16,27 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   Closing during WebView startup is also treated as an intentional shutdown instead of a load error.
 - **Distinct pressed feedback for very dark accents:** presentation-corrected dark colors keep their
   exact stored hex while now retaining a visible pressed state across every theme preset.
+- **A failed deploy can no longer break the manual-test copy:** publishing used to delete the deployed
+  Stable payload and then copy the new one over the top, so any interruption left the only sanctioned
+  manual-test installation broken with nothing to fall back to. The new payload is now staged beside
+  the live copy and re-hashed there first; a corrupt copy is rejected before the deployed copy is
+  touched at all, a failure mid-swap rolls the previous copy back, and a publish killed mid-swap is
+  completed or reversed by the next one. `PiPlayData` still never moves.
+- **A colliding stable tag now fails in one second, not after the deploy:** an exact-source publish
+  checks the tag it is about to create before running the tests, the build, or the deploy — it used to
+  replace Stable successfully and only then fail at tag creation.
+- **Concurrent publishes are refused:** two runs at once would interleave on the publish output, the
+  deploy root mid-swap, and tag creation. A publish now locks the repo and the deploy root.
 
 ### Performance
+- **Logging never touches the disk on the UI thread:** entries are handed to a bounded queue drained
+  by one background writer that coalesces a burst into a single append, so repeated failures (which
+  log per poll tick) can no longer turn into recurring synchronous I/O on the UI thread. Exit drains
+  the queue, and the rotation check no longer stats the file per entry.
+- **No per-window bookkeeping for border suppression:** the DWM border-suppression record was a
+  test-only observation kept for every top-level window ever shown and never reclaimed. Production now
+  records nothing at all.
+
 - **Lower steady-state WebView work:** Auto now rejects non-watch, already-handled, and active-Popout
   states before crossing the WebView script boundary.
 - **Bounded customization preview work:** color-wheel previews coalesce to roughly 30 updates per

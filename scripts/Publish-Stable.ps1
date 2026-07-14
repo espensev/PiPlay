@@ -5,15 +5,22 @@
 
 .DESCRIPTION
   Thin wrapper over scripts\Build-PiPlay.ps1 that:
+    0. takes a publish lock (per repo + per deploy root) so two publishes cannot interleave, and - for
+       an exact-source release - PREFLIGHTS the stable tag it is about to create. A tag collision is a
+       one-second failure now instead of a failure after the deployed copy has already been replaced;
     1. (optionally) runs the deterministic test lane as a gate;
     2. builds + publishes a Release with the Stable channel baked in - giving the deployed copy its
        own data root (PiPlayData beside the exe), its own single-instance identity, and a
        "PiPlay - Stable vX.Y.Z (bN)" title so it is differentiable from the dev app;
     3. validates the publish metadata (SHA256/size) via scripts\Test-PublishMetadata.ps1;
-    4. deploys the runnable copy to a deploy root (default E:\Dev_test_implemenations\PiPlay),
-       REPLACING the binaries but PRESERVING the PiPlayData runtime folder so login/session survive;
-    5. writes a .piplay.publish.marker;
-    6. for a release publish, runs a PRE-TAG verification of the DEPLOYED copy
+    4. deploys to a deploy root (default E:\Dev_test_implemenations\PiPlay) via a STAGED SWAP
+       (scripts\DeploySwap.ps1): the payload is copied to a sibling .staging directory and re-hashed
+       there, the old payload is moved aside to a sibling .backup, and only then is the verified
+       payload moved in. A corrupt copy dies before the live copy is touched; a failure mid-swap rolls
+       the previous copy back; an interrupted run is completed or reversed on the next publish. The
+       PiPlayData runtime folder is never moved, so login/session survive. The .piplay.publish.marker
+       ships inside the payload, so it can never disagree with the bytes it describes;
+    5. for a release publish, runs a PRE-TAG verification of the DEPLOYED copy
        (scripts\Verify-StableDeploy.ps1, post-copy artifact re-hash + repo cross-check), creates the
        stable-vX.Y.Z-bN tag ONLY after that passes, then runs a final full verification that requires
        the tag - so a verification failure never leaves a release-looking tag behind. Diagnostic
@@ -62,6 +69,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 . (Join-Path $PSScriptRoot "NativeCommand.ps1")
+. (Join-Path $PSScriptRoot "DeploySwap.ps1")
 
 if (-not [System.IO.Path]::IsPathRooted($DeployRoot)) {
     # A bare token like '--help' binds positionally to -DeployRoot and would deploy a full
@@ -91,6 +99,36 @@ function Invoke-Git {
 function Get-GitDirtyEntries {
     $status = @(Invoke-Git @("status", "--porcelain", "--untracked-files=all"))
     return @($status | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
+function New-PublishLock {
+    param(
+        [Parameter(Mandatory = $true)][string]$Key,
+        [Parameter(Mandatory = $true)][string]$What
+    )
+
+    # Two concurrent publishes would interleave on the repo's bin\publish tree, on the deploy root
+    # mid-swap, and on stable tag creation. Fail fast instead of corrupting either side. Windows
+    # releases an abandoned mutex when its owner dies, so a crashed publish never leaves a stale lock.
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Key.ToLowerInvariant()))
+    } finally {
+        $sha.Dispose()
+    }
+    $name = "Local\PiPlayPublish-" + (([System.BitConverter]::ToString($bytes) -replace '-', '').Substring(0, 32))
+
+    $mutex = New-Object System.Threading.Mutex($false, $name)
+    $acquired = $false
+    try {
+        $acquired = $mutex.WaitOne(0)
+    } catch [System.Threading.AbandonedMutexException] {
+        $acquired = $true   # the previous owner died holding it; ownership transfers to us
+    }
+    if (-not $acquired) {
+        throw "Another PiPlay publish is already running against $What. Wait for it to finish (or stop it) and re-run."
+    }
+    return $mutex
 }
 
 function Assert-StableTag {
@@ -147,6 +185,39 @@ if ($dirtyEntries.Count -gt 0) {
 }
 if ($AllowVersionBump) {
     Write-Warning "-AllowVersionBump was passed. VERSION/BUILD_NUMBER may be stamped after sourceCommit; this deploy will be marked NOT release evidence unless the resulting tree is committed and republished exact-source."
+}
+
+# Serialize publishes before anything expensive or destructive happens. Held for the life of this
+# process; script scope keeps the mutexes rooted so the GC cannot finalize them out from under us.
+$script:repoLock = New-PublishLock -Key "repo|$repoRoot" -What "this repository ($repoRoot)"
+$script:deployLock = New-PublishLock -Key "deploy|$DeployRoot" -What "this deploy root ($DeployRoot)"
+
+# 0. Tag preflight. The stable tag used to be checked only AFTER the test lane, the build, and the
+# destructive deploy - so a colliding tag replaced Stable and only then failed at the very last step.
+# An exact-source publish knows the tag it will create up front (the stamps are already committed), so
+# check it now, while nothing has been touched.
+if (-not $AllowDirty -and -not $AllowVersionBump) {
+    Write-Step 0 "Tag preflight (before tests, build, or deploy)..."
+    $repoVersion = (Get-Content -LiteralPath (Join-Path $repoRoot "VERSION") -Raw).Trim()
+    $repoBuildNumber = (Get-Content -LiteralPath (Join-Path $repoRoot "BUILD_NUMBER") -Raw).Trim()
+    $expectedTag = "stable-v$repoVersion-b$repoBuildNumber"
+
+    $headCommit = Invoke-Git @("rev-parse", "HEAD")
+    if (-not $headCommit) { throw "Could not resolve HEAD; an exact-source stable publish must run inside a git repository." }
+
+    $existingTagCommit = Invoke-Git @("rev-list", "-n", "1", $expectedTag)   # $null when the tag does not exist
+    if ($existingTagCommit -and $existingTagCommit -ne $headCommit) {
+        throw @"
+Stable tag '$expectedTag' already exists at $existingTagCommit, but HEAD is $headCommit.
+This publish would run the tests, rebuild, replace the deployed Stable copy, and only THEN fail at tag
+creation. Choose the version move, edit VERSION/BUILD_NUMBER, commit the stamps, and re-run.
+"@
+    }
+    if ($existingTagCommit) {
+        Write-Host "  Tag '$expectedTag' already points at HEAD - this is an idempotent republish." -ForegroundColor Green
+    } else {
+        Write-Host "  Tag '$expectedTag' is free and will be created after the deploy verifies." -ForegroundColor Green
+    }
 }
 
 # 1. Test gate (mirror CI's deterministic lane).
@@ -259,7 +330,7 @@ if ($SkipDeploy) {
 }
 
 # 4. Deploy the runnable copy, preserving the runtime data folder.
-Write-Step 4 "Deploying to '$DeployRoot' (preserving $dataFolderName)..."
+Write-Step 4 "Deploying to '$DeployRoot' (staged swap, preserving $dataFolderName)..."
 
 # Stop only the stable instance running from THIS deploy root so its exe/dlls can be replaced.
 $deployExe = Join-Path $DeployRoot "$projectName.exe"
@@ -273,17 +344,13 @@ foreach ($proc in @(Get-Process -Name $projectName -ErrorAction SilentlyContinue
 }
 Start-Sleep -Milliseconds 400
 
-New-Item -ItemType Directory -Path $DeployRoot -Force | Out-Null
-
-# Replace binaries: remove everything except the preserved data folder + marker, then copy fresh.
-foreach ($item in @(Get-ChildItem -LiteralPath $DeployRoot -Force -ErrorAction SilentlyContinue)) {
-    if ($item.Name -ieq $dataFolderName -or $item.Name -ieq $markerName) { continue }
-    Remove-Item -LiteralPath $item.FullName -Recurse -Force
+# An earlier publish killed mid-swap leaves the old payload in a sibling backup. Complete or reverse
+# that before staging anything new, so an interrupted run can never degrade into a broken install.
+if (Repair-InterruptedDeploy -DeployRoot $DeployRoot -DataFolderName $dataFolderName -ExeName "$projectName.exe") {
+    Write-Host "  Recovered leftovers from an interrupted publish." -ForegroundColor Yellow
 }
 
-Copy-Item -Path (Join-Path $latestDir "*") -Destination $DeployRoot -Recurse -Force
-
-# 5. Marker.
+# The marker ships inside the payload, so a rollback restores the old marker with the old bytes.
 $nowUtc = (Get-Date).ToUniversalTime().ToString("o")
 $markerText = @"
 PiPlay stable publish marker (safe to clean).
@@ -298,32 +365,36 @@ sourceDirty=$($buildInfo.sourceDirty)
 signingEnabled=$($buildInfo.signing.enabled)
 deployedUtc=$nowUtc
 "@
-Set-Content -LiteralPath (Join-Path $DeployRoot $markerName) -Value $markerText -Encoding UTF8
 
-# 6/7/8. Verify the deployed copy, then tag. The stable tag is created ONLY after the deployed bytes
+# Stage beside the live copy, re-hash the staged bytes, then swap with rollback (scripts\DeploySwap.ps1).
+# A failed or corrupt copy now dies before the deployed copy is touched at all.
+Invoke-StagedDeploy -DeployRoot $DeployRoot -SourceDir $latestDir -DataFolderName $dataFolderName `
+    -MarkerName $markerName -MarkerText $markerText -ExeName "$projectName.exe" | Out-Null
+
+# 5/6/7. Verify the deployed copy, then tag. The stable tag is created ONLY after the deployed bytes
 # verify clean against the repo, so a verification failure can never leave a release-looking tag.
 $stableTag = "stable-v$($buildInfo.version)-b$($buildInfo.buildNumber)"
 $verifyScript = Join-Path $PSScriptRoot "Verify-StableDeploy.ps1"
 if ($AllowDirty -or $AllowVersionBump) {
     # Diagnostic deploy: no release tag; verify once in diagnostics-only mode.
-    Write-Step 6 "Skipping stable tag for non-release evidence deploy."
+    Write-Step 5 "Skipping stable tag for non-release evidence deploy."
     Write-Warning "No stable tag created because -AllowDirty or -AllowVersionBump was used."
 
-    Write-Step 7 "Verifying the deployed copy (diagnostics-only)..."
+    Write-Step 6 "Verifying the deployed copy (diagnostics-only)..."
     & $verifyScript -DeployRoot $DeployRoot -AllowNonReleaseEvidence
     if ($LASTEXITCODE -ne 0) { throw "Deployed copy failed verification - do NOT test from it." }
 } else {
     # Pre-tag gate: every release check must pass and tolerate ONLY the not-yet-created stable tag.
-    Write-Step 6 "Pre-tag verification of the deployed copy (tag '$stableTag' not yet created)..."
+    Write-Step 5 "Pre-tag verification of the deployed copy (tag '$stableTag' not yet created)..."
     & $verifyScript -DeployRoot $DeployRoot -AllowMissingStableTag
     if ($LASTEXITCODE -ne 0) { throw "Deployed copy failed pre-tag verification - not tagging; do NOT test from it." }
 
     # The deployed bytes match the clean repo at HEAD - now it is safe to mint the release tag.
-    Write-Step 7 "Creating exact-source stable tag '$stableTag' (pre-tag verification passed)..."
+    Write-Step 6 "Creating exact-source stable tag '$stableTag' (pre-tag verification passed)..."
     Assert-StableTag -TagName $stableTag -Commit ([string]$buildInfo.sourceCommit)
 
     # Final gate: full release verification with NO escape hatch; the tag must now be present.
-    Write-Step 8 "Final verification (full release checks, stable tag required)..."
+    Write-Step 7 "Final verification (full release checks, stable tag required)..."
     & $verifyScript -DeployRoot $DeployRoot
     if ($LASTEXITCODE -ne 0) { throw "Deployed copy failed final verification - do NOT test from it." }
 }

@@ -84,6 +84,7 @@ public partial class App : Application
         try { _mutex?.ReleaseMutex(); } catch { /* not owned */ }
         _mutex?.Dispose();
         Log.Info("PiPlay exiting.");
+        Log.Shutdown();   // drain the writer; queued entries are lost without this
         base.OnExit(e);
     }
 

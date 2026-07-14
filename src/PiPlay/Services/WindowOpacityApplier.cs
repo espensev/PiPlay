@@ -49,11 +49,14 @@ public static class WindowOpacityApplier
     // Border-color intent is tracked SEPARATELY from States: a border-color write is a pure DWM
     // composition attribute (no WS_EX_LAYERED, no subclass), so it must not create a GuardState — that
     // would make a never-opacity-engaged window read as "tracked" and break the opacity no-op
-    // invariant. This dict is a bounded, prod-never-read observation record for the test seam only
+    // invariant. This dict is a prod-never-read observation record for the test seam only
     // (SetBorderColor recomputes the resolved value every call; nothing in production reads it).
-    // Border-only windows intentionally carry no subclass, so there is no WM_NCDESTROY hook to reclaim
-    // entries the way States self-cleans — the footprint is a few bytes per distinct top-level HWND
-    // ever shown (negligible); tests call ResetBorderSuppressionForTests to stay deterministic.
+    //
+    // Border-only windows carry no subclass by design, so there is no WM_NCDESTROY hook to reclaim
+    // entries the way States self-cleans. Rather than grow an entry per top-level HWND ever shown for
+    // a record production never reads, recording is OFF unless a test arms it — so the production app
+    // holds nothing here at all. Tests arm it via EnableBorderSuppressionTrackingForTests.
+    private static bool _trackBorderSuppression;
     private static readonly Dictionary<IntPtr, bool> BorderSuppression = new();
 
     private sealed class GuardState
@@ -164,7 +167,7 @@ public static class WindowOpacityApplier
         var suppressed = ShouldSuppressBorder(suppress, highContrast);
         var color = unchecked((int)(suppressed ? DWMWA_COLOR_NONE : DWMWA_COLOR_DEFAULT));
         _ = DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref color, sizeof(int));
-        BorderSuppression[hwnd] = suppressed;
+        if (_trackBorderSuppression) BorderSuppression[hwnd] = suppressed;
     }
 
     /// <summary>Borderless is the P1 default, but never strip the frame under Windows High Contrast
@@ -198,6 +201,11 @@ public static class WindowOpacityApplier
     internal static bool? BorderColorSuppressedForTests(IntPtr hwnd) =>
         BorderSuppression.TryGetValue(hwnd, out var v) ? v : null;
     internal static void ResetBorderSuppressionForTests() => BorderSuppression.Clear();
+    /// <summary>Arm the test-only border record. Production never calls this, so it records nothing.</summary>
+    internal static void EnableBorderSuppressionTrackingForTests() => _trackBorderSuppression = true;
+    /// <summary>Restore the production default (record nothing) so the no-footprint invariant is testable.</summary>
+    internal static void DisableBorderSuppressionTrackingForTests() => _trackBorderSuppression = false;
+    internal static int BorderSuppressionEntryCountForTests() => BorderSuppression.Count;
     internal static bool LastExStyleWriteCarriedTransparentBitForTests(IntPtr hwnd) =>
         States.TryGetValue(hwnd, out var s) && (s.LastExStyleWritten & WS_EX_TRANSPARENT) != 0;
 

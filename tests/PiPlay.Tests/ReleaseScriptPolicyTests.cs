@@ -124,6 +124,84 @@ public class ReleaseScriptPolicyTests
     }
 
     [Fact]
+    public void Publish_preflights_the_stable_tag_before_anything_destructive()
+    {
+        var publish = Script("scripts/Publish-Stable.ps1");
+
+        // A colliding tag used to surface only at the very end - after the test lane, the build, and
+        // a destructive deploy had already replaced the manual-test copy. The check must come first.
+        Assert.Contains("Tag preflight (before tests, build, or deploy)", publish);
+        Assert.Contains("already exists at $existingTagCommit, but HEAD is $headCommit", publish);
+
+        var preflight = publish.IndexOf("Tag preflight (before tests, build, or deploy)", StringComparison.Ordinal);
+        var testGate = publish.IndexOf("Running deterministic test lane (gate)", StringComparison.Ordinal);
+        var build = publish.IndexOf("Building + publishing the Stable channel Release", StringComparison.Ordinal);
+        var deploy = publish.IndexOf("Invoke-StagedDeploy", StringComparison.Ordinal);
+
+        Assert.True(preflight >= 0, "Publish should preflight the stable tag.");
+        Assert.True(preflight < testGate, "Tag preflight must run before the test lane.");
+        Assert.True(preflight < build, "Tag preflight must run before the build.");
+        Assert.True(preflight < deploy, "Tag preflight must run before the deploy.");
+    }
+
+    [Fact]
+    public void Publish_serializes_concurrent_runs()
+    {
+        var publish = Script("scripts/Publish-Stable.ps1");
+
+        // Two publishes at once would interleave on bin\publish, on the deploy root mid-swap, and on
+        // tag creation. Both the repo and the deploy root are locked, and the lock is taken before
+        // any expensive or destructive step.
+        Assert.Contains("function New-PublishLock", publish);
+        Assert.Contains("$script:repoLock = New-PublishLock", publish);
+        Assert.Contains("$script:deployLock = New-PublishLock", publish);
+        Assert.Contains("Another PiPlay publish is already running against", publish);
+        Assert.Contains("System.Threading.AbandonedMutexException", publish);   // a crashed publish leaves no stale lock
+
+        var lockTaken = publish.IndexOf("$script:repoLock = New-PublishLock", StringComparison.Ordinal);
+        var build = publish.IndexOf("Building + publishing the Stable channel Release", StringComparison.Ordinal);
+        Assert.True(lockTaken >= 0 && lockTaken < build, "The publish lock must be taken before the build.");
+    }
+
+    [Fact]
+    public void Deploy_stages_and_verifies_before_replacing_the_live_copy()
+    {
+        var publish = Script("scripts/Publish-Stable.ps1");
+        var swap = Script("scripts/DeploySwap.ps1");
+
+        // The deploy must never again delete the live payload and then copy over the top of it: an
+        // interrupted copy left the only sanctioned manual-test installation broken with no way back.
+        Assert.Contains("Invoke-StagedDeploy", publish);
+        Assert.Contains("Repair-InterruptedDeploy", publish);
+        Assert.DoesNotContain("Copy-Item -Path (Join-Path $latestDir \"*\") -Destination $DeployRoot", publish);
+
+        // Stage -> verify the staged bytes -> only then swap.
+        var stage = swap.IndexOf("Copy-Item -Path (Join-Path $SourceDir \"*\")", StringComparison.Ordinal);
+        var verify = swap.IndexOf("Test-StagedPayload -StagingDir $paths.Staging", StringComparison.Ordinal);
+        var swapIn = swap.IndexOf("Move-Item -LiteralPath $item.FullName -Destination (Join-Path $paths.Backup", StringComparison.Ordinal);
+
+        Assert.True(stage >= 0 && verify >= 0 && swapIn >= 0, "DeploySwap should stage, verify, then swap.");
+        Assert.True(stage < verify, "The staged payload must be copied before it is verified.");
+        Assert.True(verify < swapIn, "The staged payload must verify BEFORE the live copy is touched.");
+    }
+
+    [Fact]
+    public void Deploy_rolls_back_from_what_the_backup_actually_holds()
+    {
+        var swap = Script("scripts/DeploySwap.ps1");
+
+        // Move-Item half-moves a directory whose child is locked and still throws, so a rollback keyed
+        // on "the moves I recorded as successful" drops those children and then deletes the backup
+        // holding the only copy. Rollback must walk the backup itself and merge. (scripts\Test-DeploySwap.ps1 case C3.)
+        Assert.Contains("function Restore-DeployBackup", swap);
+        Assert.Contains("Restore-DeployBackup -BackupDir $paths.Backup -DeployRoot $DeployRoot", swap);
+        Assert.Contains("rollback could not restore a runnable copy", swap);
+
+        // The runtime data folder is never moved aside (ADR-0007: login/session survive a redeploy).
+        Assert.Contains("if ($item.Name -ieq $DataFolderName) { continue }", swap);
+    }
+
+    [Fact]
     public void Native_command_helper_owns_benign_stderr_policy()
     {
         var helper = Script("scripts/NativeCommand.ps1");

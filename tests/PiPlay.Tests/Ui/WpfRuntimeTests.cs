@@ -25,6 +25,11 @@ namespace PiPlay.Tests;
 [Trait(TestCategories.Key, TestCategories.Wpf)]
 public class WpfRuntimeTests : IDisposable
 {
+    static WpfRuntimeTests() =>
+        // Production records no border-suppression entries at all (that record exists only so these
+        // tests can observe intent), so the border lane has to arm it explicitly.
+        WindowOpacityApplier.EnableBorderSuppressionTrackingForTests();
+
     private static PlayerWindow NewPlayer() =>
         // environment is only used in InitializePlayerAsync (Loaded), never in the ctor.
         new(environment: null!, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
@@ -1284,6 +1289,39 @@ public class WpfRuntimeTests : IDisposable
         Assert.True(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));    // normal → suppress
 
         w.Close();
+    });
+
+    [Fact]
+    public void Border_color_records_nothing_in_the_production_default() => StaTestThread.Invoke(() =>
+    {
+        // The border record is a test seam, and border-only windows carry no subclass, so nothing
+        // reclaims its entries on window destruction. Production therefore records NOTHING: without
+        // this gate the dict would grow one entry per top-level HWND ever shown. This test runs with
+        // the class-wide arming turned back off, which is the shipping configuration.
+        WindowOpacityApplier.DisableBorderSuppressionTrackingForTests();
+        try
+        {
+            WindowOpacityApplier.ResetBorderSuppressionForTests();
+            var w = new Window
+            {
+                Width = 240, Height = 160, Left = 100, Top = 100,
+                WindowStyle = WindowStyle.None, AllowsTransparency = false,
+                ShowActivated = false, ShowInTaskbar = false, Opacity = 0,
+            };
+            var hwnd = new WindowInteropHelper(w).EnsureHandle();
+
+            WindowOpacityApplier.SetBorderColor(hwnd, suppress: true, highContrast: false);
+            WindowOpacityApplier.SetBorderColor(hwnd, suppress: false, highContrast: false);
+
+            Assert.Equal(0, WindowOpacityApplier.BorderSuppressionEntryCountForTests());
+            Assert.Null(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
+
+            w.Close();
+        }
+        finally
+        {
+            WindowOpacityApplier.EnableBorderSuppressionTrackingForTests();   // restore the test-lane arming
+        }
     });
 
     [Fact]
