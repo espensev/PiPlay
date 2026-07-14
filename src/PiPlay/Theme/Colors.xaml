@@ -51,7 +51,7 @@
        derived default or a fresh launch flashes the wrong glyph color. Pinned by
        XamlInvariantTests.Colors_xaml_accent_seeds_match_the_default_derived_set_REQ_UI_01 — do not
        hand-edit; take the value the derivation produces. -->
-  <Color x:Key="AccentChromeGlyphColor">#FF90D2E5</Color>
+  <Color x:Key="AccentChromeGlyphColor">#FF2BAED0</Color>
   <Color x:Key="OnAccentColor">#FF06141A</Color>
   <Color x:Key="OnAccentPressedColor">#FF06141A</Color>
 

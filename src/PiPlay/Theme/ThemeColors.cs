@@ -183,8 +183,10 @@ public static class ThemeColors
         var surfaceBase = ParseColor(preset.Palette.SurfaceBase);
         var surfaceRaised = ParseColor(preset.Palette.SurfaceRaised);
         var surfaceHover = ParseColor(preset.Palette.SurfaceHover);
-        // How far the accent reaches into the chrome (user-set). 0 = only the primary action is accented.
+        // How far the accent reaches into the chrome (user-set). The wash uses the full dial; glyphs
+        // finish their fade-in at the midpoint so default 50 reproduces v0.9.0 exactly.
         var reach = ThemeCatalog.NormalizeAccentIntensity(accentIntensity) / 100.0;
+        var glyphReach = Math.Min(reach * 2.0, 1.0);
         // REQ-UI-01 / spec section 20: arbitrary stored colors remain exact, while the presentation
         // token clears the 3:1 non-text contrast floor on the lightest shipped dark interaction surface.
         var primary = EnsureContrast(requested, surfaceHover);
@@ -210,11 +212,11 @@ public static class ThemeColors
                           + (ShellTintContrastCeiling - ShellTintContrastFloor) * reach;
         var shellTint = MixTowardContrast(surfaceBase, primary, surfaceBase, shellTarget);
 
-        // Toolbar chrome glyphs: neutral text at intensity 0, the full accent at 100. EnsureContrast is
-        // re-run on the BLEND because a midpoint between two individually-legible colors is not
-        // automatically legible - without this, dragging the dial could render the toolbar invisible.
+        // Toolbar chrome glyphs: neutral text at intensity 0, the full accent by 50. Above 50 only the
+        // wash deepens. Re-run EnsureContrast on the BLEND because a midpoint between two individually
+        // legible colors is not automatically legible - without this, the toolbar could disappear.
         var chromeGlyph = EnsureContrast(
-            Mix(ParseColor(preset.Palette.TextPrimary), primary, reach), surfaceHover);
+            Mix(ParseColor(preset.Palette.TextPrimary), primary, glyphReach), surfaceHover);
 
         var onAccent = PickReadableForeground(primary);
         // CON-1: re-pick the foreground against the DARKER pressed fill, not reuse OnAccent — a dim
@@ -253,7 +255,7 @@ public sealed record DerivedAccentSet(
     Color Subtle,
     Color Glow,
     Color ShellTint,
-    /// <summary>Toolbar glyph color: ordinary text at accent intensity 0, the full accent at 100.</summary>
+    /// <summary>Toolbar glyph color: ordinary text at accent intensity 0, the full accent from 50 up.</summary>
     Color ChromeGlyph,
     Color OnAccent,
     Color OnAccentPressed);

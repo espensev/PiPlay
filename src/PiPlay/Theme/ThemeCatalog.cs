@@ -120,9 +120,10 @@ public static class ThemeCatalog
     /// How far the accent reaches into the chrome, 0–100 (user-set, Settings → Appearance).
     /// <para>
     /// 0 = the accent paints only the primary action (the pre-v0.9.0 look: no title-bar wash, neutral
-    /// toolbar glyphs). 100 = full reach. The default sits mid-dial: visible identity without shouting.
-    /// This is a user preference, not a preset trait — switching theme presets must not reset it, the
-    /// same way a custom accent survives a preset switch.
+    /// toolbar glyphs). At 50 the glyphs have reached full accent and the wash matches v0.9.0's 1.45
+    /// target exactly. From 50–100 only the wash deepens, up to its restrained ceiling. This is a user
+    /// preference, not a preset trait — switching theme presets must not reset it, the same way a custom
+    /// accent survives a preset switch.
     /// </para>
     /// </summary>
     public const int DefaultAccentIntensity = 50;
@@ -343,10 +344,10 @@ public static class ThemeCatalog
     public static bool IsValidHex(string? color) => NormalizeHex6(color) is not null;
 
     /// <summary>
-    /// Accent rule for an explicit theme switch (end-pass review §3.3): adopt the next preset's
-    /// default accent only when the current accent IS the previous preset's default — a
-    /// deliberately chosen custom accent survives theme switches. Pure so the rule is testable
-    /// without the Settings dialog and reusable once arbitrary (color-wheel) accents exist.
+    /// Global-accent rule for an explicit theme switch (end-pass review §3.3): adopt the next preset's
+    /// default only when the current global IS the previous preset's default — a deliberately chosen
+    /// custom global survives theme switches. Profile-owned accents do not use this substitution. The
+    /// pure helper keeps the rule testable without the Settings dialog.
     /// Inputs are normalized before comparison.
     /// </summary>
     public static string AccentForThemeSwitch(string? currentAccent, ThemePreset previousPreset, ThemePreset nextPreset)

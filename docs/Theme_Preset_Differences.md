@@ -60,10 +60,10 @@ direction, not current code; the catalog tables below stay code-backed. Tracked 
 
 ## Default Accent
 
-The preset default accent is separate from the surface palette. `ThemeResourceApplier` writes:
-
-- `AccentPrimary` from the selected `theme.accentColor`.
-- `AccentPrimaryLight` as an alias of `AccentHover` from `ThemeColors.DeriveAccentSet`.
+The preset default accent is separate from the surface palette. `ThemeResourceApplier` derives the full
+accent set from the resolved global/profile color plus the user-owned reach: `AccentPrimary`, hover,
+pressed, border, title wash, toolbar glyph, and readable foreground tokens. `AccentPrimaryLight` remains
+a migration alias of `AccentHover`. Every brush is written together with its companion `*Color` entry.
 
 | Field | Sharp Dark | Minimal | Soft Glass | Difference |
 |---|---|---|---|---|
@@ -74,8 +74,11 @@ The preset default accent is separate from the surface palette. `ThemeResourceAp
 
 Preset switching rule:
 
-- If the current accent equals the previous preset's default, selecting another preset adopts the new preset's default accent.
-- If the current accent is custom or deliberately chosen, it survives the preset switch.
+- For the global target, an untouched previous-preset default advances to the new preset's default; a
+  custom global survives.
+- A profile-owned accent always survives exactly, even if its bytes equal the old preset default. While
+  that profile is active, an untouched hidden global fallback still advances normally for the day the
+  profile is deselected.
 - The accent picker's preset quick-picks are the same for every preset: cyan `#2BAED0`, steel blue `#3F84C0`, steel `#4A8FAB`, violet `#9E84F0`, green `#2DB57F`, amber `#D69A2E`.
 
 ## Behavior Defaults
@@ -272,10 +275,17 @@ Palette brushes and companion colors:
 - `DangerPin`
 - `DangerPinColor`
 
-Accent brushes:
+Accent brushes and their companion `*Color` entries:
 
 - `AccentPrimary`
-- `AccentPrimaryLight`
+- `AccentHover`
+- `AccentPressed`
+- `AccentBorder`
+- `AccentShellTint`
+- `AccentChromeGlyph` — toolbar glyph reach; neutral at 0 and full accent from 50–100.
+- `OnAccent`
+- `OnAccentPressed`
+- `AccentPrimaryLight` — migration alias of `AccentHover`.
 
 Radius resources:
 
@@ -326,10 +336,11 @@ When a preset button is clicked in Settings:
 1. The previous preset is captured.
 2. `ThemeId` is normalized from the clicked toggle tag.
 3. The new preset is loaded from `ThemeCatalog`.
-4. The accent becomes the new preset default **only if** the current accent still equals the previous
-   preset's default (`ThemeCatalog.AccentForThemeSwitch`). The point of that test is that **a custom
-   accent survives theme switches** — switching presets re-tints a default accent but never silently
-   discards one the user chose.
+4. When Settings is editing the **global** accent, it becomes the new preset default **only if** the
+   current value still equals the previous preset's default (`ThemeCatalog.AccentForThemeSwitch`). The
+   point of that test is that **a custom global accent survives theme switches**. When a colored profile
+   is driving the accent, its color is always profile-owned and stays exact — even if its bytes happen to
+   equal the previous preset default.
 5. `CornerStyle` resets to `theme`.
 6. `FadeIdleDelayMs` becomes the selected preset's default fade delay.
 7. `StripAutoHideOverride`, `ActiveOpacityOverride`, and `IdleOpacityOverride` reset to `null`.
@@ -357,11 +368,14 @@ Current schema stores:
 |---|---|
 | `theme.themeId` | One of `sharp-dark`, `minimal`, `soft-glass`; invalid values normalize to `sharp-dark`. |
 | `theme.accentColor` | Normalized `#RRGGBB`; invalid values normalize to Sharp Dark cyan or a legacy fallback. |
+| `theme.accentIntensity` | User-owned 0–100 reach. Default 50 reproduces v0.9.0; preset switches do not reset it. |
 | `theme.fadeDelayPreset` | `short`, `normal`, or `long`; preset defaults are Sharp Dark `normal`, Minimal `long`, Soft Glass `short`. |
 | `theme.cornerStyle` | `theme`, `square`, `small`, or `round`; invalid values normalize to `theme`, and legacy `soft` normalizes to `round`. |
 | `theme.stripAutoHide` | Nullable behavior override; `null` means follow preset. |
 | `theme.activeWindowOpacity` | Nullable behavior override; `null` means follow preset. |
 | `theme.idleWindowOpacity` | Nullable behavior override; `null` means follow preset. |
+| `activeProfileName` | Name of the profile currently driving per-profile overrides, or `null`. |
+| `profiles[].accentColor` | Optional exact profile RGB; a valid active value drives the app accent and never replaces the global fallback. |
 
 Legacy mirrors are still written under `player` for older builds:
 
@@ -378,6 +392,7 @@ The theme preset does not change:
 
 - WebView2 page content.
 - YouTube rendering.
+- The user-owned accent intensity.
 - Browser data, cookies, or account state.
 - Current URL.
 - Saved profiles.

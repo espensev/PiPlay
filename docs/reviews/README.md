@@ -23,6 +23,7 @@ Prune imported reviews that turn out to be for another repository instead of ret
 
 | Artifact | Use |
 |---|---|
+| [review-2026-07-14-accent-reach-dial-and-routing.md](review-2026-07-14-accent-reach-dial-and-routing.md) | Pre-fix audit of the reach-default and Settings profile/global routing regressions; disposition lives in the matching follow-up design. |
 | [2026-07-14-doc-cleanup-audit.md](2026-07-14-doc-cleanup-audit.md) | **Current retention record.** What the v0.8.0-b29 pass repaired, pruned, and parked, and why. Read this before pruning again. |
 | [2026-07-02-doc-clarity-pruning-audit.md](2026-07-02-doc-clarity-pruning-audit.md) | The pruning **method** (the two questions) and the first pass's decisions. |
 | [review-2026-07-14-efficiency-and-customization.md](review-2026-07-14-efficiency-and-customization.md) | The efficiency/customization + release-pipeline findings. All shipped in v0.7.3 (b28). |

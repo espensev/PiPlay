@@ -159,7 +159,8 @@
                                     AutomationProperties.Name="Accent color picker" />
 
         <!-- How far the accent reaches into the chrome. 0 paints only the primary action (no title-bar
-             wash, neutral toolbar glyphs); 100 gives the toolbar the full accent. Previews live. -->
+             wash, neutral toolbar glyphs); 50 restores full glyphs and the shipped wash; above 50 the
+             wash deepens. Previews live. -->
         <TextBlock Text="Accent intensity" FontSize="12" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,0,0,6" />
         <Grid Margin="0,0,0,12">
@@ -173,7 +174,7 @@
           <Slider x:Name="AccentIntensitySlider" Grid.Column="1" Minimum="0" Maximum="100"
                   SmallChange="1" LargeChange="10" IsMoveToPointEnabled="True"
                   VerticalAlignment="Center" ValueChanged="AccentIntensitySlider_ValueChanged"
-                  ToolTip="How far the accent reaches: 0 colors only the main action, 100 colors the whole toolbar and the title bar"
+                  ToolTip="How far the accent reaches: 0 colors only the main action, 50 restores the shipped toolbar and wash, 100 deepens the title wash"
                   AutomationProperties.Name="Accent intensity" />
           <TextBlock x:Name="AccentIntensityValueText" Grid.Column="2" FontSize="12" TextAlignment="Right"
                      Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />

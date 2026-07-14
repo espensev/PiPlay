@@ -4,6 +4,18 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [Unreleased]
 
+### Added
+- **Accent reach is adjustable from 0–100.** The default 50 preserves the v0.9.0 appearance exactly:
+  full-accent toolbar glyphs and the same 1.45 title wash. Lower values fade the chrome reach; higher
+  values keep the glyphs fully accented while deepening the wash toward its restrained ceiling.
+
+### Fixed
+- **Settings no longer replaces the global accent with an active profile's color.** Pressing Done after
+  changing any Appearance control now commits the accent only to the target named above the picker, so
+  deselecting a colored profile reliably restores the user's unchanged global default.
+- **Theme switches no longer rewrite a coincidentally matching profile color.** A profile-owned accent
+  now stays exact when changing presets, even if it happens to equal the previous preset's default.
+
 ## [0.9.0] - 2026-07-14
 
 Minor release (from 0.8.0, build 30). **Your profile's color is now the app's color.** Pick a profile and

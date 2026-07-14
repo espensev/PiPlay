@@ -148,6 +148,7 @@ public class WpfRuntimeTests : IDisposable
         AssertToken("OnAccentPressed", expected.OnAccentPressed);
         AssertToken("AccentBorder", expected.Border);
         AssertToken("AccentShellTint", expected.ShellTint);
+        AssertToken("AccentChromeGlyph", expected.ChromeGlyph);
 
         // CON-1 remains a contrast contract even when the presentation fill itself is lifted.
         Assert.True(ThemeColors.ContrastRatio(expected.OnAccentPressed, expected.Pressed) >= 4.5);

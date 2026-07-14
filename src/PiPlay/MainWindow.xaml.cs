@@ -670,7 +670,8 @@ public partial class MainWindow : Window
             stripAutoHideOverride: _settings.Theme.StripAutoHide,
             cornerStyle: EffectiveCornerStyle,
             accentEditContext: AccentEditContext,
-            accentIntensity: EffectiveAccentIntensity)
+            accentIntensity: EffectiveAccentIntensity,
+            accentFollowsThemePreset: ProfileAccentService.AccentOverridingProfile(_settings) is null)
         {
             Owner = this,
             Topmost = Topmost,
@@ -755,21 +756,21 @@ public partial class MainWindow : Window
         string cornerStyle = ThemeCatalog.DefaultCornerStyle,
         int? accentIntensity = null)
     {
-        // Theme accent is the single source of truth for Pin/Fade color now (overhaul Task 10);
-        // behavior values are NULLABLE overrides (theme code review P2) — the pure writer keeps
+        // The profile-aware writer routes the effective accent to the named Settings target;
+        // behavior values are NULLABLE overrides (theme code review P2) — it keeps
         // nulls null so an accent-only apply leaves the user following preset defaults, and
         // mirrors the EFFECTIVE values onto the legacy Player fields.
-        var globalAccent = ThemeCatalog.NormalizeAccentColor(accentColor);
-        ThemeSettingsWriter.Apply(_settings, themeId, globalAccent, fadeIdleDelayMs, compactMode,
+        ThemeSettingsWriter.Apply(_settings, themeId, accentColor, fadeIdleDelayMs, compactMode,
             activeOpacityOverride, idleOpacityOverride, stripAutoHideOverride, cornerStyle, accentIntensity);
-        CommitAccent(accentColor);
 
         // Restyle the theme-driven shell resources live (DynamicResource consumers re-resolve), then
-        // the runtime-applied Pin/Fade glyphs and the native window corners, so the whole theme
-        // moves together on apply.
+        // restore the RESOLVED profile/global accent over that palette. Full theme application derives
+        // from Theme.AccentColor and cannot know an active profile override by itself.
         ApplyThemeResources();
-        ApplySourceAppearance();
+        ApplyAccentResourcesAndSource(ResolvedAccentColor);
         ApplyOwnCornerMode();
+        // Apply the open player's complete appearance once. Calling ApplyResolvedAccent above would
+        // also send an accent-only player update, duplicating this accepted-Settings repaint.
         ApplyOpenPlayerAppearance();
         _settingsService.Save(_settings);
     }
@@ -863,14 +864,15 @@ public partial class MainWindow : Window
         _previewAccentIntensity = null;   // stop overriding: rendering follows persisted settings again
     }
 
-    private string CommitAccent(string hex)
-    {
-        return ProfileAccentService.CommitAccent(_settings, hex);
-    }
-
     private void ApplyResolvedAccent() => ApplyAccentEverywhere(ResolvedAccentColor);
 
     private void ApplyAccentEverywhere(string accentColor)
+    {
+        ApplyAccentResourcesAndSource(accentColor);
+        _player?.ApplyAccent(accentColor);
+    }
+
+    private void ApplyAccentResourcesAndSource(string accentColor)
     {
         // Pass the intensity EXPLICITLY. ApplyAccentOnly defaults it to null (= the catalog default), so
         // omitting it here still compiles and still looks wired — while silently snapping a user who
@@ -878,7 +880,6 @@ public partial class MainWindow : Window
         ThemeResourceApplier.ApplyAccentOnly(Application.Current.Resources, accentColor,
             ThemeCatalog.PresetFor(_settings.Theme.ThemeId), EffectiveAccentIntensity);
         ApplySourceAppearance(accentColor);
-        _player?.ApplyAccent(accentColor);
     }
 
     /// <summary>

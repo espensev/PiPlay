@@ -10,8 +10,9 @@
 
 ## Current-ways review note (2026-06-26, test count refreshed 2026-07-14)
 
-The current local stack is deterministic-test green (`dotnet test PiPlay.sln -c Debug` = 731/731 as of
-2026-07-14 / v0.8.0-b29 — re-run for the current count rather than trusting this number), but
+The current local stack is deterministic-test green (`dotnet test PiPlay.sln -c Debug` = 769/769 as of
+2026-07-14 on the accent-reach follow-up working tree — re-run for the current count rather than trusting
+this number), but
 that is a headless contract gate, not runtime signoff. Do not RC-tag from the green suite alone. The next
 release evidence must come from the deployed Stable WebView2/YouTube smoke rows: duplicate-audio
 suppression, immediate popout close/unmute, paused-source launch, different-video replay, ads/autoplay-next,
@@ -35,9 +36,10 @@ imperceptible. Everything else was conditional (Pin/Auto when on), transient (ca
 given reach **first** — the functional toolbar row now carries it and the wash was raised to 1.45:1 — and
 only then was it wired to the profile. Shipped together.
 
-See `docs/superpowers/specs/2026-07-14-profile-accent-reach-design.md`. **The accent's strength is
-owner-tunable by eye** — `ThemeColors.ShellTintContrastTarget` is the single dial, and QA row **UI-CHK-9**
-governs it.
+See `docs/superpowers/specs/2026-07-14-profile-accent-reach-design.md` for the shipped decision and
+`docs/superpowers/specs/2026-07-14-accent-reach-default-and-routing-fixes-design.md` for the follow-up
+preference. **The accent's reach is owner-tunable by eye**: default 50 reproduces v0.9.0, lower values
+fade glyphs and wash, and higher values deepen only the wash. QA rows **UI-CHK-9–11** govern it.
 
 ## Remaining open product decisions
 
@@ -54,7 +56,7 @@ governs it.
 |---|---|---|---|
 | **REQ-RELEASE-01** (code signing) | **Deferred — not a release gate** | The owner signs locally with a **self-signed** certificate, which proves nothing that the commit hash does not already prove. Release provenance is the exact-source commit, the `stable-vX.Y.Z-bN` tag, and `Verify-StableDeploy.ps1`. v0.8.0-b29 released unsigned. | Public distribution under a real (non-self-signed) certificate, where SmartScreen reputation and third-party provenance actually matter. **Until then, do not add an Authenticode check to the release-evidence path.** |
 
-## 2026-06-23 owner appearance / popout / compact review
+## 2026-06-23 owner appearance / popout / compact review (historical input)
 
 Source: owner review captured and folded into this section before the raw review artifact was pruned.
 Ground-truthed against the code on
@@ -63,23 +65,27 @@ silhouette; accent + transparency). **Runtime QA was not performed this pass** �
 verified-vs-code / observed-behavior, not a sign-off that anything renders or behaves correctly when
 run. Items the owner reported as observed behavior stay flagged for a deployed-Stable runtime check.
 
-### Organizing frame (owner, review §9)
+> **Supersession note (2026-07-14):** this section preserves what the owner said on June 23, but its
+> identity-only profile-color direction was explicitly reversed by the later P2 decision recorded above.
+> Current implementation work must follow the closed P2 section and product spec §17. The remaining
+> corner/transparency/layout directions below are not superseded by that accent decision.
 
-The owner's intended split: **Profiles** define content (URL, name, saved placement, saved launch
-mode, and an *optional identity color*). **Appearance** defines look (global accent, theme, corner
-radius, border, shadow, transparency). **Popout state** defines whether playback is detached, where the
-popout is, and whether the placeholder offers "show popout" / "restore here". The accent work (2.2) is
-the concrete expression of this split.
+### Organizing frame at the time (owner, review §9)
 
-### Owner-directed intent (decided by the owner — captured, not open)
+The June 23 split put an optional identity-only color under **Profiles** and the global accent under
+**Appearance**. That accent boundary is historical: the July 14 P2 decision now makes a profile color
+drive the app while retaining `theme.accentColor` as fallback. The separate **Popout state** boundary
+(whether playback is detached, where it is, and return/focus actions) remains useful.
 
-These are directives, not questions. They define the target; the *how* and any behavior reversals are
-the open sub-decisions further down.
+### Owner-directed intent as captured then
+
+These were directives at capture time. Later explicit decisions supersede individual rows where noted;
+the record remains here so the change in direction is auditable.
 
 | Ref | Owner direction |
 |---|---|
 | 2.1 / 5 | Theme presets must be visibly distinct; add a 4th **Blackout** preset (0% transparency). |
-| 2.2 / §9 | A **global app accent** drives primary buttons, focus rings, active outlines, selected theme state, the popout/restore and compact buttons, and highlights. The **profile color** is demoted to a profile chip/dot/identity marker (+ an optional popout border only while that profile is active). |
+| 2.2 / §9 | **SUPERSEDED 2026-07-14 by P2.** This row originally made the global accent exclusive and profile color identity-only. Current behavior: an active profile color drives the app accent; `theme.accentColor` is the fallback. |
 | 2.3 | The user may pick **any** accent color; the app auto-picks readable foreground text (black/white by contrast); border opacity/strength is a separate, independent control. Do not reject useful colors for being poor text backgrounds. |
 | 2.4 / 7 | Corner radius must change the **actual popout silhouette** (outer window + video clipping): Round = a large rounded floating card, with border and shadow following the rounded shape and no square backing layer. |
 | 3.1 / 8 | The main-window placeholder should offer a direct action, not static text only. |
@@ -126,7 +132,7 @@ single popout through the existing return pipeline.
 
 | Item | Ready status | Notes |
 |---|---|---|
-| Accent/profile split | Implemented on main | The 2026-06-25 pass makes `Profile.AccentColor` identity-only and keeps `theme.accentColor` global. The 2026-07-11 follow-up removes the later selector frame, uses one contrast-safe profile rail, and carries the global accent into the Source Window title-bar wash without changing stored colors. Optional active-profile popout border remains future work. The contrast contract is in the product spec (§ profile settings); the design specs behind these passes were pruned on 2026-07-14 after their live content was folded forward — see `docs/reviews/2026-07-14-doc-cleanup-audit.md`. |
+| Profile-driven accent (P2) | Implemented on main | The 2026-07-14 owner decision reverses the v0.6.0 identity-only split: a valid active profile color drives the app, while `theme.accentColor` remains the preserved fallback. The functional toolbar, primary action, and title wash carry the resolved accent; the selector rail remains a contrast-safe identity cue. The reach preference defaults to the exact v0.9.0 look. Optional active-profile popout border remains future work. |
 | Accent gate relax + filled accent actions | Implemented on main | Any valid `#RRGGBB` accent/profile color is accepted; invalid hex is still blocked/defaulted. `AccentButton` now uses accent fill tokens with generated dark/white foreground instead of an outline-only treatment. |
 | Borderless resize zones | Implemented on main | Previous implementations used `WindowChrome.ResizeBorderThickness="6"` and then a 10 DIP inset. The current v0.7.2 P1 implementation uses a 4 DIP black edge resize band (`BorderlessResizeHitTestPolicy.ResizeBorderDip`) plus 32 DIP corner length via native hit testing, without adding a visible size grip or touch-first 40 x 40 target. Manual DPI resize QA remains a release-candidate check. |
 | Compact player plumbing | Dormant on main | Stages 1–4 shipped earlier, but the 2026-06-25 popout-look cleanup removed the Settings Compact toggle and set `PlaybackModePolicy.CompactPlayerEnabled=false`, so new popouts always resolve to Normal. `PlaybackMode.Compact`, `PlaybackModePolicy`, the player shell/IFrame assets, `PlayerSettings.CompactMode`, and `Profile.Mode` are retained as reserved/dormant plumbing, not a release-facing mode. **2026-06-26:** the per-profile Edit-profile playback-mode picker also hides the dead "Compact player" option while `CompactPlayerEnabled=false` (a stored `compact`/`embed` profile falls back to Use-global), closing the gap where Settings dropped the toggle but the profile editor still offered it. Compact manual QA is only a release gate if compact is deliberately re-enabled. |

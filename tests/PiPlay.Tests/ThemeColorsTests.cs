@@ -43,6 +43,23 @@ public class ThemeColorsTests
     // --- Accent intensity: the user's dial for how far the accent reaches (v0.10.0) ---
 
     /// <summary>
+    /// The default is a compatibility point, not merely the middle of two arbitrary lerps. PiPlay
+    /// v0.9.0 shipped full-accent toolbar glyphs and this exact 1.45 wash; reach 50 must reproduce both
+    /// bytes so enabling the preference does not quietly weaken P2 for every existing user.
+    /// </summary>
+    [Fact]
+    public void Default_intensity_reproduces_the_deployed_v0_9_0_accent_reach()
+    {
+        var set = ThemeColors.DeriveAccentSet(
+            ThemeCatalog.DefaultAccentColor,
+            ThemeCatalog.PresetFor(ThemeCatalog.DefaultThemeId),
+            ThemeCatalog.DefaultAccentIntensity);
+
+        Assert.Equal(Color.FromRgb(0x2B, 0xAE, 0xD0), set.ChromeGlyph);
+        Assert.Equal(Color.FromRgb(0x12, 0x34, 0x3F), set.ShellTint);
+    }
+
+    /// <summary>
     /// Intensity 0 must mean OFF, not "a bit less": no title-bar wash at all, and neutral chrome glyphs.
     /// That is a legitimate choice — it restores the pre-v0.9.0 look where the accent painted only the
     /// primary action. If 0 still tinted, the slider would have no true off.
@@ -63,17 +80,38 @@ public class ThemeColorsTests
         Assert.Equal(textPrimary, set.ChromeGlyph);    // toolbar glyphs go back to ordinary text color
     }
 
-    /// <summary>Intensity 100 is full reach: glyphs take the accent outright.</summary>
+    /// <summary>
+    /// Glyph reach finishes at the midpoint. Above 50 the glyph stays fully accented while the
+    /// independently linear wash continues to deepen.
+    /// </summary>
     [Theory]
     [InlineData("sharp-dark")]
     [InlineData("minimal")]
     [InlineData("soft-glass")]
-    public void Intensity_one_hundred_gives_the_glyphs_the_full_accent(string presetId)
+    public void Intensity_fifty_and_above_gives_the_glyphs_the_full_accent(string presetId)
     {
         var preset = ThemeCatalog.PresetFor(presetId);
-        var set = ThemeColors.DeriveAccentSet("#A78BFA", preset, 100);
+        foreach (var intensity in new[] { 50, 75, 100 })
+        {
+            var set = ThemeColors.DeriveAccentSet("#A78BFA", preset, intensity);
+            Assert.Equal(set.Primary, set.ChromeGlyph);
+        }
+    }
 
-        Assert.Equal(set.Primary, set.ChromeGlyph);
+    [Theory]
+    [InlineData("sharp-dark")]
+    [InlineData("minimal")]
+    [InlineData("soft-glass")]
+    public void Intensity_twenty_five_is_halfway_through_the_glyph_curve(string presetId)
+    {
+        var preset = ThemeCatalog.PresetFor(presetId);
+        var surfaceHover = ThemeColors.ParseColor(preset.Palette.SurfaceHover);
+        var set = ThemeColors.DeriveAccentSet("#A78BFA", preset, 25);
+        var expected = ThemeColors.EnsureContrast(
+            ThemeColors.Mix(ThemeColors.ParseColor(preset.Palette.TextPrimary), set.Primary, 0.5),
+            surfaceHover);
+
+        Assert.Equal(expected, set.ChromeGlyph);
     }
 
     /// <summary>
@@ -87,12 +125,12 @@ public class ThemeColorsTests
         var surfaceBase = ThemeColors.ParseColor(preset.Palette.SurfaceBase);
 
         var previous = 0.0;
-        foreach (var intensity in new[] { 0, 20, 40, 60, 80, 100 })
+        foreach (var intensity in new[] { 0, 20, 40, 50, 60, 75, 80, 100 })
         {
             var ratio = ThemeColors.ContrastRatio(
                 ThemeColors.DeriveAccentSet("#00D4FF", preset, intensity).ShellTint, surfaceBase);
-            Assert.True(ratio >= previous,
-                $"intensity {intensity} washes at {ratio:F2}:1, weaker than the step below ({previous:F2}:1).");
+            Assert.True(ratio > previous,
+                $"intensity {intensity} washes at {ratio:F2}:1, not stronger than the step below ({previous:F2}:1).");
             previous = ratio;
         }
     }

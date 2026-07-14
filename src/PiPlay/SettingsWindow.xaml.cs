@@ -77,6 +77,7 @@ public partial class SettingsWindow : Window
     private bool _seedingOpacitySliders = true;
     private bool _seedingAccentPicker = true;
     private bool _seedingAccentIntensity = true;
+    private readonly bool _accentFollowsThemePreset;
 
     public SettingsWindow(
         bool isBrowserReady,
@@ -89,8 +90,10 @@ public partial class SettingsWindow : Window
         bool? stripAutoHideOverride = null,
         string? cornerStyle = ThemeCatalog.DefaultCornerStyle,
         string? accentEditContext = null,
-        int? accentIntensity = null)
+        int? accentIntensity = null,
+        bool accentFollowsThemePreset = true)
     {
+        _accentFollowsThemePreset = accentFollowsThemePreset;
         InitializeComponent();
         ApplyInitialBounds();
         // The dialog wears the theme/override corner shape itself, and re-applies it on chip
@@ -189,10 +192,12 @@ public partial class SettingsWindow : Window
         ThemeId = ThemeCatalog.NormalizeThemeId(((FrameworkElement)sender).Tag as string);
         // An explicit preset selection adopts the preset's defaults (review doc §2.1) — fade
         // delay, top-bar auto-hide, opacity levels, and theme-owned corners. The controls below
-        // can then fine-tune each one; manual changes after this click are overrides. The accent
-        // follows the §3.3 switch rule (custom accents survive) via the pure catalog helper.
+        // can then fine-tune each one; manual changes after this click are overrides. A GLOBAL accent
+        // follows the §3.3 switch rule (custom values survive). A profile-owned accent is always
+        // explicit, even if its bytes equal the old preset default, so a preset switch never rewrites it.
         var preset = ThemeCatalog.PresetFor(ThemeId);
-        AccentColor = ThemeCatalog.AccentForThemeSwitch(AccentColor, previousPreset, preset);
+        if (_accentFollowsThemePreset)
+            AccentColor = ThemeCatalog.AccentForThemeSwitch(AccentColor, previousPreset, preset);
         CornerStyle = ThemeCatalog.DefaultCornerStyle;
         FadeIdleDelayMs = ThemeCatalog.FadeDelayMillisecondsForPreset(preset.DefaultFadeDelayPreset);
         // Behavior returns to "follow the preset" (code review P2): the overrides reset to null
