@@ -194,11 +194,23 @@ public class ReleaseScriptPolicyTests
         // on "the moves I recorded as successful" drops those children and then deletes the backup
         // holding the only copy. Rollback must walk the backup itself and merge. (scripts\Test-DeploySwap.ps1 case C3.)
         Assert.Contains("function Restore-DeployBackup", swap);
-        Assert.Contains("Restore-DeployBackup -BackupDir $paths.Backup -DeployRoot $DeployRoot", swap);
+        Assert.Contains("Restore-DeployBackup -BackupDir $BackupDir -DeployRoot $DeployRoot", swap);
         Assert.Contains("rollback could not restore a runnable copy", swap);
 
+        // A rollback that could not put everything back must KEEP the backup and say where it is.
+        // Deleting it on the strength of "the restore probably worked" is the same data loss in the
+        // other direction (scripts\Test-DeploySwap.ps1 case H).
+        Assert.Contains("could not fully restore the previous copy", swap);
+        Assert.Contains("is PRESERVED at", swap);
+
         // The runtime data folder is never moved aside (ADR-0007: login/session survive a redeploy).
-        Assert.Contains("if ($item.Name -ieq $DataFolderName) { continue }", swap);
+        // Anchor the guard inside the SWAP loop specifically: the same line also appears in
+        // Repair-InterruptedDeploy, so a bare Contains would stay green with the real guard deleted.
+        var guard = "if ($item.Name -ieq $DataFolderName) { continue }";
+        var swapFn = swap.IndexOf("function Invoke-StagedDeploy", StringComparison.Ordinal);
+        Assert.True(swapFn >= 0, "Invoke-StagedDeploy should exist.");
+        Assert.True(swap.IndexOf(guard, swapFn, StringComparison.Ordinal) >= 0,
+            "The swap loop must skip the runtime data folder (ADR-0007).");
     }
 
     [Fact]

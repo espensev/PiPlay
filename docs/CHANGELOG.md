@@ -35,6 +35,15 @@ the copy you test from. No feature or visual changes beyond a visible pressed st
   replace Stable successfully and only then fail at tag creation.
 - **Concurrent publishes are refused:** two runs at once would interleave on the publish output, the
   deploy root mid-swap, and tag creation. A publish now locks the repo and the deploy root.
+- **A rollback that cannot fully restore now keeps the backup instead of deleting it.** Every rollback
+  step is necessarily best-effort, so a second lock could defeat the restore silently — and the backup
+  was then deleted anyway while the publish reported a successful rollback, destroying the last copy of
+  that artifact. The backup is now removed only once it is empty; otherwise it is preserved and its
+  path reported.
+- **No log entry is lost to a late-starting writer:** the writer thread captures the queue it was
+  started for instead of re-reading shared state, which a fast start-then-exit could null out from
+  under it. A transient write failure also no longer discards the whole coalesced batch or its
+  overflow accounting.
 
 ### Performance
 - **Logging never touches the disk on the UI thread:** entries are handed to a bounded queue drained

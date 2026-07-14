@@ -152,6 +152,44 @@ try {
     Check "C6 no staging/backup left behind"           { Test-NoLeftovers $rootC }
     Check "C7 deployed copy is runnable again"         { Test-DeployPayloadComplete -DeployRoot $rootC }
 
+    # ---------- H. rollback that CANNOT restore must keep the backup, not delete it.
+    # Case C is the easy direction: the swap died during move-OUT, so every restore destination was
+    # already vacated and each Move-Item succeeded. The dangerous direction is a failure during
+    # move-IN where a second lock (an AV scan of the freshly written binaries is the realistic one)
+    # blocks BOTH the removal of the moved-in file AND the restore over it. Every rollback step is
+    # -ErrorAction SilentlyContinue, so the restore fails silently - and an earlier version of this
+    # code then deleted the backup anyway and reported a successful rollback, destroying the only
+    # remaining copy of that artifact. Drive Undo-DeploySwap directly at exactly that state.
+    $rootH = Join-Path $sandbox "H\PiPlay"
+    $pathsH = Get-DeploySwapPaths -DeployRoot $rootH
+
+    New-Payload -Dir $rootH -Token "NEW"                  # the half-swapped-in new payload
+    New-Item -ItemType Directory -Path (Join-Path $rootH "PiPlayData") -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $rootH "PiPlayData\settings.json") -Value '{"session":"precious"}' -Encoding UTF8
+    New-Payload -Dir $pathsH.Backup -Token "OLD"          # the previous payload, moved aside
+    New-Item -ItemType Directory -Path $pathsH.Staging -Force | Out-Null
+
+    # Hold the moved-in PiPlay.exe open with no sharing: neither the rollback's Remove-Item nor the
+    # restore's Move-Item -Force can touch it.
+    $lockedH = [System.IO.File]::Open(
+        (Join-Path $rootH "PiPlay.exe"),
+        [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::None)
+
+    $errH = $null
+    try {
+        Undo-DeploySwap -DeployRoot $rootH -BackupDir $pathsH.Backup -StagingDir $pathsH.Staging `
+            -MovedIn @("PiPlay.exe") -SwapError "simulated move-in failure" 3>$null
+    } catch { $errH = $_.Exception.Message } finally { $lockedH.Dispose() }
+
+    Check "H1 an unrestorable rollback throws"          { $null -ne $errH }
+    Check "H2 it says the backup was PRESERVED"         { $errH -match 'PRESERVED at' }
+    Check "H3 the backup still EXISTS on disk"          { Test-Path -LiteralPath $pathsH.Backup }
+    Check "H4 the old exe is still recoverable from it" {
+        (Get-Content -LiteralPath (Join-Path $pathsH.Backup "PiPlay.exe") -Raw).Trim() -eq "exe-OLD"
+    }
+    Check "H5 it does NOT claim a successful rollback"  { $errH -notmatch 'previous copy was rolled back' }
+    Check "H6 runtime data preserved"                   { Test-DataPreserved $rootH }
+
     # --------------------- D. interrupted swap (old moved aside, new never landed) -> restore old
     $rootD = Join-Path $sandbox "D\PiPlay"
     New-DeployRootWithOldPayload -Root $rootD

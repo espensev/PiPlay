@@ -29,6 +29,7 @@ public static class Log
     private const long MaxBytes = 1_000_000;
     private const int MaxQueuedEntries = 4096;
     private const int MaxBatchChars = 64 * 1024;
+    private const int MaxRetainedChars = 512 * 1024;   // cap on a batch retried across write failures
     private static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(2);
 
     // Compiled once (hot path): strips a query string if a raw URL slips through.
@@ -59,8 +60,15 @@ public static class Log
                 var path = AppPaths.LogFile;
                 _bytesOnDisk = File.Exists(path) ? new FileInfo(path).Length : 0L;
                 _path = path;
-                _queue = new BlockingCollection<Entry>(MaxQueuedEntries);
-                _writer = new Thread(DrainLoop) { IsBackground = true, Name = "PiPlay.Log" };
+                var queue = new BlockingCollection<Entry>(MaxQueuedEntries);
+                _queue = queue;
+
+                // Hand the writer the queue and path it was started for. It must NOT re-read the
+                // statics: Thread.Start only guarantees the new thread sees at least the state as of
+                // Start, not that it sees no later state. A writer still waiting to be scheduled when
+                // Shutdown nulls them would otherwise observe null, return without draining, and lose
+                // every queued entry silently.
+                _writer = new Thread(() => DrainLoop(queue, path)) { IsBackground = true, Name = "PiPlay.Log" };
                 _writer.Start();
             }
             catch
@@ -117,17 +125,14 @@ public static class Log
         }
     }
 
-    private static void DrainLoop()
+    private static void DrainLoop(BlockingCollection<Entry> queue, string path)
     {
-        var queue = _queue;
-        var path = _path;
-        if (queue is null || path is null) return;
-
         var batch = new StringBuilder();
         try
         {
             foreach (var entry in queue.GetConsumingEnumerable())
             {
+                WriterGateForTests?.Wait();   // test seam: park the writer so queue overflow is testable
                 Accumulate(entry, batch, path);
                 // Fold everything already queued into one append: a burst costs one file write.
                 while (batch.Length < MaxBatchChars && queue.TryTake(out var next))
@@ -155,6 +160,8 @@ public static class Log
 
     private static void FlushBatch(string path, StringBuilder batch)
     {
+        // Consume the drop count INTO the batch. Once folded in, it travels with the batch, so a
+        // failed write cannot lose the overflow accounting or report it twice.
         var dropped = Interlocked.Exchange(ref _dropped, 0);
         if (dropped > 0)
         {
@@ -165,16 +172,18 @@ public static class Log
         if (batch.Length == 0) return;
 
         var text = batch.ToString();
-        batch.Clear();
         try
         {
             RotateIfNeeded(path);
             File.AppendAllText(path, text, Encoding.UTF8);
             _bytesOnDisk += Encoding.UTF8.GetByteCount(text);
+            batch.Clear();   // only on success: a transient failure must not discard a whole burst
         }
         catch
         {
-            // ignore write failures
+            // Keep the batch and retry on the next entry rather than throwing away everything that
+            // was coalesced into it. Bounded, so a sink that is failing permanently cannot grow it.
+            if (batch.Length > MaxRetainedChars) batch.Clear();
         }
     }
 
@@ -212,6 +221,10 @@ public static class Log
         try { writer?.Join(DrainTimeout); } catch { /* nothing to wait for */ }
         try { queue.Dispose(); } catch { /* best effort */ }
     }
+
+    /// <summary>Test seam: when set unsignalled, parks the writer so the bounded queue can be filled
+    /// on purpose and the overflow/drop contract observed. Null in production.</summary>
+    internal static ManualResetEventSlim? WriterGateForTests;
 
     // Test seams: block until everything queued so far has hit the disk, and observe overflow.
     internal static bool FlushForTests(TimeSpan timeout)

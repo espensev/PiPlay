@@ -157,6 +157,41 @@ public class LoggingServiceDeliveryTests : IDisposable
     }
 
     [Fact]
+    public void Queue_overflow_drops_entries_instead_of_blocking_the_caller()
+    {
+        // This is the invariant the whole change exists for. If a full queue ever BLOCKS the caller,
+        // the UI thread stalls on the disk - strictly worse than the synchronous append this replaced.
+        // Park the writer so the bounded queue genuinely fills, then prove the caller sailed through.
+        var gate = new ManualResetEventSlim(false);
+        Log.WriterGateForTests = gate;
+        try
+        {
+            InitInTempRoot();
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            for (var i = 0; i < 6000; i++) Log.Info($"burst {i}");   // > MaxQueuedEntries (4096)
+            sw.Stop();
+
+            Assert.True(Log.DroppedCountForTests > 0,
+                "a 6000-entry burst against a parked writer dropped nothing - the queue is not bounded");
+            Assert.True(sw.Elapsed < TimeSpan.FromSeconds(5),
+                $"enqueueing blocked the caller for {sw.Elapsed} - a full queue must drop, not block");
+
+            gate.Set();       // release the writer
+            Log.Shutdown();   // drain + join
+
+            // The loss is reported rather than silent: a gap you cannot see is worse than a slow log.
+            Assert.Contains("Log queue overflowed; dropped", File.ReadAllText(LogFile));
+        }
+        finally
+        {
+            Log.WriterGateForTests = null;
+            gate.Set();
+            gate.Dispose();
+        }
+    }
+
+    [Fact]
     public void Logging_after_shutdown_is_a_silent_no_op()
     {
         InitInTempRoot();

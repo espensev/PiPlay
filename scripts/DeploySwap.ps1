@@ -176,6 +176,54 @@ function Restore-DeployBackup {
 
 <#
 .SYNOPSIS
+  Undo a failed swap: drop the new payload, restore the previous one, and ALWAYS throw.
+.DESCRIPTION
+  Separated from Invoke-StagedDeploy so the harness can drive the states that matter (notably a
+  destination that cannot be overwritten) without having to reproduce an exotic lock through the
+  public entry point.
+
+  The backup is deleted ONLY when it is empty - i.e. when every file in it was actually restored.
+  Every step here is best-effort by necessity (a second lock, e.g. an AV scan of freshly written
+  binaries, can block both the removal of a moved-in file AND the restore over it), so "the restore
+  probably worked" is not something this function is allowed to assume. If anything is left in the
+  backup, it is kept and its path is reported: destroying it would be the same data loss this file
+  exists to prevent.
+#>
+function Undo-DeploySwap {
+    param(
+        [Parameter(Mandatory = $true)][string]$DeployRoot,
+        [Parameter(Mandatory = $true)][string]$BackupDir,
+        [Parameter(Mandatory = $true)][string]$StagingDir,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$MovedIn,
+        [Parameter(Mandatory = $true)][string]$SwapError,
+        [string]$ExeName = "PiPlay.exe"
+    )
+
+    Write-Warning "Deploy swap failed ($SwapError); rolling the previous copy back."
+
+    # Drop the new payload's files first so the restore lands on the shape it was taken from.
+    foreach ($name in $MovedIn) {
+        Remove-Item -LiteralPath (Join-Path $DeployRoot $name) -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if (Test-Path -LiteralPath $BackupDir) {
+        Restore-DeployBackup -BackupDir $BackupDir -DeployRoot $DeployRoot
+    }
+    Remove-Item -LiteralPath $StagingDir -Recurse -Force -ErrorAction SilentlyContinue
+
+    $unrestored = @(Get-ChildItem -LiteralPath $BackupDir -Recurse -Force -File -ErrorAction SilentlyContinue)
+    if ($unrestored.Count -gt 0) {
+        throw "Stable deploy failed mid-swap AND the rollback could not fully restore the previous copy ($($unrestored.Count) file(s) could not be put back). The previous payload is PRESERVED at '$BackupDir' - restore it by hand or re-run the publish. Do NOT test from $DeployRoot. Original failure: $SwapError"
+    }
+    Remove-Item -LiteralPath $BackupDir -Recurse -Force -ErrorAction SilentlyContinue
+
+    if (-not (Test-DeployPayloadComplete -DeployRoot $DeployRoot -ExeName $ExeName)) {
+        throw "Stable deploy failed mid-swap AND the rollback could not restore a runnable copy at $DeployRoot. Re-run the publish before testing anything from it. Original failure: $SwapError"
+    }
+    throw "Stable deploy failed mid-swap and the previous copy was rolled back: $SwapError"
+}
+
+<#
+.SYNOPSIS
   Stage, verify, and swap a new payload into the deploy root, preserving the runtime data folder.
 .DESCRIPTION
   Throws (after rolling the previous payload back) rather than leaving a broken deploy root.
@@ -226,23 +274,8 @@ function Invoke-StagedDeploy {
             $movedIn.Add($item.Name)
         }
     } catch {
-        $swapError = $_.Exception.Message
-        Write-Warning "Deploy swap failed ($swapError); rolling the previous copy back."
-
-        # Drop the new payload's files first so the restore lands on the shape it was taken from.
-        foreach ($name in $movedIn) {
-            Remove-Item -LiteralPath (Join-Path $DeployRoot $name) -Recurse -Force -ErrorAction SilentlyContinue
-        }
-        if (Test-Path -LiteralPath $paths.Backup) {
-            Restore-DeployBackup -BackupDir $paths.Backup -DeployRoot $DeployRoot
-        }
-        Remove-Item -LiteralPath $paths.Backup -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -LiteralPath $paths.Staging -Recurse -Force -ErrorAction SilentlyContinue
-
-        if (-not (Test-DeployPayloadComplete -DeployRoot $DeployRoot -ExeName $ExeName)) {
-            throw "Stable deploy failed mid-swap AND the rollback could not restore a runnable copy at $DeployRoot. Re-run the publish before testing anything from it. Original failure: $swapError"
-        }
-        throw "Stable deploy failed mid-swap and the previous copy was rolled back: $swapError"
+        Undo-DeploySwap -DeployRoot $DeployRoot -BackupDir $paths.Backup -StagingDir $paths.Staging `
+            -MovedIn $movedIn.ToArray() -SwapError $_.Exception.Message -ExeName $ExeName
     }
 
     Remove-Item -LiteralPath $paths.Staging -Recurse -Force -ErrorAction SilentlyContinue
