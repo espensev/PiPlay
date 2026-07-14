@@ -15,10 +15,15 @@ public static class ThemeSettingsWriter
 {
     public static void Apply(AppSettings settings, string themeId, string accentColor, int fadeIdleDelayMs,
         bool compactMode, double? activeOpacityOverride, double? idleOpacityOverride,
-        bool? stripAutoHideOverride, string cornerStyle)
+        bool? stripAutoHideOverride, string cornerStyle, int? accentIntensity = null)
     {
         settings.Theme.ThemeId = ThemeCatalog.NormalizeThemeId(themeId);
         settings.Theme.AccentColor = ThemeCatalog.NormalizeAccentColor(accentColor);
+        // Accent reach is a USER preference, so null here means "the caller had nothing to say — keep
+        // what is saved", NOT "reset to the default". Treating null as the default would let any apply
+        // that does not carry the dial (a preset switch, an accent-only apply) silently wipe it.
+        if (accentIntensity is int intensity)
+            settings.Theme.AccentIntensity = ThemeCatalog.NormalizeAccentIntensity(intensity);
         settings.Player.FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
         settings.Theme.FadeDelayPreset = ThemeCatalog.FadeDelayPresetForMilliseconds(settings.Player.FadeIdleDelayMs);
         // Global compact-mode default takes effect on the NEXT popout; an open player keeps its mode.

@@ -174,7 +174,7 @@
        AccentPrimary is already contrast-corrected for presentation (EnsureContrast vs SurfaceHover), so
        even a very dark profile color leaves these glyphs legible. Pinned by XamlInvariantTests. -->
   <Style TargetType="Button" x:Key="AccentIconButton" BasedOn="{StaticResource IconButton}">
-    <Setter Property="Foreground" Value="{DynamicResource AccentPrimary}" />
+    <Setter Property="Foreground" Value="{DynamicResource AccentChromeGlyph}" />
   </Style>
 
   <Style TargetType="Button" x:Key="CloseIconButton" BasedOn="{StaticResource IconButton}">

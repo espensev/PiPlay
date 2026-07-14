@@ -922,6 +922,68 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal(PlaybackModePolicy.NormalMinHeight, w.MinHeight);
     });
 
+    /// <summary>
+    /// The accent-reach dial must survive a repaint that is not a Settings apply. Every accent repaint
+    /// goes through ApplyAccentEverywhere — profile switch, dialog dismiss, reset — and ApplyAccentOnly
+    /// DEFAULTS the intensity to the catalog value, so a repaint that forgets to pass the persisted dial
+    /// still compiles and still looks wired while snapping a user who chose 0 back to 50.
+    /// </summary>
+    [Fact]
+    public void MainWindow_repaints_with_the_persisted_accent_intensity_not_the_default() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        try
+        {
+            // Intensity 0 = the accent paints only the primary action: toolbar glyphs are ordinary text.
+            w.ReplaceSettingsForTests(new AppSettings { Theme = new ThemeSettings { AccentIntensity = 0 } });
+
+            var textPrimary = ThemeColors.ParseColor(ThemeCatalog.PresetFor("sharp-dark").Palette.TextPrimary);
+            Assert.Equal(0, w.EffectiveAccentIntensityForTests);
+            Assert.Equal(textPrimary, ((SolidColorBrush)Application.Current.Resources["AccentChromeGlyph"]).Color);
+        }
+        finally
+        {
+            w.ReplaceSettingsForTests(new AppSettings());   // restore App resources for other tests
+        }
+    });
+
+    /// <summary>
+    /// The intensity slider previews live, and the preview is VISUAL-ONLY: it must never write to
+    /// settings, or dismissing Settings without applying could not revert it.
+    /// </summary>
+    [Fact]
+    public void MainWindow_previews_accent_intensity_without_persisting_it() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        try
+        {
+            var settings = new AppSettings { Theme = new ThemeSettings { AccentIntensity = 100 } };
+            w.ReplaceSettingsForTests(settings);
+            var fullReach = ((SolidColorBrush)Application.Current.Resources["AccentChromeGlyph"]).Color;
+            var textPrimary = ThemeColors.ParseColor(ThemeCatalog.PresetFor("sharp-dark").Palette.TextPrimary);
+
+            // Drag the dial to 0. An intensity-only move must repaint even though the accent never
+            // changed — if the two preview channels did not travel as a pair, the slider would look dead.
+            w.QueueAccentIntensityPreviewForTests(0);
+            w.FlushAccentPreviewForTests();
+
+            Assert.Equal(textPrimary, ((SolidColorBrush)Application.Current.Resources["AccentChromeGlyph"]).Color);
+            Assert.Equal(100, settings.Theme.AccentIntensity);   // previewed, NOT persisted
+
+            // Dismiss without applying: rendering follows persisted state again.
+            w.CancelQueuedAccentPreviewForTests();
+            w.RevertPreviewedAccentForTests();
+
+            Assert.Equal(100, w.EffectiveAccentIntensityForTests);
+            Assert.Equal(fullReach, ((SolidColorBrush)Application.Current.Resources["AccentChromeGlyph"]).Color);
+        }
+        finally
+        {
+            w.CancelQueuedAccentPreviewForTests();
+            w.ReplaceSettingsForTests(new AppSettings());
+        }
+    });
+
     [Fact]
     public void MainWindow_reverts_a_previewed_accent_on_dismiss() => StaTestThread.Invoke(() =>
     {

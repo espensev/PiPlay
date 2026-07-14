@@ -54,11 +54,22 @@ public partial class MainWindow : Window
     private bool _autoTickInProgress;
     private string? _autoLastHandledVideoId;
 
-    // Color-wheel mouse moves can arrive much faster than WPF can present a frame. Keep only the
-    // latest requested accent and apply it at most once per ~33 ms preview frame.
+    // Color-wheel mouse moves and intensity-slider drags both arrive much faster than WPF can present a
+    // frame. Keep only the latest requested (accent, intensity) PAIR and apply it at most once per ~33 ms
+    // preview frame — one coalescing channel, because both feed the same accent derivation.
     private readonly System.Windows.Threading.DispatcherTimer _accentPreviewTimer;
     private string? _pendingAccentPreview;
+    private int? _pendingAccentIntensityPreview;
     private string? _lastAppliedAccentPreview;
+    private int? _lastAppliedAccentIntensityPreview;
+
+    /// <summary>
+    /// The accent intensity being previewed while Settings is open, or null to follow the persisted
+    /// value. Deliberately VISUAL-ONLY and never written to <c>_settings</c>: the dismiss-without-apply
+    /// path reverts by clearing this and re-reading persisted state, so a preview that mutated settings
+    /// would make cancel un-revertable.
+    /// </summary>
+    private int? _previewAccentIntensity;
 
     // Shutdown owns the final settings save. A PlayerWindow close raised from this path still
     // contributes its placement/state, but must not drive the Source WebView or save a second time.
@@ -658,7 +669,8 @@ public partial class MainWindow : Window
             idleOpacityOverride: _settings.Theme.IdleWindowOpacity,
             stripAutoHideOverride: _settings.Theme.StripAutoHide,
             cornerStyle: EffectiveCornerStyle,
-            accentEditContext: AccentEditContext)
+            accentEditContext: AccentEditContext,
+            accentIntensity: EffectiveAccentIntensity)
         {
             Owner = this,
             Topmost = Topmost,
@@ -668,6 +680,7 @@ public partial class MainWindow : Window
         // stair-step and churn animation timers. The drag itself is the animation.
         dialog.OpacityPreviewChanged += (constant, idle) => _player?.ApplyWindowOpacity(constant, idle, animate: false);
         dialog.AccentPreviewChanged += QueueAccentPreview;
+        dialog.AccentIntensityPreviewChanged += QueueAccentIntensityPreview;
 
         var accepted = dialog.ShowDialog() == true;
         // A final pointer update can still be waiting for the 33 ms coalescing tick when the user
@@ -693,7 +706,7 @@ public partial class MainWindow : Window
         {
             ApplyPlayerPreferences(dialog.ThemeId, dialog.AccentColor, dialog.FadeIdleDelayMs, dialog.CompactMode,
                 dialog.ActiveOpacityOverride, dialog.IdleOpacityOverride, dialog.StripAutoHideOverride,
-                dialog.CornerStyle);
+                dialog.CornerStyle, dialog.AccentIntensity);
         }
 
         switch (dialog.RequestedAction)
@@ -739,7 +752,8 @@ public partial class MainWindow : Window
 
     private void ApplyPlayerPreferences(string themeId, string accentColor, int fadeIdleDelayMs, bool compactMode,
         double? activeOpacityOverride, double? idleOpacityOverride, bool? stripAutoHideOverride,
-        string cornerStyle = ThemeCatalog.DefaultCornerStyle)
+        string cornerStyle = ThemeCatalog.DefaultCornerStyle,
+        int? accentIntensity = null)
     {
         // Theme accent is the single source of truth for Pin/Fade color now (overhaul Task 10);
         // behavior values are NULLABLE overrides (theme code review P2) — the pure writer keeps
@@ -747,7 +761,7 @@ public partial class MainWindow : Window
         // mirrors the EFFECTIVE values onto the legacy Player fields.
         var globalAccent = ThemeCatalog.NormalizeAccentColor(accentColor);
         ThemeSettingsWriter.Apply(_settings, themeId, globalAccent, fadeIdleDelayMs, compactMode,
-            activeOpacityOverride, idleOpacityOverride, stripAutoHideOverride, cornerStyle);
+            activeOpacityOverride, idleOpacityOverride, stripAutoHideOverride, cornerStyle, accentIntensity);
         CommitAccent(accentColor);
 
         // Restyle the theme-driven shell resources live (DynamicResource consumers re-resolve), then
@@ -799,25 +813,54 @@ public partial class MainWindow : Window
         if (!_accentPreviewTimer.IsEnabled) _accentPreviewTimer.Start();
     }
 
+    /// <summary>Queue a live preview of how far the accent reaches (Settings' intensity slider).</summary>
+    private void QueueAccentIntensityPreview(int intensity)
+    {
+        var normalized = ThemeCatalog.NormalizeAccentIntensity(intensity);
+        if (normalized == _pendingAccentIntensityPreview) return;
+        if (_pendingAccentIntensityPreview is null && normalized == _lastAppliedAccentIntensityPreview) return;
+
+        _pendingAccentIntensityPreview = normalized;
+        if (!_accentPreviewTimer.IsEnabled) _accentPreviewTimer.Start();
+    }
+
     private void AccentPreviewTimer_Tick(object? sender, EventArgs e) => ApplyPendingAccentPreview();
 
     private void ApplyPendingAccentPreview()
     {
         _accentPreviewTimer.Stop();
         var accent = _pendingAccentPreview;
+        var intensity = _pendingAccentIntensityPreview;
         _pendingAccentPreview = null;
-        if (accent is null
-            || string.Equals(accent, _lastAppliedAccentPreview, StringComparison.OrdinalIgnoreCase)) return;
+        _pendingAccentIntensityPreview = null;
+        if (accent is null && intensity is null) return;
 
-        LivePreviewAccent(accent);
-        _lastAppliedAccentPreview = accent;
+        // The two channels paint the SAME derivation, so they must be applied as a pair: an
+        // intensity-only move still has to repaint with the accent the user is currently previewing
+        // (otherwise it would dedupe away as "accent unchanged" and the slider would look dead), and an
+        // accent-only move has to keep the previewed reach.
+        if (intensity is int i) _previewAccentIntensity = i;
+        var target = accent ?? _lastAppliedAccentPreview ?? ResolvedAccentColor;
+
+        if (string.Equals(target, _lastAppliedAccentPreview, StringComparison.OrdinalIgnoreCase)
+            && _previewAccentIntensity == _lastAppliedAccentIntensityPreview)
+        {
+            return;   // this frame changed nothing that is painted
+        }
+
+        LivePreviewAccent(target);
+        _lastAppliedAccentPreview = target;
+        _lastAppliedAccentIntensityPreview = _previewAccentIntensity;
     }
 
     private void CancelQueuedAccentPreview()
     {
         _accentPreviewTimer.Stop();
         _pendingAccentPreview = null;
+        _pendingAccentIntensityPreview = null;
         _lastAppliedAccentPreview = null;
+        _lastAppliedAccentIntensityPreview = null;
+        _previewAccentIntensity = null;   // stop overriding: rendering follows persisted settings again
     }
 
     private string CommitAccent(string hex)
@@ -829,11 +872,22 @@ public partial class MainWindow : Window
 
     private void ApplyAccentEverywhere(string accentColor)
     {
+        // Pass the intensity EXPLICITLY. ApplyAccentOnly defaults it to null (= the catalog default), so
+        // omitting it here still compiles and still looks wired — while silently snapping a user who
+        // chose 0 or 100 back to 50 on every profile switch, dialog cancel, and reset.
         ThemeResourceApplier.ApplyAccentOnly(Application.Current.Resources, accentColor,
-            ThemeCatalog.PresetFor(_settings.Theme.ThemeId));
+            ThemeCatalog.PresetFor(_settings.Theme.ThemeId), EffectiveAccentIntensity);
         ApplySourceAppearance(accentColor);
         _player?.ApplyAccent(accentColor);
     }
+
+    /// <summary>
+    /// How far the accent currently reaches: the live preview while Settings is open, otherwise the
+    /// persisted preference. Every accent repaint reads this, so preview and persisted state can never
+    /// disagree about what is on screen.
+    /// </summary>
+    private int EffectiveAccentIntensity =>
+        _previewAccentIntensity ?? ThemeCatalog.NormalizeAccentIntensity(_settings.Theme.AccentIntensity);
 
     private void ApplyThemeResources()
     {
@@ -897,6 +951,10 @@ public partial class MainWindow : Window
     internal void QueueAccentPreviewForTests(string hex) => QueueAccentPreview(hex);
     internal void FlushAccentPreviewForTests() => ApplyPendingAccentPreview();
     internal bool HasPendingAccentPreviewForTests => _pendingAccentPreview is not null;
+
+    internal void QueueAccentIntensityPreviewForTests(int intensity) => QueueAccentIntensityPreview(intensity);
+    internal void CancelQueuedAccentPreviewForTests() => CancelQueuedAccentPreview();
+    internal int EffectiveAccentIntensityForTests => EffectiveAccentIntensity;
 
     internal void SelectProfileForTests(string? name)
     {

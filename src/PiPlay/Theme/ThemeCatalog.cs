@@ -116,6 +116,21 @@ public static class ThemeCatalog
     /// corner profile (radius set + native corner mode), never individual per-control values.</summary>
     public const string DefaultCornerStyle = "theme";
 
+    /// <summary>
+    /// How far the accent reaches into the chrome, 0–100 (user-set, Settings → Appearance).
+    /// <para>
+    /// 0 = the accent paints only the primary action (the pre-v0.9.0 look: no title-bar wash, neutral
+    /// toolbar glyphs). 100 = full reach. The default sits mid-dial: visible identity without shouting.
+    /// This is a user preference, not a preset trait — switching theme presets must not reset it, the
+    /// same way a custom accent survives a preset switch.
+    /// </para>
+    /// </summary>
+    public const int DefaultAccentIntensity = 50;
+
+    /// <summary>Clamps to 0–100; null (missing from settings.json) falls back to the default.</summary>
+    public static int NormalizeAccentIntensity(int? intensity) =>
+        intensity is null ? DefaultAccentIntensity : Math.Clamp(intensity.Value, 0, 100);
+
     // Corner profiles (theme-v2 tight-scope spec §"Rounding targets"). Sharp is intentionally tight
     // (modern without going soft); minimal is visibly softer; soft-glass gets the largest popout
     // radius because it is the floating overlay theme. Ordered sharp ≤ minimal ≤ soft-glass per token.

@@ -306,7 +306,9 @@ public class XamlInvariantTests
         Assert.Equal("{StaticResource IconButton}", style.Attribute("BasedOn")?.Value);
         var setter = Assert.Single(style.Elements(XamlTestFiles.Pres + "Setter"));
         Assert.Equal("Foreground", setter.Attribute("Property")?.Value);
-        Assert.Equal("{DynamicResource AccentPrimary}", setter.Attribute("Value")?.Value);
+        // AccentChromeGlyph, NOT AccentPrimary: the glyph rides the user's accent-intensity dial, so at
+        // intensity 0 it returns to ordinary text color instead of being stuck on the accent.
+        Assert.Equal("{DynamicResource AccentChromeGlyph}", setter.Attribute("Value")?.Value);
     }
 
     [Fact]
@@ -910,6 +912,10 @@ public class XamlInvariantTests
         Assert.Equal(Hex(set.Pressed), t["AccentPressedColor"]);
         Assert.Equal(Hex(set.Border), t["AccentBorderColor"]);
         Assert.Equal(Hex(set.ShellTint), t["AccentShellTintColor"]);
+        // The toolbar glyph seed rides the DEFAULT accent intensity (the derive above passes none, so it
+        // takes DefaultAccentIntensity) — without this the seed is a magic value and a fresh launch can
+        // flash the wrong glyph color before ThemeResourceApplier runs.
+        Assert.Equal(Hex(set.ChromeGlyph), t["AccentChromeGlyphColor"]);
         Assert.Equal(Hex(set.OnAccent), t["OnAccentColor"]);
         Assert.Equal(Hex(set.OnAccentPressed), t["OnAccentPressedColor"]);
     }

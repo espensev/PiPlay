@@ -65,10 +65,18 @@ public partial class SettingsWindow : Window
     internal event Action<double, double>? OpacityPreviewChanged;
     internal event Action<string>? AccentPreviewChanged;
 
+    /// <summary>Raised on every accent-intensity slider move so MainWindow can live-preview how far the
+    /// accent reaches into the chrome. Arg: the 0–100 intensity.</summary>
+    internal event Action<int>? AccentIntensityPreviewChanged;
+
+    /// <summary>How far the accent reaches into the chrome (0–100). Committed by Done.</summary>
+    internal int AccentIntensity { get; private set; } = ThemeCatalog.DefaultAccentIntensity;
+
     // True from construction until the ctor has seeded the sliders: Slider coerces Value to its
     // Minimum during InitializeComponent, which fires ValueChanged before our values are in.
     private bool _seedingOpacitySliders = true;
     private bool _seedingAccentPicker = true;
+    private bool _seedingAccentIntensity = true;
 
     public SettingsWindow(
         bool isBrowserReady,
@@ -80,7 +88,8 @@ public partial class SettingsWindow : Window
         double? idleOpacityOverride = null,
         bool? stripAutoHideOverride = null,
         string? cornerStyle = ThemeCatalog.DefaultCornerStyle,
-        string? accentEditContext = null)
+        string? accentEditContext = null,
+        int? accentIntensity = null)
     {
         InitializeComponent();
         ApplyInitialBounds();
@@ -96,6 +105,12 @@ public partial class SettingsWindow : Window
         AccentTargetText.Text = string.IsNullOrWhiteSpace(accentEditContext)
             ? "Editing the app accent."
             : accentEditContext;
+
+        AccentIntensity = ThemeCatalog.NormalizeAccentIntensity(accentIntensity);
+        AccentIntensitySlider.Value = AccentIntensity;
+        _seedingAccentIntensity = false;
+        UpdateAccentIntensityValueText();
+
         CornerStyle = ThemeCatalog.NormalizeCornerStyle(cornerStyle);
         FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
         CompactMode = compactMode;
@@ -248,6 +263,20 @@ public partial class SettingsWindow : Window
 
     private static double? NormalizeOverride(double? value) =>
         WindowOpacityPolicy.NormalizeOptional(value);   // invalid input = no override, follow the preset
+
+    private void AccentIntensitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_seedingAccentIntensity) return;
+        AccentIntensity = ThemeCatalog.NormalizeAccentIntensity((int)Math.Round(AccentIntensitySlider.Value));
+        AppearanceChanged = true;
+        UpdateAccentIntensityValueText();
+        AccentIntensityPreviewChanged?.Invoke(AccentIntensity);
+    }
+
+    private void UpdateAccentIntensityValueText() =>
+        AccentIntensityValueText.Text = AccentIntensity == 0
+            ? "Off"
+            : $"{AccentIntensity}%";
 
     private void OpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {

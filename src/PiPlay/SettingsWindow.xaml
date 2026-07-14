@@ -158,6 +158,27 @@
                                     ToolTip="Choose the app accent color"
                                     AutomationProperties.Name="Accent color picker" />
 
+        <!-- How far the accent reaches into the chrome. 0 paints only the primary action (no title-bar
+             wash, neutral toolbar glyphs); 100 gives the toolbar the full accent. Previews live. -->
+        <TextBlock Text="Accent intensity" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                   Margin="0,0,0,6" />
+        <Grid Margin="0,0,0,12">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="72" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="44" />
+          </Grid.ColumnDefinitions>
+          <TextBlock Text="Reach" FontSize="12" Foreground="{DynamicResource TextPrimary}"
+                     VerticalAlignment="Center" />
+          <Slider x:Name="AccentIntensitySlider" Grid.Column="1" Minimum="0" Maximum="100"
+                  SmallChange="1" LargeChange="10" IsMoveToPointEnabled="True"
+                  VerticalAlignment="Center" ValueChanged="AccentIntensitySlider_ValueChanged"
+                  ToolTip="How far the accent reaches: 0 colors only the main action, 100 colors the whole toolbar and the title bar"
+                  AutomationProperties.Name="Accent intensity" />
+          <TextBlock x:Name="AccentIntensityValueText" Grid.Column="2" FontSize="12" TextAlignment="Right"
+                     Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
+        </Grid>
+
         <!-- Corner style (review doc §8.1): an override of the theme's whole corner PROFILE
              (control radii + native window corner), never individual per-control radii. "Theme"
              keeps preset-owned corners. Chip names use the CornerStyle prefix — the catalog-drift

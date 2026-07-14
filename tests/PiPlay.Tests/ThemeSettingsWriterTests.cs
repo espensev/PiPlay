@@ -34,6 +34,43 @@ public class ThemeSettingsWriterTests
         Assert.Equal(preset.DefaultStripAutoHide, settings.Player.StripAutoHide);
     }
 
+    // --- Accent intensity: the user's "how far does the accent reach" dial ---
+
+    [Fact]
+    public void The_accent_intensity_dial_is_persisted_and_clamped()
+    {
+        var settings = new AppSettings();
+
+        ThemeSettingsWriter.Apply(settings, "sharp-dark", "#00D4FF", 1500, compactMode: false,
+            activeOpacityOverride: null, idleOpacityOverride: null, stripAutoHideOverride: null,
+            cornerStyle: "theme", accentIntensity: 0);
+
+        Assert.Equal(0, settings.Theme.AccentIntensity);   // 0 is a real choice, not "unset"
+
+        ThemeSettingsWriter.Apply(settings, "sharp-dark", "#00D4FF", 1500, compactMode: false,
+            activeOpacityOverride: null, idleOpacityOverride: null, stripAutoHideOverride: null,
+            cornerStyle: "theme", accentIntensity: 4000);
+
+        Assert.Equal(100, settings.Theme.AccentIntensity);
+    }
+
+    /// <summary>
+    /// The dial is a USER preference, like the accent color — an apply that does not carry it (a preset
+    /// switch, or any older caller that omits the argument) must LEAVE IT ALONE. If null were treated as
+    /// "reset to default", switching theme presets would silently wipe a user who had set the dial to 0.
+    /// </summary>
+    [Fact]
+    public void An_apply_that_does_not_carry_the_dial_leaves_the_saved_value_alone()
+    {
+        var settings = new AppSettings { Theme = new ThemeSettings { AccentIntensity = 0 } };
+
+        ThemeSettingsWriter.Apply(settings, "minimal", "#38D996", 1500, compactMode: false,
+            activeOpacityOverride: null, idleOpacityOverride: null, stripAutoHideOverride: null,
+            cornerStyle: "theme");   // a preset switch: says nothing about the dial
+
+        Assert.Equal(0, settings.Theme.AccentIntensity);
+    }
+
     [Fact]
     public void Explicit_overrides_write_normalized_and_mirror_their_effective_values()
     {
