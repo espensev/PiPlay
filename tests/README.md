@@ -13,7 +13,12 @@ dotnet test                              # everything in PiPlay.Tests
 dotnet test --filter Category=Markup     # Layer 1: XAML invariants (parsed as XML, no WPF runtime)
 dotnet test --filter Category=Logic      # Layer 2: pure services
 dotnet test --filter Category=Wpf        # Layer 3: live WPF on a shared STA thread
+dotnet test --filter FullyQualifiedName~YouTubeDomBehaviorTests  # executable generated DOM scripts
 ```
+
+The executable DOM slice needs Node 24, but uses only built-in modules: there is no `npm install`,
+package manifest, browser runtime, network access, or visible desktop. CI pins the Node version so
+the generated scripts run in the same deterministic VM contract locally and remotely.
 
 - **Layer 1 (`Markup`)** — `Ui/XamlInvariantTests.cs`. Asserts the burned-in markup that breaks
   the app if it silently flips: `UseLayoutRounding="False"` (the "rounding = 0" guard),
@@ -22,7 +27,13 @@ dotnet test --filter Category=Wpf        # Layer 3: live WPF on a shared STA thr
   PerMonitorV2 manifest.
 - **Layer 2 (`Logic`)** — pure services: `NavigationPolicy`, `YouTubeUrlHelper`,
   `SettingsService`, `ProfileService`, `PlacementMath`, `ReturnPolicy`, `Log.RedactUrl`,
-  `FadePolicy`, `AppPaths`.
+  `FadePolicy`, `AppPaths`, the DPI-aware `RoundedWindowRegionPolicy` geometry,
+  `PopoutPresentationPolicy`, the closed Focused/drag message protocols, and deterministic
+  `YouTubeDomBridge` script contracts (threshold ordering, real-control/caption exclusions,
+  selective unused-chrome inclusion, no-crop `contain`, accessible overlay actions, and no
+  coordinate-bearing drag payload). `YouTubeDomBehaviorTests` then executes those generated scripts
+  against a dependency-free fake DOM to prove passive-drag threshold/exclusion behavior, trusted-event
+  gates, ad-safe Focused seek/Next behavior, document-token rotation, and selector-failure recovery.
 - **Layer 3 (`Wpf`)** — `Ui/WpfRuntimeTests.cs`. Constructs the real windows on a shared STA
   thread (never shown, so WebView2/network are untouched) to prove every resource resolves at
   runtime, the DependencyProperty invariants hold, the dark styles are applied, and a

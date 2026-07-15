@@ -37,6 +37,7 @@ public static class ProfileService
         Name = name,
         Url = url,
         Mode = existing?.Mode,
+        Presentation = existing?.Presentation,
         AccentColor = existing?.AccentColor,
         Topmost = topmost,
         FadeEnabled = existing?.FadeEnabled,

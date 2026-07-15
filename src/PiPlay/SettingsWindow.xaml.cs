@@ -22,7 +22,7 @@ public partial class SettingsWindow : Window
     internal PrivacyAction RequestedAction { get; private set; } = PrivacyAction.None;
 
     /// <summary>True when any persisted player preference changed (theme, accent, fade delay, or
-    /// compact mode), so MainWindow knows to persist and re-apply on close.</summary>
+    /// Popout presentation), so MainWindow knows to persist and re-apply on close.</summary>
     internal bool AppearanceChanged { get; private set; }
 
     /// <summary>The selected theme preset id and the single accent hex the picker drives.</summary>
@@ -34,6 +34,9 @@ public partial class SettingsWindow : Window
     internal string CornerStyle { get; private set; }
     internal int FadeIdleDelayMs { get; private set; }
     internal bool CompactMode { get; private set; }
+
+    /// <summary>Whether new Popout Players use the optional media-first Focused presentation.</summary>
+    internal bool FocusedPresentation { get; private set; }
 
     /// <summary>Nullable behavior OVERRIDES (theme code review P2): null = follow the selected
     /// preset's default. Only touching a behavior control (or a persisted override seeded into
@@ -95,7 +98,8 @@ public partial class SettingsWindow : Window
         string? cornerStyle = ThemeCatalog.DefaultCornerStyle,
         string? accentEditContext = null,
         int? accentIntensity = null,
-        bool accentFollowsThemePreset = true)
+        bool accentFollowsThemePreset = true,
+        bool focusedPresentation = false)
     {
         _accentFollowsThemePreset = accentFollowsThemePreset;
         InitializeComponent();
@@ -121,6 +125,8 @@ public partial class SettingsWindow : Window
         CornerStyle = ThemeCatalog.NormalizeCornerStyle(cornerStyle);
         FadeIdleDelayMs = PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs);
         CompactMode = compactMode;
+        FocusedPresentation = focusedPresentation;
+        FocusedOverlayToggle.IsChecked = FocusedPresentation;
         StripAutoHideOverride = stripAutoHideOverride;
         StripAutoHideToggle.IsChecked = StripAutoHide;
 
@@ -240,6 +246,12 @@ public partial class SettingsWindow : Window
         ApplyAppearanceSelections();
         ApplyOwnCornerMode();
         ThemePreviewChanged?.Invoke();
+    }
+
+    private void FocusedOverlayToggle_Click(object sender, RoutedEventArgs e)
+    {
+        FocusedPresentation = FocusedOverlayToggle.IsChecked == true;
+        AppearanceChanged = true;
     }
 
     /// <summary>The dialog's own native corner shape follows the pending theme/override selection.</summary>

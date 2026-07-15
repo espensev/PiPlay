@@ -6,7 +6,8 @@
 >
 > **Status as of v0.9.0 — parts of this roadmap have SHIPPED; read the sections below as the
 > original owner brief, not as a list of current defects:**
-> - **P1** is largely delivered through v0.7.2 (DWM frame, 4 DIP resize band, 4 DIP WebView inset).
+> - **P1** is delivered and owner-retuned on 2026-07-15 (DWM frame, 12 DIP resize band/inset,
+>   96 DIP diagonal corner reach).
 >   Its remaining items are the chrome band / separators / letterbox tray.
 > - **P2 SHIPPED in v0.9.0.** The profile color now drives the app accent, and the accent was given
 >   real reach first (the toolbar row carries it; the title-bar wash is no longer near-imperceptible) —

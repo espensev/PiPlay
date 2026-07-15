@@ -19,6 +19,14 @@ public sealed class Profile
     /// </summary>
     public string? Mode { get; set; }
 
+    /// <summary>
+    /// Per-profile Popout presentation override. <c>null</c> uses the global
+    /// <see cref="PlayerSettings.FocusedPresentation"/> default; <c>"standard"</c> forces the
+    /// ordinary watch page and <c>"focused"</c> opts this profile into the media-first overlay.
+    /// Playback mode remains independently controlled by <see cref="Mode"/>.
+    /// </summary>
+    public string? Presentation { get; set; }
+
     /// <summary>Optional per-profile identity color. <c>null</c> leaves the aligned identity rail transparent.</summary>
     public string? AccentColor { get; set; }
 

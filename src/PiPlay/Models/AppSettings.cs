@@ -57,6 +57,14 @@ public sealed class PlayerSettings
     public bool CompactMode { get; set; }
 
     /// <summary>
+    /// Global presentation default for new Popout Players. <c>false</c> keeps the Standard watch
+    /// page; <c>true</c> opts into the no-crop Focused player surface and overlay controls. This is
+    /// independent from <see cref="CompactMode"/> and is off when absent from older settings files.
+    /// A profile's <see cref="Profile.Presentation"/> can override it per launch (REQ-PROFILE-01).
+    /// </summary>
+    public bool FocusedPresentation { get; set; }
+
+    /// <summary>
     /// Fade the Popout Player controls when idle (spec 11, Phase 2). On by default;
     /// when off the chrome strip stays visible exactly as in the MVP.
     /// </summary>

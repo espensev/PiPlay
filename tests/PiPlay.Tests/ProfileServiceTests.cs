@@ -62,6 +62,7 @@ public class ProfileServiceTests
             Name = "Violet",
             Url = "https://youtu.be/dQw4w9WgXcQ",
             Mode = "compact",
+            Presentation = "focused",
             AccentColor = "#A78BFA",
             Topmost = false,
             FadeEnabled = false,
@@ -74,6 +75,7 @@ public class ProfileServiceTests
         Assert.Equal("Violet", quickSave.Name);
         Assert.Equal("https://youtu.be/new12345678", quickSave.Url);
         Assert.Equal("compact", quickSave.Mode);
+        Assert.Equal("focused", quickSave.Presentation);
         Assert.Equal("#A78BFA", quickSave.AccentColor);
         Assert.True(quickSave.Topmost);
         Assert.False(quickSave.FadeEnabled);

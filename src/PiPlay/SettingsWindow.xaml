@@ -229,6 +229,20 @@
                         AutomationProperties.Name="Round corners" />
         </StackPanel>
 
+        <!-- Focused is a Popout PRESENTATION, not the dormant Compact playback mode. It keeps the
+             Normal watch page, expands the player without cropping, and adds optional overlay controls.
+             The preference affects new popouts only. -->
+        <TextBlock Text="Popout presentation" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                   Margin="0,0,0,6" />
+        <ToggleButton x:Name="FocusedOverlayToggle" Style="{StaticResource PresetToggle}"
+                      MinWidth="150" HorizontalAlignment="Left"
+                      Content="Focused overlay" Click="FocusedOverlayToggle_Click"
+                      ToolTip="For new popouts, fill the window with the complete video and show media controls over it"
+                      AutomationProperties.Name="Use Focused overlay for new popouts" />
+        <TextBlock Text="Fills new Popouts with the complete video without cropping and adds overlay controls."
+                   TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextSecondary}"
+                   Margin="0,6,0,12" />
+
         <Border Height="1" Background="{DynamicResource BorderSubtle}" Margin="0,18" />
 
         <!-- (removed) Playback section: embed Compact player dropped 2026-06 — embed-disabled

@@ -4,6 +4,42 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
 
 ## [Unreleased]
 
+### Added
+- **Optional Focused overlay for an Opera-style Popout.** New Popout Players can keep Standard or use
+  a media-first Focused presentation over the real YouTube watch page, with Mute, Captions, Settings, Pin,
+  Expand/Restore, Close, Play/Pause, Next, progress, and time. Focused fills the available viewport
+  with `contain`: non-matching ratios letterbox instead of cropping. Standard stays the default, a
+  profile may override presentation for its own target, and dormant Compact playback is unchanged.
+- **Drag from the picture without sacrificing controls.** A deliberate mouse/pen drag on passive
+  video pixels or unused YouTube chrome space now moves the Popout after the system drag threshold.
+  Ordinary clicks, timeline, volume, captions/settings/fullscreen controls, links, menus,
+  end cards, ads with actions, and Focused overlay controls retain their normal behavior. The
+  guaranteed native top handle is now 44 DIP high and shows a move cursor over its drag area.
+
+### Changed
+- **Window corners are much easier to acquire for resize.** Direct owner testing found the 4 DIP
+  edge target too unforgiving. Borderless Source and Popout windows now reserve a 12 DIP native
+  resize band with 96 DIP diagonal corner reach; maximized windows remain full-bleed.
+- **Soft Glass and Corners → Round now shape the actual floating Popout Player.** The resolved 22 DIP
+  `PopoutFrame` radius is applied as a DPI-aware native window region, clipping the HWND-hosted video
+  without switching WebView2 renderers. Maximized and snap-like layouts stay full-bleed; resize,
+  mixed-DPI movement, normal playback, opacity, and DRM-capable WebView2 hosting are preserved.
+
+### Fixed
+- **Opening the Popout no longer crashes the current WebView2 runtime.** The first surface-drag
+  implementation recursively attached child-frame message handlers; on the deployed WebView2
+  150.0.4078.65 runtime that reproducibly terminated PiPlay with `STATUS_BREAKPOINT` immediately
+  after the first YouTube frame was created. Surface drag now listens only to the top document,
+  which owns the real watch player. Its native move command is also posted asynchronously after
+  releasing DOM pointer capture, keeping WebView2 out of the modal Windows move loop.
+- **Focused controls fail closed during ads.** Active YouTube ad states hide and disable the custom
+  seek/Next surfaces, and both handlers re-check the ad state before any media write or native Next
+  handoff. Required YouTube ad controls and disclosures remain reachable.
+- **Page scripts cannot replay stale or synthetic native actions.** Each successful top-level
+  navigation rotates an independent document token; exact-schema host messages require that token,
+  the window nonce, the current trusted source, and real user input. Old-document, malformed, and
+  synthetic requests are ignored while the native strip remains the recovery surface.
+
 ## [0.10.1] - 2026-07-14
 
 Patch on the interaction-cohesion release, from an adversarial review of everything 0.10.0 carried.

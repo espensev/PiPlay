@@ -154,7 +154,16 @@ public partial class MainWindow : Window
             RuntimeErrorPanel.Visibility = Visibility.Collapsed;
 
             var env = await App.Current.WebViewEnvironment.EnsureCreatedAsync();
+            if (_mainWindowClosing) return;
+
             await Browser.EnsureCoreWebView2Async(env);
+            if (_mainWindowClosing)
+            {
+                // Closing can overtake either WebView await. Do not attach handlers or navigate a
+                // browser whose owning window has already entered teardown.
+                try { Browser.Dispose(); } catch { /* teardown is already in progress */ }
+                return;
+            }
 
             var core = Browser.CoreWebView2;
             core.Settings.AreDevToolsEnabled = false;
@@ -177,6 +186,7 @@ public partial class MainWindow : Window
         }
         catch (WebView2RuntimeNotFoundException ex)
         {
+            if (_mainWindowClosing) return;
             Log.Error("WebView2 runtime not found.", ex);
             ShowRuntimeError(
                 "PiPlay needs the Microsoft Edge WebView2 Evergreen Runtime to display YouTube. " +
@@ -184,6 +194,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            if (_mainWindowClosing) return;
             Log.Error("Failed to initialize the Source browser.", ex);
             ShowRuntimeError("PiPlay couldn't start the browser component.\n\n" + ex.Message);
         }
@@ -603,7 +614,7 @@ public partial class MainWindow : Window
         if (ProfilesCombo.SelectedItem is not Profile original) return;
 
         var edited = Prompt.EditProfile(this, original.Name, original.Url, original.Mode, original.AccentColor,
-            EffectiveAccentColor);
+            EffectiveAccentColor, presentation: original.Presentation);
         if (edited is null)
         {
             ApplyResolvedAccent();
@@ -616,6 +627,7 @@ public partial class MainWindow : Window
             Name = edited.Value.Name,
             Url = edited.Value.Url,
             Mode = PlaybackModePolicy.NormalizeProfileMode(edited.Value.Mode),
+            Presentation = PopoutPresentationPolicy.NormalizeProfilePresentation(edited.Value.Presentation),
             AccentColor = ProfileService.NormalizeAccentForStorage(edited.Value.AccentColor),
             Topmost = original.Topmost,
             FadeEnabled = original.FadeEnabled,
@@ -693,7 +705,8 @@ public partial class MainWindow : Window
             cornerStyle: EffectiveCornerStyle,
             accentEditContext: AccentEditContext,
             accentIntensity: EffectiveAccentIntensity,
-            accentFollowsThemePreset: ProfileAccentService.AccentOverridingProfile(_settings) is null)
+            accentFollowsThemePreset: ProfileAccentService.AccentOverridingProfile(_settings) is null,
+            focusedPresentation: _settings.Player.FocusedPresentation)
         {
             Owner = owner,
             // A Source-owned dialog still has to clear an already-pinned Popout, and vice versa.
@@ -741,6 +754,7 @@ public partial class MainWindow : Window
         if (dialog.AppearanceChanged)
         {
             ApplyPlayerPreferences(dialog.ThemeId, dialog.AccentColor, dialog.FadeIdleDelayMs, dialog.CompactMode,
+                dialog.FocusedPresentation,
                 dialog.ActiveOpacityOverride, dialog.IdleOpacityOverride, dialog.StripAutoHideOverride,
                 dialog.CornerStyle, dialog.AccentIntensity);
         }
@@ -799,6 +813,7 @@ public partial class MainWindow : Window
     }
 
     private void ApplyPlayerPreferences(string themeId, string accentColor, int fadeIdleDelayMs, bool compactMode,
+        bool focusedPresentation,
         double? activeOpacityOverride, double? idleOpacityOverride, bool? stripAutoHideOverride,
         string cornerStyle = ThemeCatalog.DefaultCornerStyle,
         int? accentIntensity = null)
@@ -809,6 +824,7 @@ public partial class MainWindow : Window
         // mirrors the EFFECTIVE values onto the legacy Player fields.
         ThemeSettingsWriter.Apply(_settings, themeId, accentColor, fadeIdleDelayMs, compactMode,
             activeOpacityOverride, idleOpacityOverride, stripAutoHideOverride, cornerStyle, accentIntensity);
+        _settings.Player.FocusedPresentation = focusedPresentation;
 
         // Restyle the theme-driven shell resources live (DynamicResource consumers re-resolve), then
         // restore the RESOLVED profile/global accent over that palette. Full theme application derives
@@ -961,10 +977,12 @@ public partial class MainWindow : Window
 
         var cornerMode = ThemeCatalog.DwmCornersFor(
             ThemeCatalog.PresetFor(dialog.ThemeId), dialog.CornerStyle);
+        var popoutCornerRadius = ThemeCatalog.RadiiFor(
+            ThemeCatalog.PresetFor(dialog.ThemeId), dialog.CornerStyle).PopoutFrame;
         ApplyOwnCornerMode(cornerMode);
         _player?.ApplyAppearance(dialog.AccentColor, dialog.FadeIdleDelayMs, dialog.StripAutoHide);
         _player?.ApplyWindowOpacity(dialog.ConstantWindowOpacity, dialog.IdleWindowOpacity, animate: false);
-        _player?.ApplyCornerMode(cornerMode);
+        _player?.ApplyCornerAppearance(cornerMode, popoutCornerRadius);
     }
 
     private void RevertAppearancePreview()
@@ -1001,6 +1019,9 @@ public partial class MainWindow : Window
     private DwmCornerMode EffectiveDwmCornerMode =>
         ThemePreferenceResolver.DwmCorners(_settings.Theme);
 
+    private double EffectivePopoutCornerRadiusDip =>
+        ThemePreferenceResolver.Radii(_settings.Theme).PopoutFrame;
+
     /// <summary>Apply the theme/override native corner preference to this window's own HWND.
     /// No-op before SourceInitialized (which applies the initial mode).</summary>
     private void ApplyOwnCornerMode() => ApplyOwnCornerMode(EffectiveDwmCornerMode);
@@ -1022,7 +1043,7 @@ public partial class MainWindow : Window
     {
         _player?.ApplyAppearance(accentColor, EffectiveFadeIdleDelayMs, EffectiveStripAutoHide);
         _player?.ApplyWindowOpacity(EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity);
-        _player?.ApplyCornerMode(EffectiveDwmCornerMode);
+        _player?.ApplyCornerAppearance(EffectiveDwmCornerMode, EffectivePopoutCornerRadiusDip);
     }
 
     internal void ReplaceSettingsForTests(AppSettings settings)
@@ -1193,6 +1214,8 @@ public partial class MainWindow : Window
             // kill-switch, so new popouts force Normal while compact is disabled.
             var mode = PlaybackModePolicy.ResolveEffectivePopoutMode(
                 ResolveActiveProfileMode(target.VideoId), _settings.Player.CompactMode);
+            var presentation = PopoutPresentationPolicy.ResolveEffectivePresentation(
+                ResolveActiveProfilePresentation(target.VideoId), _settings.Player.FocusedPresentation);
             var popoutUrl = PlaybackModePolicy.BuildPopoutUrl(
                 mode, target, seconds, WebViewEnvironmentService.ShellPlayerUrl);
 
@@ -1217,15 +1240,16 @@ public partial class MainWindow : Window
                 _settings.Player.FadeEnabled, ResolvedAccentColor,
                 EffectiveFadeIdleDelayMs, mode, target,
                 EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity,
-                EffectiveStripAutoHide, EffectiveDwmCornerMode,
-                nudgePlayOnInitialPause: _sourceWasPlayingAtPopout);
+                EffectiveStripAutoHide, EffectiveDwmCornerMode, EffectivePopoutCornerRadiusDip,
+                nudgePlayOnInitialPause: _sourceWasPlayingAtPopout,
+                presentation: presentation);
             _player.PlayerClosed += Player_OnClosed;
             _player.SettingsRequested += Player_SettingsRequested;
             _player.Show();
 
             if (target.FallbackReason is not null) Log.Info($"Popout fallback: {target.FallbackReason}");
             Log.Info($"Video Popout started at t={seconds?.ToString() ?? "0"}s, " +
-                     $"wasPlaying={_sourceWasPlayingAtPopout}, mode={mode}.");
+                     $"wasPlaying={_sourceWasPlayingAtPopout}, mode={mode}, presentation={presentation}.");
         }
         catch (Exception ex)
         {
@@ -1318,6 +1342,17 @@ public partial class MainWindow : Window
             ? profileTarget.VideoId
             : null;
         return PlaybackModePolicy.ResolveProfileOverride(profile.Mode, profileVideoId, targetVideoId);
+    }
+
+    /// <summary>Target-scoped profile override for the independent Popout presentation field.</summary>
+    private string? ResolveActiveProfilePresentation(string? targetVideoId)
+    {
+        if (ProfilesCombo.SelectedItem is not Profile profile) return null;
+        var profileVideoId = YouTubeUrlHelper.TryParse(profile.Url, out var profileTarget)
+            ? profileTarget.VideoId
+            : null;
+        return PopoutPresentationPolicy.ResolveProfileOverride(
+            profile.Presentation, profileVideoId, targetVideoId);
     }
 
     private static async Task<YouTubeTarget?> ResolvePopoutTargetAsync(CoreWebView2 core)
@@ -1569,6 +1604,12 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Log.Error("Error saving settings on close.", ex);
+        }
+        finally
+        {
+            // WebView2 is IDisposable; explicit teardown makes the Source controller/renderer
+            // ownership deterministic instead of waiting for process exit or finalization.
+            try { Browser.Dispose(); } catch { /* best effort during window teardown */ }
         }
     }
 }

@@ -43,6 +43,7 @@ public partial class PlayerWindow : Window
     private bool _fadeEnabled;
     private bool _isDragging;
     private bool _controlsVisible = true;
+    private string _accentColor = ThemeCatalog.DefaultAccentColor;
 
     // Strip auto-hide (spec 7.2 chrome fade, Phase 4): when on, an idle-hidden strip also
     // height-collapses so the video fills the window; the top-edge hover band (via the activity
@@ -60,12 +61,15 @@ public partial class PlayerWindow : Window
     private double _idleWindowOpacity;
     private bool _windowOpacityIdle;
     private DwmCornerMode _dwmCornerMode;            // theme/override native corner shape (review doc §8.7)
+    private double _popoutCornerRadiusDip;           // large Round silhouette; resolved ThemeRadii.PopoutFrame
+    private bool _customWindowRegionApplied;
     private int _probeCursorX, _probeCursorY;        // last cursor position the activity probe saw
     private long _lastInWindowCursorMoveMs = -1;     // Environment.TickCount64 of the last in-window move
     private readonly DispatcherTimer _opacityHoverPoll;
 
     private bool _navCompleted;
     private int _navigationGeneration;
+    private int _playerInitializationGeneration;
     private ulong? _activeNavigationId;
     private bool _syncTickInProgress;
     private bool _closing;
@@ -77,8 +81,16 @@ public partial class PlayerWindow : Window
     // Compact (shell) mode only: the host side of the IFrame-API bridge (spec 10.3), the one-shot
     // "the IFrame API never came up" watchdog, and the one-way fallback latch.
     private PlayerShellBridge? _shellBridge;
+    private PlayerSurfaceDragBridge? _surfaceDragBridge;
+    private PlayerFirstSurfaceBridge? _playerFirstSurfaceBridge;
+    private bool _surfaceDragQueued;
+    private bool _surfaceDragAvailable;
+    private bool _focusedOverlayReady;
+    private bool _focusedSurfaceActive;
     private readonly DispatcherTimer _shellReadyTimer;
     private bool _fellBack;
+
+    private readonly PopoutPresentation _presentation;
 
     // Mutable navigation state (overhaul Task 3): an in-place retarget (recommendation click via
     // NewWindowRequested) moves the player off its launch video, so the current URL and the target
@@ -113,14 +125,17 @@ public partial class PlayerWindow : Window
         double idleWindowOpacity = WindowOpacityPolicy.Default,
         bool stripAutoHide = false,
         DwmCornerMode dwmCornerMode = DwmCornerMode.Default,
-        bool nudgePlayOnInitialPause = true)
+        double popoutCornerRadiusDip = 0,
+        bool nudgePlayOnInitialPause = true,
+        PopoutPresentation presentation = PopoutPresentation.Standard)
     {
         InitializeComponent();
-        BorderlessWindowHelper.EnableExpandedResizeZones(this);
+        BorderlessWindowHelper.EnableExpandedResizeZones(this, HandleNativeMoveSizeStateChanged);
 
         _environment = environment;
         _currentUrl = url;
         _mode = mode;
+        _presentation = presentation;
         _nudgePlayOnInitialPause = nudgePlayOnInitialPause;
         _currentTarget = fallbackTarget;
         _returnState.VideoId = fallbackTarget?.VideoId;   // the launch video until navigation says otherwise
@@ -164,6 +179,7 @@ public partial class PlayerWindow : Window
         _constantWindowOpacity = WindowOpacityPolicy.Normalize(constantWindowOpacity);
         _idleWindowOpacity = WindowOpacityPolicy.Normalize(idleWindowOpacity);
         _dwmCornerMode = dwmCornerMode;
+        _popoutCornerRadiusDip = NormalizeCornerRadius(popoutCornerRadiusDip);
         _opacityHoverPoll = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _opacityHoverPoll.Tick += OpacityHoverPoll_Tick;
 
@@ -180,7 +196,24 @@ public partial class PlayerWindow : Window
         // OS-driven state changes (Win+Up/Down, aero snap) must keep the affordance honest too —
         // the direct calls in ToggleExpandedState cover the test lane, where unshown windows
         // never receive StateChanged.
-        StateChanged += (_, _) => HandleWindowStateChanged();
+        StateChanged += (_, _) =>
+        {
+            HandleWindowStateChanged();
+            ApplyFocusedResizeInset();
+            ApplyCornerModeToHwnd(forceRegionRefresh: true, applyDwmAttributes: false);
+        };
+        SizeChanged += (_, _) => ApplyCornerModeToHwnd(
+            forceRegionRefresh: true, applyDwmAttributes: false);
+        // Moving only matters when the Popout crosses into/out of a snap-like work-area corner.
+        // Do not rebuild the HRGN (or rewrite DWM attributes) on every drag message.
+        LocationChanged += (_, _) =>
+        {
+            // Native move/resize can emit many locations. Classify the settled snap geometry once
+            // on WM_EXITSIZEMOVE; programmatic moves still classify immediately.
+            if (!_isDragging) ApplyCornerModeToHwnd(applyDwmAttributes: false);
+        };
+        DpiChanged += (_, _) => ApplyCornerModeToHwnd(
+            forceRegionRefresh: true, applyDwmAttributes: false);
         SourceInitialized += (_, _) =>
         {
             if (_placement is not null) WindowPlacementService.Restore(this, _placement);
@@ -193,12 +226,18 @@ public partial class PlayerWindow : Window
         Closed += PlayerWindow_Closed;
     }
 
+    private int BeginPlayerInitialization() => ++_playerInitializationGeneration;
+
+    private bool IsPlayerInitializationCurrent(int generation) =>
+        !_closing && generation == _playerInitializationGeneration;
+
     private async Task InitializePlayerAsync()
     {
+        var initializationGeneration = BeginPlayerInitialization();
         try
         {
             await Player.EnsureCoreWebView2Async(_environment);
-            if (_closing) return;
+            if (!IsPlayerInitializationCurrent(initializationGeneration)) return;
 
             var core = Player.CoreWebView2;
             core.Settings.AreDevToolsEnabled = false;
@@ -228,15 +267,66 @@ public partial class PlayerWindow : Window
                 _shellBridge.RequestReceived += ShellBridge_RequestReceived;
             }
 
+            // Register document-created scripts before Navigate. Each setup fails independently to
+            // the native strip/ordinary watch page so a selector or WebView feature failure cannot
+            // make the Popout unusable.
+            try
+            {
+                var surfaceDragBridge = await PlayerSurfaceDragBridge.CreateAsync(
+                    core, SystemParameters.MinimumHorizontalDragDistance,
+                    SystemParameters.MinimumVerticalDragDistance);
+                if (!IsPlayerInitializationCurrent(initializationGeneration))
+                {
+                    surfaceDragBridge.Dispose();
+                    return;
+                }
+
+                surfaceDragBridge.DragRequested += SurfaceDragBridge_DragRequested;
+                surfaceDragBridge.AvailabilityChanged += SurfaceDragBridge_AvailabilityChanged;
+                _surfaceDragBridge = surfaceDragBridge;
+            }
+            catch (Exception ex)
+            {
+                if (!IsPlayerInitializationCurrent(initializationGeneration)) return;
+                Log.Error("Passive player-surface dragging could not be initialized.", ex);
+            }
+
+            if (_presentation == PopoutPresentation.Focused)
+            {
+                try
+                {
+                    var playerFirstSurfaceBridge = await PlayerFirstSurfaceBridge.CreateAsync(
+                        core, _accentColor, _fadeEnabled, (int)_idleTimer.Interval.TotalMilliseconds,
+                        Topmost);
+                    if (!IsPlayerInitializationCurrent(initializationGeneration))
+                    {
+                        playerFirstSurfaceBridge.Dispose();
+                        return;
+                    }
+
+                    playerFirstSurfaceBridge.ActionRequested += PlayerFirstSurfaceBridge_ActionRequested;
+                    playerFirstSurfaceBridge.ActiveChanged += PlayerFirstSurfaceBridge_ActiveChanged;
+                    _playerFirstSurfaceBridge = playerFirstSurfaceBridge;
+                }
+                catch (Exception ex)
+                {
+                    if (!IsPlayerInitializationCurrent(initializationGeneration)) return;
+                    Log.Error("Focused popout controls could not be initialized; using the watch page.", ex);
+                }
+            }
+
+            // Registration awaits above may pump a close or a replacement initialization. Never
+            // navigate from work that no longer owns this window's initialization generation.
+            if (!IsPlayerInitializationCurrent(initializationGeneration)) return;
             core.Navigate(_currentUrl);
             if (_mode == PlaybackMode.Compact) _shellReadyTimer.Start();
-            Log.Info($"Popout Player initialized (mode={_mode}).");
+            Log.Info($"Popout Player initialized (mode={_mode}, presentation={_presentation}).");
         }
         catch (Exception ex)
         {
             // EnsureCoreWebView2Async can finish by throwing after an intentional close. Closing is
             // already the user's answer; do not resurrect the window with a failure prompt.
-            if (_closing) return;
+            if (!IsPlayerInitializationCurrent(initializationGeneration)) return;
             Log.Error("Failed to initialize the Popout Player.", ex);
             Prompt.ShowInfo(this, "Video Popout", "PiPlay couldn't start the popout player.\n\n" + ex.Message);
             Close();
@@ -349,6 +439,9 @@ public partial class PlayerWindow : Window
     private int BeginNavigation()
     {
         if (_closing) return _navigationGeneration;
+        // Any full navigation destroys the injected overlay. Restore native recovery chrome now;
+        // only the new document's positive, source-gated handshake may hide it again.
+        if (_focusedOverlayReady || _focusedSurfaceActive) ApplyFocusedSurfaceActive(false);
         _navigationGeneration++;
         _navCompleted = false;
         _syncTimer.Stop();
@@ -426,20 +519,85 @@ public partial class PlayerWindow : Window
     private void ShellBridge_RequestReceived(object? sender, InboundShellMessage message)
     {
         if (_mode != PlaybackMode.Compact) return;
-        switch (message.Action)
+        HandleWindowAction(message.Action);
+    }
+
+    private void PlayerFirstSurfaceBridge_ActionRequested(object? sender, string action)
+    {
+        if (_presentation != PopoutPresentation.Focused || !_focusedOverlayReady) return;
+        var generation = _navigationGeneration;
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+        {
+            if (!_closing && _focusedOverlayReady && generation == _navigationGeneration)
+                HandleWindowAction(action);
+        }));
+    }
+
+    private void PlayerFirstSurfaceBridge_ActiveChanged(bool active)
+    {
+        // Changing the WebView row while inside WebMessageReceived risks reentrancy. Until this
+        // deferred positive handshake runs, the native strip remains the recovery surface.
+        var generation = _navigationGeneration;
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+        {
+            if (generation == _navigationGeneration) ApplyFocusedSurfaceActive(active);
+        }));
+    }
+
+    private void ApplyFocusedSurfaceActive(bool active)
+    {
+        if (_closing || _presentation != PopoutPresentation.Focused) return;
+        _focusedOverlayReady = active;
+        // Full-client Focused removes the native drag strip, so it is allowed only after both the
+        // overlay and whole-surface drag bridges are live. Either failure keeps recovery chrome.
+        _focusedSurfaceActive = active && _surfaceDragAvailable;
+        if (_focusedSurfaceActive)
+        {
+            ChromeStrip.BeginAnimation(OpacityProperty, null);
+            ChromeStrip.Visibility = Visibility.Collapsed;
+            ChromeStrip.IsHitTestVisible = false;
+            _controlsVisible = false;
+        }
+        else
+        {
+            ChromeStrip.BeginAnimation(OpacityProperty, null);
+            ChromeStrip.Opacity = 1;
+            ChromeStrip.Visibility = Visibility.Visible;
+            ChromeStrip.IsHitTestVisible = true;
+            _controlsVisible = true;
+            ApplyFadeState();
+        }
+        ApplyFocusedResizeInset();
+    }
+
+    /// <summary>Second host-side gate shared by both closed page protocols.</summary>
+    private void HandleWindowAction(string? action)
+    {
+        switch (action)
         {
             case PlayerShellProtocol.ActionClose:
                 // Deferred: Close() disposes the WebView2 in PlayerWindow_Closed, and this handler
                 // runs inside CoreWebView2.WebMessageReceived — disposing the control inside its
                 // own event callback is a documented WebView2 reentrancy hazard.
-                Dispatcher.BeginInvoke(Close);
+                Dispatcher.BeginInvoke(() =>
+                {
+                    if (!_closing) Close();
+                });
                 break;
             case PlayerShellProtocol.ActionPinToggle:
                 PinToggle.IsChecked = PinToggle.IsChecked != true;
-                Topmost = PinToggle.IsChecked == true;
+                ApplyTopmostFromToggle();
                 break;
             case PlayerShellProtocol.ActionFullscreenToggle:
                 ToggleExpandedState();
+                break;
+            case PlayerFirstSurfaceProtocol.ActionSettings:
+                // The Source owns the single Settings dialog; defer for the same WebView2
+                // reentrancy reason as Close.
+                Dispatcher.BeginInvoke(() =>
+                {
+                    if (!_closing) SettingsRequested?.Invoke(this, EventArgs.Empty);
+                });
                 break;
         }
     }
@@ -510,6 +668,7 @@ public partial class PlayerWindow : Window
     internal void HandleShellLoadFailureForTests() => ShowShellError(PlayerShellErrorPolicy.ShellLoadFailedMessage);
     internal void RequestFallbackForTests() => FallBackToNormalPage();
     internal void HandleShellRequestForTests(InboundShellMessage message) => ShellBridge_RequestReceived(this, message);
+    internal void HandleFocusedActionForTests(string action) => HandleWindowAction(action);
     internal bool IsErrorBarVisibleForTests => ErrorBar.Visibility == Visibility.Visible;
     internal string ErrorTextForTests => ErrorText.Text;
 
@@ -538,6 +697,9 @@ public partial class PlayerWindow : Window
         CompleteNavigation(generation, succeeded);
     internal bool IsSyncTimerRunningForTests => _syncTimer.IsEnabled;
     internal bool IsClosingForTests => _closing;
+    internal int BeginPlayerInitializationForTests() => BeginPlayerInitialization();
+    internal bool IsPlayerInitializationCurrentForTests(int generation) =>
+        IsPlayerInitializationCurrent(generation);
     internal bool TryBeginSyncPollForTests(out int generation) => TryBeginSyncPoll(out generation);
     internal bool IsSyncPollCurrentForTests(int generation) => IsSyncPollCurrent(generation);
     internal void EndSyncPollForTests() => EndSyncPoll();
@@ -617,7 +779,13 @@ public partial class PlayerWindow : Window
 
     // --- Chrome ---
 
-    private void PinToggle_Click(object sender, RoutedEventArgs e) => Topmost = PinToggle.IsChecked == true;
+    private void PinToggle_Click(object sender, RoutedEventArgs e) => ApplyTopmostFromToggle();
+
+    private void ApplyTopmostFromToggle()
+    {
+        Topmost = PinToggle.IsChecked == true;
+        RefreshFocusedSurfaceAppearance();
+    }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
@@ -628,14 +796,9 @@ public partial class PlayerWindow : Window
         // borderless window misbehaves (the frame moves without un-maximizing). Restore is a
         // deliberate act (expand button / Esc), never a drag side effect.
         if (WindowState == WindowState.Maximized) return;
-        _isDragging = true;
         try { DragMove(); }
         catch { /* DragMove throws if the button was already released */ }
-        finally
-        {
-            _isDragging = false;
-            OnUserActivity(); // keep controls up briefly after a drag, then resume idle countdown
-        }
+        finally { OnUserActivity(); } // keep controls up briefly after a drag, then resume idle countdown
     }
 
     // --- Expand / restore (overhaul Task 4) ---
@@ -746,11 +909,29 @@ public partial class PlayerWindow : Window
         _fadeEnabled = FadeToggle.IsChecked == true;
         _returnState.FadeEnabled = _fadeEnabled;
         ApplyFadeState();
+        RefreshFocusedSurfaceAppearance();
+    }
+
+    /// <summary>
+    /// With the native strip collapsed, Focused needs its own four-sided WPF edge band so the
+    /// WebView2 child HWND does not swallow top-edge resize. Expanded stays truly full-bleed.
+    /// </summary>
+    private void ApplyFocusedResizeInset()
+    {
+        if (_presentation != PopoutPresentation.Focused) return;
+        if (!_focusedSurfaceActive)
+        {
+            Player.ClearValue(FrameworkElement.MarginProperty);
+            return;
+        }
+        Player.Margin = WindowState == WindowState.Maximized
+            ? new Thickness(0)
+            : new Thickness(BorderlessResizeHitTestPolicy.ResizeBorderDip);
     }
 
     internal void ApplyAppearance(string? accentColor, int fadeIdleDelayMs, bool stripAutoHide = false)
     {
-        ApplyAccent(accentColor);
+        ApplyAccentVisuals(accentColor);
         _idleTimer.Interval = TimeSpan.FromMilliseconds(
             PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(fadeIdleDelayMs));
 
@@ -760,17 +941,29 @@ public partial class PlayerWindow : Window
         UpdateActivityProbe();
 
         if (_fadeEnabled && _idleTimer.IsEnabled) RestartIdleTimer();
+        RefreshFocusedSurfaceAppearance();
     }
 
     /// <summary>Apply only the live accent surface; behavior and native-window settings stay put.</summary>
     internal void ApplyAccent(string? accentColor)
     {
+        ApplyAccentVisuals(accentColor);
+        RefreshFocusedSurfaceAppearance();
+    }
+
+    private void ApplyAccentVisuals(string? accentColor)
+    {
         // One theme accent drives both Popout Pin and Popout Fade (overhaul Task 10); the brush is
         // shared (frozen) across the two toggles.
-        var accentBrush = ResolveAccentBrush(accentColor);
+        _accentColor = ThemeCatalog.NormalizeAccentColor(accentColor);
+        var accentBrush = ResolveAccentBrush(_accentColor);
         ToggleAccent.SetCheckedBrush(PinToggle, accentBrush);
         ToggleAccent.SetCheckedBrush(FadeToggle, accentBrush);
     }
+
+    private void RefreshFocusedSurfaceAppearance() =>
+        _playerFirstSurfaceBridge?.ApplyAppearance(
+            _accentColor, _fadeEnabled, (int)_idleTimer.Interval.TotalMilliseconds, Topmost);
 
     private static Brush ResolveAccentBrush(string? accentColor)
     {
@@ -875,17 +1068,144 @@ public partial class PlayerWindow : Window
     /// MainWindow on settings changes (mirrors <see cref="ApplyWindowOpacity"/>).</summary>
     internal void ApplyCornerMode(DwmCornerMode mode)
     {
-        _dwmCornerMode = mode;
-        ApplyCornerModeToHwnd();
+        ApplyCornerAppearance(mode, _popoutCornerRadiusDip);
     }
 
-    private void ApplyCornerModeToHwnd()
+    private void SurfaceDragBridge_DragRequested(object? sender, EventArgs e)
     {
+        if (_surfaceDragQueued || _closing) return;
+        _surfaceDragQueued = true;
+        // The final native handoff is PostMessage, so this stays non-blocking while avoiding a
+        // second dispatcher hop that could miss a short drag after the physical button is released.
+        ExecuteSurfaceDragRequest(
+            BorderlessWindowHelper.IsLeftButtonDown,
+            () => BorderlessWindowHelper.TryBeginWindowMove(this));
+    }
+
+    private void SurfaceDragBridge_AvailabilityChanged(bool available)
+    {
+        if (_closing) return;
+        _surfaceDragAvailable = available;
+        // Focused may hide its native recovery strip only when both page capabilities are live for
+        // this exact document. A failed/rotating drag token immediately restores the strip.
+        if (_presentation == PopoutPresentation.Focused)
+            ApplyFocusedSurfaceActive(_focusedOverlayReady);
+    }
+
+    private void ExecuteSurfaceDragRequest(Func<bool> leftButtonDown, Func<bool> beginWindowMove)
+    {
+        try
+        {
+            if (!PlayerSurfaceDragPolicy.CanBegin(
+                    _closing, WindowState == WindowState.Normal, leftButtonDown())) return;
+            // TryBeginWindowMove posts SC_MOVE and returns before Windows enters its modal loop.
+            // WM_ENTERSIZEMOVE/WM_EXITSIZEMOVE drive _isDragging and idle timing truthfully.
+            beginWindowMove();
+        }
+        finally
+        {
+            _surfaceDragQueued = false;
+        }
+    }
+
+    private void HandleNativeMoveSizeStateChanged(bool active)
+    {
+        if (_closing)
+        {
+            _isDragging = false;
+            return;
+        }
+        if (_isDragging == active) return;
+        _isDragging = active;
+        if (active)
+        {
+            _idleTimer.Stop();
+            // Moving the window is activity, but do not reveal an intentionally hidden strip.
+            ExitWindowOpacityIdle();
+            return;
+        }
+
+        ExitWindowOpacityIdle();
+        // Movement has settled: classify snap/work-area geometry once and clear/apply the custom
+        // region as needed. SizeChanged kept an existing floating region fitted during resize.
+        ApplyCornerModeToHwnd(applyDwmAttributes: false);
+        if (_fadeEnabled) RestartIdleTimer();
+    }
+
+    // Headless WPF seam: exercise the guarded queued handoff without entering a native modal loop.
+    internal void ExecuteSurfaceDragRequestForTests(bool leftButtonDown, Action beginWindowMove)
+    {
+        _surfaceDragQueued = true;
+        ExecuteSurfaceDragRequest(() => leftButtonDown, () =>
+        {
+            beginWindowMove();
+            return true;
+        });
+    }
+
+    internal bool IsSurfaceDragQueuedForTests => _surfaceDragQueued;
+    internal bool IsDraggingForTests => _isDragging;
+    internal bool IsIdleTimerRunningForTests => _idleTimer.IsEnabled;
+    internal void HandleNativeMoveSizeStateChangedForTests(bool active) =>
+        HandleNativeMoveSizeStateChanged(active);
+    internal PopoutPresentation PresentationForTests => _presentation;
+    internal bool IsFocusedSurfaceActiveForTests => _focusedSurfaceActive;
+    internal void ApplyFocusedSurfaceActiveForTests(bool active)
+    {
+        _surfaceDragAvailable = true;
+        ApplyFocusedSurfaceActive(active);
+    }
+
+    /// <summary>Live re-apply seam for both the DWM fallback and the large Popout frame radius.</summary>
+    internal void ApplyCornerAppearance(DwmCornerMode mode, double popoutCornerRadiusDip)
+    {
+        _dwmCornerMode = mode;
+        _popoutCornerRadiusDip = NormalizeCornerRadius(popoutCornerRadiusDip);
+        ApplyCornerModeToHwnd(forceRegionRefresh: true);
+    }
+
+    private void ApplyCornerModeToHwnd(bool forceRegionRefresh = false, bool applyDwmAttributes = true)
+    {
+        if (_closing) return;
         var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero) return;   // SourceInitialized applies the initial state
-        WindowOpacityApplier.SetCornerMode(hwnd, _dwmCornerMode);
-        WindowOpacityApplier.SetBorderColor(hwnd, suppress: true);   // P1 borderless: no Win11 DWM frame hairline
+        if (applyDwmAttributes)
+        {
+            WindowOpacityApplier.SetCornerMode(hwnd, _dwmCornerMode);
+            WindowOpacityApplier.SetBorderColor(hwnd, suppress: true); // P1 borderless: no Win11 frame hairline
+        }
+
+        var canApplyRegion = RoundedWindowRegionPolicy.CanApply(
+            _dwmCornerMode,
+            _popoutCornerRadiusDip,
+            WindowState == WindowState.Normal);
+        // Snap classification crosses several native APIs. Ineligible modes skip it entirely;
+        // during a live move/resize, preserve the prior decision and classify once on native exit.
+        var shouldApplyRegion = canApplyRegion && (_isDragging
+            ? _customWindowRegionApplied
+            : !RoundedWindowRegionApplier.IsSnapLike(hwnd));
+
+        if (shouldApplyRegion)
+        {
+            if (forceRegionRefresh || !_customWindowRegionApplied)
+            {
+                var regionWasApplied = _customWindowRegionApplied;
+                _customWindowRegionApplied = RoundedWindowRegionApplier.Apply(hwnd, _popoutCornerRadiusDip);
+                // A stale region is worse than falling back to DWM: after a failed resize/DPI refresh
+                // it could crop the live window to the previous bounds. If both replacement and
+                // cleanup fail, retain ownership bookkeeping so the next lifecycle event retries.
+                if (!_customWindowRegionApplied && regionWasApplied)
+                    _customWindowRegionApplied = !RoundedWindowRegionApplier.Clear(hwnd);
+            }
+        }
+        else if (_customWindowRegionApplied)
+        {
+            if (RoundedWindowRegionApplier.Clear(hwnd)) _customWindowRegionApplied = false;
+        }
     }
+
+    private static double NormalizeCornerRadius(double radiusDip) =>
+        double.IsFinite(radiusDip) && radiusDip > 0 ? radiusDip : 0;
 
     /// <summary>
     /// The activity probe covers the WebView2 area WPF can't see. It runs for as long as
@@ -941,7 +1261,8 @@ public partial class PlayerWindow : Window
         _lastInWindowCursorMoveMs = Environment.TickCount64;
 
         // Top-edge band reveals a collapsed strip (spec 7.2: hover restores full chrome).
-        if (_stripAutoHide && p.Y <= FadePolicy.TopEdgeRevealBandDip && ChromeStrip.Visibility != Visibility.Visible)
+        if (!_focusedSurfaceActive && _stripAutoHide &&
+            p.Y <= FadePolicy.TopEdgeRevealBandDip && ChromeStrip.Visibility != Visibility.Visible)
         {
             OnUserActivity();
             return;
@@ -958,6 +1279,13 @@ public partial class PlayerWindow : Window
 
     private void ShowControls()
     {
+        if (_focusedSurfaceActive)
+        {
+            _controlsVisible = false;
+            ChromeStrip.IsHitTestVisible = false;
+            ChromeStrip.Visibility = Visibility.Collapsed;
+            return;
+        }
         // Un-collapse first (strip auto-hide): the reveal must restore the layout row before the
         // opacity fade-in has anything to fade in.
         if (ChromeStrip.Visibility != Visibility.Visible) ChromeStrip.Visibility = Visibility.Visible;
@@ -969,6 +1297,7 @@ public partial class PlayerWindow : Window
 
     private void HideControls()
     {
+        if (_focusedSurfaceActive) return;
         if (!_controlsVisible) return;
         _controlsVisible = false;
         // Drop hit-testing only once fully faded so a hidden strip can't swallow clicks (Q-8).
@@ -1000,6 +1329,7 @@ public partial class PlayerWindow : Window
         // Set this before stopping timers/disposing state so every outstanding await can recognize
         // an intentional shutdown and decline to publish stale state or show failure UI.
         _closing = true;
+        _playerInitializationGeneration++;
         _finalReturnPlaybackCaptured = true;
         CaptureReturnWindowState();
     }
@@ -1026,6 +1356,8 @@ public partial class PlayerWindow : Window
 
     private void PlayerWindow_Closed(object? sender, EventArgs e)
     {
+        try { _surfaceDragBridge?.Dispose(); } catch { /* ignore */ }
+        try { _playerFirstSurfaceBridge?.Dispose(); } catch { /* ignore */ }
         try { _shellBridge?.Dispose(); } catch { /* ignore */ }
         try { Player.Dispose(); } catch { /* ignore */ }
 

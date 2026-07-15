@@ -44,6 +44,7 @@ public class SettingsServiceTests : IDisposable
         Assert.Null(settings.Theme.ActiveWindowOpacity);
         Assert.Null(settings.Theme.IdleWindowOpacity);
         Assert.Equal(ThemeCatalog.DefaultCornerStyle, settings.Theme.CornerStyle);
+        Assert.False(settings.Player.FocusedPresentation);
     }
 
     [Fact]
@@ -365,6 +366,25 @@ public class SettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public void Profile_presentation_is_normalized_on_load_REQ_PROFILE_01()
+    {
+        File.WriteAllText(_path,
+            "{\"profiles\":[" +
+            "{\"name\":\"Standard\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"presentation\":\" STANDARD \"}," +
+            "{\"name\":\"Focused\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"presentation\":\"Focused\"}," +
+            "{\"name\":\"Bogus\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"presentation\":\"compact\"}," +
+            "{\"name\":\"Blank\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"presentation\":\"\"}]} ");
+        var svc = new SettingsService(_path);
+
+        var loaded = svc.Load();
+
+        Assert.Equal("standard", loaded.Profiles.Single(p => p.Name == "Standard").Presentation);
+        Assert.Equal("focused", loaded.Profiles.Single(p => p.Name == "Focused").Presentation);
+        Assert.Null(loaded.Profiles.Single(p => p.Name == "Bogus").Presentation);
+        Assert.Null(loaded.Profiles.Single(p => p.Name == "Blank").Presentation);
+    }
+
+    [Fact]
     public void Profile_accent_and_active_profile_roundtrip()
     {
         var svc = new SettingsService(_path);
@@ -409,6 +429,19 @@ public class SettingsServiceTests : IDisposable
         s.Player.CompactMode = true;
         svc.Save(s);
         Assert.True(svc.Load().Player.CompactMode);
+    }
+
+    [Fact]
+    public void Focused_presentation_global_default_is_off_and_roundtrips()
+    {
+        var svc = new SettingsService(_path);
+        Assert.False(svc.Load().Player.FocusedPresentation);
+
+        var settings = new AppSettings();
+        settings.Player.FocusedPresentation = true;
+        svc.Save(settings);
+
+        Assert.True(svc.Load().Player.FocusedPresentation);
     }
 
     [Fact]

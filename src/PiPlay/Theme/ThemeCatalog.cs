@@ -306,9 +306,9 @@ public static class ThemeCatalog
     {
         if (string.IsNullOrWhiteSpace(style)) return DefaultCornerStyle;
         var normalized = style.Trim().ToLowerInvariant();
-        // Legacy alias: "soft" and "round" always produced the same DWMWCP_ROUND outer corner (DWM
-        // exposes only three radii), so the duplicate "Soft" option was dropped 2026-06. A stored
-        // "soft" keeps its rounded silhouette by normalizing to "round".
+        // Legacy alias: "soft" and "round" originally produced the same DWMWCP_ROUND outer corner,
+        // so the duplicate "Soft" option was dropped 2026-06. A stored "soft" keeps the same radius
+        // profile (including the Popout's large Round region) by normalizing to "round".
         if (normalized == "soft") normalized = "round";
         return CornerStyleOptionsValue.Any(o => o.Key == normalized) ? normalized : DefaultCornerStyle;
     }

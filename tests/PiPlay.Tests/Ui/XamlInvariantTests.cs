@@ -85,6 +85,17 @@ public class XamlInvariantTests
         Assert.Contains("WindowState", trigger.Attribute("Binding")?.Value ?? "");
     }
 
+    [Theory]
+    [InlineData("MainWindow.xaml")]
+    [InlineData("PlayerWindow.xaml")]
+    public void Caption_buttons_leave_the_top_right_resize_corner_clear(string file)
+    {
+        var expected = $"0,0,{BorderlessResizeHitTestPolicy.ResizeBorderDip},0";
+        Assert.Contains(XamlTestFiles.Load(file).Descendants(), element =>
+            element.Name == XamlTestFiles.Pres + "StackPanel"
+            && element.Attribute("Margin")?.Value == expected);
+    }
+
     // --- Required named controls (code-behind FindName / generated fields depend on these) ---
 
     [Theory]
@@ -126,6 +137,7 @@ public class XamlInvariantTests
             "AccentTargetText", "AccentPicker",
             "CornerStyleThemeChip", "CornerStyleSquareChip", "CornerStyleSmallChip",
             "CornerStyleRoundChip",
+            "FocusedOverlayToggle",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
             "ActiveOpacitySlider", "ActiveOpacityValueText", "IdleOpacitySlider", "IdleOpacityValueText",
             "StripAutoHideToggle",
@@ -415,6 +427,7 @@ public class XamlInvariantTests
 
     [Theory]
     [InlineData("CornerStyleThemeChip", "AppearanceSectionHeader", "AdvancedSectionHeader")] // Appearance owns corners
+    [InlineData("FocusedOverlayToggle", "AppearanceSectionHeader", "AdvancedSectionHeader")] // Appearance owns presentation
     [InlineData("FadeDelayShortPreset", "AdvancedSectionHeader", null)]                   // Advanced owns fade delay
     [InlineData("ActiveOpacitySlider", "AdvancedSectionHeader", null)]                    // Advanced owns opacity
     [InlineData("StripAutoHideToggle", "AdvancedSectionHeader", null)]                    // Advanced owns auto-hide
@@ -562,13 +575,20 @@ public class XamlInvariantTests
         var doc = XamlTestFiles.Load("PlayerWindow.xaml");
 
         // The collapse works by Visibility on the strip element; a fixed RowDefinition would keep
-        // a dead 32-DIP band above the video. The row must be Auto and the strip carries the height.
+        // a dead 44-DIP band above the video. The row must be Auto and the strip carries the height.
         var firstRow = doc.Descendants(XamlTestFiles.Pres + "RowDefinition").First();
         Assert.Equal("Auto", firstRow.Attribute("Height")?.Value);
 
         var strip = doc.Descendants()
             .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "ChromeStrip");
-        Assert.Equal("32", strip.Attribute("Height")?.Value);
+        Assert.Equal("44", strip.Attribute("Height")?.Value);
+
+        var handle = doc.Descendants()
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "ChromeDragHandle");
+        Assert.Equal("0", handle.Attribute("Grid.Column")?.Value);
+        Assert.Equal("Transparent", handle.Attribute("Background")?.Value);
+        Assert.Equal("SizeAll", handle.Attribute("Cursor")?.Value);
+        Assert.Equal("Drag to move popout", handle.Attribute("ToolTip")?.Value);
     }
 
     // --- Opacity sliders pin the policy floor (spec 7.3, Phase 4) ---
@@ -755,7 +775,7 @@ public class XamlInvariantTests
         // StaticResource reference yields correct initial values but silently defeats the live
         // theme/corner-style restyle) so themes actually own rounding. The ONLY allowed literal
         // is WindowChrome.CornerRadius="0": WindowChrome is not a FrameworkElement (no dynamic
-        // lookup), and the real outer corner belongs to DWM (review doc §2.6) — tests above pin 0.
+        // lookup), and the real outer corner belongs to native DWM/window-region shaping — tests pin 0.
         // Setter-form radii are swept too (the adversarial review's escape hatch).
         void AssertRadius(string radius, string context)
         {
@@ -1053,6 +1073,7 @@ public class XamlInvariantTests
             "AccentPicker",
             "CornerStyleThemeChip", "CornerStyleSquareChip", "CornerStyleSmallChip",
             "CornerStyleRoundChip",
+            "FocusedOverlayToggle",
             "FadeDelayShortPreset", "FadeDelayNormalPreset", "FadeDelayLongPreset",
             "ActiveOpacitySlider", "IdleOpacitySlider",
             "StripAutoHideToggle",

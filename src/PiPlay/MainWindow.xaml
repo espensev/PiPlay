@@ -16,7 +16,7 @@
        a transparent WPF window is incompatible with the HwndHost WebView2 (airspace). -->
   <WindowChrome.WindowChrome>
     <WindowChrome CaptionHeight="42"
-                  ResizeBorderThickness="4"
+                  ResizeBorderThickness="12"
                   CornerRadius="0"
                   GlassFrameThickness="0"
                   UseAeroCaptionButtons="False" />
@@ -58,7 +58,9 @@
       </StackPanel>
 
       <!-- Caption buttons must opt out of the draggable caption area. -->
-      <StackPanel Grid.Column="1" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+      <!-- Keep the outer resize band clear so the top-right diagonal is not hidden under Close. -->
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,12,0"
+                  WindowChrome.IsHitTestVisibleInChrome="True">
         <Button x:Name="SettingsButton" Style="{StaticResource IconButton}" Click="SettingsButton_Click"
                 Content="&#xE713;" ToolTip="Settings" AutomationProperties.Name="Settings" />
         <Button x:Name="MinimizeButton" Style="{StaticResource IconButton}" Click="MinimizeButton_Click"
@@ -179,7 +181,7 @@
       <wv2:WebView2 x:Name="Browser">
         <wv2:WebView2.Style>
           <Style TargetType="{x:Type wv2:WebView2}">
-            <Setter Property="Margin" Value="4,0,4,4" />
+            <Setter Property="Margin" Value="12,0,12,12" />
             <Style.Triggers>
               <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}"
                            Value="Maximized">

@@ -91,12 +91,13 @@ public class MainWindowProfileAccentTests : IDisposable
             Assert.NotNull(apply);
             apply.Invoke(w,
             [
-                "minimal", "#A78BFA", 2500, false,
+                "minimal", "#A78BFA", 2500, false, true,
                 null, null, null, "round", 75,
             ]);
 
             Assert.Equal("#00D4FF", settings.Theme.AccentColor);
             Assert.Equal("#A78BFA", settings.Profiles.Single(p => p.Name == "Violet").AccentColor);
+            Assert.True(settings.Player.FocusedPresentation);
 
             var expected = ThemeColors.DeriveAccentSet(
                 "#A78BFA", ThemeCatalog.PresetFor("minimal"), accentIntensity: 75);

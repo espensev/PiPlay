@@ -560,8 +560,8 @@ public class WpfRuntimeTests : IDisposable
         w.Show();
         w.UpdateLayout();
         Assert.True(BorderlessWindowHelper.HasExpandedResizeSubclassForTests(hwnd));
-        // Probe a point inside the top resize band (y < ResizeBorderDip) and within the 32 DIP left
-        // corner length — band-relative so the P1 10->4 DIP shrink needs no recalibration.
+        // Probe a point inside the top resize band (y < ResizeBorderDip) and within the configured
+        // left corner length — policy-relative so owner tuning needs no recalibration.
         var probeY = BorderlessResizeHitTestPolicy.ResizeBorderDip / 2;
         const double probeX = 20;
         var p = w.PointToScreen(new Point(probeX, probeY));
@@ -888,6 +888,21 @@ public class WpfRuntimeTests : IDisposable
         Assert.True(w.IsClosingForTests);
         Assert.False(w.IsSyncTimerRunningForTests);
         Assert.False(w.TryBeginSyncPollForTests(out _));
+    });
+
+    [Fact]
+    public void PlayerWindow_close_invalidates_an_in_flight_bridge_initialization() => StaTestThread.Invoke(() =>
+    {
+        var w = NewPlayer();
+        var generation = w.BeginPlayerInitializationForTests();
+
+        Assert.True(w.IsPlayerInitializationCurrentForTests(generation));
+        var replacementGeneration = w.BeginPlayerInitializationForTests();
+        Assert.False(w.IsPlayerInitializationCurrentForTests(generation));
+        Assert.True(w.IsPlayerInitializationCurrentForTests(replacementGeneration));
+        w.Close();
+
+        Assert.False(w.IsPlayerInitializationCurrentForTests(replacementGeneration));
     });
 
     [Fact]
@@ -1275,6 +1290,26 @@ public class WpfRuntimeTests : IDisposable
         Assert.Null(off.FindName("CompactModeToggle"));
     });
 
+    [Fact]
+    public void SettingsWindow_reflects_and_toggles_focused_presentation() => StaTestThread.Invoke(() =>
+    {
+        var on = new SettingsWindow(isBrowserReady: true, focusedPresentation: true);
+        Assert.True(on.FocusedPresentation);
+        Assert.True(((ToggleButton)on.FindName("FocusedOverlayToggle")!).IsChecked);
+        Assert.False(on.AppearanceChanged, "Seeding Focused presentation must not mark settings dirty.");
+
+        var standard = new SettingsWindow(isBrowserReady: true);
+        Assert.False(standard.FocusedPresentation);
+        var toggle = (ToggleButton)standard.FindName("FocusedOverlayToggle")!;
+        Assert.False(toggle.IsChecked);
+
+        toggle.IsChecked = true;
+        toggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+
+        Assert.True(standard.FocusedPresentation);
+        Assert.True(standard.AppearanceChanged);
+    });
+
     // --- Settings is bounded + scrollable (overhaul Task 5) ---
 
     [Fact]
@@ -1587,6 +1622,46 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void PlayerWindow_round_mode_applies_the_large_region_and_clears_it_for_square_or_maximized() =>
+        StaTestThread.Invoke(() =>
+        {
+            var w = new PlayerWindow(
+                environment: null!,
+                url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                topmost: false,
+                placement: null,
+                defaultWidth: 960,
+                defaultHeight: 540,
+                fadeEnabled: true,
+                dwmCornerMode: DwmCornerMode.Round,
+                popoutCornerRadiusDip: 22)
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = 240,
+                Top = 180,
+            };
+
+            var hwnd = new WindowInteropHelper(w).EnsureHandle();
+            w.ApplyCornerAppearance(DwmCornerMode.Round, 22); // re-evaluate after the manual position lands
+            Assert.True(RoundedWindowRegionApplier.HasCustomRegionForTests(hwnd));
+            Assert.False(RoundedWindowRegionApplier.IsPointVisibleForTests(hwnd, 0, 0));
+            Assert.True(RoundedWindowRegionApplier.IsPointVisibleForTests(hwnd, 100, 100));
+
+            w.ApplyCornerAppearance(DwmCornerMode.Square, 0);
+            Assert.False(RoundedWindowRegionApplier.HasCustomRegionForTests(hwnd));
+            Assert.True(RoundedWindowRegionApplier.IsPointVisibleForTests(hwnd, 0, 0));
+
+            w.WindowState = WindowState.Maximized;
+            w.ApplyCornerAppearance(DwmCornerMode.Round, 22);
+            Assert.False(RoundedWindowRegionApplier.HasCustomRegionForTests(hwnd));
+
+            w.WindowState = WindowState.Normal;
+            w.ApplyCornerAppearance(DwmCornerMode.Round, 22);
+            Assert.True(RoundedWindowRegionApplier.HasCustomRegionForTests(hwnd));
+            w.Close();
+        });
+
+    [Fact]
     public void MainWindow_applies_the_theme_corner_mode_at_source_initialized() => StaTestThread.Invoke(() =>
     {
         var w = new MainWindow();
@@ -1751,6 +1826,20 @@ public class WpfRuntimeTests : IDisposable
 
         w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionFullscreenToggle));
         Assert.Equal(WindowState.Normal, w.WindowState);
+    });
+
+    [Fact]
+    public void Focused_settings_request_keeps_settings_reachable_from_the_popout() => StaTestThread.Invoke(() =>
+    {
+        var w = NewPlayer();
+        var requests = 0;
+        w.SettingsRequested += (_, _) => requests++;
+
+        w.HandleFocusedActionForTests(PlayerFirstSurfaceProtocol.ActionSettings);
+        Assert.Equal(0, requests); // deferred out of WebMessageReceived
+        w.Dispatcher.Invoke(static () => { }, DispatcherPriority.Background);
+
+        Assert.Equal(1, requests);
     });
 
     // --- Expand / restore affordance (overhaul Task 4) ---
@@ -2199,6 +2288,145 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal("normal", selectedMode());
     });
 
+    [Fact]
+    public void Profile_presentation_picker_is_separate_and_round_trips_all_tokens() => StaTestThread.Invoke(() =>
+    {
+        Assert.Null(Prompt.BuildPresentationPicker(null).SelectedPresentation());
+        Assert.Null(Prompt.BuildPresentationPicker("bogus").SelectedPresentation());
+        Assert.Equal("standard", Prompt.BuildPresentationPicker("STANDARD").SelectedPresentation());
+        Assert.Equal("focused", Prompt.BuildPresentationPicker(" Focused ").SelectedPresentation());
+
+        var (element, selectedPresentation) = Prompt.BuildPresentationPicker(null);
+        var combo = (ComboBox)element;
+        Assert.Equal(3, combo.Items.Count);
+
+        combo.SelectedIndex = 1;
+        Assert.Equal("standard", selectedPresentation());
+        combo.SelectedIndex = 2;
+        Assert.Equal("focused", selectedPresentation());
+    });
+
+    [Fact]
+    public void Focused_presentation_hides_native_chrome_only_after_the_overlay_handshake() =>
+        StaTestThread.Invoke(() =>
+        {
+            var focused = new PlayerWindow(
+                environment: null!,
+                url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                topmost: false,
+                placement: null,
+                defaultWidth: 960,
+                defaultHeight: 540,
+                fadeEnabled: true,
+                presentation: PopoutPresentation.Focused);
+
+            Assert.Equal(PopoutPresentation.Focused, focused.PresentationForTests);
+            Assert.False(focused.IsFocusedSurfaceActiveForTests);
+            Assert.False(focused.IsChromeStripCollapsedForTests); // failure-safe until page overlay exists
+
+            focused.ApplyFocusedSurfaceActiveForTests(true);
+
+            Assert.True(focused.IsFocusedSurfaceActiveForTests);
+            Assert.True(focused.IsChromeStripCollapsedForTests);
+            Assert.False(focused.IsChromeStripHitTestVisibleForTests);
+            focused.OnUserActivityForTests();
+
+            Assert.True(focused.IsChromeStripCollapsedForTests);
+            Assert.False(focused.IsChromeStripHitTestVisibleForTests);
+
+            focused.BeginNavigationForTests();
+            Assert.False(focused.IsFocusedSurfaceActiveForTests);
+            Assert.False(focused.IsChromeStripCollapsedForTests); // every navigation restores recovery chrome
+
+            Assert.Equal(PopoutPresentation.Standard, NewPlayer().PresentationForTests);
+        });
+
+    [Fact]
+    public void Surface_drag_handoff_is_single_shot_and_native_loop_owns_drag_lifecycle() =>
+        StaTestThread.Invoke(() =>
+        {
+            var w = new PlayerWindow(
+                environment: null!,
+                url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                topmost: false,
+                placement: null,
+                defaultWidth: 960,
+                defaultHeight: 540,
+                fadeEnabled: true,
+                stripAutoHide: true);
+            w.HideControlsForTests();
+            w.CompleteHideFadeForTests();
+            Assert.True(w.IsChromeStripCollapsedForTests);
+
+            Assert.Throws<InvalidOperationException>(() =>
+                w.ExecuteSurfaceDragRequestForTests(leftButtonDown: true, () =>
+                {
+                    // Posting SC_MOVE is only a queued handoff; the native loop has not started yet.
+                    Assert.False(w.IsDraggingForTests);
+                    throw new InvalidOperationException("native move failed");
+                }));
+
+            Assert.False(w.IsDraggingForTests);
+            Assert.False(w.IsSurfaceDragQueuedForTests);
+            Assert.True(w.IsChromeStripCollapsedForTests);
+
+            w.OnUserActivityForTests();
+            Assert.True(w.IsIdleTimerRunningForTests);
+            w.HideControlsForTests();
+            w.CompleteHideFadeForTests();
+            w.HandleNativeMoveSizeStateChangedForTests(active: true);
+            Assert.True(w.IsDraggingForTests);
+            Assert.False(w.IsIdleTimerRunningForTests);
+            Assert.True(w.IsChromeStripCollapsedForTests);
+
+            w.HandleNativeMoveSizeStateChangedForTests(active: false);
+            Assert.False(w.IsDraggingForTests);
+            Assert.True(w.IsIdleTimerRunningForTests);
+            Assert.True(w.IsChromeStripCollapsedForTests);
+        });
+
+    [Fact]
+    public void Surface_drag_is_inert_when_maximized_or_the_button_is_up() => StaTestThread.Invoke(() =>
+    {
+        var w = NewPlayer();
+        var nativeMoves = 0;
+
+        w.ExecuteSurfaceDragRequestForTests(leftButtonDown: false, () => nativeMoves++);
+        w.WindowState = WindowState.Maximized;
+        w.ExecuteSurfaceDragRequestForTests(leftButtonDown: true, () => nativeMoves++);
+
+        Assert.Equal(0, nativeMoves);
+        Assert.False(w.IsSurfaceDragQueuedForTests);
+        Assert.False(w.IsDraggingForTests);
+    });
+
+    [Fact]
+    public void Native_move_size_messages_drive_player_activity_and_destroy_cleanup() =>
+        StaTestThread.Invoke(() =>
+        {
+            var w = NewPlayer();
+            var hwnd = new WindowInteropHelper(w).EnsureHandle();
+            Assert.True(BorderlessWindowHelper.HasExpandedResizeSubclassForTests(hwnd));
+
+            w.OnUserActivityForTests();
+            Assert.True(w.IsIdleTimerRunningForTests);
+            _ = SendMessage(hwnd, WM_ENTERSIZEMOVE, IntPtr.Zero, IntPtr.Zero);
+            Assert.True(w.IsDraggingForTests);
+            Assert.False(w.IsIdleTimerRunningForTests);
+
+            _ = SendMessage(hwnd, WM_EXITSIZEMOVE, IntPtr.Zero, IntPtr.Zero);
+            Assert.False(w.IsDraggingForTests);
+            Assert.True(w.IsIdleTimerRunningForTests);
+
+            _ = SendMessage(hwnd, WM_ENTERSIZEMOVE, IntPtr.Zero, IntPtr.Zero);
+            Assert.True(w.IsDraggingForTests);
+            w.Close();
+
+            Assert.False(w.IsDraggingForTests);
+            Assert.False(w.IsIdleTimerRunningForTests);
+            Assert.False(BorderlessWindowHelper.HasExpandedResizeSubclassForTests(hwnd));
+        });
+
     // --- Dark theme is actually wired at runtime (rebuts the stale "renders light" reports) ---
 
     [Fact]
@@ -2296,6 +2524,8 @@ public class WpfRuntimeTests : IDisposable
     }
 
     private const int WM_NCHITTEST = 0x0084;
+    private const int WM_ENTERSIZEMOVE = 0x0231;
+    private const int WM_EXITSIZEMOVE = 0x0232;
 
     private static IntPtr MakeLParam(int x, int y) =>
         new(unchecked((x & 0xffff) | ((y & 0xffff) << 16)));

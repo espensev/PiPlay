@@ -1,6 +1,6 @@
 # PiPlay - Spec gaps and ownership boundaries
 
-**Status:** Working notes after the 2026-06-25 P1/spec-sync review. Resolved items have been folded into `PiPlay_Product_Engineering_Spec.md`; keep this file for the remaining open decisions, ready implementation items, and ownership boundaries.
+**Status:** Working notes through the 2026-07-15 Focused-Popout pass. Resolved items have been folded into `PiPlay_Product_Engineering_Spec.md`; keep this file for the remaining open decisions, ready implementation items, and ownership boundaries.
 
 ## ⚠️ Open bugs (owner-reported — must not drop)
 
@@ -18,12 +18,13 @@ release evidence must come from the deployed Stable WebView2/YouTube smoke rows:
 suppression, immediate popout close/unmute, paused-source launch, different-video replay, ads/autoplay-next,
 and SPA re-render transitions.
 
-The current visual path is also an intentional compromise, not the final owner target: DWM fixed corner
-modes, a 4 DIP resize band, whole-popout opacity (with the active value also painting only the Source
-title-bar backdrop), and dormant compact-player plumbing. All three presets now default top-bar auto-hide
-on; active/idle opacity is Sharp Dark `1.00/1.00`, Minimal `0.94/0.86`, and Soft Glass `0.82/0.72`.
-A large rounded floating-card silhouette, chrome-only transparency, or Browse/Cinema/Compact main-window
-modes need separate design/ADR work instead of being folded into the current release cleanup.
+The current visual path remains an intentional compromise, not the final owner target: Round now gives
+the floating Popout a large DPI-aware native region, but there is still no guaranteed curve-following
+border/shadow; the owner-tuned 12 DIP resize band and whole-popout opacity remain. The optional Focused presentation
+now supplies a no-crop, media-first real-watch-page surface without reviving Compact. All three presets
+default top-bar auto-hide on; active/idle opacity is Sharp Dark `1.00/1.00`, Minimal `0.94/0.86`, and
+Soft Glass `0.82/0.72`. Chrome-only transparency, a curve-following outer shadow/border, and
+Browse/Cinema/Compact main-window modes still need separate design/ADR work.
 
 ## ✅ CLOSED: does a profile's color become the app accent? (P2)
 
@@ -42,6 +43,27 @@ See `docs/superpowers/specs/2026-07-14-profile-accent-reach-design.md` for the s
 `docs/superpowers/specs/2026-07-14-accent-reach-default-and-routing-fixes-design.md` for the follow-up
 preference. **The accent's reach is owner-tunable by eye**: default 50 reproduces v0.9.0, lower values
 fade glyphs and wash, and higher values deepen only the wash. QA rows **UI-CHK-9–11** govern it.
+
+## ✅ CLOSED ON WORKING TREE: Focused Popout and passive-picture drag
+
+**Resolved 2026-07-15.** The owner asked for Opera-like whole-window dragging, better picture fill,
+and comparable controls as an option. The implementation keeps the real Normal YouTube `/watch` page:
+
+- **Standard** remains the global/default presentation.
+- Optional **Focused overlay** gives the real player the viewport with `object-fit: contain`; it may
+  letterbox but never uses `cover` or crops by default.
+- Focused adds named Mute, Captions, Pin, Expand/Restore, Close, Play/Pause, Next, progress, and time
+  controls. Captions/Next delegate to YouTube where available; required native YouTube UI remains.
+- A threshold bridge lets primary mouse/pen drags start from passive picture pixels in either
+  presentation. Ordinary clicks are untouched; controls, timeline, links, menus, end cards, ads with
+  actions, and Focused controls are excluded.
+- Presentation is independent from dormant Compact. Global `PlayerSettings.FocusedPresentation` plus
+  optional per-target `Profile.Presentation` (`standard` / `focused`) follows `REQ-PROFILE-01`.
+
+This is code/test-complete on the working tree, not runtime signoff. Real YouTube selector behavior,
+controls/fade, unusual aspect ratios, ads/end cards, mixed-DPI drag, and return-state invariants remain
+deployed-Stable manual rows in `QA_Checklist.md` §2.2. A dirty diagnostics deployment is not release
+evidence.
 
 ## Remaining open product decisions
 
@@ -118,7 +140,7 @@ playback surface.
 
 | Item | The decision | Why it is open |
 |---|---|---|
-| Corner silhouette architecture | **Soft/round de-duplicated (2026-06):** the redundant **Soft** corner option was dropped (it shared `DWMWCP_ROUND` with **Round**); a stored `"soft"` now normalizes to `"round"`. Remaining open: accept the DWM limit (three fixed OS radii), or lift WebView2 airspace (windowless/composition hosting) to get a large card radius with an outer border + shadow following the curve. | Outer corners are DWM-only: three fixed OS radii, no large radius, no outer border/shadow, because the windows host WebView2 by HWND with `AllowsTransparency=False` (airspace). The `RadiusPopoutFrame`/`RadiusMainWindowFrame` tokens are **unconsumed** — wire or remove them. An ADR is likely warranted if airspace is lifted. |
+| Corner silhouette architecture | **Large Popout silhouette implemented by ADR-0008 (2026-07-15):** Soft Glass / explicit **Round** now applies the 22 DIP `PopoutFrame` as a DPI-scaled top-level window region. It clips the child-HWND WebView2, clears while maximized/snap-like, and keeps the standard WebView playback path. Remaining open: whether a curve-following outer border/shadow justifies composition hosting. | `RadiusPopoutFrame` is consumed for Round Popouts; `RadiusMainWindowFrame` remains unconsumed. The region supplies the card silhouette but no guaranteed DWM shadow. `WebView2CompositionControl` remains deferred because Microsoft documents lower frame rates and failed DRM playback. |
 | Transparency band | Current UI calls the Popout feature whole-popout opacity. The active setting also reaches the Source title-bar backdrop only; idle has no Source effect. A true transparency feature still needs scope/target decisions: Off / Main / Popout / Both, and chrome/background only by default with video opaque. | Architecture/UX decision remains open because the current Popout layered-window alpha fades the WebView/video too. The Source backdrop treatment does not solve that airspace limitation. |
 | Main-window mode model | Whether to build Browse/Cinema/Compact main-window layouts (toolbar collapse, hover-reveal chrome), how they persist (global vs per-profile), and naming to avoid the "Compact" collision. | Net-new feature; no main-window mode state machine exists today. |
 | "Restore video here" / "Bring video back" | The implemented command returns playback to the main window by capturing fresh popout state and closing the single popout through the existing return pipeline. | If the owner later wants a separate focus-only command or a non-closing duplicate surface, that is a new ADR-0005/single-player decision, not the P4 bring-back fix. |
@@ -134,11 +156,12 @@ single popout through the existing return pipeline.
 
 | Item | Ready status | Notes |
 |---|---|---|
+| Focused Popout + passive-picture drag | Implemented on working tree; deployed QA pending | Standard remains default. Optional Focused keeps the real Normal `/watch` page, applies no-crop `contain`, and adds the Opera-style overlay. Threshold drag works from passive picture pixels while excluding controls. Global/profile presentation precedence is independent from dormant Compact. Deterministic script/protocol/settings tests cover the closed contracts; `QA_Checklist.md` §2.2 owns live YouTube acceptance. |
 | Profile-driven accent (P2) | Implemented on main | The 2026-07-14 owner decision reverses the v0.6.0 identity-only split: a valid active profile color drives the app, while `theme.accentColor` remains the preserved fallback. The functional toolbar, primary action, and title wash carry the resolved accent; the selector rail remains a contrast-safe identity cue. The reach preference defaults to the exact v0.9.0 look. Optional active-profile popout border remains future work. |
 | Popout interaction + preset cohesion | Implemented on working tree | The Popout has a Settings gear routed to MainWindow's shared single-dialog workflow. All presets default top-bar auto-hide on; Sharp/Minimal/Soft use `1.00/1.00`, `0.94/0.86`, and `0.82/0.72`. Active opacity also paints the Source title-bar backdrop. Preset/corner choices preview across all open surfaces and non-affirmative dismissal fully reverts. Settings cards name the intended looks `Crisp · 100%`, `Quiet · 94%`, and `Glass · 82%`. |
 | Auto target identity + return latch | Implemented on working tree | Auto and manual launch share one Source-first resolved target; canonical is fallback only. Every return arms the de-dup latch with the identity restored to Source before navigation/resume, preventing an immediate re-pop without blocking a later different playing video. |
 | Accent gate relax + filled accent actions | Implemented on main | Any valid `#RRGGBB` accent/profile color is accepted; invalid hex is still blocked/defaulted. `AccentButton` now uses accent fill tokens with generated dark/white foreground instead of an outline-only treatment. |
-| Borderless resize zones | Implemented on main | Previous implementations used `WindowChrome.ResizeBorderThickness="6"` and then a 10 DIP inset. The current v0.7.2 P1 implementation uses a 4 DIP black edge resize band (`BorderlessResizeHitTestPolicy.ResizeBorderDip`) plus 32 DIP corner length via native hit testing, without adding a visible size grip or touch-first 40 x 40 target. Manual DPI resize QA remains a release-candidate check. |
+| Borderless resize zones | Owner retune implemented on working tree | Previous implementations used `WindowChrome.ResizeBorderThickness="6"`, then a 10 DIP inset, then 4 DIP and 8 DIP bands. Direct owner testing found the smaller targets too difficult. The current target keeps the accepted 12 DIP black edge band (`BorderlessResizeHitTestPolicy.ResizeBorderDip`) and extends diagonal reach from 72 to 96 DIP via native hit testing, without a visible size grip. Manual mixed-DPI resize QA remains a release-candidate check. |
 | Compact player plumbing | Dormant on main | Stages 1–4 shipped earlier, but the 2026-06-25 popout-look cleanup removed the Settings Compact toggle and set `PlaybackModePolicy.CompactPlayerEnabled=false`, so new popouts always resolve to Normal. `PlaybackMode.Compact`, `PlaybackModePolicy`, the player shell/IFrame assets, `PlayerSettings.CompactMode`, and `Profile.Mode` are retained as reserved/dormant plumbing, not a release-facing mode. **2026-06-26:** the per-profile Edit-profile playback-mode picker also hides the dead "Compact player" option while `CompactPlayerEnabled=false` (a stored `compact`/`embed` profile falls back to Use-global), closing the gap where Settings dropped the toggle but the profile editor still offered it. Compact manual QA is only a release gate if compact is deliberately re-enabled. |
 | Return resume rule (REQ-RETURN-01) | Implemented on main | Option A is now the normative rule: the popout's live paused/playing state wins when known, and the source launch state is fallback only. A paused source no longer gets auto-nudged into playing unless it was playing at launch; if the user presses play in the popout, return follows that live state. |
 
@@ -171,6 +194,8 @@ single popout through the existing return pipeline.
 | `AGENTS.md` / `CHANGELOG.md` location | Decision: keep canonical copies under `docs/` intentionally; `AGENTS.md` already documents the path-prefix rule if moved to root. No duplicates to maintain. |
 | Stable publish + channel/data isolation | A stable, runnable copy deploys to `E:\Dev_test_implemenations\PiPlay` via `scripts\Publish-Stable.ps1`. The release channel is baked into the binary (`PiPlayChannel`); a Stable copy uses portable data beside the exe, its own single-instance identity, and a `PiPlay — Stable …` title, while the Default channel is unchanged. Recorded in `adr/0007-stable-channel-and-portable-data.md`. |
 | Auto trigger timing | **Playback-start**, `/watch`-only, with one Source-first target carried from detection into `StartVideoPopoutAsync`. Every return arms the id de-dup before navigation/resume; Shorts/embeds are excluded. Off by default. |
+| Popout presentation | Standard is the default. Optional Focused uses the real Normal `/watch` page with no-crop `contain` and an Opera-style overlay. Global/profile precedence is independent from dormant Compact; live selector/input behavior remains a deployed-Stable QA gate. |
+| Passive-picture drag | Primary mouse/pen movement from passive player pixels or unused YouTube chrome becomes native window movement only after the system threshold. Ordinary clicks, rendered captions, and interactive YouTube/PiPlay controls remain excluded; the guaranteed top handle is 44 DIP high. |
 | Popout control customization first slice (historical Phase 2 boundary) | The initial slice was fixed swatches for Pin/Fade plus delay presets. Later releases superseded its "no opacity UI" boundary with whole-popout opacity, preset-owned auto-hide/opacity defaults, and the shared Settings path; click-through and transparent WebView2 behavior remain out of scope. |
 | Compact-mode placement | Reserved global player default (`PlayerSettings.CompactMode`, off by default) plus optional profile override (`Profile.Mode`: null/global, `normal`, `compact`; legacy `embed` normalizes to `compact`). New popouts currently ignore these values and force Normal while `CompactPlayerEnabled=false`. |
 
@@ -194,7 +219,8 @@ single popout through the existing return pipeline.
 | `PlayerWindow` / Popout Player | Floating playback window, chrome, pin/fade/settings UI, resize/drag behavior, last-known timestamp polling, close signal. It may raise `SettingsRequested`; MainWindow owns/activates the shared dialog. | Source Window navigation, profile persistence, the Settings transaction, or global app policy. |
 | `WebViewEnvironmentService` | Shared `CoreWebView2Environment`, user-data folder, WebView2 initialization errors. | Navigation policy or YouTube page scripting. |
 | `YouTubeUrlHelper` | Supported YouTube URL parsing and target URL construction. | UI decisions, WebView calls, or JavaScript execution. |
-| `YouTubeDomBridge` | Centralized JavaScript for read time, pause, play, seek, and canonical URL reads. | Scattered feature logic, ad/compliance changes, or credential inspection. |
+| `YouTubeDomBridge` | Centralized JavaScript for read time, pause, play, seek, canonical URL reads, passive-surface drag detection, and Focused layout/overlay behavior. | WebView lifecycle/native action handling, scattered feature logic, ad/compliance changes, or credential inspection. |
+| `PlayerSurfaceDragBridge` / `PlayerFirstSurfaceBridge` | Install/remove document-created scripts, subscribe top-document WebView messages, validate the nonce/source/protocol, and raise closed native requests. | Owning YouTube selectors, recursively wiring child-frame events, accepting arbitrary actions, pointer coordinates, or credential-bearing data. |
 | `SettingsService` | Atomic load/save, corruption recovery, schema defaults. | Product policy for what settings mean. |
 | `WindowPlacementService` | Bounds, DPI-aware restore, visible monitor clamping. | Profile management or window chrome behavior. |
 | `LoggingService` | Local diagnostics with redaction rules. | Telemetry, analytics, or credential-bearing data. |

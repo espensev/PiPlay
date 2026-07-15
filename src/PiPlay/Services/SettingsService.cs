@@ -203,6 +203,7 @@ public sealed class SettingsService
         foreach (var p in s.Profiles)
         {
             p.Mode = PlaybackModePolicy.NormalizeProfileMode(p.Mode);
+            p.Presentation = PopoutPresentationPolicy.NormalizeProfilePresentation(p.Presentation);
             p.AccentColor = ProfileService.NormalizeAccentForStorage(p.AccentColor);
         }
         ProfileAccentService.ReconcileActiveProfile(s);

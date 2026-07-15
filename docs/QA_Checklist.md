@@ -45,14 +45,22 @@ Mark each: pass / issue (link) / skipped.
 - [ ] Toggling Auto off stops auto-popping; the setting persists across restarts; manual Pop out is unaffected.
 
 ## 2. Window quality (Q-7)
-- [ ] Player drags smoothly from the chrome area; video controls still work.
-- [ ] **Phase 3 — resize zones:** edge resize feels native on the Source Window and Popout Player **with the pointer over the video/page surface itself** (the WebView2 area — the originally reported dead zone), not only over the chrome strip/toolbar: left/right/bottom resize cursors appear without pixel-perfect aiming on the 4 DIP inset band (`REQ-WINDOW-02`; the visible band is the accepted Task 1 trade-off).
-- [ ] **Phase 3 — resize zones:** corner resize feels native on the Source Window and Popout Player **including corners reached over the player surface**: each corner gives diagonal resize over the first/last ~32 DIP along the edge band, and normal page-mode player remains usable at 320x180.
+- [ ] Player drags smoothly from the guaranteed 44 DIP top handle and from passive picture pixels or
+  unused YouTube chrome space after a deliberate drag threshold; a normal click still
+  plays/pauses and does not move the window. The handle shows a move cursor, while its adjacent
+  Settings/Fade/Pin/Expand/Close controls remain ordinary buttons.
+- [ ] **Phase 3 — resize zones:** edge resize feels native on the Source Window and Popout Player **with the pointer over the video/page surface itself** (the WebView2 area — the originally reported dead zone), not only over the chrome strip/toolbar: left/right/bottom resize cursors appear without pixel-perfect aiming on the owner-tuned 12 DIP inset band (`REQ-WINDOW-02`; the visible band is the accepted trade-off).
+- [ ] **Phase 3 — resize zones:** corner resize feels native on the Source Window and Popout Player **including corners reached over the player surface**: each corner gives diagonal resize over the first/last ~96 DIP along the edge band, and normal page-mode player remains usable at 320x180.
 - [ ] **Phase 3 — resize zones:** expanded resize zones do not swallow controls: Source caption buttons and Popout Fade/Pin/Expand/Close remain clickable outside the outer resize band.
 - [ ] Pin/topmost is obvious and independent for the player and the Source Window.
 - [ ] Player remembers size and position across restarts.
 - [ ] Player restores onto a visible monitor after a monitor is removed.
 - [ ] Crisp at 100%, 125%, 150%, and mixed-monitor DPI. **(Q-7)**
+- [ ] **Round Popout silhouette (ADR-0008):** with Soft Glass or Corners → Round, the floating
+  Popout has a clean large-radius outline and the video is clipped at all four corners. Resize at
+  100%, 125%, and 150%; move between mixed-DPI monitors; maximize/restore; and exercise Windows Snap
+  halves/quarters. Floating restores the curve, while maximized and snap-like layouts are full-bleed
+  with no stale crop, seams, or lost diagonal-resize acquisition. **(Q-7, REQ-WINDOW-01/02)**
 - [ ] App does not steal focus unexpectedly.
 
 ### 2.1 Popout behaviors, two captures (overhaul stabilization 2026-06-10)
@@ -64,12 +72,56 @@ captures and record the evidence per column, never write per-state procedures.
 | Behavior (one procedure) | Popout Standard | Fullview Faded |
 |---|---|---|
 | Wheel scroll needs one click into the page first (wheel focus-routing; documented owner decision 2026-06-10), then wheel/touchpad/page-scrollbar scroll works — including at reduced opacity. | | |
-| Wheel over the 4 DIP resize band is inert by design (the band belongs to the window, not the page); in-page scroll just inside the band is unaffected. | | |
+| Wheel over the 12 DIP resize band is inert by design (the band belongs to the window, not the page); in-page scroll just inside the band is unaffected. | | |
 | Expand button on the strip toggles full-monitor expand and back; glyph and tooltip flip Expand/Restore together. | | |
 | Restore stays reachable while expanded: the strip (or its top-edge reveal under auto-hide) exposes the restore button; Esc restores after clicking the strip once (WPF focus). | | |
 | Close while expanded, pop out again: the next popout launches at the prior normal bounds, never expanded. | | |
 | Auto-hide reveal-then-resize beat (Task 1 residual): with the strip collapsed, the TOP edge band is dead until the top-edge hover reveals the strip; after the reveal, top-edge resize works. | | |
 | The Popout Settings gear opens the same single Settings dialog as the Source Window gear; invoking the other entry point activates that dialog instead of opening a second copy. | | |
+
+### 2.2 Focused presentation and passive-picture drag (2026-07-15)
+
+Run these rows on the deployed Stable copy with both **Standard** and **Focused overlay**. A dirty
+`-AllowDirty` deployment may be used for exploratory diagnostics, but its results are not release
+evidence and do not complete this checklist.
+
+- [ ] **Standard remains the default:** reset app state or start with no presentation field, pop out a
+  `/watch` video, and confirm the ordinary Normal YouTube page opens. Compact remains dormant.
+- [ ] **Threshold drag:** click once on passive video and confirm YouTube receives the click; then drag
+  from passive picture pixels and confirm the Popout moves only after real pointer movement. Repeat
+  with mouse and pen where available. **(Q-7, Q-8)**
+- [ ] **Child-frame crash regression:** auto-open a Standard Popout, leave it open through the first
+  YouTube child-frame load, then drag from passive picture pixels. The Popout remains alive and the
+  Windows Application log records no PiPlay `Application Error` / `STATUS_BREAKPOINT` event.
+- [ ] **Drag exclusions:** seek/timeline, volume, captions, settings, fullscreen, links, menus, end
+  cards, ads with actions, and every Focused overlay control remain clickable and never begin a
+  window move. Edge/corner resize remains acquirable outside those controls. **(Q-5, Q-7, Q-8)**
+- [ ] **Maximized/stale guard:** passive-picture drag does nothing while expanded/maximized; releasing
+  the button before native handoff does not move the window. Restore and confirm drag works again.
+- [ ] **Focused full-frame contain:** enable Settings → Appearance → Focused overlay, pop out wide, 16:9,
+  4:3, and portrait videos, then freely resize wide and tall. The real watch-page player fills the
+  available viewport, letterboxes when needed, and never crops (`contain`, never `cover`).
+- [ ] **Focused controls:** Mute, Play/Pause, seek rail, PiPlay Settings, Pin, Expand/Restore, and Close work. Captions
+  and Next work when YouTube exposes their native controls and degrade harmlessly when unavailable.
+  YouTube branding, settings/quality, captions menu, and ad UI remain reachable. **(Q-3, Q-5, Q-6)**
+- [ ] **Active-ad fail-closed behavior:** exercise real `ad-showing` and `ad-interrupting` states in
+  both Standard and Focused presentation. Focused seek and Next are hidden/disabled, direct media
+  writes/native Next handoff do not run, and YouTube's required ad UI, disclosures, links, and Skip
+  control remain reachable. **(Q-5)**
+- [ ] **Trusted current-document actions:** synthetic `.click()` / dispatched pointer events do not
+  close, pin, expand, open Settings, move the Popout, seek, or advance. Repeat video A→B,
+  watch→non-watch→watch, and an exact-URL reload; requests from the previous document are rejected
+  while real input in the current document still works. **(Q-3, Q-6, Q-8)**
+- [ ] **Overlay input/accessibility:** empty overlay pixels pass input to the video; only actual buttons
+  and the progress rail intercept input. Tab focus has readable names and a visible focus indicator.
+- [ ] **Fade:** with Fade on, Focused controls hide after the configured delay while playing and reveal
+  on pointer/keyboard activity, focus, or pause. Fade off keeps them visible; no state is click-through.
+- [ ] **Presentation precedence (`REQ-PROFILE-01`):** global Standard/Focused controls new popouts;
+  a matching profile's `Use global`, `Standard`, or `Focused overlay` value inherits or overrides per
+  target video. A different video does not inherit an unrelated profile override.
+- [ ] **Recovery:** navigate away from `/watch` or exercise a page where selectors are unavailable.
+  The Focused layer withdraws or fails harmlessly; native strip drag, Settings, Pin, Expand/Restore,
+  Close/return, timestamp capture, and Standard presentation remain available.
 
 ## 3. Fade and appearance (Q-8)
 - [ ] Popout controls fade after idle and restore on hover / mouse-move.
@@ -94,6 +146,8 @@ captures and record the evidence per column, never write per-state procedures.
   appearance. Repeat and press Done: the previewed values persist after restart.
 - [ ] **Overhaul Task 5 — Settings fits short displays:** on (or simulating) a ~768 px work area, the Settings window caps at the work area, the sections scroll, the title-bar close button never scrolls away, and all four sections are reachable in order: Privacy, Appearance, Playback, Advanced.
 - [ ] Settings exposes no Compact player toggle/copy; new popouts use Normal while `PlaybackModePolicy.CompactPlayerEnabled=false`.
+- [ ] Settings exposes **Focused overlay** as a Popout presentation option, not a Compact playback-mode
+  toggle; changing it affects new Popout Players and does not rewrite an already-open player.
 - [ ] **Overhaul Tasks 9-10 — Theme preset + accent smoke:** Settings → Appearance shows a Theme row (Sharp Dark / Minimal / Soft Glass) and a single Accent color chip row. Selecting a preset checks it and adopts that preset's default accent. The chosen accent recolors the primary "Pop out video" button, the URL caret/focus, and the Pin/Fade glyphs LIVE on the open main window (DynamicResource); a newly launched Popout Player also uses it. Restart and confirm the accent persists and is applied at startup. A hand-edited invalid `theme.themeId`/`accentColor` in settings.json falls back to Sharp Dark / cyan without crashing.
 - [ ] **Video-aware return (Normal mode):** let the popout move to a different video (playlist auto-advance or normal-page in-page navigation), then close it — the source NAVIGATES to that video at the popout's timestamp instead of seeking the original video, then replays play/pause, volume/mute, and speed where YouTube permits; with Auto on, the returned video does not instantly re-pop.
 - [ ] **Bring video back (P4):** pop out a video, pause/change volume/mute/speed in the popout, then click **Bring video back** in the Source Window — playback returns to the Source Window with timestamp and play/pause preserved, and volume/mute/speed preserved where YouTube permits.
@@ -103,6 +157,8 @@ captures and record the evidence per column, never write per-state procedures.
 - [ ] `PlaybackModePolicy.CompactPlayerEnabled` remains `false` for this release.
 - [ ] New popouts resolve to Normal even if `PlayerSettings.CompactMode` or `Profile.Mode=compact` exists in settings data.
 - [ ] Settings exposes no Compact player toggle.
+- [ ] Focused presentation still uses a real Normal `/watch` page and does not navigate to an embed or
+  `piplay.local` shell.
 - [ ] If Compact is deliberately re-enabled later, restore the compact-player manual rows from history, including recommendation retarget/fallback and compact YouTube fullscreen, then re-run them before release.
 
 ## 4. Recovery / errors (Q-6)
@@ -149,7 +205,7 @@ Binary pass/fail (spec section 22.2 Chrome acceptance). Prefer ChatGPT-operated 
 - [ ] **UI-CHK-5** Address/URL field text is legible at 100/125/150 % DPI — no clipping or faint text.
 - [ ] **UI-CHK-6** Icons share weight, corner style, and active-color behavior across the chrome.
 - [ ] **UI-CHK-7** Accessible names (overhaul Task 7, REQ-UI-02): a screen reader (Narrator / Accessibility Insights) announces real names for every icon-only control — main chrome (Settings/Minimize/Maximize/Close), navigation (Back/Reload/Home), URL box, profiles combo + Save/Edit/Delete, Pin, Auto, the popout action (name flips with "Pop out video"/"Bring video back"), popout Fade/Pin/Settings/Expand/Close, Settings close, and the Prompt dialog close.
-- [ ] **UI-CHK-8** *(P1 borderless, open)* The 4 DIP black band around the hosted video reads as
+- [ ] **UI-CHK-8** *(P1 borderless, owner-retuned)* The 12 DIP black band around the hosted video reads as
   **letterbox/canvas** — not as a grey frame and not as a second app frame — on both windows at
   **100 / 125 / 150 % DPI**. This is a *visual read*, distinct from the resize-feel rows in §4.
 - [ ] **UI-CHK-9** *(profile rail + accent wash, open)* Across **every theme preset** and at 100/125/150 %

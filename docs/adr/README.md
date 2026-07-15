@@ -15,6 +15,7 @@ Short, dated records of significant decisions: the context, the decision, and it
 | [0005](0005-single-player.md) | Single Popout Player for now | Accepted |
 | [0006](0006-no-click-through.md) | No click-through / pass-through transparency | Accepted |
 | [0007](0007-stable-channel-and-portable-data.md) | Stable channel + portable data for deployed copies | Accepted |
+| [0008](0008-popout-rounded-window-region.md) | Use a custom window region for large round Popout corners | Accepted |
 
 ## Template
 

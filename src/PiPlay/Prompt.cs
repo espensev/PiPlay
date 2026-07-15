@@ -136,6 +136,35 @@ internal static class Prompt
         return (combo, () => (combo.SelectedItem as ComboBoxItem)?.Tag as string);
     }
 
+    /// <summary>
+    /// Build the per-profile Popout presentation picker. It is deliberately separate from
+    /// <see cref="BuildModePicker"/> because Focused is a watch-page presentation, not Compact
+    /// playback. The getter returns the durable profile token (null / "standard" / "focused").
+    /// </summary>
+    internal static (FrameworkElement Element, Func<string?> SelectedPresentation)
+        BuildPresentationPicker(string? current)
+    {
+        var normalized = PopoutPresentationPolicy.NormalizeProfilePresentation(current);
+
+        ComboBoxItem Item(string text, string? presentation) => new() { Content = text, Tag = presentation };
+        var useGlobal = Item("Use global default", null);
+        var standard = Item("Standard", PopoutPresentationPolicy.ProfilePresentationStandard);
+        var focused = Item("Focused overlay", PopoutPresentationPolicy.ProfilePresentationFocused);
+
+        var combo = new ComboBox { Style = Style("DarkComboBox"), Margin = new Thickness(0, 0, 0, 12) };
+        combo.Items.Add(useGlobal);
+        combo.Items.Add(standard);
+        combo.Items.Add(focused);
+        combo.SelectedItem = normalized switch
+        {
+            PopoutPresentationPolicy.ProfilePresentationStandard => standard,
+            PopoutPresentationPolicy.ProfilePresentationFocused => focused,
+            _ => useGlobal,
+        };
+
+        return (combo, () => (combo.SelectedItem as ComboBoxItem)?.Tag as string);
+    }
+
     /// <summary>Themed text-input dialog (used for naming a profile). Returns null if cancelled.</summary>
     public static string? AskText(Window owner, string title, string message, string initial = "")
     {
@@ -178,11 +207,14 @@ internal static class Prompt
     /// Name-collision policy is the caller's (ProfileService.Update + the overwrite prompt); this
     /// dialog only validates the URL format, so it stays settings-agnostic. The playback-mode
     /// override (spec 10, Phase 3) is carried through as the durable token (null / "normal" /
-    /// "compact"); normalization/precedence live in <see cref="PlaybackModePolicy"/>.
+    /// "compact"); normalization/precedence live in <see cref="PlaybackModePolicy"/>. The Popout
+    /// presentation override is a separate durable token (null / "standard" / "focused") owned by
+    /// <see cref="PopoutPresentationPolicy"/>.
     /// </summary>
-    public static (string Name, string Url, string? Mode, string? AccentColor)? EditProfile(
+    public static (string Name, string Url, string? Mode, string? Presentation, string? AccentColor)? EditProfile(
         Window owner, string name, string url, string? mode, string? accentColor = null,
-        string? fallbackAccentColor = null, Action<string>? accentPreview = null)
+        string? fallbackAccentColor = null, Action<string>? accentPreview = null,
+        string? presentation = null)
     {
         var win = BuildShell(owner, "Edit profile", out var body);
 
@@ -212,6 +244,15 @@ internal static class Prompt
         });
         var (modePicker, selectedMode) = BuildModePicker(mode);
         body.Children.Add(modePicker);
+
+        body.Children.Add(new TextBlock
+        {
+            Text = "Popout presentation",
+            Foreground = Brush("TextSecondary"),
+            Margin = new Thickness(0, 0, 0, 4),
+        });
+        var (presentationPicker, selectedPresentation) = BuildPresentationPicker(presentation);
+        body.Children.Add(presentationPicker);
 
         var useAccent = new CheckBox
         {
@@ -274,7 +315,7 @@ internal static class Prompt
         };
         UpdateAccentSaveState();
 
-        (string Name, string Url, string? Mode, string? AccentColor)? result = null;
+        (string Name, string Url, string? Mode, string? Presentation, string? AccentColor)? result = null;
         ok.Click += (_, _) =>
         {
             var trimmedName = nameBox.Text.Trim();
@@ -301,7 +342,7 @@ internal static class Prompt
                 return;
             }
 
-            result = (trimmedName, urlBox.Text.Trim(), selectedMode(), editedAccent);
+            result = (trimmedName, urlBox.Text.Trim(), selectedMode(), selectedPresentation(), editedAccent);
             win.DialogResult = true;
         };
         nameBox.Loaded += (_, _) => { nameBox.Focus(); nameBox.SelectAll(); };

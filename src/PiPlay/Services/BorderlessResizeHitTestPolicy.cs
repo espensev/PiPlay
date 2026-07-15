@@ -6,8 +6,8 @@ namespace PiPlay.Services;
 /// </summary>
 internal static class BorderlessResizeHitTestPolicy
 {
-    public const double ResizeBorderDip = 4;    // P1 borderless: thin black inset that merges with the video letterbox
-    public const double CornerLengthDip = 32;   // corner grab stays generous despite the thinner edge
+    public const double ResizeBorderDip = 12;   // owner-tuned for reliable acquisition at fractional DPI
+    public const double CornerLengthDip = 96;   // generous diagonal reach along both adjoining edges
 
     public const int HTLEFT = 10;
     public const int HTRIGHT = 11;

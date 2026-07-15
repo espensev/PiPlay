@@ -88,9 +88,9 @@
        sharp-dark profile. ThemeResourceApplier replaces every entry from the active preset's
        ThemeRadii (plus the user's corner-style override); control consumers reference them via
        DynamicResource. Deliberately NOT one universal radius — a popout frame, a button, a
-       tooltip, and a scrollbar thumb do not want the same shape. The frame/title-bar/thumbnail
-       tokens are forward-looking seams with no consumer yet: real outer window corners are
-       DWM-owned (review doc §2.6), so they wait for internal shell border styling. -->
+       tooltip, and a scrollbar thumb do not want the same shape. RadiusPopoutFrame is consumed by
+       the native large-Round window-region path; the main-frame/title-bar/thumbnail tokens remain
+       forward-looking seams for future internal shell styling. -->
   <CornerRadius x:Key="RadiusMainWindowFrame">2</CornerRadius>
   <CornerRadius x:Key="RadiusPopoutFrame">2</CornerRadius>
   <CornerRadius x:Key="RadiusTitleBar">2,2,0,0</CornerRadius>

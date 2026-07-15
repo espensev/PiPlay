@@ -14,6 +14,7 @@ Source of truth:
 - `src/PiPlay/Theme/Colors.xaml`
 - `src/PiPlay/Theme/ThemePreferenceResolver.cs`
 - `src/PiPlay/Services/WindowOpacityPolicy.cs`
+- `src/PiPlay/Services/PopoutPresentationPolicy.cs`
 - `src/PiPlay/MainWindow.xaml` / `MainWindow.xaml.cs`
 - `src/PiPlay/PlayerWindow.xaml` / `PlayerWindow.xaml.cs`
 - `src/PiPlay/SettingsWindow.xaml`
@@ -43,7 +44,10 @@ differ enough. Both can be true: the perceived silhouette/feel is constrained by
 catalog does not capture —
 
 - The **video surface is opaque** and dominates the window, so palette/border tokens only show on thin chrome.
-- **Outer-window corners are DWM-owned**: three fixed OS radii only. The redundant `soft` corner option was removed; legacy stored `soft` values normalize to `round`. There is no large "card" radius and no outer border or shadow following the curve, because the windows host WebView2 by HWND with `AllowsTransparency=False` (airspace; see the Inner Elevation note below).
+- **Outer-window corners use two native paths**: Sharp/Minimal and non-Popout windows retain the fixed
+  DWM radii; Soft Glass / explicit `Round` applies the 22 DIP `PopoutFrame` as a DPI-scaled top-level
+  window region, which clips the HWND-hosted video too. The large card has no guaranteed curve-following
+  DWM border/shadow; legacy stored `soft` values still normalize to `round`.
 - **Transparency is graduated and controlled**: Sharp Dark is opaque, Minimal is lightly translucent,
   and Soft Glass is visibly translucent. The hosted Popout video follows whole-window alpha.
 
@@ -84,6 +88,18 @@ Preset switching rule:
   that profile is active, an untouched hidden global fallback still advances normally for the day the
   profile is deselected.
 - The accent picker's preset quick-picks are the same for every preset: cyan `#2BAED0`, steel blue `#3F84C0`, steel `#4A8FAB`, violet `#9E84F0`, green `#2DB57F`, amber `#D69A2E`.
+
+### Independent Popout presentation
+
+Standard versus **Focused overlay** is a user/profile-owned presentation axis, not a theme-preset
+axis. Every preset starts with Standard because `PlayerSettings.FocusedPresentation` defaults false;
+changing Sharp Dark / Minimal / Soft Glass must not change that value. A matching profile may inherit
+global presentation or force `standard` / `focused` under `REQ-PROFILE-01`.
+
+Focused still consumes the effective visual settings: its controls use the resolved global/profile
+accent and the Popout Fade delay, while the outer window keeps the selected preset's opacity, corner,
+and density behavior. It keeps the real Normal `/watch` page and `object-fit: contain`; it does not
+enable the dormant Compact player.
 
 ## Behavior Defaults
 
@@ -175,7 +191,9 @@ Radii interpretation:
 - Sharp Dark has the tightest corners (intentionally tight, not accidentally unrounded).
 - Minimal is visibly softer than Sharp Dark.
 - Soft Glass has the largest overlay-style corners.
-- The biggest Soft Glass difference is `PopoutFrame`: `22`, which is `+20` over Sharp Dark and `+10` over Minimal.
+- The biggest Soft Glass difference is `PopoutFrame`: `22`, which is `+20` over Sharp Dark and `+10`
+  over Minimal. It is now consumed by the floating Popout's custom native region when the effective
+  corner mode is `Round`; other internal radius tokens remain WPF resources.
 - Every radius token now differs across all three presets — there are no cross-preset ties.
 
 ## Radius Deltas
@@ -237,11 +255,12 @@ Elevation interpretation:
 - The applier replaces `ElevationPopup` / `ElevationPanel` with frozen `DropShadowEffect`s for Minimal and Soft Glass, and a `null` Effect for Sharp Dark.
 - `ElevationPopup` is consumed by the ComboBox dropdown (`DropDownBorder`) — a real Popup HWND, so the shadow is airspace-safe (FEAS-04): null/flat under Sharp Dark, the soft frozen shadow under Minimal/Soft Glass. `ElevationPanel` is applied to the dictionary but not yet consumed: there is no airspace-safe raised panel for it yet (the Settings sections are one flat StackPanel; the source placeholder and popout error bar sit over the WebView2 HWND, where a WPF shadow would not composite).
 
-## Native DWM Window Corners
+## Native Window Corners
 
 | Field | Sharp Dark | Minimal | Soft Glass | Difference |
 |---|---|---|---|---|
 | Preset DWM corner mode | `Default` | `SmallRound` | `Round` | All three differ. Sharp leaves the HWND corner preference untouched; Minimal requests small native rounding; Soft Glass requests full rounding. |
+| Floating Popout region | None | None | `PopoutFrame` = 22 DIP | Round additionally clips the top-level Popout HWND and its child WebView2; maximize/snap-like layouts clear it. |
 | Default-theme pristine guarantee | Yes | No | No | Only Sharp Dark leaves the window DWM-pristine. Minimal and Soft Glass intentionally write a native corner preference. |
 | Relationship to opacity | Independent | Independent | Independent | Corner mode is explicit preset data, not inferred from opacity. |
 
@@ -254,7 +273,7 @@ The Settings "Corners" row can override the preset's whole corner profile. This 
 | `theme` | Selected preset radii | Selected preset DWM mode | Keeps Sharp, Minimal, or Soft Glass defaults. |
 | `square` | `SquareRadii` | `Square` | Forces all radii to `0` and disables native rounding. |
 | `small` | `SharpRadii` | `SmallRound` | Makes any preset use Sharp-style control radii with small native rounding. |
-| `round` | `SoftGlassRadii` | `Round` | Makes any preset use Soft Glass-style control radii with round native corners. |
+| `round` | `SoftGlassRadii` | `Round` | Makes any preset use Soft Glass-style radii and the large floating-Popout region. |
 
 Selecting a theme preset resets `CornerStyle` back to `theme`. A legacy persisted `soft` value normalizes to
 `round` on load/save so old settings keep a rounded silhouette without exposing a duplicate option.
@@ -364,7 +383,7 @@ The visible behavioral jump on preset click now spans every preset-owned axis:
 - default accent,
 - palette,
 - radii,
-- native DWM corner mode (`Default` / `SmallRound` / `Round`),
+- native corner treatment (`Default` / `SmallRound` / large Popout `Round` region),
 - fade delay preset (`normal` / `long` / `short`),
 - graduated active/idle opacity (`1.00/1.00`, `0.94/0.86`, `0.82/0.72`),
 - control density (Sharp compact, Soft Glass airy),
@@ -389,6 +408,8 @@ Current schema stores:
 | `theme.idleWindowOpacity` | Nullable behavior override; `null` means follow preset. |
 | `activeProfileName` | Name of the profile currently driving per-profile overrides, or `null`. |
 | `profiles[].accentColor` | Optional exact profile RGB; a valid active value drives the app accent and never replaces the global fallback. |
+| `player.focusedPresentation` | Global Standard/Focused default for newly opened Popout Players; `false` means Standard. |
+| `profiles[].presentation` | Optional `standard` / `focused` per-target override; `null` inherits the global presentation. |
 
 Legacy mirrors are still written under `player` for older builds:
 
@@ -411,6 +432,8 @@ The theme preset does not change:
 - Saved profiles.
 - Profile playback mode.
 - Global compact mode.
+- Global/profile Popout presentation selection (Standard or Focused overlay).
+- Passive-picture threshold drag availability; it is shared by Standard and Focused.
 - Existing popout mode after the popout is already open.
 - Main window or popout saved placement.
 - Topmost state.
@@ -428,7 +451,8 @@ Every current preset-level difference falls into one of these buckets:
 2. Default accent: preset default hex and derived runtime hover/light accent.
 3. Palette: nine surface/text/danger tokens.
 4. Radii: twelve semantic radius tokens (all distinct across the three presets).
-5. Native DWM corner mode: all three differ (`Default` / `SmallRound` / `Round`).
+5. Native corner treatment: all three differ (`Default` / `SmallRound` / `Round` plus the large
+   floating-Popout region).
 6. Fade delay preset: all three differ (`normal` / `long` / `short`).
 7. Window opacity defaults: all three identities differ (`1.00/1.00`, `0.94/0.86`, `0.82/0.72`).
 8. Control density: heights, icon-button size, scrollbar thickness, and paddings (Sharp compact, Soft Glass airy; scrollbar ties between Minimal and Soft Glass; the default border is a uniform `1`).

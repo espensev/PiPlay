@@ -1,11 +1,11 @@
 # PiPlay Product & Engineering Specification
 
-**Status:** Draft 0.12 (beta candidate)
+**Status:** Draft 0.13 (beta candidate)
 **Project:** PiPlay
 **Purpose:** Quality-first Windows desktop app for playing YouTube videos in a movable, resizable Video Popout window.
 **Primary platform:** Windows desktop
 **Primary user:** A power user who wants a reliable always-available YouTube video surface while working in other apps.
-**Last updated:** 2026-06-07
+**Last updated:** 2026-07-15
 
 ---
 
@@ -116,6 +116,8 @@ When Video Popout starts:
 - The original YouTube area shows a black Source Placeholder such as `Playing in Video Popout`.
 - The Popout Player starts within 2 s of the expected source timestamp under the warm-WebView test condition, with a target of ≤1 s.
 - The Popout Player can be resized, moved, pinned, and closed.
+- A deliberate drag on passive video pixels moves the Popout Player after the system drag threshold;
+  ordinary clicks and interactive player controls keep their YouTube behavior.
 - Closing the Popout Player returns the Source Window without duplicate playback.
 
 ### 4.3 Quality target
@@ -171,12 +173,12 @@ YouTube red should remain YouTube-owned. PiPlay action accents should use cyan/p
 | Icon button | 10-14 px | 32x32 or 36x36 hit target. |
 | App icon tile | About 22% of size | Matches the rounded-square icon direction. |
 
-> **Outer-window corner shape is currently DWM-owned.** The Popout and Main windows host WebView2 by
-> HWND with `AllowsTransparency=False`, so the rounded radius comes from the OS
-> (`DWMWA_WINDOW_CORNER_PREFERENCE`): three fixed radii only (≈0 / small / standard ~8 px), with no
-> outer border or shadow following the curve. The `Popout Player 14-18 px` target above is therefore
-> not reachable through DWM; a large rounded-card silhouette with a curve-following border/shadow
-> requires lifting WebView2 airspace. Under review — see `SPEC_GAPS_AND_OWNERSHIP.md` (2026-06-23).
+> **Outer-window corner ownership is split.** Source, Settings, prompts, and non-`Round` Popouts use
+> the OS `DWMWA_WINDOW_CORNER_PREFERENCE` radii. A `Round` Popout additionally applies the resolved
+> `PopoutFrame` radius (22 DIP for Soft Glass / explicit Round) as a DPI-scaled top-level Win32 window
+> region. The region clips the child-HWND WebView2 without `AllowsTransparency=True`; it clears while
+> maximized or snap-like and reapplies when floating. This reaches the large media-card silhouette,
+> but it does not provide a guaranteed curve-following DWM border/shadow. See ADR-0008.
 
 ### 5.4 Icon style
 
@@ -226,12 +228,14 @@ Required:
 - No browser tabs.
 - No host-app browser chrome.
 - Resizable from edges and corners.
-- Draggable from the top chrome/empty shell area.
-- Optional `Alt + drag anywhere` behavior later.
+- Draggable from the top chrome/empty shell area and, after a real drag threshold, passive video pixels.
+- Video controls, progress/seek areas, links, menus, ads with actions, and end cards are never drag regions.
 - Pin/topmost toggle.
 - Settings gear that opens the same single Settings dialog used by the Source Window.
 - Close button.
 - Controls visible in MVP; hover/idle controls fade in Phase 2.
+- Optional **Focused overlay** presentation for an Opera-style media-first surface. Standard remains
+  the default, and both presentations keep the real Normal YouTube watch page.
 - Remembered bounds and monitor placement.
 - Clamp to visible monitors on restore.
 
@@ -478,6 +482,7 @@ Source Window
 Popout Player
   Native WPF floating window
   WebView2: popped-out YouTube playback
+  Optional Focused overlay: real watch player, full viewport, no crop
 ```
 
 This gives PiPlay control over size, placement, topmost behavior, closing, returning, saved profiles, and monitor restore.
@@ -500,6 +505,31 @@ PiPlay should support multiple playback modes, but only one should be the defaul
 > longer exposes a Compact player toggle. This is *not* a main-window compact layout, which is not
 > implemented. Do not call a main-window layout "Compact" unqualified. See
 > `SPEC_GAPS_AND_OWNERSHIP.md` (2026-06-23 owner appearance / popout / compact review).
+
+### 10.0 Popout presentation — Standard or Focused overlay
+
+Presentation is independent from playback mode. It changes how the real Normal `/watch` player is
+laid out and controlled; it does not select the dormant Compact embed/IFrame architecture.
+
+- **Standard** is the default and preserves the ordinary YouTube watch-page layout.
+- **Focused overlay** is optional. It gives the real watch-page player the Popout viewport and adds
+  a minimal Opera-style overlay: Mute, Captions, PiPlay Settings, Pin, Expand/Restore, Close,
+  Play/Pause, Next, progress, and time. Captions and Next are best-effort handoffs to YouTube's own
+  controls; Settings routes to the same Source-owned single-dialog workflow as the native strip.
+- Focused layout must use `object-fit: contain`; `cover` is forbidden by default. Free resize may
+  letterbox, but it must not crop the picture.
+- YouTube's native controls, branding, settings, quality, caption menu, and ad UI remain available.
+- The overlay is pointer-transparent except for its real buttons and seek rail, is keyboard named,
+  and follows the Popout Fade setting/delay.
+- `PlayerSettings.FocusedPresentation` is the global default for new Popout Players. Optional
+  `Profile.Presentation` tokens (`standard` / `focused`) override it only for that profile's target
+  video under `REQ-PROFILE-01`. Invalid or missing values normalize to the global default; Standard
+  itself remains the safe default.
+- Changing presentation affects new Popout Players; it does not rewrite an already-open page posture.
+
+Focused presentation is best-effort under Q-3/Q-6. Selector failure leaves the ordinary page and
+native Popout strip as the recovery surface. Compact remains dormant while
+`PlaybackModePolicy.CompactPlayerEnabled=false`.
 
 ### 10.1 Mode A — Normal YouTube page mode
 
@@ -613,6 +643,8 @@ PiPlay
 │  ├─ Player WebView2
 │  ├─ custom borderless chrome
 │  ├─ pin/topmost toggle
+│  ├─ Standard or optional Focused presentation
+│  ├─ passive-picture threshold drag bridge
 │  ├─ always-visible controls (MVP); fade/chrome controls later
 │  ├─ close/return lifecycle
 │  └─ timestamp sync timer
@@ -659,6 +691,7 @@ Responsible for:
 
 - Hosting popped-out playback.
 - Providing high-quality native window behavior.
+- Applying the resolved Standard/Focused presentation for the lifetime of that Popout Player.
 - Tracking last known timestamp.
 - Saving/restoring window bounds and topmost state.
 - Exposing a simple close/return signal to MainWindow.
@@ -670,6 +703,7 @@ Required controls:
 - Pin/unpin topmost.
 - Settings (gear), routed to MainWindow's shared single-dialog Settings workflow.
 - Drag surface.
+- Threshold drag from passive video pixels, excluding every interactive surface.
 - Resize edges/corners or resize border.
 
 Nice-to-have controls:
@@ -745,6 +779,11 @@ Quality requirements:
 - Failed script execution must not crash the app.
 - If the timestamp cannot be read, Video Popout should still work with a sensible fallback.
 - JavaScript strings should be centralized and tested.
+- Focused layout/overlay and passive-surface drag selectors must remain centralized here, installed
+  before navigation by dedicated lifecycle/message bridges, and covered by deterministic script tests.
+- Page-to-host requests use versioned nonce-bearing closed protocols and accept only HTTPS YouTube
+  message/current sources. A drag request carries no pointer coordinates; Focused may request only
+  Close, Pin toggle, Expand/Restore, or the existing Source-owned Settings workflow from the host.
 
 ### 12.6 SettingsService
 
@@ -775,6 +814,7 @@ Save format should include:
     "placement": null,
     "topmost": true,
     "compactMode": false,
+    "focusedPresentation": false,
     "fadeEnabled": false,
     "idleWindowOpacity": 1.0,
     "lastWidth": 960,
@@ -1022,7 +1062,8 @@ If WebView2 runtime is missing or broken:
 The Popout Player must:
 
 - Be borderless/chromeless from the host-app perspective.
-- Move smoothly by dragging the top shell/empty chrome area.
+- Move smoothly by dragging the top shell/empty chrome area or deliberately dragging passive video
+  pixels past the system drag threshold.
 - Resize predictably from edges and corners.
 - Remain usable at 320x180 in normal page mode; compact embed/IFrame mode may require a larger minimum.
 - Remember size and position.
@@ -1036,8 +1077,21 @@ The Popout Player must:
 
 Default:
 
-- Drag from the top shell area, title strip, or intentionally marked move region.
-- Do not make the whole video surface draggable by default because it conflicts with play/pause, seeking, settings, captions, and fullscreen controls.
+- The 44 DIP top shell/title strip remains an immediate, full-height native move region and recovery
+  path. Its blank handle area shows a move cursor; the adjacent buttons retain ordinary input.
+- A primary mouse/pen gesture may arm on passive pixels inside the real YouTube player. It becomes a
+  window move only after horizontal or vertical movement crosses the system drag threshold; below
+  threshold the click is untouched.
+- Once the threshold is crossed, suppress that gesture's click, release DOM pointer capture, and
+  post native `WM_SYSCOMMAND / (SC_MOVE | HTCAPTION)` movement only while the left button is still
+  physically down and the window is in its Normal state. The host listens only to top-document web
+  messages; recursive child-frame event wiring is prohibited after a deployed WebView2 crash repro.
+- Unused YouTube top/bottom chrome may arm a drag and still receives an ordinary click below
+  threshold. Never arm over buttons, links, inputs, menus, rendered caption containers,
+  timeline/progress/volume areas, settings/captions/fullscreen controls, PiPlay overlay controls, end
+  cards, or ads with actions.
+- The same behavior applies to Standard and Focused presentation. It introduces no click-through,
+  coordinate-bearing host message, global hook, or transparent WebView.
 
 Future optional behavior:
 
@@ -1051,11 +1105,13 @@ Required:
 - Native-feeling edge and corner resize.
 - Free resize by default.
 - Letterbox rather than crop video when aspect ratio differs.
+- Focused presentation explicitly enforces `object-fit: contain`; it must never silently switch to
+  `cover` to fill a mismatched aspect ratio.
 - **[REQ-WINDOW-02]** Phase 3 window-quality target: borderless windows use an edge resize hit area
   owned by the top-level window because the WebView2 child consumes hit testing over the video. The
-  current P1 implementation target is a 4 DIP black edge band for mouse/pen use and a 32 DIP corner
+  current owner-tuned implementation target is a 12 DIP black edge band for mouse/pen use and a 96 DIP corner
   length for diagonal resize. The corner length is measured along the edge band; it is not a full
-  32 x 32 DIP square that steals clicks from content. A visible outline, if drawn, should stay subtle
+  96 x 96 DIP square that steals clicks from content. A visible outline, if drawn, should stay subtle
   (0-2 px).
 
 Future optional behavior:
@@ -1109,6 +1165,7 @@ Phase 2 profile model:
   "name": "Compiler videos",
   "url": "https://www.youtube.com/playlist?list=...",
   "mode": null,
+  "presentation": null,
   "accentColor": null,
   "topmost": true,
   "fadeEnabled": null,
@@ -1147,6 +1204,9 @@ Quality requirements:
 - Compact-mode placement exists as reserved data (`PlayerSettings.CompactMode` plus optional
   `Profile.Mode` override), but the user-facing Compact player is dormant in v0.7.2+. New popouts
   force Normal while `PlaybackModePolicy.CompactPlayerEnabled=false`.
+- Popout presentation is an independent, live option: optional `Profile.Presentation` values
+  (`standard` / `focused`) override `PlayerSettings.FocusedPresentation` per target video. It must
+  not reuse or reactivate `Profile.Mode`.
 
 ---
 
@@ -1189,7 +1249,9 @@ Requirements:
 - Do not implement video downloading.
 - Do not bypass ads, DRM, region restrictions, age gates, or playback restrictions.
 - Do not inject scripts that alter YouTube monetization or required controls.
-- Keep JavaScript injection limited to local playback control: read current time, pause, play, seek, and read the canonical URL.
+- Keep JavaScript injection limited to local playback/presentation interaction: read current time,
+  pause, play, seek, read the canonical URL, threshold-detect a passive-picture drag, and apply the
+  optional Focused no-crop layout/controls. Do not hide required YouTube controls or alter ads.
 - Treat WebView2 user data as private browser data.
 - **[REQ-PRIVACY-01]** (**Phase 2** — deferred from MVP per section 23.) `Reset app state` clears PiPlay app settings, profiles, and placement from `settings.json` while keeping WebView2 browser data intact so the user stays logged into YouTube.
 - **[REQ-PRIVACY-02]** (**Phase 2** — deferred from MVP per section 23.) `Clear browser data` is a separate confirmed action that clears PiPlay's WebView2 user-data folder/profile and logs the user out of YouTube. It must be worded separately from app reset.
@@ -1211,6 +1273,7 @@ Minimum quality bar:
 - Close button is easy to find.
 - Error messages are readable.
 - Main controls are keyboard reachable where practical.
+- Focused overlay buttons and progress have accessible names and visible keyboard focus.
 - Dark UI has sufficient contrast.
 - Popout remains recoverable and interactable at all opacity settings.
 
@@ -1289,6 +1352,10 @@ A build should not be called “release candidate” until the following pass.
 | Monitor removed | Restore after monitor change | Player appears on visible monitor |
 | Network loss | Disconnect network | Error state, no crash |
 | Phase 2 controls fade | Let player idle, then hover | Controls fade and restore reliably |
+| Passive-picture drag | Click video, then deliberately drag passive picture pixels | Click still plays/pauses below threshold; deliberate drag moves the window |
+| Drag exclusions | Try controls, timeline, links, menus, captions/settings, end cards, ads with actions, and Focused controls | Each remains interactive and never starts a move |
+| Focused presentation | Enable Focused overlay and pop out a `/watch` video | Real watch player fills the viewport with no crop; overlay controls work where YouTube permits |
+| Presentation precedence | Exercise global Focused plus profile Standard/Focused/inherit | Profile target override wins per field; inherit follows global; Compact remains dormant |
 | Popout Settings | Open Settings from the Popout gear, then invoke the Source gear | The same Settings dialog activates; no second dialog opens |
 | Phase 4 opacity | Select each preset and exercise active/idle | Source title-bar backdrop follows active only; whole Popout follows active/idle and remains interactable |
 | Appearance preview rollback | Preview a preset and corner, then dismiss without Done | All open surfaces revert to the complete pre-dialog appearance |
@@ -1298,6 +1365,7 @@ A build should not be called “release candidate” until the following pass.
 - Main window looks intentional, not like an accidental browser wrapper.
 - Popout Player has no address bar, no tabs, and no OS border except custom shell.
 - Player drag feels immediate.
+- Passive-picture click remains a click until the drag threshold; passive-picture drag then feels native.
 - Resize does not produce jarring artifacts.
 - Topmost toggle is obvious.
 - Fade toggle is understandable when Phase 2 fade ships; MVP controls remain visible.
@@ -1306,6 +1374,8 @@ A build should not be called “release candidate” until the following pass.
 - Source Placeholder copy is understandable.
 - Icons share stroke weight, corner style, and active color behavior.
 - Popout remains usable at 320x180 in normal page mode; compact mode has its own minimum before release.
+- Focused presentation uses `contain` at wide, tall, and free-resized ratios: letterboxing is allowed,
+  cropping is not. Its overlay is pointer-transparent outside actual controls and seek rail.
 - Borderless resize zones are easy to acquire: left/right/top/bottom edges expose the configured
   edge resize border, corners expose diagonal resize over the configured corner length, and caption
   or player controls remain clickable outside the outer resize band.
@@ -1451,8 +1521,8 @@ Phase 2 landing status:
 
 ### Phase 3 — Compact player upgrade
 
-- Maintain borderless resize zones per `REQ-WINDOW-02` (current P1 target: 4 DIP edge band plus
-  32 DIP corner length).
+- Maintain borderless resize zones per `REQ-WINDOW-02` (current owner-tuned target: 12 DIP edge band plus
+  96 DIP corner length).
 - Keep compact-mode placement data dormant unless the Compact player is explicitly re-enabled.
 - Add embed mode improvements.
 - Add local `player.html` wrapper.
@@ -1469,6 +1539,8 @@ Phase 2 landing status:
 - Whole-popout opacity and size presets.
 - Import/export profiles.
 - Better accessibility and high-contrast support.
+- Optional Focused overlay presentation on the real Normal watch page, independent from dormant
+  Compact playback mode; Standard remains the default.
 
 Click-through remains out of scope for Phase 4 unless explicitly re-approved with a recovery design.
 
@@ -1489,17 +1561,19 @@ The following are normative defaults unless superseded by a later ADR or require
 | REQ-NAV-02 | The Popout Player stays on YouTube plus the Google sign-in surface and never wanders onto unrelated sites; unrelated navigation is blocked or opened externally. |
 | REQ-PRIVACY-01 / REQ-PRIVACY-02 | `Reset app state` and `Clear browser data` are separate actions. Reset keeps the YouTube session; clear browser data logs the user out. |
 | Section 16.3 | Popout resize is free by default; aspect lock is optional later. |
+| Section 16.2 | A deliberate primary mouse/pen drag on passive player pixels or unused YouTube chrome space moves the Popout after the system threshold. Ordinary clicks and every actual interactive YouTube/PiPlay control are preserved; the guaranteed native top handle is 44 DIP high. |
+| Section 10.0 | Standard is the default Popout presentation. Optional Focused overlay keeps the real Normal `/watch` page, fills the viewport with `object-fit: contain`, never crops by default, and is independent from dormant Compact mode. |
 | REQ-PROFILE-02 | Profiles store both bounds and monitor identity; restore same monitor when present, otherwise clamp to visible work area. |
 | Section 6.1 Auto | Trigger is playback-start, `/watch`-only, and off by default. Detection and launch share one Source-first target identity; every return arms the latch with the returned identity before navigation/resume, so it cannot immediately loop. Shorts and embeds are excluded. |
-| Sections 7.2 / 7.3 appearance | All presets default top-bar auto-hide on. Active/idle opacity defaults are Sharp Dark `1.00/1.00`, Minimal `0.94/0.86`, and Soft Glass `0.82/0.72`. Active also paints only the Source title-bar backdrop; active/idle paint the whole Popout. Preset/corner previews are live and non-affirmative dismissal reverts them completely. |
+| Sections 5.3 / 7.2 / 7.3 appearance | All presets default top-bar auto-hide on. Active/idle opacity defaults are Sharp Dark `1.00/1.00`, Minimal `0.94/0.86`, and Soft Glass `0.82/0.72`. Active also paints only the Source title-bar backdrop; active/idle paint the whole Popout. Preset/corner previews are live and non-affirmative dismissal reverts them completely. Soft Glass / explicit Round shapes the floating Popout with the DPI-scaled `PopoutFrame` region and clears it for maximized/snap-like layouts. |
 | Section 6.2 / 6.3 initial customization (historical Phase 2 boundary) | The first slice was fixed Pin/Fade swatches plus delay presets. Later releases superseded its no-opacity/no-profile-override boundary with the shared accent/profile model and §§7.2–7.3 appearance controls. Click-through and transparent WebView2 remain out of scope. |
-| REQ-WINDOW-02 | Borderless resize targets use a 4 DIP black edge resize band and a 32 DIP corner length for diagonal resize. A visual border can remain 0-2 px; no visible size grip is required. |
+| REQ-WINDOW-02 | Borderless resize targets use a 12 DIP black edge resize band and a 96 DIP corner length for diagonal resize. Direct owner testing superseded the earlier 4/32, 8/48, and 12/72 targets as too difficult to acquire. No visible size grip is required. |
 | Compact placement | Compact mode has reserved data (`PlayerSettings.CompactMode`, off by default, and optional `Profile.Mode`: `null` = global, `normal` = force normal, `compact` = force compact; legacy/internal `embed` normalizes to `compact`), but new popouts currently ignore it and force Normal while `PlaybackModePolicy.CompactPlayerEnabled=false`. |
 
 ### 25.2 Open decisions
 
 1. Should the Source Window be optional after launching a profile directly?
-2. Appearance / popout / compact directions from the 2026-06-23 owner review — the corner-silhouette architecture (accept the DWM limit vs lift WebView2 airspace), the transparency band, a main-window mode model (Browse / Cinema / Compact), optional active-profile popout border, and a "Restore video here" action — are tracked in `SPEC_GAPS_AND_OWNERSHIP.md` (2026-06-23 owner appearance / popout / compact review). The old global-accent/profile-identity split was explicitly superseded by the 2026-07-14 P2 decision in §17: an active profile color now drives the app and the global accent remains its fallback. The relaxed valid-hex gate remains implemented.
+2. Appearance / popout / compact directions from the 2026-06-23 owner review — the remaining outer-shadow/border decision after ADR-0008's large Popout silhouette, the transparency band, a main-window mode model (Browse / Cinema / Compact), optional active-profile popout border, and a "Restore video here" action — are tracked in `SPEC_GAPS_AND_OWNERSHIP.md` (2026-06-23 owner appearance / popout / compact review). The old global-accent/profile-identity split was explicitly superseded by the 2026-07-14 P2 decision in §17: an active profile color now drives the app and the global accent remains its fallback. The relaxed valid-hex gate remains implemented.
 
 ---
 
@@ -1582,8 +1656,8 @@ Implementation target for `REQ-WINDOW-02`:
 ```text
 Previous baseline:       6 DIP WindowChrome resize border on both primary windows
 Interim expanded target: 10 DIP invisible resize zone
-Current P1 edge target:  4 DIP black resize band tied to BorderlessResizeHitTestPolicy.ResizeBorderDip
-Mouse/pen corner target: 32 DIP corner length along the edge band
+Current edge target:     12 DIP black resize band tied to BorderlessResizeHitTestPolicy.ResizeBorderDip
+Mouse/pen corner target: 96 DIP corner length along the edge band
 Visual outline:          0-2 px, optional/subtle
 Touch-first future:      use explicit 40 x 40 effective-pixel affordances only in a touch/posture pass
 ```
@@ -1630,3 +1704,4 @@ These references support the current technical direction and should be rechecked
 | 0.10 | 2026-06-07 | Planned the Phase 3 compact-player sweep and resolved compact-mode placement as global default plus optional profile override. |
 | 0.11 | 2026-06-10 | Beta candidate cut (v0.4.0-beta): release-facing copy cleaned for beta publication without changing requirements. Phase 4 §7.2/§7.3 resolution notes and the overlay compliance record remain tracked on the 2026-06-10 overlay/opacity plan (Task 6). |
 | 0.12 | 2026-06-25 | Aligned the living spec with the v0.7.2 P1 surface: the current resize band is 4 DIP with 32 DIP corner acquisition, and the Compact player is dormant behind `PlaybackModePolicy.CompactPlayerEnabled=false` while its settings/profile data remains reserved. |
+| 0.13 | 2026-07-15 | Added the optional Focused Popout presentation over the real Normal watch page, no-crop full-viewport layout and accessible overlay-control contract, global/profile precedence, and threshold drag from passive video pixels while preserving all interactive controls. Compact remains dormant and Standard remains the default. |

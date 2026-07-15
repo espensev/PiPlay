@@ -5,7 +5,8 @@ namespace PiPlay.Tests;
 /// <summary>
 /// Hit-test logic for the borderless resize band. Points are derived from the policy constants
 /// (<see cref="BorderlessResizeHitTestPolicy.ResizeBorderDip"/> / <c>CornerLengthDip</c>) rather than
-/// hard-coded pixels, so the band can be re-tuned (e.g. the P1 10→4 DIP shrink) without recalibrating
+/// hard-coded pixels, so the band can be re-tuned (for example the owner-requested 4→12 DIP increase)
+/// without recalibrating
 /// every case — the tests guard the *invariant* (correct HT codes at the configured band), not a literal.
 /// </summary>
 [Trait(TestCategories.Key, TestCategories.Logic)]
@@ -22,6 +23,13 @@ public class BorderlessResizeHitTestPolicyTests
 
     private static int? HitTest(double x, double y) =>
         BorderlessResizeHitTestPolicy.HitTest(Width, Height, x, y, isResizable: true, isNormalWindowState: true);
+
+    [Fact]
+    public void Owner_tuned_resize_target_keeps_12_DIP_edges_and_96_DIP_corners()
+    {
+        Assert.Equal(12, BorderlessResizeHitTestPolicy.ResizeBorderDip);
+        Assert.Equal(96, BorderlessResizeHitTestPolicy.CornerLengthDip);
+    }
 
     [Fact]
     public void Edges_inside_the_band_return_cardinal_resize_results()

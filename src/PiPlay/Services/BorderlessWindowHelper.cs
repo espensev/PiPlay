@@ -14,6 +14,12 @@ public static class BorderlessWindowHelper
     private const int WM_GETMINMAXINFO = 0x0024;
     private const int WM_NCHITTEST = 0x0084;
     private const int WM_NCDESTROY = 0x0082;
+    private const int WM_SYSCOMMAND = 0x0112;
+    private const int WM_ENTERSIZEMOVE = 0x0231;
+    private const int WM_EXITSIZEMOVE = 0x0232;
+    private const int SC_MOVE = 0xF010;
+    private const int HTCAPTION = 2;
+    private const int VK_LBUTTON = 0x01;
     private const uint MONITOR_DEFAULTTONEAREST = 2;
     private static readonly UIntPtr ResizeSubclassId = new(0x5049504C); // "PIPL"
     private static readonly Dictionary<IntPtr, ResizeSubclassState> ResizeSubclassStates = new();
@@ -32,20 +38,61 @@ public static class BorderlessWindowHelper
             window.SourceInitialized += (_, _) => Hook();
     }
 
-    public static void EnableExpandedResizeZones(Window window)
+    public static void EnableExpandedResizeZones(Window window, Action<bool>? moveSizeStateChanged = null)
     {
         void Hook()
         {
             var hwnd = new WindowInteropHelper(window).Handle;
             if (hwnd == IntPtr.Zero && PresentationSource.FromVisual(window) is HwndSource src)
                 hwnd = src.Handle;
-            InstallResizeSubclass(hwnd, window);
+            InstallResizeSubclass(hwnd, window, moveSizeStateChanged);
         }
 
         if (PresentationSource.FromVisual(window) is not null)
             Hook();
         else
             window.SourceInitialized += (_, _) => Hook();
+    }
+
+    /// <summary>
+    /// Queue a validated player-surface gesture into the native caption move loop. Posting
+    /// WM_SYSCOMMAND lets the WebView2 callback unwind before Windows enters its modal move loop.
+    /// </summary>
+    internal static bool TryBeginWindowMove(Window window)
+    {
+        if (window.WindowState != WindowState.Normal || !IsLeftButtonDown()) return false;
+        var hwnd = new WindowInteropHelper(window).Handle;
+        if (hwnd == IntPtr.Zero || !GetCursorPos(out var point)) return false;
+
+        return QueueWindowMove(hwnd, point.X, point.Y, PostMessage);
+    }
+
+    internal static bool IsLeftButtonDown() => (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+
+    internal static IntPtr PackScreenPointForTests(int x, int y) => PackScreenPoint(x, y);
+
+    internal static bool QueueWindowMoveForTests(
+        IntPtr hwnd,
+        int x,
+        int y,
+        Func<IntPtr, int, IntPtr, IntPtr, bool> postMessage) =>
+        QueueWindowMove(hwnd, x, y, postMessage);
+
+    private static bool QueueWindowMove(
+        IntPtr hwnd,
+        int x,
+        int y,
+        Func<IntPtr, int, IntPtr, IntPtr, bool> postMessage) =>
+        hwnd != IntPtr.Zero && postMessage(
+            hwnd,
+            WM_SYSCOMMAND,
+            new IntPtr(SC_MOVE | HTCAPTION),
+            PackScreenPoint(x, y));
+
+    private static IntPtr PackScreenPoint(int x, int y)
+    {
+        var packed = unchecked((int)((uint)(ushort)x | ((uint)(ushort)y << 16)));
+        return new IntPtr(packed);
     }
 
     private static IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -71,13 +118,16 @@ public static class BorderlessWindowHelper
         return IntPtr.Zero;
     }
 
-    private static void InstallResizeSubclass(IntPtr hwnd, Window window)
+    private static void InstallResizeSubclass(
+        IntPtr hwnd,
+        Window window,
+        Action<bool>? moveSizeStateChanged)
     {
         if (hwnd == IntPtr.Zero) return;
         if (ResizeSubclassStates.ContainsKey(hwnd)) return;
 
         SubclassProc proc = ResizeSubclassProc;
-        var state = new ResizeSubclassState(window, proc);
+        var state = new ResizeSubclassState(window, proc, moveSizeStateChanged);
         if (SetWindowSubclass(hwnd, proc, ResizeSubclassId, UIntPtr.Zero))
             ResizeSubclassStates[hwnd] = state;
     }
@@ -95,6 +145,11 @@ public static class BorderlessWindowHelper
     {
         if (ResizeSubclassStates.TryGetValue(hwnd, out var state))
         {
+            state.InMoveSizeLoop = ProcessMoveSizeMessage(
+                state.InMoveSizeLoop,
+                msg,
+                state.MoveSizeStateChanged);
+
             if (msg == WM_NCHITTEST)
             {
                 var hit = HitTestResizeZone(state.Window, lParam);
@@ -110,6 +165,35 @@ public static class BorderlessWindowHelper
 
         return DefSubclassProc(hwnd, msg, wParam, lParam);
     }
+
+    /// <summary>
+    /// Keep managed activity state aligned with the actual native modal move/resize loop. The
+    /// callback is deliberately transition-only and exception-contained because it runs inside a
+    /// native subclass procedure.
+    /// </summary>
+    private static bool ProcessMoveSizeMessage(
+        bool inMoveSizeLoop,
+        int message,
+        Action<bool>? moveSizeStateChanged)
+    {
+        var next = message switch
+        {
+            WM_ENTERSIZEMOVE => true,
+            WM_EXITSIZEMOVE or WM_NCDESTROY => false,
+            _ => inMoveSizeLoop,
+        };
+
+        if (next == inMoveSizeLoop) return inMoveSizeLoop;
+        try { moveSizeStateChanged?.Invoke(next); }
+        catch { /* managed exceptions must never escape a native window procedure */ }
+        return next;
+    }
+
+    internal static bool ProcessMoveSizeMessageForTests(
+        bool inMoveSizeLoop,
+        int message,
+        Action<bool>? moveSizeStateChanged) =>
+        ProcessMoveSizeMessage(inMoveSizeLoop, message, moveSizeStateChanged);
 
     private static int? HitTestResizeZone(Window window, IntPtr lParam)
     {
@@ -189,6 +273,15 @@ public static class BorderlessWindowHelper
     [DllImport("user32.dll")]
     private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
 
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int virtualKey);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out POINT point);
+
+    [DllImport("user32.dll")]
+    private static extern bool PostMessage(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam);
+
     private delegate IntPtr SubclassProc(
         IntPtr hwnd,
         int msg,
@@ -197,7 +290,16 @@ public static class BorderlessWindowHelper
         UIntPtr subclassId,
         UIntPtr refData);
 
-    private sealed record ResizeSubclassState(Window Window, SubclassProc Proc);
+    private sealed class ResizeSubclassState(
+        Window window,
+        SubclassProc proc,
+        Action<bool>? moveSizeStateChanged)
+    {
+        public Window Window { get; } = window;
+        public SubclassProc Proc { get; } = proc;
+        public Action<bool>? MoveSizeStateChanged { get; } = moveSizeStateChanged;
+        public bool InMoveSizeLoop { get; set; }
+    }
 
     [DllImport("comctl32.dll", SetLastError = true)]
     private static extern bool SetWindowSubclass(
