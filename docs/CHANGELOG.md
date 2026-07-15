@@ -2,7 +2,7 @@
 
 All notable changes to PiPlay are recorded here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/); draft numbering is used until 1.0.
 
-## [Unreleased]
+## [0.11.0] - 2026-07-15
 
 ### Added
 - **Optional Focused overlay for an Opera-style Popout.** New Popout Players can keep Standard or use
