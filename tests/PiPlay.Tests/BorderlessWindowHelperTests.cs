@@ -5,6 +5,73 @@ namespace PiPlay.Tests;
 [Trait(TestCategories.Key, TestCategories.Logic)]
 public class BorderlessWindowHelperTests
 {
+    [Theory]
+    [InlineData(96, 760, 480)]
+    [InlineData(120, 950, 600)]
+    [InlineData(144, 1140, 720)]
+    public void Minimum_track_size_enforces_window_dip_floor_at_current_dpi(
+        int dpi,
+        int expectedWidth,
+        int expectedHeight)
+    {
+        var actual = BorderlessWindowHelper.CalculateMinimumTrackSizeForTests(
+            existingWidthPixels: 120,
+            existingHeightPixels: 80,
+            minWidthDips: 760,
+            minHeightDips: 480,
+            dpi: (uint)dpi);
+
+        Assert.Equal(expectedWidth, actual.Width);
+        Assert.Equal(expectedHeight, actual.Height);
+    }
+
+    [Fact]
+    public void Minimum_track_size_preserves_a_stricter_native_floor_per_axis()
+    {
+        var actual = BorderlessWindowHelper.CalculateMinimumTrackSizeForTests(
+            existingWidthPixels: 1300,
+            existingHeightPixels: 80,
+            minWidthDips: 760,
+            minHeightDips: 480,
+            dpi: 144);
+
+        Assert.Equal(1300, actual.Width);
+        Assert.Equal(720, actual.Height);
+    }
+
+    [Fact]
+    public void Minimum_track_size_rounds_fractional_device_pixels_up()
+    {
+        var actual = BorderlessWindowHelper.CalculateMinimumTrackSizeForTests(
+            existingWidthPixels: 0,
+            existingHeightPixels: 0,
+            minWidthDips: 760.1,
+            minHeightDips: 480.1,
+            dpi: 120);
+
+        Assert.Equal(951, actual.Width);
+        Assert.Equal(601, actual.Height);
+    }
+
+    [Fact]
+    public void Maximized_bounds_remain_relative_to_the_monitor_work_area()
+    {
+        var actual = BorderlessWindowHelper.CalculateMaximizedBoundsForTests(
+            monitorLeft: -1920,
+            monitorTop: -100,
+            monitorRight: 0,
+            monitorBottom: 1080,
+            workLeft: -1900,
+            workTop: -60,
+            workRight: -20,
+            workBottom: 1040);
+
+        Assert.Equal(20, actual.X);
+        Assert.Equal(40, actual.Y);
+        Assert.Equal(1880, actual.Width);
+        Assert.Equal(1100, actual.Height);
+    }
+
     [Fact]
     public void Native_move_is_queued_as_an_asynchronous_system_command()
     {

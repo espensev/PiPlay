@@ -991,6 +991,11 @@ public class WpfRuntimeTests : IDisposable
         var w = new MainWindow();
         Assert.IsType<TextBox>(w.FindName("UrlBox"));
         Assert.IsType<Button>(w.FindName("PopOutButton"));
+        Assert.IsType<Button>(w.FindName("ShowPopoutButton"));
+        Assert.IsType<Button>(w.FindName("ProfileActionsButton"));
+        Assert.IsType<ContextMenu>(w.FindName("ProfileActionsMenu"));
+        Assert.IsType<MenuItem>(w.FindName("SaveProfileMenuItem"));
+        Assert.IsType<Button>(w.FindName("PlaceholderShowPopoutButton"));
         Assert.IsType<Button>(w.FindName("PlaceholderBringBackButton"));
         Assert.IsType<ComboBox>(w.FindName("ProfilesCombo"));
         Assert.IsType<Border>(w.FindName("SourcePlaceholder"));
@@ -1004,17 +1009,39 @@ public class WpfRuntimeTests : IDisposable
         // the accessible name must flip in the same code path as the label.
         var w = new MainWindow();
         var btn = (Button)w.FindName("PopOutButton")!;
+        var icon = (TextBlock)w.FindName("PopOutButtonIcon")!;
         var label = (TextBlock)w.FindName("PopOutButtonText")!;
+        var show = (Button)w.FindName("ShowPopoutButton")!;
 
         w.ApplyPopoutActionState(hasPlayer: true);
         Assert.Equal("Bring video back", label.Text);
+        Assert.Equal("\uE73F", icon.Text);
         Assert.Equal("Bring video back", System.Windows.Automation.AutomationProperties.GetName(btn));
         Assert.Contains("Return playback", (string)btn.ToolTip);
+        Assert.Equal(Visibility.Visible, show.Visibility);
 
         w.ApplyPopoutActionState(hasPlayer: false);
         Assert.Equal("Pop out video", label.Text);
+        Assert.Equal("\uE8A7", icon.Text);
         Assert.Equal("Pop out video", System.Windows.Automation.AutomationProperties.GetName(btn));
         Assert.Contains("Pop out", (string)btn.ToolTip);
+        Assert.Equal(Visibility.Collapsed, show.Visibility);
+    });
+
+    [Fact]
+    public void Compact_Source_toolbar_keeps_the_transfer_icon_and_hides_only_its_text() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        var icon = (TextBlock)w.FindName("PopOutButtonIcon")!;
+        var label = (TextBlock)w.FindName("PopOutButtonText")!;
+
+        w.ApplySourceToolbarLayout(800);
+        Assert.Equal(Visibility.Collapsed, label.Visibility);
+        Assert.Equal(new Thickness(0), icon.Margin);
+
+        w.ApplySourceToolbarLayout(1180);
+        Assert.Equal(Visibility.Visible, label.Visibility);
+        Assert.Equal(new Thickness(0, 0, 8, 0), icon.Margin);
     });
 
     [Fact]

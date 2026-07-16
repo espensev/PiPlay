@@ -116,11 +116,11 @@ public class XamlInvariantTests
         new object[] { "MainWindow.xaml", new[]
         {
             "Browser", "UrlBox", "ProfilesCombo", "PinToggle", "AutoToggle", "TitleText", "PinnedHint", "MainBarBackdrop", "PopOutButton",
-            "PopOutButtonIcon", "PopOutButtonText",
-            "BackButton", "ReloadButton", "HomeButton", "SaveProfileButton",
-            "EditProfileButton", "DeleteProfileButton",
+            "SourceToolbar", "SourceNavigationGroup", "SourceProfileGroup", "PopOutButtonIcon", "PopOutButtonText",
+            "BackButton", "ReloadButton", "HomeButton", "ProfileActionsButton", "ProfileActionsMenu",
+            "SaveProfileMenuItem", "EditProfileMenuItem", "DeleteProfileMenuItem", "ShowPopoutButton",
             "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton",
-            "SourcePlaceholder", "PlaceholderBringBackButton", "PlaceholderNoteText", "RuntimeErrorPanel", "RuntimeErrorText",
+            "SourcePlaceholder", "PlaceholderShowPopoutButton", "PlaceholderBringBackButton", "PlaceholderNoteText", "RuntimeErrorPanel", "RuntimeErrorText",
         }},
         new object[] { "PlayerWindow.xaml", new[]
         {
@@ -269,14 +269,22 @@ public class XamlInvariantTests
     [Fact]
     public void Source_placeholder_has_bring_video_back_action()
     {
-        var button = XamlTestFiles.Load("MainWindow.xaml").Descendants(XamlTestFiles.Pres + "Button")
+        var buttons = XamlTestFiles.Load("MainWindow.xaml").Descendants(XamlTestFiles.Pres + "Button").ToList();
+        var button = buttons
             .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "PlaceholderBringBackButton");
+        var show = buttons
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "PlaceholderShowPopoutButton");
 
         Assert.Equal("Bring video back", button.Attribute("Content")?.Value);
         Assert.Equal("{StaticResource AccentButton}", button.Attribute("Style")?.Value);
         Assert.Equal("PlaceholderBringBackButton_Click", button.Attribute("Click")?.Value);
         Assert.Equal("Bring video back", button.Attribute("AutomationProperties.Name")?.Value);
         Assert.Contains("Return playback", button.Attribute("ToolTip")?.Value);
+
+        Assert.Equal("Show popout", show.Attribute("Content")?.Value);
+        Assert.Equal("{StaticResource DarkButton}", show.Attribute("Style")?.Value);
+        Assert.Equal("PlaceholderShowPopoutButton_Click", show.Attribute("Click")?.Value);
+        Assert.NotEqual(show.Attribute("Click")?.Value, button.Attribute("Click")?.Value);
     }
 
     /// <summary>
@@ -297,7 +305,7 @@ public class XamlInvariantTests
         foreach (var accented in new[]
                  {
                      "BackButton", "ReloadButton", "HomeButton",
-                     "SaveProfileButton", "EditProfileButton", "DeleteProfileButton",
+                     "ProfileActionsButton", "ShowPopoutButton",
                  })
         {
             Assert.Equal("{StaticResource AccentIconButton}", StyleOf(accented));
@@ -518,8 +526,9 @@ public class XamlInvariantTests
         {
             "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton",
             "BackButton", "ReloadButton", "HomeButton", "UrlBox", "ProfilesCombo",
-            "SaveProfileButton", "EditProfileButton", "DeleteProfileButton",
-            "PinToggle", "AutoToggle", "PopOutButton", "PlaceholderBringBackButton",
+            "ProfileActionsButton", "SaveProfileMenuItem", "EditProfileMenuItem", "DeleteProfileMenuItem",
+            "PinToggle", "AutoToggle", "ShowPopoutButton", "PopOutButton",
+            "PlaceholderShowPopoutButton", "PlaceholderBringBackButton",
         }},
         new object[] { "PlayerWindow.xaml", new[] { "SettingsButton", "FadeToggle", "PinToggle", "ExpandButton", "CloseButton" } },
         new object[] { "SettingsWindow.xaml", new[] { "CloseButton", "DoneButton" } },
@@ -535,8 +544,8 @@ public class XamlInvariantTests
         foreach (var name in new[]
         {
             "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton", "BackButton",
-            "ReloadButton", "HomeButton", "UrlBox", "ProfilesCombo", "SaveProfileButton",
-            "EditProfileButton", "DeleteProfileButton", "PinToggle", "AutoToggle",
+            "ReloadButton", "HomeButton", "UrlBox", "ProfilesCombo", "ProfileActionsButton",
+            "PinToggle", "AutoToggle", "ShowPopoutButton", "PlaceholderShowPopoutButton",
         })
         {
             Assert.False(string.IsNullOrWhiteSpace(byName[name].Attribute("ToolTip")?.Value),

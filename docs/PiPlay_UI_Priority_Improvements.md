@@ -4,7 +4,7 @@
 > forward roadmap toward the "floating media player" vision. P1/P3/P7/P8 require the deferred
 > transparency/WebView2 architecture lift; scope notes are in `SPEC_GAPS_AND_OWNERSHIP.md`.
 >
-> **Status as of v0.9.0 — parts of this roadmap have SHIPPED; read the sections below as the
+> **Status as of 2026-07-15 — parts of this roadmap have SHIPPED; read the sections below as the
 > original owner brief, not as a list of current defects:**
 > - **P1** is delivered and owner-retuned on 2026-07-15 (DWM frame, 12 DIP resize band/inset,
 >   96 DIP diagonal corner reach).
@@ -15,8 +15,11 @@
 >   the owner confirmed the reversal of the v0.6.0 identity-only split, and the product spec now agrees.
 > - **P4's core dock/undock shipped in v0.8.0** — the toolbar and placeholder actions now flip to
 >   "Bring video back" and return playback to the Source Window (see `docs/CHANGELOG.md` [0.8.0]).
->   Its "Current Problems" text below is therefore **stale**. Not all of its acceptance bullets are met
->   (no placeholder at all, seamless transfer, playlist position), so P4 is **not** signed off.
+>   The current Unreleased recovery pass additionally restores a minimized Source, gates replay,
+>   coordinates Pin, separates Show Popout from Bring back, and makes the Source toolbar usable at its
+>   minimum size. Its "Current Problems" text below is therefore **stale**. Not all acceptance bullets
+>   are met (no placeholder at all, interruption-free transfer, playlist position), so P4 is **not**
+>   signed off.
 > - **P3, P5, P6, P7, P8** remain open as written.
 
 ---

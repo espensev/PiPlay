@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
@@ -21,6 +22,9 @@ public partial class MainWindow : Window
     // Segoe MDL2 caption glyphs (kept as escapes so the source stays plain ASCII).
     private const string GlyphMaximize = "";
     private const string GlyphRestore = "";
+    private const string GlyphPopOut = "\uE8A7";
+    private const string GlyphBringBack = "\uE73F";
+    private const double CompactToolbarThreshold = 940;
 
     private readonly SettingsService _settingsService = new();
     private AppSettings _settings;
@@ -32,7 +36,11 @@ public partial class MainWindow : Window
 
     // Video Popout lifecycle state (spec 13).
     private bool _popoutInProgress;
+    private bool _returnInProgress;
     private PlayerWindow? _player;
+    private bool _sourcePinSuspendedForPopout;
+    private bool _sourceTopmostBeforePopout;
+    private bool _sourceNavigationSuspended;
     private bool _sourceWasPlayingAtPopout;
     // The source's pre-suppression playback settings, captured at popout launch. Used as the return
     // fallback when the popout never reported live state (e.g. X-close before the first sync sample),
@@ -120,7 +128,8 @@ public partial class MainWindow : Window
             // never an opacity side effect. Default mode leaves the window DWM-pristine.
             ApplyOwnCornerMode();
             if (_placementRestored) return;
-            WindowPlacementService.Restore(this, _settings.MainWindow.Placement);
+            WindowPlacementService.Restore(this, NormalizeSourcePlacementForRestore(
+                _settings.MainWindow.Placement, MinWidth, MinHeight));
             _placementRestored = true;
         };
 
@@ -130,7 +139,26 @@ public partial class MainWindow : Window
         ApplySourceBarOpacity();
         LoadProfilesIntoCombo();
         ApplyChannelTitle();
+        UpdatePopoutActionState();
+        ApplySourceToolbarLayout(Width);
     }
+
+    private static PlacementData? NormalizeSourcePlacementForRestore(
+        PlacementData? placement,
+        double minWidthDip,
+        double minHeightDip) =>
+        placement is null
+            ? null
+            : PlacementMath.EnsureMinSize(
+                placement,
+                (int)Math.Ceiling(minWidthDip),
+                (int)Math.Ceiling(minHeightDip));
+
+    internal static PlacementData? NormalizeSourcePlacementForRestoreForTests(
+        PlacementData? placement,
+        double minWidthDip = 760,
+        double minHeightDip = 480) =>
+        NormalizeSourcePlacementForRestore(placement, minWidthDip, minHeightDip);
 
     /// <summary>
     /// Surface a non-default channel (e.g. Stable) in the title bar and taskbar so a deployed copy is
@@ -176,7 +204,7 @@ public partial class MainWindow : Window
             core.SourceChanged += Core_SourceChanged;
 
             _browserReady = true;
-            PopOutButton.IsEnabled = true;
+            UpdatePopoutActionState();
 
             var startUrl = _pendingUrl ?? _settings.LastUrl;
             _pendingUrl = null;
@@ -202,9 +230,16 @@ public partial class MainWindow : Window
 
     private void ShowRuntimeError(string message)
     {
+        _browserReady = false;
+        UpdateAutoDetector();
+        if (_pendingReturnReplay is not null || _returnInProgress)
+        {
+            _pendingReturnReplay = null;
+            CompleteReturnTransition();
+        }
         RuntimeErrorText.Text = message;
         RuntimeErrorPanel.Visibility = Visibility.Visible;
-        PopOutButton.IsEnabled = false;
+        UpdatePopoutActionState();
     }
 
     private void DownloadRuntime_Click(object sender, RoutedEventArgs e) =>
@@ -231,25 +266,47 @@ public partial class MainWindow : Window
 
     private async void Core_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
-        if (!e.IsSuccess || _pendingReturnReplay is null) return;
+        if (_pendingReturnReplay is null) return;
+        if (!e.IsSuccess)
+        {
+            _pendingReturnReplay = null;
+            CompleteReturnTransition();
+            Log.Warn("Returned-video navigation failed; the Source Window is available without replaying state.");
+            return;
+        }
+
         await ReplayPendingReturnStateAsync();
     }
 
     private void ClearStalePendingReturnReplay(string? uri)
     {
         if (_pendingReturnReplay?.VideoId is not { Length: > 0 } pendingId) return;
-        if (!YouTubeUrlHelper.TryParse(uri, out var target) || target.VideoId is null) return;
-        if (string.Equals(pendingId, target.VideoId, StringComparison.Ordinal)) return;
+        if (YouTubeUrlHelper.TryParse(uri, out var target) &&
+            string.Equals(pendingId, target.VideoId, StringComparison.Ordinal)) return;
 
         _pendingReturnReplay = null;
+        CompleteReturnTransition();
     }
 
     private async Task ReplayPendingReturnStateAsync()
     {
         if (_pendingReturnReplayInProgress) return;
         var state = _pendingReturnReplay;
+        if (state is null)
+        {
+            CompleteReturnTransition();
+            return;
+        }
+
+        if (_clearingBrowserData || _mainWindowClosing)
+        {
+            if (ReferenceEquals(_pendingReturnReplay, state)) _pendingReturnReplay = null;
+            CompleteReturnTransition();
+            return;
+        }
+
         var core = Browser.CoreWebView2;
-        if (state is null || core is null || _clearingBrowserData || _mainWindowClosing) return;
+        if (core is null) return;
 
         _pendingReturnReplayInProgress = true;
         try
@@ -259,7 +316,7 @@ public partial class MainWindow : Window
                 // Re-validate every iteration: a navigation during the retry window can null/replace the
                 // pending state (ClearStalePendingReturnReplay) or move the source off-target. The loop
                 // holds `state` locally, so without this it would replay stale state onto the wrong page.
-                if (!ReferenceEquals(_pendingReturnReplay, state) || _mainWindowClosing) return;
+                if (!IsPendingReturnReplayCurrent(state)) return;
                 if (!IsCurrentSourceReturnReplayTarget(core, state))
                 {
                     if (ReferenceEquals(_pendingReturnReplay, state)) _pendingReturnReplay = null;
@@ -267,6 +324,7 @@ public partial class MainWindow : Window
                 }
 
                 var current = await YouTubeDomBridge.ReadPlayerStateAsync(core);
+                if (!IsPendingReturnReplayCurrent(state)) return;
                 if (current is not null)
                 {
                     await ApplyReturnedPlaybackStateAsync(core, state);
@@ -284,11 +342,13 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            if (ReferenceEquals(_pendingReturnReplay, state)) _pendingReturnReplay = null;
             Log.Error("Returned-video playback-state replay failed.", ex);
         }
         finally
         {
             _pendingReturnReplayInProgress = false;
+            if (_pendingReturnReplay is null) CompleteReturnTransition();
         }
     }
 
@@ -297,9 +357,14 @@ public partial class MainWindow : Window
         (YouTubeUrlHelper.TryParse(core.Source, out var target) &&
          string.Equals(target.VideoId, expected, StringComparison.Ordinal));
 
-    private static async Task ApplyReturnedPlaybackStateAsync(CoreWebView2 core, PlayerReturnState state)
+    private bool IsPendingReturnReplayCurrent(PlayerReturnState state) =>
+        ReferenceEquals(_pendingReturnReplay, state) && !_clearingBrowserData && !_mainWindowClosing;
+
+    private async Task ApplyReturnedPlaybackStateAsync(CoreWebView2 core, PlayerReturnState state)
     {
+        if (!IsPendingReturnReplayCurrent(state)) return;
         await YouTubeDomBridge.ApplyPlaybackSettingsAsync(core, state.Volume, state.Muted, state.PlaybackRate);
+        if (!IsPendingReturnReplayCurrent(state)) return;
 
         switch (state.Paused)
         {
@@ -404,6 +469,36 @@ public partial class MainWindow : Window
 
     private void HomeButton_Click(object sender, RoutedEventArgs e) => NavigateInternal("https://www.youtube.com/");
 
+    private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        var focusAddress = e.Key == Key.F6 ||
+                           (e.Key == Key.L && (Keyboard.Modifiers & ModifierKeys.Control) != 0);
+        if (!focusAddress || !SourceCommandsAvailable) return;
+
+        UrlBox.Focus();
+        UrlBox.SelectAll();
+        e.Handled = true;
+    }
+
+    private void SourceToolbar_SizeChanged(object sender, SizeChangedEventArgs e) =>
+        ApplySourceToolbarLayout(e.NewSize.Width);
+
+    internal void ApplySourceToolbarLayout(double width)
+    {
+        var compact = width > 0 && width < CompactToolbarThreshold;
+        PopOutButtonText.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        PopOutButtonIcon.Margin = compact ? new Thickness(0) : new Thickness(0, 0, 8, 0);
+    }
+
+    private void ProfileActionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!SourceCommandsAvailable) return;
+        UpdateProfileCommandState();
+        ProfileActionsMenu.PlacementTarget = ProfileActionsButton;
+        ProfileActionsMenu.Placement = PlacementMode.Bottom;
+        ProfileActionsMenu.IsOpen = true;
+    }
+
     private static void OpenExternal(string url)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return;
@@ -422,6 +517,7 @@ public partial class MainWindow : Window
 
     private void PinToggle_Click(object sender, RoutedEventArgs e)
     {
+        if (_sourcePinSuspendedForPopout) return;
         ApplyTopmost(PinToggle.IsChecked == true);
         _settings.MainWindow.Topmost = Topmost;
         _settingsService.Save(_settings);
@@ -429,10 +525,69 @@ public partial class MainWindow : Window
 
     private void ApplyTopmost(bool on)
     {
+        if (_sourcePinSuspendedForPopout)
+        {
+            _sourceTopmostBeforePopout = on;
+            Topmost = false;
+            PinToggle.IsChecked = false;
+            PinnedHint.Visibility = Visibility.Collapsed;
+            UpdateSourcePinAffordance(false);
+            return;
+        }
+
         Topmost = on;
         PinToggle.IsChecked = on;
         PinnedHint.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        UpdateSourcePinAffordance(on);
     }
+
+    private void SuspendSourcePinForPopout()
+    {
+        if (_sourcePinSuspendedForPopout) return;
+        _sourceTopmostBeforePopout = Topmost;
+        _sourcePinSuspendedForPopout = true;
+        PinToggle.IsEnabled = false;
+        Topmost = false;
+        PinToggle.IsChecked = false;
+        PinnedHint.Visibility = Visibility.Collapsed;
+        UpdateSourcePinAffordance(false);
+    }
+
+    private void RestoreSourcePinAfterPopout()
+    {
+        if (!_sourcePinSuspendedForPopout)
+        {
+            PinToggle.IsEnabled = true;
+            ApplyTopmost(Topmost);
+            return;
+        }
+
+        var restoreTopmost = _sourceTopmostBeforePopout;
+        _sourcePinSuspendedForPopout = false;
+        PinToggle.IsEnabled = true;
+        ApplyTopmost(restoreTopmost);
+    }
+
+    private void UpdateSourcePinAffordance(bool pinned)
+    {
+        var label = pinned
+            ? "Unpin Source Window from top"
+            : "Pin Source Window on top";
+        PinToggle.ToolTip = label;
+        System.Windows.Automation.AutomationProperties.SetName(PinToggle, label);
+    }
+
+    private void CaptureSourceTopmostPreferenceForClose()
+    {
+        _settings.MainWindow.Topmost = _sourcePinSuspendedForPopout
+            ? _sourceTopmostBeforePopout
+            : Topmost;
+    }
+
+    internal bool SavedSourceTopmostForTests => _settings.MainWindow.Topmost;
+    internal void SuspendSourcePinForPopoutForTests() => SuspendSourcePinForPopout();
+    internal void RestoreSourcePinAfterPopoutForTests() => RestoreSourcePinAfterPopout();
+    internal void CaptureSourceTopmostPreferenceForCloseForTests() => CaptureSourceTopmostPreferenceForClose();
 
     private void ApplySourceAppearance()
     {
@@ -491,7 +646,7 @@ public partial class MainWindow : Window
         // One tick at a time (a slow DOM read must not stack); skip while a popout owns the source.
         if (_autoTickInProgress) return;
         if (!_browserReady || !_settings.AutoPopout) return;
-        if (_popoutInProgress || _player is not null || _clearingBrowserData) return;
+        if (_popoutInProgress || _returnInProgress || _player is not null || _clearingBrowserData) return;
         var core = Browser.CoreWebView2;
         if (core is null) return;
 
@@ -507,7 +662,7 @@ public partial class MainWindow : Window
                     isWatchVideo,
                     currentVideoId: target.VideoId,
                     lastHandledVideoId: _autoLastHandledVideoId,
-                    popoutActive: _popoutInProgress || _player is not null))
+                    popoutActive: _popoutInProgress || _returnInProgress || _player is not null))
             {
                 return;
             }
@@ -519,7 +674,7 @@ public partial class MainWindow : Window
                 isWatchVideo,
                 currentVideoId: target.VideoId,
                 lastHandledVideoId: _autoLastHandledVideoId,
-                popoutActive: _popoutInProgress || _player is not null);
+                popoutActive: _popoutInProgress || _returnInProgress || _player is not null);
 
             if (decision == AutoPopDecision.Pop)
             {
@@ -556,9 +711,33 @@ public partial class MainWindow : Window
         ApplyResolvedAccent();
     }
 
+    private bool SourceCommandsAvailable =>
+        !_sourceNavigationSuspended && !_returnInProgress && !_popoutInProgress &&
+        !_clearingBrowserData && !_mainWindowClosing;
+
+    /// <summary>Hidden Source content cannot keep accepting navigation or profile commands.</summary>
+    private void UpdateSourceCommandAvailability()
+    {
+        var enabled = SourceCommandsAvailable;
+        SourceNavigationGroup.IsEnabled = enabled;
+        SourceProfileGroup.IsEnabled = enabled;
+        BackButton.IsEnabled = enabled;
+        ReloadButton.IsEnabled = enabled;
+        HomeButton.IsEnabled = enabled;
+        UrlBox.IsEnabled = enabled;
+        ProfilesCombo.IsEnabled = enabled;
+        ProfileActionsButton.IsEnabled = enabled;
+        SaveProfileMenuItem.IsEnabled = enabled;
+
+        var hasProfile = enabled && ProfilesCombo.SelectedItem is Profile;
+        EditProfileMenuItem.IsEnabled = hasProfile;
+        DeleteProfileMenuItem.IsEnabled = hasProfile;
+        if (!enabled) ProfileActionsMenu.IsOpen = false;
+        SettingsButton.IsEnabled = !_returnInProgress && !_privacyActionInProgress && !_mainWindowClosing;
+    }
+
     /// <summary>Edit/Delete act on the selected profile, so they are enabled only when one is picked.</summary>
-    private void UpdateProfileCommandState() =>
-        EditProfileButton.IsEnabled = DeleteProfileButton.IsEnabled = ProfilesCombo.SelectedItem is Profile;
+    private void UpdateProfileCommandState() => UpdateSourceCommandAvailability();
 
     private void ProfilesCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -1105,7 +1284,11 @@ public partial class MainWindow : Window
 
             _privacyActionInProgress = true;
             _clearingBrowserData = true;
+            _pendingReturnReplay = null;
+            if (_returnInProgress) CompleteReturnTransition();
             SettingsButton.IsEnabled = false;   // no second Settings window mid-await
+            UpdatePopoutActionState();
+            UpdateSourceCommandAvailability();
 
             // Single shared profile: closing the popout avoids it showing a logged-out surface.
             // _clearingBrowserData makes the popout's return handler skip driving source playback.
@@ -1143,6 +1326,8 @@ public partial class MainWindow : Window
             _privacyActionInProgress = false;
             _clearingBrowserData = false;
             SettingsButton.IsEnabled = true;
+            UpdatePopoutActionState();
+            UpdateSourceCommandAvailability();
         }
     }
 
@@ -1157,17 +1342,25 @@ public partial class MainWindow : Window
         else await StartVideoPopoutAsync();
     }
 
+    private void ShowPopoutButton_Click(object sender, RoutedEventArgs e) => ActivateExistingPlayer();
+
+    private void PlaceholderShowPopoutButton_Click(object sender, RoutedEventArgs e) => ActivateExistingPlayer();
+
     private async void PlaceholderBringBackButton_Click(object sender, RoutedEventArgs e) =>
         await BringVideoBackAsync();
+
+    private bool CanStartVideoPopout =>
+        _browserReady && !_popoutInProgress && !_returnInProgress && _player is null &&
+        !_clearingBrowserData && !_mainWindowClosing;
 
     private async Task StartVideoPopoutAsync(YouTubeTarget? resolvedTarget = null)
     {
         // Guards (spec 13.4): browser ready, no popout in flight, single player (ADR-0005).
-        if (!_browserReady || _popoutInProgress) return;
-        if (_player is not null) { await BringVideoBackAsync(); return; }
+        if (!CanStartVideoPopout) return;
 
         _popoutInProgress = true;
-        PopOutButton.IsEnabled = false;
+        UpdatePopoutActionState();
+        UpdateSourceCommandAvailability();
         var core = Browser.CoreWebView2;
         PlayerState? launchState = null;
 
@@ -1245,6 +1438,7 @@ public partial class MainWindow : Window
                 presentation: presentation);
             _player.PlayerClosed += Player_OnClosed;
             _player.SettingsRequested += Player_SettingsRequested;
+            SuspendSourcePinForPopout();
             _player.Show();
 
             if (target.FallbackReason is not null) Log.Info($"Popout fallback: {target.FallbackReason}");
@@ -1257,7 +1451,16 @@ public partial class MainWindow : Window
             Log.Error("Video Popout failed; restoring source.", ex);
             StopSourceSuppressionGuard();
             ShowSourcePlaceholder(false);
-            if (_player is not null) { try { _player.Close(); } catch { /* ignore */ } _player = null; }
+            if (_player is not null)
+            {
+                var failedPlayer = _player;
+                _player = null;
+                failedPlayer.PlayerClosed -= Player_OnClosed;
+                failedPlayer.SettingsRequested -= Player_SettingsRequested;
+                try { failedPlayer.Close(); } catch { /* ignore */ }
+            }
+            RestoreSourcePinAfterPopout();
+            RestoreSourceAfterReturn();
             if (core is not null)
                 await YouTubeDomBridge.ApplyPlaybackSettingsAsync(
                     core, launchState?.Volume, launchState?.Muted, launchState?.PlaybackRate);
@@ -1267,8 +1470,8 @@ public partial class MainWindow : Window
         finally
         {
             _popoutInProgress = false;
-            PopOutButton.IsEnabled = true;
             UpdatePopoutActionState();   // covers both outcomes: player created or rolled back
+            UpdateSourceCommandAvailability();
         }
     }
 
@@ -1290,7 +1493,8 @@ public partial class MainWindow : Window
         if (_player is null || _popoutInProgress) return;
 
         _popoutInProgress = true;
-        PopOutButton.IsEnabled = false;
+        UpdatePopoutActionState();
+        UpdateSourceCommandAvailability();
         try
         {
             var player = _player;
@@ -1305,8 +1509,8 @@ public partial class MainWindow : Window
         finally
         {
             _popoutInProgress = false;
-            PopOutButton.IsEnabled = true;
             UpdatePopoutActionState();
+            UpdateSourceCommandAvailability();
         }
     }
 
@@ -1315,16 +1519,58 @@ public partial class MainWindow : Window
     /// button returns playback instead of implying a second popout will open. Label, tooltip, and
     /// UIA name flip together so the accessible name never lies (REQ-UI-02).
     /// </summary>
-    private void UpdatePopoutActionState() => ApplyPopoutActionState(_player is not null);
+    private enum PopoutActionState
+    {
+        Ready,
+        Open,
+        Returning,
+    }
+
+    private void UpdatePopoutActionState()
+    {
+        var state = _returnInProgress
+            ? PopoutActionState.Returning
+            : _player is not null
+                ? PopoutActionState.Open
+                : PopoutActionState.Ready;
+        ApplyPopoutActionState(state);
+    }
 
     internal void ApplyPopoutActionState(bool hasPlayer)
+        => ApplyPopoutActionState(hasPlayer ? PopoutActionState.Open : PopoutActionState.Ready);
+
+    private void ApplyPopoutActionState(PopoutActionState state)
     {
-        var label = hasPlayer ? "Bring video back" : "Pop out video";
+        var label = state switch
+        {
+            PopoutActionState.Open => "Bring video back",
+            PopoutActionState.Returning => "Returning video...",
+            _ => "Pop out video",
+        };
+        PopOutButtonIcon.Text = state == PopoutActionState.Ready ? GlyphPopOut : GlyphBringBack;
         PopOutButtonText.Text = label;
         System.Windows.Automation.AutomationProperties.SetName(PopOutButton, label);
-        PopOutButton.ToolTip = hasPlayer
-            ? "Return playback to the Source Window"
-            : "Pop out the current video";
+        PopOutButton.ToolTip = state switch
+        {
+            PopoutActionState.Open => "Return playback to the Source Window",
+            PopoutActionState.Returning => "Returning playback to the Source Window",
+            _ => "Pop out the current video",
+        };
+        PopOutButton.IsEnabled = state switch
+        {
+            PopoutActionState.Open => !_popoutInProgress && !_clearingBrowserData && !_mainWindowClosing,
+            PopoutActionState.Returning => false,
+            _ => CanStartVideoPopout,
+        };
+
+        var playerCanActivate = state == PopoutActionState.Open && !_popoutInProgress &&
+                                !_clearingBrowserData && _player is not null;
+        ShowPopoutButton.Visibility = state == PopoutActionState.Open
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        ShowPopoutButton.IsEnabled = playerCanActivate;
+        PlaceholderShowPopoutButton.IsEnabled = playerCanActivate;
+        PlaceholderBringBackButton.IsEnabled = playerCanActivate;
     }
 
     /// <summary>
@@ -1366,12 +1612,60 @@ public partial class MainWindow : Window
         // Tier-1 placeholder (spec 13.3): hide the source WebView, show the WPF black panel.
         Browser.Visibility = visible ? Visibility.Hidden : Visibility.Visible;
         SourcePlaceholder.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        _sourceNavigationSuspended = visible;
+        UpdateSourceCommandAvailability();
 
         // Optional non-blocking note (Q-6), e.g. the mix/radio fallback reason. Cleared with the
         // placeholder so a stale note can't survive into the next popout.
         PlaceholderNoteText.Text = note ?? string.Empty;
         PlaceholderNoteText.Visibility =
             visible && !string.IsNullOrEmpty(note) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void BeginReturnTransition()
+    {
+        _returnInProgress = true;
+        UpdatePopoutActionState();
+        UpdateSourceCommandAvailability();
+    }
+
+    private void CompleteReturnTransition()
+    {
+        _returnInProgress = false;
+        UpdatePopoutActionState();
+        UpdateSourceCommandAvailability();
+    }
+
+    private void RestoreSourceAfterReturn()
+    {
+        if (_mainWindowClosing) return;
+
+        if (!IsVisible) Show();
+        if (WindowState == WindowState.Minimized)
+        {
+            SystemCommands.RestoreWindow(this);
+            if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        }
+
+        Activate();
+
+        // Activate can be denied by Windows foreground rules. A brief topmost pulse raises the
+        // Source without changing its persisted Pin preference or its final z-order contract.
+        var pinned = Topmost;
+        Topmost = true;
+        Topmost = pinned;
+    }
+
+    internal bool ReturnInProgressForTests => _returnInProgress;
+    internal bool CanStartVideoPopoutForTests => CanStartVideoPopout;
+    internal void BeginReturnForTests() => BeginReturnTransition();
+    internal void CompleteReturnForTests() => CompleteReturnTransition();
+    internal void RestoreSourceAfterReturnForTests() => RestoreSourceAfterReturn();
+
+    internal void SetBrowserReadyForTests(bool ready)
+    {
+        _browserReady = ready;
+        UpdatePopoutActionState();
     }
 
     private void StartSourceSuppressionGuard()
@@ -1416,7 +1710,6 @@ public partial class MainWindow : Window
         try
         {
             _player = null;
-            UpdatePopoutActionState();
 
             // Persist Popout Player window state.
             _settings.Player.Topmost = state.Topmost;
@@ -1443,14 +1736,28 @@ public partial class MainWindow : Window
 
             // Return to the source (spec 14). LastKnownSeconds is nullable; 0 is a valid timestamp.
             // ApplyReturnActionAsync self-skips while Clear browser data is wiping the session.
+            BeginReturnTransition();
             ShowSourcePlaceholder(false);
+            RestoreSourcePinAfterPopout();
+            RestoreSourceAfterReturn();
             await ApplyReturnActionAsync(state);
+
+            if (_pendingReturnReplay is null) CompleteReturnTransition();
 
             _settingsService.Save(_settings);
             Log.Info(_mainWindowClosing ? "Popout Player closed during app shutdown." : "Returned from Video Popout.");
         }
         catch (Exception ex)
         {
+            StopSourceSuppressionGuard();
+            _pendingReturnReplay = null;
+            if (!_mainWindowClosing)
+            {
+                ShowSourcePlaceholder(false);
+                RestoreSourcePinAfterPopout();
+                RestoreSourceAfterReturn();
+                CompleteReturnTransition();
+            }
             Log.Error("Error returning from Video Popout.", ex);
         }
     }
@@ -1491,6 +1798,7 @@ public partial class MainWindow : Window
                 state.Volume, state.Muted, state.PlaybackRate,
                 _sourceVolumeAtPopout, _sourceMutedAtPopout, _sourcePlaybackRateAtPopout);
             await YouTubeDomBridge.ApplyPlaybackSettingsAsync(core, volume, muted, rate);
+            if (_clearingBrowserData || _mainWindowClosing) return;
         }
 
         switch (action)
@@ -1589,6 +1897,8 @@ public partial class MainWindow : Window
         try
         {
             _mainWindowClosing = true;
+            UpdatePopoutActionState();
+            UpdateSourceCommandAvailability();
             _autoTimer?.Stop();
             CancelQueuedAccentPreview();
             StopSourceSuppressionGuard();
@@ -1598,7 +1908,9 @@ public partial class MainWindow : Window
             var placement = WindowPlacementService.TryCapture(this);
             if (placement is not null) _settings.MainWindow.Placement = placement;
             if (Browser.CoreWebView2 is not null) _settings.LastUrl = Browser.CoreWebView2.Source;
-            _settings.MainWindow.Topmost = Topmost;
+            // While a popout owns the foreground, Source Topmost is temporarily false. Preserve the
+            // user's saved Source Pin preference instead of persisting that transition detail.
+            CaptureSourceTopmostPreferenceForClose();
             _settingsService.Save(_settings);
         }
         catch (Exception ex)

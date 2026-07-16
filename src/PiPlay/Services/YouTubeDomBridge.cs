@@ -694,7 +694,7 @@ public static class YouTubeDomBridge
       if (controls.mute.title !== label) controls.mute.title = label;
     }
     if (controls.pin) {
-      const label = config.topmost ? "Unpin popout" : "Pin popout on top";
+      const label = config.topmost ? "Unpin popout from top" : "Pin popout on top";
       setAttribute(controls.pin, "aria-pressed", config.topmost);
       setAttribute(controls.pin, "aria-label", label);
       if (controls.pin.title !== label) controls.pin.title = label;

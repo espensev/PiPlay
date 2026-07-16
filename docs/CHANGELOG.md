@@ -2,6 +2,29 @@
 
 All notable changes to PiPlay are recorded here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/); draft numbering is used until 1.0.
 
+## [Unreleased]
+
+### Added
+- **Show Popout is now a separate recovery action.** It restores and focuses the existing player
+  without closing it; **Bring video back** remains the playback-transfer command. Profile
+  Save/Edit/Delete now share one dark, keyboard-native actions menu to leave more room for browsing.
+
+### Changed
+- **Source and Popout Pin now coordinate without merging preferences.** Source temporarily gives up
+  topmost while the player owns playback, then restores its actual pre-popout state, including a
+  profile-derived Pin. Pin tooltips and accessible names now say whether the next action pins or unpins.
+- **The Source toolbar adapts at compact widths.** Only the transfer label collapses; the icon, tooltip,
+  and accessible name remain, and `Ctrl+L` / `F6` focus the URL/search field.
+
+### Fixed
+- **Returning from Popout can no longer strand playback in a minimized Source.** Bring back, native X,
+  Alt+F4, and Focused Close restore and activate Source while preserving its normal/maximized state.
+- **Source no longer restores or resizes below 760 x 480 DIP.** Saved placement and native borderless
+  minimum tracking now honor DPI-scaled WPF minimums.
+- **Return is single-flight and hidden Source commands no longer drift playback.** The transfer action
+  stays in a disabled Returning state through pending replay, Auto/manual re-entry is blocked, and
+  navigation/profile commands are disabled while the Tier-1 placeholder hides YouTube.
+
 ## [0.11.0] - 2026-07-15
 
 ### Added

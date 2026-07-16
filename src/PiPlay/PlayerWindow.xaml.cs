@@ -162,6 +162,7 @@ public partial class PlayerWindow : Window
 
         Topmost = topmost;
         PinToggle.IsChecked = topmost;
+        UpdatePinAffordance(topmost);
 
         _fadeEnabled = fadeEnabled;
         FadeToggle.IsChecked = fadeEnabled;
@@ -783,8 +784,17 @@ public partial class PlayerWindow : Window
 
     private void ApplyTopmostFromToggle()
     {
-        Topmost = PinToggle.IsChecked == true;
+        var pinned = PinToggle.IsChecked == true;
+        Topmost = pinned;
+        UpdatePinAffordance(pinned);
         RefreshFocusedSurfaceAppearance();
+    }
+
+    private void UpdatePinAffordance(bool pinned)
+    {
+        var action = pinned ? "Unpin popout from top" : "Pin popout on top";
+        PinToggle.ToolTip = action;
+        System.Windows.Automation.AutomationProperties.SetName(PinToggle, action);
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();

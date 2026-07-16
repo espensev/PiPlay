@@ -11,7 +11,8 @@
         AllowsTransparency="False"
         Background="{DynamicResource AppBackground}"
         UseLayoutRounding="False"
-        SnapsToDevicePixels="True">
+        SnapsToDevicePixels="True"
+        PreviewKeyDown="MainWindow_PreviewKeyDown">
   <!-- Custom thin title bar with native resize (spec 5.5). AllowsTransparency stays False:
        a transparent WPF window is incompatible with the HwndHost WebView2 (airspace). -->
   <WindowChrome.WindowChrome>
@@ -74,18 +75,21 @@
     </Grid>
 
     <!-- Toolbar: navigation + URL/search + profiles + Pin + Pop out -->
-    <Grid Grid.Row="1" Background="{DynamicResource AppBackground}"
-          WindowChrome.IsHitTestVisibleInChrome="True">
+    <Grid x:Name="SourceToolbar" Grid.Row="1" Background="{DynamicResource AppBackground}"
+          WindowChrome.IsHitTestVisibleInChrome="True"
+          SizeChanged="SourceToolbar_SizeChanged">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="Auto" />   <!-- nav -->
         <ColumnDefinition Width="*" />       <!-- URL / search -->
         <ColumnDefinition Width="Auto" />   <!-- profiles -->
         <ColumnDefinition Width="Auto" />   <!-- Pin -->
         <ColumnDefinition Width="Auto" />   <!-- Auto -->
-        <ColumnDefinition Width="Auto" />   <!-- Pop out -->
+        <ColumnDefinition Width="Auto" />   <!-- Show existing Popout -->
+        <ColumnDefinition Width="Auto" />   <!-- Transfer video -->
       </Grid.ColumnDefinitions>
 
-      <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="8,0,4,0" VerticalAlignment="Center">
+      <StackPanel x:Name="SourceNavigationGroup" Grid.Column="0" Orientation="Horizontal"
+                  Margin="8,0,4,0" VerticalAlignment="Center">
         <Button x:Name="BackButton" Style="{StaticResource AccentIconButton}" Click="BackButton_Click"
                 Content="&#xE72B;" ToolTip="Back" AutomationProperties.Name="Back" />
         <Button x:Name="ReloadButton" Style="{StaticResource AccentIconButton}" Click="ReloadButton_Click"
@@ -100,8 +104,9 @@
                ToolTip="Paste a YouTube URL or type to search, then press Enter"
                AutomationProperties.Name="URL or search" />
 
-      <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="4,0" VerticalAlignment="Center">
-        <ComboBox x:Name="ProfilesCombo" Style="{StaticResource DarkComboBox}" Width="150"
+      <StackPanel x:Name="SourceProfileGroup" Grid.Column="2" Orientation="Horizontal"
+                  Margin="4,0" VerticalAlignment="Center">
+        <ComboBox x:Name="ProfilesCombo" Style="{StaticResource DarkComboBox}" Width="140"
                   SelectionChanged="ProfilesCombo_SelectionChanged"
                   ToolTip="Saved profiles" AutomationProperties.Name="Saved profiles">
           <ComboBox.ItemTemplate>
@@ -127,30 +132,55 @@
             </DataTemplate>
           </ComboBox.ItemTemplate>
         </ComboBox>
-        <Button x:Name="SaveProfileButton" Style="{StaticResource AccentIconButton}" Click="SaveProfileButton_Click"
-                Content="&#xE74E;" ToolTip="Save current page as a profile" Margin="2,0,0,0"
-                AutomationProperties.Name="Save profile" />
-        <Button x:Name="EditProfileButton" Style="{StaticResource AccentIconButton}" Click="EditProfileButton_Click"
-                Content="&#xE70F;" ToolTip="Edit selected profile" Margin="2,0,0,0" IsEnabled="False"
-                AutomationProperties.Name="Edit profile" />
-        <Button x:Name="DeleteProfileButton" Style="{StaticResource AccentIconButton}" Click="DeleteProfileButton_Click"
-                Content="&#xE74D;" ToolTip="Delete selected profile" Margin="2,0,0,0" IsEnabled="False"
-                AutomationProperties.Name="Delete profile" />
+        <Button x:Name="ProfileActionsButton" Style="{StaticResource AccentIconButton}"
+                Content="&#xE712;" ToolTip="Profile actions" Margin="2,0,0,0"
+                Click="ProfileActionsButton_Click" AutomationProperties.Name="Profile actions">
+          <Button.ContextMenu>
+            <ContextMenu x:Name="ProfileActionsMenu" Style="{StaticResource DarkContextMenu}"
+                         Placement="Bottom">
+              <MenuItem x:Name="SaveProfileMenuItem" Style="{StaticResource DarkMenuItem}"
+                        Header="_Save current page" Click="SaveProfileButton_Click"
+                        AutomationProperties.Name="Save current page as profile">
+                <MenuItem.Icon>
+                  <TextBlock Text="&#xE74E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" />
+                </MenuItem.Icon>
+              </MenuItem>
+              <MenuItem x:Name="EditProfileMenuItem" Style="{StaticResource DarkMenuItem}"
+                        Header="_Edit selected profile" Click="EditProfileButton_Click" IsEnabled="False"
+                        AutomationProperties.Name="Edit selected profile">
+                <MenuItem.Icon>
+                  <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" />
+                </MenuItem.Icon>
+              </MenuItem>
+              <MenuItem x:Name="DeleteProfileMenuItem" Style="{StaticResource DarkMenuItem}"
+                        Header="_Delete selected profile" Click="DeleteProfileButton_Click" IsEnabled="False"
+                        AutomationProperties.Name="Delete selected profile">
+                <MenuItem.Icon>
+                  <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" />
+                </MenuItem.Icon>
+              </MenuItem>
+            </ContextMenu>
+          </Button.ContextMenu>
+        </Button>
       </StackPanel>
 
       <ToggleButton x:Name="PinToggle" Grid.Column="3" Style="{StaticResource PinToggle}"
                     Margin="6,0" Content="&#xE840;" Click="PinToggle_Click"
-                    ToolTip="Pin PiPlay on top" AutomationProperties.Name="Pin PiPlay on top" />
+                    ToolTip="Pin Source Window on top" AutomationProperties.Name="Pin Source Window on top" />
 
       <ToggleButton x:Name="AutoToggle" Grid.Column="4" Style="{StaticResource PinToggle}"
                     Margin="6,0" Content="&#xE768;" Click="AutoToggle_Click"
                     ToolTip="Automatically pop out videos when playback starts"
                     AutomationProperties.Name="Auto popout" />
 
-      <!-- Single-player action (ADR-0005): while a popout is open this shows/focuses it instead of
-           implying a second popout. UpdatePopoutActionState flips label, tooltip, and UIA name
-           together; the inner TextBlocks are named so code toggles .Text without losing the icon. -->
-      <Button x:Name="PopOutButton" Grid.Column="5" Style="{StaticResource AccentButton}"
+      <!-- ADR-0005 recovery is deliberately separate from transfer: Show restores/focuses the
+           existing player without closing it; the primary action moves playback in either direction. -->
+      <Button x:Name="ShowPopoutButton" Grid.Column="5" Style="{StaticResource AccentIconButton}"
+              Margin="2,0" Content="&#xE8A7;" Click="ShowPopoutButton_Click"
+              Visibility="Collapsed" ToolTip="Show the existing Popout Player"
+              AutomationProperties.Name="Show Popout Player" />
+
+      <Button x:Name="PopOutButton" Grid.Column="6" Style="{StaticResource AccentButton}"
               Margin="6,6,10,6" Click="PopOutButton_Click" IsEnabled="False"
               ToolTip="Pop out the current video" AutomationProperties.Name="Pop out video">
         <StackPanel Orientation="Horizontal">
@@ -202,11 +232,17 @@
           <TextBlock Text="Ready to bring playback back here."
                      FontSize="12" Margin="0,6,0,0"
                      Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
-          <Button x:Name="PlaceholderBringBackButton" Style="{StaticResource AccentButton}"
-                  Content="Bring video back" Margin="0,18,0,0"
-                  Click="PlaceholderBringBackButton_Click"
-                  ToolTip="Return playback to the Source Window"
-                  AutomationProperties.Name="Bring video back" />
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0">
+            <Button x:Name="PlaceholderShowPopoutButton" Style="{StaticResource DarkButton}"
+                    Content="Show popout" Click="PlaceholderShowPopoutButton_Click"
+                    ToolTip="Restore and focus the existing Popout Player"
+                    AutomationProperties.Name="Show Popout Player" />
+            <Button x:Name="PlaceholderBringBackButton" Style="{StaticResource AccentButton}"
+                    Content="Bring video back" Margin="8,0,0,0"
+                    Click="PlaceholderBringBackButton_Click"
+                    ToolTip="Return playback to the Source Window"
+                    AutomationProperties.Name="Bring video back" />
+          </StackPanel>
           <!-- Non-blocking fallback note (Q-6): e.g. the mix/radio "popped out the current video
                only" reason, previously log-only. Lives on the SOURCE side by design - the popout
                ErrorBar is compact-error semantics and must not diverge the popout captures. -->

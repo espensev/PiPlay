@@ -152,6 +152,24 @@ evidence and do not complete this checklist.
 - [ ] **Video-aware return (Normal mode):** let the popout move to a different video (playlist auto-advance or normal-page in-page navigation), then close it — the source NAVIGATES to that video at the popout's timestamp instead of seeking the original video, then replays play/pause, volume/mute, and speed where YouTube permits; with Auto on, the returned video does not instantly re-pop.
 - [ ] **Bring video back (P4):** pop out a video, pause/change volume/mute/speed in the popout, then click **Bring video back** in the Source Window — playback returns to the Source Window with timestamp and play/pause preserved, and volume/mute/speed preserved where YouTube permits.
 - [ ] **Plain X-close/Alt-F4 return:** pop out a video, pause/change volume/mute/speed in the popout, then close the popout from its window chrome — playback returns to the Source Window with timestamp and play/pause preserved, and volume/mute/speed preserved where YouTube permits. Repeat once by closing immediately after popout launch to confirm the source does not return silent.
+- [ ] **Visible Source recovery:** minimize the Source while a Popout is open, then return once with
+  **Bring video back**, once with native X, and once with Focused Close. Source restores and activates;
+  a previously maximized Source returns maximized, and app shutdown does not reopen it.
+- [ ] **Single-flight return:** during same-video return scripting and different-video navigation/replay,
+  the primary action says **Returning video...** and remains disabled. Repeated clicks and Auto do not
+  create a new Popout until the return settles, fails, or times out.
+- [ ] **Show versus Bring:** minimize the Popout, then use **Show Popout** from the Source toolbar and
+  placeholder. It restores/focuses the existing player without closing it. **Bring video back** still
+  transfers playback and closes the player.
+- [ ] **Hidden Source commands:** while the Tier-1 placeholder hides YouTube, Back/Reload/Home, URL,
+  profile selection, and profile Save/Edit/Delete are disabled. Auto can still be turned off and both
+  recovery actions remain reachable.
+- [ ] **Pin transition matrix:** test Source pinned/unpinned x Popout pinned/unpinned. Source never covers
+  the active player; on every return it restores the actual pre-popout Source Pin state, including a
+  pinned profile, and the two persisted preferences remain separate after restart.
+- [ ] **Source minimum restore:** save/restart Source at its minimum on 100/125/150% DPI and after moving
+  between mixed-DPI monitors. It never restores or interactively resizes below 760 x 480 DIP, and the
+  YouTube browsing region remains usable.
 
 ## 3.5 Compact player plumbing (dormant)
 - [ ] `PlaybackModePolicy.CompactPlayerEnabled` remains `false` for this release.
@@ -197,6 +215,9 @@ Binary pass/fail (spec section 22.2 Chrome acceptance). Prefer ChatGPT-operated 
 - [ ] **UI-CHK-2** Profiles dropdown (closed) renders dark, not a light platform control. **(REQ-UI-01)**
 - [ ] **UI-CHK-3** Profiles dropdown (open) + its items render dark; empty list looks intentional, not a blank light box. **(REQ-UI-01)**
 - [ ] **UI-CHK-4** Tooltips render dark and do not occlude the control they describe (esp. caption buttons). **(REQ-UI-01)**
+- [ ] The Source profile actions menu opens dark, supports arrow keys/access keys/Escape, and keeps
+  Save/Edit/Delete readable with correct disabled states. At compact Source width, only the transfer
+  label hides; its icon, tooltip, and accessible name remain.
 > **Automated coverage (Lane A, `dotnet test`):** UI-CHK-5's clipping cause (`UseLayoutRounding`)
 > and the contrast/resource/icon-font checks are now guarded by the markup (Layer 1) and live-WPF
 > (Layer 3) tests; the rows below remain the **true-render** confirmation via the manual smoke
@@ -204,7 +225,7 @@ Binary pass/fail (spec section 22.2 Chrome acceptance). Prefer ChatGPT-operated 
 
 - [ ] **UI-CHK-5** Address/URL field text is legible at 100/125/150 % DPI — no clipping or faint text.
 - [ ] **UI-CHK-6** Icons share weight, corner style, and active-color behavior across the chrome.
-- [ ] **UI-CHK-7** Accessible names (overhaul Task 7, REQ-UI-02): a screen reader (Narrator / Accessibility Insights) announces real names for every icon-only control — main chrome (Settings/Minimize/Maximize/Close), navigation (Back/Reload/Home), URL box, profiles combo + Save/Edit/Delete, Pin, Auto, the popout action (name flips with "Pop out video"/"Bring video back"), popout Fade/Pin/Settings/Expand/Close, Settings close, and the Prompt dialog close.
+- [ ] **UI-CHK-7** Accessible names (overhaul Task 7, REQ-UI-02): a screen reader (Narrator / Accessibility Insights) announces real names for every icon-only control — main chrome (Settings/Minimize/Maximize/Close), navigation (Back/Reload/Home), URL box, profiles combo + profile actions menu, Pin, Auto, Show Popout, the transfer action (name flips across "Pop out video"/"Bring video back"/"Returning video..."), popout Fade/Pin/Settings/Expand/Close, Settings close, and the Prompt dialog close. Source and Popout Pin names flip between Pin and Unpin with actual state.
 - [ ] **UI-CHK-8** *(P1 borderless, owner-retuned)* The 12 DIP black band around the hosted video reads as
   **letterbox/canvas** — not as a grey frame and not as a second app frame — on both windows at
   **100 / 125 / 150 % DPI**. This is a *visual read*, distinct from the resize-feel rows in §4.

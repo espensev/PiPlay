@@ -214,7 +214,13 @@ Required:
 - App name/logo on the left.
 - Window controls on the right.
 - Navigation controls: the MVP minimal set is **Back**, **Reload**, and **Home** (YouTube home). Forward is optional. A URL/search field is required. Any additional nav control is an intentional spec change, not implementer discretion.
-- MVP utility controls: `Pin` and profile save/load. Phase 2 adds `Auto` on the Source Window and `Fade` in the Popout Player.
+- MVP utility controls: `Pin` and profile save/load. Profile Save/Edit/Delete share one native dark
+  actions menu so the URL/search field remains useful at the minimum width. Phase 2 adds `Auto` on the
+  Source Window and `Fade` in the Popout Player.
+- The transfer action is **Pop out video** while docked and **Bring video back** while a player exists.
+  A separate **Show Popout** action restores/focuses that player without closing or transferring it.
+- The Source Window remains usable at its declared 760 x 480 DIP minimum. At compact widths, only the
+  transfer action's visible label may collapse; its icon, tooltip, and accessible name remain.
 - WebView2 content below the title bar.
 - If pinned, show a clear but small active state.
 
@@ -326,6 +332,10 @@ Rules:
 - Persist separate pin values for the Source Window and Popout Player.
 - The title-bar Pin toggle should control the active PiPlay surface.
 - The Popout Player must expose a direct Pin toggle, because it may be used without focusing the Source Window.
+- While a Popout Player owns playback, Source topmost is temporarily suspended so a pinned Source cannot
+  cover an unpinned player. Restore the Source's actual pre-popout Pin state on return and persist that
+  captured intent if the app closes mid-popout; do not merge the two windows' preferences.
+- Pin tooltips and accessible names describe the next action (`Pin` or `Unpin`) on both native surfaces.
 - Phase 2 customization may expose a fixed dark-theme-safe active-color palette for Pin. The Source
   Window Pin and Popout Player Pin use the same configured Pin accent.
 
@@ -853,8 +863,12 @@ Video Popout is allowed only when:
 
 - Main WebView is initialized.
 - No popout operation is already in progress.
-- No existing Popout Player is active, or the existing one can be activated.
+- No existing Popout Player is active.
+- No return/replay transition is in progress.
 - Current page contains a supported YouTube video or playlist URL.
+
+If a player already exists, **Show Popout** activates it and **Bring video back** starts the return path;
+neither command creates another player.
 
 ### 13.2 Sequence
 
@@ -883,7 +897,7 @@ Navigate player to target URL
   ↓
 Start timestamp sync timer
   ↓
-Clear popoutInProgress / re-enable Popout button
+Clear popoutInProgress / expose Bring video back + Show Popout
 ```
 
 ### 13.3 Source Placeholder behavior
@@ -900,9 +914,14 @@ Visual target:
 - Small PiPlay popout icon near the text or centered.
 - Keep the surrounding YouTube page visible where practical.
 
-> The 2026-06-25 b25 follow-up changed the placeholder's direct action from focus-only
-> **[Show popout]** to **[Bring video back]**. The command captures fresh popout return state, closes
-> the popout, and drives the normal return path so playback returns to the Source Window.
+> The Source Placeholder exposes two explicit recovery actions. **[Show popout]** restores/focuses the
+> existing player without closing it. **[Bring video back]** captures fresh return state, closes the
+> player, and drives the normal return path. These actions must not share a handler.
+
+While Tier 1 hides the entire WebView, Back/Reload/Home, the URL field, profile selection, and profile
+Save/Edit/Delete are disabled. Auto remains available to turn off, and the two recovery actions remain
+available. Hidden navigation is prohibited because its result cannot be inspected and can invalidate
+return assumptions.
 
 Implementation tiers:
 
@@ -935,17 +954,14 @@ A later version may switch to `WebView2CompositionControl` if we need translucen
 Video Popout must be guarded:
 
 ```csharp
-if (!_browserReady || _popoutInProgress)
+if (!_browserReady || _popoutInProgress || _returnInProgress ||
+    _player is not null || _clearingBrowserData || _mainWindowClosing)
     return;
-
-// A popout already exists: the Source Window primary action is now "Bring video back" (P4),
-// so route to the return path instead of opening or merely focusing a second player (ADR-0005).
-if (_player is not null)
-{
-    await BringVideoBackAsync();
-    return;
-}
 ```
+
+The action state is explicit: **Ready** (`Pop out video`), **Open** (`Bring video back` plus
+`Show Popout`), or **Returning** (disabled until same-video scripting or different-video navigation and
+state replay completes, fails, or times out). Manual and Auto launch use the same gate.
 
 ### 13.5 Failure behavior
 
@@ -974,6 +990,8 @@ Notify Source Window
   ↓
 Source Window hides Source Placeholder and shows source WebView
   ↓
+Source Window restores its pre-popout Pin state, restores from minimized if needed, and activates
+  ↓
 If the popout ended on a different video, Source Window navigates there and replays captured playback state after the source video element is ready
   ↓
 Otherwise Source Window seeks source video to last known timestamp if available
@@ -992,6 +1010,12 @@ Important details:
   state is known at return. If the popout paused state is unknown, fall back to whether the source was
   playing when Video Popout started.
 - `sourceWasPlayingAtPopout` is captured before PiPlay suppresses the source and is a fallback only.
+- User return must restore and activate a minimized Source Window without forcing a previously maximized
+  Source to Normal. App shutdown captures state but must not restore or steal focus.
+- Keep the Source action in **Returning** and block Auto/manual re-entry until return scripting and any
+  pending post-navigation replay reaches a terminal state.
+- Source and Popout Pin preferences stay independent. Return restores the actual Source Pin state that
+  was active before launch, including a profile-derived state.
 - **[REQ-RETURN-07]** If the source was paused at popout launch, PiPlay must not auto-nudge the Popout
   Player into playing; a return to playing state from that path must come from user action inside the
   popout. Launch intent is passed into the Popout Player for the whole session, not just suppressed as
@@ -1128,6 +1152,9 @@ Required cases:
 - If the previous monitor is gone, restore to the nearest visible work area.
 - Respect DPI scaling changes between sessions.
 - **[REQ-WINDOW-01]** Declare per-monitor DPI awareness (PerMonitorV2) in `app.manifest`. WPF + WebView2 across mixed-DPI monitors must stay crisp (tested in section 22.2).
+- A saved Source placement is raised to the declared 760 x 480 DIP minimum before native restore, using
+  the saved DPI scale. Interactive borderless resize also preserves each window's DPI-scaled WPF
+  `MinWidth` / `MinHeight` in `WM_GETMINMAXINFO` while retaining the monitor work-area maximize bounds.
 
 ### 16.5 Keyboard behavior
 
@@ -1135,6 +1162,7 @@ Minimum:
 
 - `Esc` should not accidentally close the player while video is focused unless deliberately implemented.
 - Standard YouTube shortcuts should work when the WebView is focused.
+- `Ctrl+L` and `F6` focus and select the Source URL/search field while Source navigation is available.
 
 Future:
 
@@ -1705,3 +1733,4 @@ These references support the current technical direction and should be rechecked
 | 0.11 | 2026-06-10 | Beta candidate cut (v0.4.0-beta): release-facing copy cleaned for beta publication without changing requirements. Phase 4 §7.2/§7.3 resolution notes and the overlay compliance record remain tracked on the 2026-06-10 overlay/opacity plan (Task 6). |
 | 0.12 | 2026-06-25 | Aligned the living spec with the v0.7.2 P1 surface: the current resize band is 4 DIP with 32 DIP corner acquisition, and the Compact player is dormant behind `PlaybackModePolicy.CompactPlayerEnabled=false` while its settings/profile data remains reserved. |
 | 0.13 | 2026-07-15 | Added the optional Focused Popout presentation over the real Normal watch page, no-crop full-viewport layout and accessible overlay-control contract, global/profile precedence, and threshold drag from passive video pixels while preserving all interactive controls. Compact remains dormant and Standard remains the default. |
+| 0.14 | 2026-07-15 | Made Source return visible and single-flight: minimum-size restore, minimized activation, pre-popout Pin restoration, hidden-navigation suspension, separate Show Popout/Bring actions, compact toolbar disclosure, and a dark profile actions menu. |

@@ -466,6 +466,84 @@
     </Setter>
   </Style>
 
+  <!-- Semantic dark menu primitives for compact command groups. Keep these as real ContextMenu /
+       MenuItem controls so arrow-key navigation, access keys, Escape dismissal, and UI Automation
+       behavior remain native rather than being reimplemented in a custom Popup. -->
+  <Style TargetType="MenuItem" x:Key="DarkMenuItem">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="FontFamily" Value="Segoe UI" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Padding" Value="{DynamicResource DensityMenuItemPadding}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="MenuItem">
+          <Border x:Name="bd" Background="{TemplateBinding Background}"
+                  CornerRadius="{DynamicResource RadiusPopup}"
+                  Padding="{TemplateBinding Padding}">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="20" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <ContentPresenter Grid.Column="0" ContentSource="Icon"
+                                HorizontalAlignment="Left" VerticalAlignment="Center"
+                                Margin="0,0,8,0" />
+              <ContentPresenter Grid.Column="1" ContentSource="Header"
+                                RecognizesAccessKey="True" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="2" Text="{TemplateBinding InputGestureText}"
+                         Margin="18,0,0,0" VerticalAlignment="Center"
+                         Foreground="{DynamicResource TextSecondary}" />
+            </Grid>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsHighlighted" Value="True">
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource SurfaceHover}" />
+            </Trigger>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+              <Setter TargetName="bd" Property="Background" Value="{DynamicResource SurfaceHover}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.45" />
+              <Setter Property="Cursor" Value="Arrow" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style TargetType="ContextMenu" x:Key="DarkContextMenu">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceBase}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessDefault}" />
+    <Setter Property="Padding" Value="4" />
+    <Setter Property="HasDropShadow" Value="False" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="ItemContainerStyle" Value="{StaticResource DarkMenuItem}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ContextMenu">
+          <Border Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{DynamicResource RadiusPopup}"
+                  Padding="{TemplateBinding Padding}">
+            <ScrollViewer CanContentScroll="True"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+              <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Cycle" />
+            </ScrollViewer>
+          </Border>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <!-- App-wide dark tooltip (implicit: applies to every ToolTip). Placed below the control so
        it does not occlude what it describes, e.g. caption buttons (REQ-UI-01). -->
   <Style TargetType="ToolTip">

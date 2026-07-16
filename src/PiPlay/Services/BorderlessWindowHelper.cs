@@ -20,6 +20,7 @@ public static class BorderlessWindowHelper
     private const int SC_MOVE = 0xF010;
     private const int HTCAPTION = 2;
     private const int VK_LBUTTON = 0x01;
+    private const uint DefaultDpi = 96;
     private const uint MONITOR_DEFAULTTONEAREST = 2;
     private static readonly UIntPtr ResizeSubclassId = new(0x5049504C); // "PIPL"
     private static readonly Dictionary<IntPtr, ResizeSubclassState> ResizeSubclassStates = new();
@@ -29,7 +30,14 @@ public static class BorderlessWindowHelper
         void Hook()
         {
             if (PresentationSource.FromVisual(window) is HwndSource src)
-                src.AddHook(WndProc);
+            {
+                src.AddHook((
+                    IntPtr hwnd,
+                    int msg,
+                    IntPtr wParam,
+                    IntPtr lParam,
+                    ref bool handled) => WndProc(window, hwnd, msg, wParam, lParam, ref handled));
+            }
         }
 
         if (PresentationSource.FromVisual(window) is not null)
@@ -95,7 +103,13 @@ public static class BorderlessWindowHelper
         return new IntPtr(packed);
     }
 
-    private static IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    private static IntPtr WndProc(
+        Window window,
+        IntPtr hwnd,
+        int msg,
+        IntPtr wParam,
+        IntPtr lParam,
+        ref bool handled)
     {
         if (msg != WM_GETMINMAXINFO) return IntPtr.Zero;
 
@@ -108,14 +122,95 @@ public static class BorderlessWindowHelper
         var mmi = Marshal.PtrToStructure<MINMAXINFO>(lParam);
         var work = info.rcWork;
         var area = info.rcMonitor;
-        mmi.ptMaxPosition.X = work.Left - area.Left;
-        mmi.ptMaxPosition.Y = work.Top - area.Top;
-        mmi.ptMaxSize.X = work.Right - work.Left;
-        mmi.ptMaxSize.Y = work.Bottom - work.Top;
+        var maxBounds = CalculateMaximizedBounds(area, work);
+        mmi.ptMaxPosition = maxBounds.Position;
+        mmi.ptMaxSize = maxBounds.Size;
+        mmi.ptMinTrackSize = CalculateMinimumTrackSize(
+            mmi.ptMinTrackSize,
+            window.MinWidth,
+            window.MinHeight,
+            GetDpiForWindow(hwnd));
         Marshal.StructureToPtr(mmi, lParam, fDeleteOld: true);
 
         handled = true;
         return IntPtr.Zero;
+    }
+
+    private static (POINT Position, POINT Size) CalculateMaximizedBounds(RECT monitor, RECT work) =>
+        (
+            new POINT
+            {
+                X = work.Left - monitor.Left,
+                Y = work.Top - monitor.Top,
+            },
+            new POINT
+            {
+                X = work.Right - work.Left,
+                Y = work.Bottom - work.Top,
+            });
+
+    private static POINT CalculateMinimumTrackSize(
+        POINT existing,
+        double minWidthDips,
+        double minHeightDips,
+        uint dpi)
+    {
+        var effectiveDpi = dpi == 0 ? DefaultDpi : dpi;
+        return new POINT
+        {
+            X = Math.Max(existing.X, DipsToPixels(minWidthDips, effectiveDpi)),
+            Y = Math.Max(existing.Y, DipsToPixels(minHeightDips, effectiveDpi)),
+        };
+    }
+
+    private static int DipsToPixels(double dips, uint dpi)
+    {
+        if (!double.IsFinite(dips) || dips <= 0) return 0;
+        var pixels = Math.Ceiling(dips * dpi / DefaultDpi);
+        return pixels >= int.MaxValue ? int.MaxValue : (int)pixels;
+    }
+
+    internal static (int Width, int Height) CalculateMinimumTrackSizeForTests(
+        int existingWidthPixels,
+        int existingHeightPixels,
+        double minWidthDips,
+        double minHeightDips,
+        uint dpi)
+    {
+        var result = CalculateMinimumTrackSize(
+            new POINT { X = existingWidthPixels, Y = existingHeightPixels },
+            minWidthDips,
+            minHeightDips,
+            dpi);
+        return (result.X, result.Y);
+    }
+
+    internal static (int X, int Y, int Width, int Height) CalculateMaximizedBoundsForTests(
+        int monitorLeft,
+        int monitorTop,
+        int monitorRight,
+        int monitorBottom,
+        int workLeft,
+        int workTop,
+        int workRight,
+        int workBottom)
+    {
+        var result = CalculateMaximizedBounds(
+            new RECT
+            {
+                Left = monitorLeft,
+                Top = monitorTop,
+                Right = monitorRight,
+                Bottom = monitorBottom,
+            },
+            new RECT
+            {
+                Left = workLeft,
+                Top = workTop,
+                Right = workRight,
+                Bottom = workBottom,
+            });
+        return (result.Position.X, result.Position.Y, result.Size.X, result.Size.Y);
     }
 
     private static void InstallResizeSubclass(
@@ -272,6 +367,9 @@ public static class BorderlessWindowHelper
 
     [DllImport("user32.dll")]
     private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hwnd);
 
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int virtualKey);
