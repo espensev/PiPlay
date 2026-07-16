@@ -88,6 +88,7 @@ public partial class SettingsWindow : Window
 
     public SettingsWindow(
         bool isBrowserReady,
+        string? clearBrowserDataUnavailableHint = null,
         string? themeId = ThemeCatalog.DefaultThemeId,
         string? accentColor = ThemeCatalog.DefaultAccentColor,
         int fadeIdleDelayMs = PlayerAppearancePolicy.DefaultFadeIdleDelayMs,
@@ -146,12 +147,30 @@ public partial class SettingsWindow : Window
         ClearDescriptionText.Text = PrivacyService.ClearDescription;
         ClearBrowserDataButton.Content = PrivacyService.ClearActionLabel;
 
+        SetClearBrowserDataAvailability(isBrowserReady, clearBrowserDataUnavailableHint);
+    }
+
+    /// <summary>
+    /// Refresh the destructive action while this modal dialog remains open. A timed-out clear may
+    /// finish in the background; terminal success or failure makes retry available without forcing
+    /// the user to close and reopen Settings.
+    /// </summary>
+    internal void SetClearBrowserDataAvailability(
+        bool isBrowserReady,
+        string? clearBrowserDataUnavailableHint = null)
+    {
         // Only the Clear action needs a live browser; Reset never does. When it is disabled,
         // explain why (and let the tooltip show on the disabled control).
-        ClearBrowserDataButton.IsEnabled = isBrowserReady;
-        if (!isBrowserReady)
+        var canClearBrowserData = isBrowserReady && string.IsNullOrEmpty(clearBrowserDataUnavailableHint);
+        ClearBrowserDataButton.IsEnabled = canClearBrowserData;
+        if (canClearBrowserData)
         {
-            ClearBrowserDataButton.ToolTip = PrivacyService.ClearNotReadyHint;
+            ClearBrowserDataButton.ToolTip = null;
+        }
+        else
+        {
+            ClearBrowserDataButton.ToolTip = clearBrowserDataUnavailableHint
+                ?? PrivacyService.ClearNotReadyHint;
             ToolTipService.SetShowOnDisabled(ClearBrowserDataButton, true);
         }
     }

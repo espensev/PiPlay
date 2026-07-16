@@ -75,6 +75,97 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void ThemeResourceApplier_identical_accent_apply_preserves_all_pair_identities() =>
+        StaTestThread.Invoke(() =>
+        {
+            var resources = new ResourceDictionary();
+            var preset = ThemeCatalog.PresetFor("sharp-dark");
+            ThemeResourceApplier.ApplyAccentOnly(resources, "#38D996", preset, accentIntensity: 35);
+            string[] keys =
+            [
+                "AccentPrimary", "AccentHover", "AccentPressed", "AccentBorder", "AccentShellTint",
+                "AccentChromeGlyph", "OnAccent", "OnAccentPressed", "AccentPrimaryLight",
+            ];
+            var before = keys
+                .SelectMany(key => new[] { key, key + "Color" })
+                .ToDictionary(key => key, key => resources[key]);
+
+            ThemeResourceApplier.ApplyAccentOnly(resources, "#38D996", preset, accentIntensity: 35);
+
+            foreach (var (key, value) in before)
+                Assert.Same(value, resources[key]);
+        });
+
+    [Fact]
+    public void ThemeResourceApplier_intensity_only_apply_replaces_only_changed_pairs() =>
+        StaTestThread.Invoke(() =>
+        {
+            var resources = new ResourceDictionary();
+            var preset = ThemeCatalog.PresetFor("sharp-dark");
+            static Dictionary<string, Color> Expected(DerivedAccentSet set) => new()
+            {
+                ["AccentPrimary"] = set.Primary,
+                ["AccentHover"] = set.Hover,
+                ["AccentPressed"] = set.Pressed,
+                ["AccentBorder"] = set.Border,
+                ["AccentShellTint"] = set.ShellTint,
+                ["AccentChromeGlyph"] = set.ChromeGlyph,
+                ["OnAccent"] = set.OnAccent,
+                ["OnAccentPressed"] = set.OnAccentPressed,
+                ["AccentPrimaryLight"] = set.Hover,
+            };
+
+            void AssertTransition(int fromIntensity, int toIntensity)
+            {
+                ThemeResourceApplier.ApplyAccentOnly(
+                    resources, "#38D996", preset, accentIntensity: fromIntensity);
+                var before = Expected(ThemeColors.DeriveAccentSet("#38D996", preset, fromIntensity));
+                var brushes = before.Keys.ToDictionary(
+                    key => key,
+                    key => Assert.IsType<SolidColorBrush>(resources[key]));
+                var after = Expected(ThemeColors.DeriveAccentSet("#38D996", preset, toIntensity));
+
+                ThemeResourceApplier.ApplyAccentOnly(
+                    resources, "#38D996", preset, accentIntensity: toIntensity);
+
+                foreach (var (key, expectedColor) in after)
+                {
+                    var brush = Assert.IsType<SolidColorBrush>(resources[key]);
+                    if (before[key] == expectedColor)
+                        Assert.Same(brushes[key], brush);
+                    else
+                        Assert.NotSame(brushes[key], brush);
+                    Assert.Equal(expectedColor, brush.Color);
+                    Assert.True(brush.IsFrozen, $"{key} was not frozen.");
+                    Assert.Equal(expectedColor, Assert.IsType<Color>(resources[key + "Color"]));
+                }
+            }
+
+            AssertTransition(fromIntensity: 25, toIntensity: 35);
+            AssertTransition(fromIntensity: 75, toIntensity: 90);
+        });
+
+    [Fact]
+    public void ThemeResourceApplier_repairs_missing_or_wrong_typed_accent_entries() =>
+        StaTestThread.Invoke(() =>
+        {
+            var resources = new ResourceDictionary
+            {
+                ["AccentPrimary"] = "not a brush",
+                ["AccentPrimaryColor"] = "not a color",
+            };
+            var preset = ThemeCatalog.PresetFor("sharp-dark");
+            var expected = ThemeColors.DeriveAccentSet("#38D996", preset, 35).Primary;
+
+            ThemeResourceApplier.ApplyAccentOnly(resources, "#38D996", preset, accentIntensity: 35);
+
+            var brush = Assert.IsType<SolidColorBrush>(resources["AccentPrimary"]);
+            Assert.Equal(expected, brush.Color);
+            Assert.True(brush.IsFrozen);
+            Assert.Equal(expected, Assert.IsType<Color>(resources["AccentPrimaryColor"]));
+        });
+
+    [Fact]
     public void ThemeResourceApplier_applies_palette_and_radii_from_the_preset() => StaTestThread.Invoke(() =>
     {
         var res = new ResourceDictionary();
@@ -503,6 +594,27 @@ public class WpfRuntimeTests : IDisposable
         // When the browser is ready the button is enabled and carries no explanatory tooltip.
         var ready = new SettingsWindow(isBrowserReady: true);
         Assert.Null(((Button)ready.FindName("ClearBrowserDataButton")!).ToolTip);
+    });
+
+    [Fact]
+    public void SettingsWindow_explains_when_a_previous_clear_is_still_running() => StaTestThread.Invoke(() =>
+    {
+        var dialog = new SettingsWindow(
+            isBrowserReady: true,
+            clearBrowserDataUnavailableHint: PrivacyService.ClearAlreadyRunningHint);
+        var clear = (Button)dialog.FindName("ClearBrowserDataButton")!;
+
+        Assert.False(clear.IsEnabled);
+        Assert.Equal(PrivacyService.ClearAlreadyRunningHint, clear.ToolTip);
+        Assert.True(ToolTipService.GetShowOnDisabled(clear));
+
+        dialog.SetClearBrowserDataAvailability(isBrowserReady: true);
+        Assert.True(clear.IsEnabled);
+        Assert.Null(clear.ToolTip);
+
+        dialog.SetClearBrowserDataAvailability(isBrowserReady: false);
+        Assert.False(clear.IsEnabled);
+        Assert.Equal(PrivacyService.ClearNotReadyHint, clear.ToolTip);
     });
 
     // --- Resolved DependencyProperty invariants (runtime counterpart to Layer 1) ---

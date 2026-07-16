@@ -61,6 +61,10 @@ public partial class MainWindow : Window
     private System.Windows.Threading.DispatcherTimer? _autoTimer;
     private bool _autoTickInProgress;
     private string? _autoLastHandledVideoId;
+    // A failed Auto suppression attempt must not become a successful handled-video latch, but it
+    // also must not reopen a prompt every 250 ms. Block only that failed video until Source moves;
+    // manual Pop out remains available and clears the block on success.
+    private string? _autoSuppressionFailedVideoId;
 
     // Color-wheel mouse moves and intensity-slider drags both arrive much faster than WPF can present a
     // frame. Keep only the latest requested (accent, intensity) PAIR and apply it at most once per ~33 ms
@@ -85,6 +89,7 @@ public partial class MainWindow : Window
 
     // Guards both privacy actions against re-entrancy (double-click, reopen mid-clear).
     private bool _privacyActionInProgress;
+    private readonly BrowserDataClearCoordinator _browserDataClearCoordinator = new();
     // True only while Clear browser data is running, so the popout's return handler does not
     // drive source playback against a session that is being wiped.
     private bool _clearingBrowserData;
@@ -633,6 +638,7 @@ public partial class MainWindow : Window
             }
             // Clear the de-dup on (re)enable so Auto immediately pops the video already playing.
             _autoLastHandledVideoId = null;
+            _autoSuppressionFailedVideoId = null;
             _autoTimer.Start();
         }
         else
@@ -655,6 +661,18 @@ public partial class MainWindow : Window
         {
             var src = core.Source;
             YouTubeUrlHelper.TryParse(src, out var target);
+
+            if (!string.IsNullOrEmpty(_autoSuppressionFailedVideoId))
+            {
+                if (string.Equals(target.VideoId, _autoSuppressionFailedVideoId,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                // A new Source video is a new Auto edge; the old failure must not suppress it.
+                _autoSuppressionFailedVideoId = null;
+            }
 
             var isWatchVideo = YouTubeUrlHelper.IsWatchUrl(src);
             if (!AutoPopoutPolicy.NeedsPlayerState(
@@ -853,8 +871,11 @@ public partial class MainWindow : Window
 
     // --- Privacy actions: Settings window (spec 19, Phase 2, REQ-PRIVACY-01/02) ---
 
-    /// <summary>Whether Clear browser data can run right now (browser initialized + live core).</summary>
-    internal bool CanClearBrowserData => _browserReady && Browser.CoreWebView2 is not null;
+    /// <summary>Whether Clear browser data can run right now (live core + no prior clear in flight).</summary>
+    internal bool CanClearBrowserData =>
+        _browserReady && Browser.CoreWebView2 is not null && !_browserDataClearCoordinator.IsRunning;
+
+    internal bool BrowserDataClearInProgressForTests => _browserDataClearCoordinator.IsRunning;
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e) => OpenSettings(this);
 
@@ -872,8 +893,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        var browserReadyForClear = _browserReady && Browser.CoreWebView2 is not null;
+        var clearUnavailableHint = _browserDataClearCoordinator.IsRunning
+            ? PrivacyService.ClearAlreadyRunningHint
+            : null;
         var dialog = new SettingsWindow(
-            isBrowserReady: CanClearBrowserData,
+            isBrowserReady: browserReadyForClear,
+            clearBrowserDataUnavailableHint: clearUnavailableHint,
             themeId: _settings.Theme.ThemeId,
             accentColor: ResolvedAccentColor,
             fadeIdleDelayMs: EffectiveFadeIdleDelayMs,
@@ -1270,15 +1296,31 @@ public partial class MainWindow : Window
     {
         if (_privacyActionInProgress) return;
 
+        Task? clearTask = null;
+        Stopwatch? stopwatch = null;
+
         try
         {
             // Re-check readiness at execution time (the cached enabled state can be stale). This
             // lives INSIDE the try so a throw here (e.g. CoreWebView2 access during a WebView2
             // teardown) can never escape this fire-and-forget task unobserved.
+            if (_browserDataClearCoordinator.IsRunning)
+            {
+                Prompt.ShowInfo(this, PrivacyService.ClearResultTitle, PrivacyService.ClearAlreadyRunning);
+                return;
+            }
+
             var core = Browser.CoreWebView2;
-            if (!CanClearBrowserData || core is null)
+            if (!_browserReady || core is null)
             {
                 Prompt.ShowInfo(this, PrivacyService.ClearResultTitle, PrivacyService.ClearBrowserNotReady);
+                return;
+            }
+
+            if (!_browserDataClearCoordinator.TryStart(
+                    () => PrivacyService.ClearBrowserDataAsync(core), out clearTask))
+            {
+                Prompt.ShowInfo(this, PrivacyService.ClearResultTitle, PrivacyService.ClearAlreadyRunning);
                 return;
             }
 
@@ -1298,23 +1340,30 @@ public partial class MainWindow : Window
             // gear/privacy actions for the rest of the session. The clear runs on the SOURCE core,
             // which we keep alive, so its completion handler always fires (a closed WebView would
             // release it un-invoked). Time it so the bound can be retuned from real durations.
-            var sw = Stopwatch.StartNew();
-            await PrivacyService.ClearBrowserDataAsync(core).WaitAsync(PrivacyService.ClearTimeout);
-            sw.Stop();
+            stopwatch = Stopwatch.StartNew();
+            using var timeoutCancellation = new CancellationTokenSource();
+            var timeoutTask = Task.Delay(PrivacyService.ClearTimeout, timeoutCancellation.Token);
+            var completedTask = await Task.WhenAny(clearTask, timeoutTask);
+            if (BrowserDataClearCoordinator.DidForegroundWaitExpire(clearTask, completedTask))
+            {
+                // The status wait elapsed, not the clear. Retain the underlying task in the
+                // coordinator and attach one operational observer for its late terminal state.
+                Log.Warn("Clear browser data exceeded the timeout; it may still complete in the background.");
+                _ = ObserveTimedOutBrowserDataClearAsync(clearTask, stopwatch);
+                Prompt.ShowInfo(this, PrivacyService.ClearResultTitle, PrivacyService.ClearTimedOut);
+                return;
+            }
+
+            timeoutCancellation.Cancel();
+            await clearTask;   // propagate the operation's own terminal exception, including TimeoutException
+            stopwatch.Stop();
 
             // Reflect the signed-out state; a nav hiccup must not mask a successful clear.
             try { NavigateInternal("https://www.youtube.com/"); }
             catch (Exception navEx) { Log.Error("Post-clear navigation failed.", navEx); }
 
-            Log.Info($"Browser data cleared in {sw.ElapsedMilliseconds} ms (user signed out).");
+            Log.Info($"Browser data cleared in {stopwatch.ElapsedMilliseconds} ms (user signed out).");
             Prompt.ShowInfo(this, PrivacyService.ClearDoneTitle, PrivacyService.ClearDoneBody);
-        }
-        catch (TimeoutException)
-        {
-            // The wait elapsed, not the clear: ClearBrowsingDataAsync may still finish in the
-            // background. Tell the truth instead of reporting a failure that may not be one.
-            Log.Warn("Clear browser data exceeded the timeout; it may still complete in the background.");
-            Prompt.ShowInfo(this, PrivacyService.ClearResultTitle, PrivacyService.ClearTimedOut);
         }
         catch (Exception ex)
         {
@@ -1329,6 +1378,43 @@ public partial class MainWindow : Window
             UpdatePopoutActionState();
             UpdateSourceCommandAvailability();
         }
+    }
+
+    private async Task ObserveTimedOutBrowserDataClearAsync(Task clearTask, Stopwatch? stopwatch)
+    {
+        try
+        {
+            await clearTask.ConfigureAwait(false);
+            stopwatch?.Stop();
+            Log.Info($"Timed-out browser data clear completed in the background after " +
+                     $"{stopwatch?.ElapsedMilliseconds ?? 0} ms (user signed out).");
+        }
+        catch (Exception ex)
+        {
+            stopwatch?.Stop();
+            Log.Error($"Timed-out browser data clear failed after " +
+                      $"{stopwatch?.ElapsedMilliseconds ?? 0} ms.", ex);
+        }
+        finally
+        {
+            // Settings may be open in its nested modal dispatcher while the background task ends.
+            // Refresh that live dialog so Clear becomes retryable immediately after success/fault.
+            try { _ = Dispatcher.BeginInvoke(new Action(RefreshClearBrowserDataAvailability)); }
+            catch { /* app shutdown owns the remaining lifetime */ }
+        }
+    }
+
+    private void RefreshClearBrowserDataAvailability()
+    {
+        if (_settingsDialog is null) return;
+
+        bool browserReady;
+        try { browserReady = _browserReady && Browser.CoreWebView2 is not null; }
+        catch { browserReady = false; }
+        var unavailableHint = _browserDataClearCoordinator.IsRunning
+            ? PrivacyService.ClearAlreadyRunningHint
+            : null;
+        _settingsDialog.SetClearBrowserDataAvailability(browserReady, unavailableHint);
     }
 
     /// <summary>Test-only: the navigation queued while the browser was not ready (null = none).</summary>
@@ -1397,9 +1483,6 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // Auto de-dup: remember this video so the return-resume play edge (and an in-source
-            // pause/resume) isn't read as a fresh play that should re-pop it (spec §6.1).
-            _autoLastHandledVideoId = target.VideoId;
             _popoutSourceVideoId = target.VideoId;
 
             // 2b) Resolve the effective playback mode (spec 10). Profile/global compact settings
@@ -1415,7 +1498,23 @@ public partial class MainWindow : Window
             // 3) Pause the source and show the placeholder (Q-1: no duplicate audio). A non-null
             // FallbackReason (mix/radio drop) rides along as the placeholder note (Q-6) — it was
             // previously log-only, invisible to the user.
-            await YouTubeDomBridge.SuppressPlaybackAsync(core);
+            try
+            {
+                await PopoutLaunchPolicy.RequireAcknowledgedSourceSuppressionAsync(
+                    () => YouTubeDomBridge.SuppressPlaybackAsync(core));
+            }
+            catch
+            {
+                // Keep Auto from reopening this one failure every 250 ms, but do not claim the
+                // video was successfully handled. A manual retry remains available; Source
+                // navigation clears this failure latch for the next video.
+                _autoSuppressionFailedVideoId = target.VideoId;
+                throw;
+            }
+
+            // Auto de-dup is committed only after playback ownership really transferred.
+            _autoSuppressionFailedVideoId = null;
+            _autoLastHandledVideoId = target.VideoId;
             StartSourceSuppressionGuard();
             ShowSourcePlaceholder(true, target.FallbackReason);
 

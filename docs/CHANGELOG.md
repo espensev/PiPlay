@@ -17,6 +17,18 @@ All notable changes to PiPlay are recorded here. Format loosely follows [Keep a 
   and accessible name remain, and `Ctrl+L` / `F6` focus the URL/search field.
 
 ### Fixed
+- **Popout now fails closed if Source playback cannot be muted and paused.** PiPlay verifies the
+  post-command media state before opening the player, restores the captured Source state on failure,
+  and coalesces repeated WebView script errors until that exact operation recovers.
+- **A slow browser-data clear can no longer overlap another clear.** The 30-second status wait still
+  releases the rest of Settings, while Clear itself stays unavailable with an accurate explanation
+  until the underlying WebView2 task actually succeeds or fails.
+- **Single-instance handoff no longer hot-loops on a persistent pipe failure.** Pipe identity now
+  matches the Windows logon-session boundary and retries use cancellation-aware capped backoff with
+  one failure episode and recovery summary.
+- **Accent preview preserves unchanged WPF resources.** Intensity-only drags now replace only the
+  color pairs that actually changed, avoiding unrelated brush allocations and DynamicResource
+  invalidation while keeping exact frozen values.
 - **Returning from Popout can no longer strand playback in a minimized Source.** Bring back, native X,
   Alt+F4, and Focused Close restore and activate Source while preserving its normal/maximized state.
 - **Source no longer restores or resizes below 760 x 480 DIP.** Saved placement and native borderless

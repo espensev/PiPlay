@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Text;
@@ -20,15 +21,25 @@ public partial class App : Application
 {
     // Per-session single-instance identity (the Local\ mutex namespace is scoped to the Windows logon
     // session), scoped per channel so a Stable copy and the dev app each stay single-instance without
-    // colliding (the Default channel keeps the original .v1 names). The guard exists to protect each
-    // channel's own WebView2 user-data folder from concurrent access.
+    // colliding (the Default mutex keeps the original .v1 identity). The pipe adds the numeric session
+    // id because named pipes use a machine-wide namespace while cross-session windows cannot activate
+    // one another. This keeps the rendezvous boundary aligned with the existing primary-election
+    // boundary; each elected primary still protects its channel's WebView2 user-data ownership.
     private static string IdentitySuffix =>
         AppChannel.Current == PiPlayChannel.Default ? "v1" : AppChannel.Name;
     private static string MutexName => $@"Local\PiPlay.SingleInstance.{IdentitySuffix}";
-    private static string PipeName => $"PiPlay.SingleInstance.{IdentitySuffix}";
+    private static readonly int SessionId = GetCurrentSessionId();
+    private static string PipeName => SingleInstancePipePolicy.BuildPipeName(
+        IdentitySuffix, SessionId);
 
     private Mutex? _mutex;
     private CancellationTokenSource? _pipeCts;
+
+    private static int GetCurrentSessionId()
+    {
+        using var process = Process.GetCurrentProcess();
+        return process.SessionId;
+    }
 
     /// <summary>Shared WebView2 environment, created lazily during the Source Window's browser init.</summary>
     public WebViewEnvironmentService WebViewEnvironment { get; } = new();
@@ -119,32 +130,28 @@ public partial class App : Application
         _pipeCts = new CancellationTokenSource();
         var token = _pipeCts.Token;
 
-        _ = Task.Run(async () =>
-        {
-            while (!token.IsCancellationRequested)
-            {
-                try
-                {
-                    using var server = new NamedPipeServerStream(
-                        PipeName, PipeDirection.In, 1,
-                        PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        _ = Task.Run(() => SingleInstancePipePolicy.RunAsync(
+            attemptAsync: ServeOnePipeConnectionAsync,
+            delayAsync: Task.Delay,
+            onFirstFailure: ex => Log.Error(
+                "Single-instance pipe server error; retries are delayed and repeats suppressed until recovery.",
+                ex),
+            onRecovery: failures => Log.Info(
+                $"Single-instance pipe server recovered after {failures} failed attempt(s)."),
+            token), token);
+    }
 
-                    await server.WaitForConnectionAsync(token);
-                    using var reader = new StreamReader(server, Encoding.UTF8);
-                    var url = await reader.ReadToEndAsync(token);
+    private async Task ServeOnePipeConnectionAsync(CancellationToken token)
+    {
+        using var server = new NamedPipeServerStream(
+            PipeName, PipeDirection.In, 1,
+            PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
 
-                    Dispatcher.Invoke(() => OnSecondInstance(url));
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    Log.Error("Single-instance pipe server error.", ex);
-                }
-            }
-        }, token);
+        await server.WaitForConnectionAsync(token);
+        using var reader = new StreamReader(server, Encoding.UTF8);
+        var url = await reader.ReadToEndAsync(token);
+
+        Dispatcher.Invoke(() => OnSecondInstance(url));
     }
 
     private static void TrySendToExistingInstance(string? url)

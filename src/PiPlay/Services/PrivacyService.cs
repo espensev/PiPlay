@@ -48,8 +48,13 @@ public static class PrivacyService
     public const string ClearTimedOut =
         "Clearing browser data is taking longer than expected. It will finish in the background, " +
         "and you may be signed out of YouTube.";
+    public const string ClearAlreadyRunning =
+        "A previous browser-data clear is still finishing in the background. Wait for it to finish " +
+        "before trying again.";
     // Tooltip on the disabled Clear button while the browser is still loading (set by SettingsWindow).
     public const string ClearNotReadyHint = "Available once the browser has finished loading.";
+    public const string ClearAlreadyRunningHint =
+        "Available after the previous browser-data clear finishes.";
 
     /// <summary>
     /// Hang-guard bound for the Clear operation (NOT a progress wait). 30 s is about 2x the ~15 s

@@ -45,11 +45,12 @@ public static class ThemeResourceApplier
     }
 
     /// <summary>
-    /// Derive the accent state set for the resolved (accent x theme) and replace every accent token
-    /// AND its companion <c>*Color</c> entry (review BL-09 — the companions used to go stale). Each
-    /// consumer references these via <c>DynamicResource</c>, so replacing the entries re-resolves
-    /// them. OnAccentPressed carries the CON-1 fix: a dim accent's pressed fill gets a readable
-    /// foreground rather than the reused OnAccent.
+    /// Derive the accent state set for the resolved (accent x theme) and keep every accent token
+    /// AND its companion <c>*Color</c> entry in step (review BL-09 — the companions used to go stale).
+    /// Changed entries are replaced so <c>DynamicResource</c> consumers re-resolve; equal frozen
+    /// brushes/colors retain identity so intensity preview does not invalidate unrelated consumers.
+    /// OnAccentPressed carries the CON-1 fix: a dim accent's pressed fill gets a readable foreground
+    /// rather than the reused OnAccent.
     /// </summary>
     public static void ApplyAccentOnly(
         ResourceDictionary resources, string accentColor, ThemePreset preset, int? accentIntensity = null)
@@ -71,8 +72,12 @@ public static class ThemeResourceApplier
 
     private static void SetColorPair(ResourceDictionary resources, string key, Color color)
     {
-        resources[key] = Frozen(color);
-        resources[key + "Color"] = color;   // companion Color token, kept in step
+        if (resources[key] is not SolidColorBrush brush || brush.Color != color || !brush.IsFrozen)
+            resources[key] = Frozen(color);
+
+        var colorKey = key + "Color";
+        if (resources[colorKey] is not Color existingColor || existingColor != color)
+            resources[colorKey] = color;   // companion Color token, kept in step
     }
 
     private static void ApplyPalette(ResourceDictionary resources, ThemePalette palette)

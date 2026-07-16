@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 
@@ -47,10 +48,28 @@ public static class YouTubeDomBridge
   return location.href;
 })()";
 
+    private static readonly string SuppressPlaybackScript = $@"
+(() => {{
+  const v = {VideoSelector};
+  if (!v) return false;
+  try {{
+    v.muted = true;
+    v.pause();
+    return v.muted === true && v.paused === true;
+  }} catch (e) {{
+    return false;
+  }}
+}})()";
+
+    // A success in one operation must not reopen the log gate for an unrelated persistent failure
+    // (for example, a healthy 4 Hz player-state read beside a failing 1 Hz Source suppression).
+    // Weak keys keep closed/disposed WebViews collectible.
+    private static readonly ConditionalWeakTable<CoreWebView2, DomFailureState> FailureStates = new();
+
     /// <summary>Read current time / paused / duration, or null if no video or the read failed.</summary>
     public static async Task<PlayerState?> ReadPlayerStateAsync(CoreWebView2 webView)
     {
-        var raw = await ExecuteAsync(webView, ReadStateScript);
+        var raw = await ExecuteAsync(webView, ReadStateScript, "player-state read");
         if (raw is null) return null;
         try
         {
@@ -82,27 +101,45 @@ public static class YouTubeDomBridge
     }
 
     public static Task PauseAsync(CoreWebView2 webView) =>
-        ExecuteVoidAsync(webView, $"(() => {{ const v = {VideoSelector}; if (v) v.pause(); }})()");
+        ExecuteVoidAsync(webView, $"(() => {{ const v = {VideoSelector}; if (v) v.pause(); }})()", "pause");
 
-    public static Task SuppressPlaybackAsync(CoreWebView2 webView) =>
-        ExecuteVoidAsync(webView,
-            $"(() => {{ const v = {VideoSelector}; if (v) {{ v.muted = true; try {{ v.pause(); }} catch (e) {{}} }} }})()");
+    /// <summary>
+    /// Mute and pause Source playback. True means the script found a video and observed both
+    /// post-command states; false means no video, script refusal, or host execution failure.
+    /// </summary>
+    public static async Task<bool> SuppressPlaybackAsync(CoreWebView2 webView)
+    {
+        var result = await ExecuteRawAsync(webView, SuppressPlaybackScript, "source suppression");
+        return result.Succeeded && IsTrue(result.Value);
+    }
+
+    /// <summary>Injected executor seam for the suppression acknowledgement contract.</summary>
+    internal static async Task<bool> SuppressPlaybackAsync(Func<string, Task<string>> executeScriptAsync)
+    {
+        ArgumentNullException.ThrowIfNull(executeScriptAsync);
+        try { return IsTrue(await executeScriptAsync(SuppressPlaybackScript)); }
+        catch { return false; }
+    }
 
     public static Task PlayAsync(CoreWebView2 webView) =>
         ExecuteVoidAsync(webView,
-            $"(() => {{ const v = {VideoSelector}; if (v) {{ const p = v.play(); if (p && p.catch) p.catch(() => {{}}); }} }})()");
+            $"(() => {{ const v = {VideoSelector}; if (v) {{ const p = v.play(); if (p && p.catch) p.catch(() => {{}}); }} }})()",
+            "play");
 
     public static Task SeekAsync(CoreWebView2 webView, int seconds) =>
         ExecuteVoidAsync(webView,
-            $"(() => {{ const v = {VideoSelector}; if (v) {{ try {{ v.currentTime = {seconds}; }} catch (e) {{}} }} }})()");
+            $"(() => {{ const v = {VideoSelector}; if (v) {{ try {{ v.currentTime = {seconds}; }} catch (e) {{}} }} }})()",
+            "seek");
 
     public static Task SeekAndPauseAsync(CoreWebView2 webView, int seconds) =>
         ExecuteVoidAsync(webView,
-            $"(() => {{ const v = {VideoSelector}; if (v) {{ try {{ v.currentTime = {seconds}; }} catch (e) {{}} v.pause(); }} }})()");
+            $"(() => {{ const v = {VideoSelector}; if (v) {{ try {{ v.currentTime = {seconds}; }} catch (e) {{}} v.pause(); }} }})()",
+            "seek-and-pause");
 
     public static Task SeekAndPlayAsync(CoreWebView2 webView, int seconds) =>
         ExecuteVoidAsync(webView,
-            $"(() => {{ const v = {VideoSelector}; if (v) {{ try {{ v.currentTime = {seconds}; }} catch (e) {{}} const p = v.play(); if (p && p.catch) p.catch(() => {{}}); }} }})()");
+            $"(() => {{ const v = {VideoSelector}; if (v) {{ try {{ v.currentTime = {seconds}; }} catch (e) {{}} const p = v.play(); if (p && p.catch) p.catch(() => {{}}); }} }})()",
+            "seek-and-play");
 
     public static Task ApplyPlaybackSettingsAsync(
         CoreWebView2 webView, double? volume, bool? muted, double? playbackRate)
@@ -127,13 +164,13 @@ public static class YouTubeDomBridge
   {volumeScript}
   {mutedScript}
   {rateScript}
-}})()");
+}})()", "playback-settings apply");
     }
 
     /// <summary>Read the page's canonical URL (or location.href) for the currently playing item.</summary>
     public static async Task<string?> ReadCanonicalUrlAsync(CoreWebView2 webView)
     {
-        var raw = await ExecuteAsync(webView, CanonicalUrlScript);
+        var raw = await ExecuteAsync(webView, CanonicalUrlScript, "canonical-url read");
         if (raw is null) return null;
         try { return JsonSerializer.Deserialize<string>(raw); }
         catch { return null; }
@@ -903,31 +940,62 @@ public static class YouTubeDomBridge
 """;
     }
 
-    private static async Task<string?> ExecuteAsync(CoreWebView2 webView, string script)
+    private static async Task<string?> ExecuteAsync(CoreWebView2 webView, string script, string operation)
+    {
+        var result = await ExecuteRawAsync(webView, script, operation);
+        // WebView2 returns the literal "null" for undefined / thrown / null results.
+        if (!result.Succeeded || string.IsNullOrEmpty(result.Value) || result.Value == "null") return null;
+        return result.Value;
+    }
+
+    private static async Task ExecuteVoidAsync(CoreWebView2 webView, string script, string operation)
+    {
+        _ = await ExecuteRawAsync(webView, script, operation);
+    }
+
+    private static async Task<DomExecutionResult> ExecuteRawAsync(
+        CoreWebView2 webView,
+        string script,
+        string operation)
     {
         try
         {
-            var result = await webView.ExecuteScriptAsync(script);
-            // WebView2 returns the literal "null" for undefined / thrown / null results.
-            if (string.IsNullOrEmpty(result) || result == "null") return null;
-            return result;
+            var value = await webView.ExecuteScriptAsync(script);
+            var suppressed = FailureStates.GetOrCreateValue(webView).GateFor(operation).RecordSuccess();
+            if (suppressed is int repeatCount)
+                Log.Info($"YouTube DOM {operation} recovered; {repeatCount} repeated failure(s) were suppressed.");
+            return new DomExecutionResult(true, value);
         }
         catch (Exception ex)
         {
-            Log.Error("YouTube DOM script failed.", ex);
-            return null;
+            if (FailureStates.GetOrCreateValue(webView).GateFor(operation).RecordFailure())
+                Log.Error($"YouTube DOM {operation} failed; repeated failures are suppressed until recovery.", ex);
+            return new DomExecutionResult(false, null);
         }
     }
 
-    private static async Task ExecuteVoidAsync(CoreWebView2 webView, string script)
+    private static bool IsTrue(string? value) =>
+        string.Equals(value?.Trim(), "true", StringComparison.OrdinalIgnoreCase);
+
+    private readonly record struct DomExecutionResult(bool Succeeded, string? Value);
+
+    private sealed class DomFailureState
     {
-        try
+        private readonly object _sync = new();
+        private readonly Dictionary<string, ConsecutiveFailureGate> _gates =
+            new(StringComparer.Ordinal);
+
+        public ConsecutiveFailureGate GateFor(string operation)
         {
-            await webView.ExecuteScriptAsync(script);
-        }
-        catch (Exception ex)
-        {
-            Log.Error("YouTube DOM command failed.", ex);
+            lock (_sync)
+            {
+                if (!_gates.TryGetValue(operation, out var gate))
+                {
+                    gate = new ConsecutiveFailureGate();
+                    _gates.Add(operation, gate);
+                }
+                return gate;
+            }
         }
     }
 }
