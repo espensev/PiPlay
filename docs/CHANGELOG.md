@@ -2,7 +2,7 @@
 
 All notable changes to PiPlay are recorded here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/); draft numbering is used until 1.0.
 
-## [Unreleased]
+## [0.12.0] - 2026-07-16
 
 ### Added
 - **Show Popout is now a separate recovery action.** It restores and focuses the existing player
