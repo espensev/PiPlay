@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace PiPlay.Tests;
 
@@ -248,6 +249,74 @@ public class ReleaseScriptPolicyTests
         Assert.Contains("$previousErrorActionPreference = $ErrorActionPreference", helper);
         Assert.Contains("$ErrorActionPreference = \"Continue\"", helper);
         Assert.Contains("$ErrorActionPreference = $previousErrorActionPreference", helper);
+    }
+
+    [Fact]
+    public void Local_ci_wrapper_fails_closed_and_restores_process_state()
+    {
+        var script = Script("scripts/Test-LocalCI.ps1");
+
+        Assert.Contains("$global:LASTEXITCODE = 0", script);
+        Assert.Contains("$exitCode = $LASTEXITCODE", script);
+        Assert.Contains("throw \"Local CI step '", script);
+        Assert.Contains("Restore-ProcessEnvironment -Previous $testEnvironment", script);
+        Assert.Contains("Restore-ProcessEnvironment -Previous $commonEnvironment", script);
+        Assert.Contains("Remove-Item -LiteralPath $testDataRoot -Recurse -Force", script);
+        Assert.Contains("Pop-Location", script);
+        Assert.Contains("Restore-ProcessEnvironment -Previous $previous", script);
+
+        // Node enforcement must read the value the plan DECLARES and the plan test pins
+        // (requirements.nodeMajor), not a second hardcoded literal that can silently drift green.
+        Assert.Contains("[int]$RequiredMajor", script);
+        Assert.Contains("-RequiredMajor $localCiPlan.requirements.nodeMajor", script);
+        Assert.Contains("-notmatch \"^v?$RequiredMajor", script);
+        Assert.DoesNotContain("-notmatch '^v?24\\.'", script);
+
+        var testBranch = script.IndexOf("elseif ($step.name -eq \"test\")", StringComparison.Ordinal);
+        var protectedTry = script.IndexOf("try {", testBranch, StringComparison.Ordinal);
+        var createRoot = script.IndexOf("New-Item -ItemType Directory -Path $testDataRoot", testBranch, StringComparison.Ordinal);
+        var setTestEnvironment = script.IndexOf("$testEnvironment = Set-ProcessEnvironment", testBranch, StringComparison.Ordinal);
+        var cleanupFinally = script.IndexOf("finally {", testBranch, StringComparison.Ordinal);
+        Assert.True(testBranch >= 0 && protectedTry > testBranch, "The test-step branch must open a try.");
+        Assert.True(createRoot > protectedTry, "Test-root creation must be protected by the cleanup finally.");
+        Assert.True(setTestEnvironment > protectedTry, "Test environment setup must be protected by the cleanup finally.");
+        Assert.True(cleanupFinally > setTestEnvironment, "Cleanup must run from the test-step finally.");
+
+        // Cleanup is best-effort: a transient lock on the temp root must degrade to a warning, never
+        // throw out of the finally - which would either mask a real test failure or flip a fully green
+        // run to FAILED. The -ErrorAction Stop remove is wrapped so its failure only warns.
+        var cleanupRemove = script.IndexOf("Remove-Item -LiteralPath $testDataRoot", cleanupFinally, StringComparison.Ordinal);
+        var cleanupCatch = script.IndexOf("} catch {", cleanupRemove, StringComparison.Ordinal);
+        var cleanupWarn = script.IndexOf("Could not remove local CI test data", cleanupRemove, StringComparison.Ordinal);
+        Assert.True(cleanupRemove > cleanupFinally, "The cleanup remove must live in the test-step finally.");
+        Assert.True(cleanupCatch > cleanupRemove, "The cleanup remove must be wrapped in a try/catch.");
+        Assert.True(cleanupWarn > cleanupCatch, "A cleanup failure must degrade to a warning, not throw.");
+    }
+
+    [Fact]
+    public void Ci_keeps_pull_requests_hosted_and_trusted_events_variable_routed()
+    {
+        var workflow = Script(".github/workflows/ci.yml");
+        var normalized = workflow.Replace("\r\n", "\n");
+
+        Assert.Contains("name: Build and test (Windows)", workflow);
+        Assert.Contains("case(github.event_name == 'pull_request', 'windows-latest'", workflow);
+        Assert.Contains("vars.PIPLAY_WINDOWS_RUNNER || 'windows-latest'", workflow);
+        Assert.Contains("push:\n    branches:\n      - main\n  workflow_dispatch:", normalized);
+        Assert.DoesNotContain("\n    tags:", normalized);
+        Assert.Contains("run: .\\scripts\\Test-LocalCI.ps1", workflow);
+        Assert.Contains("persist-credentials: false", workflow);
+        Assert.DoesNotContain("run: dotnet restore", workflow);
+        Assert.DoesNotContain("run: dotnet test", workflow);
+
+        var usesLines = normalized.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .Where(line => line.StartsWith("uses: ", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(3, usesLines.Length);
+        Assert.All(usesLines, line => Assert.Matches(
+            new Regex(@"^uses: [^@\s]+@[0-9a-f]{40}(?:\s+#\s+.+)?$", RegexOptions.CultureInvariant),
+            line));
     }
 
     [Theory]

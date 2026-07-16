@@ -65,8 +65,13 @@ dotnet run --project src\PiPlay\PiPlay.csproj
 Deterministic local gate, matching CI:
 
 ```powershell
-dotnet test PiPlay.sln --configuration Debug
-.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump
+pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1
+```
+
+Inspect the exact command plan without running tools or creating its temporary test-data root:
+
+```powershell
+pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1 -Plan
 ```
 
 Release pipeline:

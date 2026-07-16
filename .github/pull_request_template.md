@@ -27,8 +27,7 @@ override — uncomment and fill in the next line (it must be its own line in thi
 <!-- Commands run and their results. Mark anything not run, and anything only verifiable live. -->
 
 ```powershell
-dotnet test PiPlay.sln --configuration Debug
-.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump
+pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1
 ```
 
 ## Docs / changelog impact

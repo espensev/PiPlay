@@ -6,7 +6,9 @@ Layered regression suite. See `docs/AGENTS.md` for the test conventions and qual
 ## Lane A — `dotnet test` (fast, deterministic, headless)
 
 No WebView2, no network, no visible desktop. Runs in well under a second.
-This is the lane run by `.github/workflows/ci.yml` before the non-mutating release build gate.
+The full deterministic gate is owned by `scripts/Test-LocalCI.ps1`: it runs this lane and then the
+non-mutating release build gate. `.github/workflows/ci.yml` invokes that same wrapper so local and
+remote command sequences cannot drift.
 
 ```bash
 dotnet test                              # everything in PiPlay.Tests
@@ -14,6 +16,12 @@ dotnet test --filter Category=Markup     # Layer 1: XAML invariants (parsed as X
 dotnet test --filter Category=Logic      # Layer 2: pure services
 dotnet test --filter Category=Wpf        # Layer 3: live WPF on a shared STA thread
 dotnet test --filter FullyQualifiedName~YouTubeDomBehaviorTests  # executable generated DOM scripts
+```
+
+Run the complete shared gate from the repository root with:
+
+```powershell
+pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1
 ```
 
 The executable DOM slice needs Node 24, but uses only built-in modules: there is no `npm install`,

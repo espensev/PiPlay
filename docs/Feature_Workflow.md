@@ -90,8 +90,7 @@ Update `docs/CHANGELOG.md` for user-visible changes.
 Run the same deterministic lane that CI runs:
 
 ```powershell
-dotnet test PiPlay.sln --configuration Debug
-.\Build-PiPlay.ps1 -Stage Build -NoVersionBump -NoBuildNumberBump
+pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1
 ```
 
 Use narrower filters while developing:
@@ -166,8 +165,15 @@ The PR description is pre-filled from `.github/pull_request_template.md`; fill e
 
 Two GitHub Actions checks run on every pull request:
 
-- **Build and test (Windows)** (`.github/workflows/ci.yml`) — the deterministic test lane and the
-  non-mutating build gate.
+- **Build and test (Windows)** (`.github/workflows/ci.yml`) — calls the same `Test-LocalCI.ps1`
+  deterministic test/build gate used by developers. This canonical job routes pull requests to
+  `windows-latest`; trusted `main` pushes and manual dispatches use the runner label in repository
+  variable `PIPLAY_WINDOWS_RUNNER`, falling back to `windows-latest` while that variable is unset.
+  Because a contributed workflow can propose targeting a repository runner label directly, any
+  runner registered to this public repository must still be disposable, isolated, and untrusted.
+  Push validation is branch-only, so a Stable tag pointing at an already-tested `main` commit does
+  not launch the same build again. A selected self-hosted runner that later goes offline does not
+  fail over automatically: clear the variable and rerun to recover on hosted Windows.
 - **Require design spec** (`.github/workflows/spec-check.yml`) — fails a PR that changes `src/`,
   `scripts/`, or `tests/` without a changed dated spec matching
   `docs/superpowers/specs/YYYY-MM-DD-*-design.md`. To override deliberately (a trivial or urgent

@@ -10,8 +10,8 @@ Full orientation: `docs/AGENTS.md` (terminology, quality bar, conventions) and t
 - Deploy ONLY via `.\scripts\Publish-Stable.ps1` (ADR-0007 — the only sanctioned promote path).
 - NEVER present a launch of repo build output (`src\...\bin\...` or `bin\publish\...`) as manual-QA
   or release verification. Stale binaries lie about what the code does.
-- Repo builds are for the automated dev loop only: `dotnet run` and the deterministic test gate
-  (`dotnet test PiPlay.sln --configuration Debug`).
+- Repo builds are for the automated dev loop only: `dotnet run` and the deterministic test/build
+  gate (`pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1`).
 - Before any manual test pass, verify what is actually deployed:
 
   ```powershell
