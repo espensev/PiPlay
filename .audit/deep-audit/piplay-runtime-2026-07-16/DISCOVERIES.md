@@ -1,22 +1,24 @@
 # Discovery Queue
 
+Record convention: discovery bodies preserve the observed baseline behavior; the queue `Status`, each `Disposition`, and each `Recommended next mode` describe the current `e16c0f3` state.
+
 Schema: deep-audit/v1  
 Audit slug: `piplay-runtime-2026-07-16`  
 Repository root: `D:\Development\DesktopApps\PiPlay`  
-Audited source/runtime boundary: current source `8015ba4`; deployed Stable `d11eac5` is stale for current-source testing  
-Baseline/current revision: `8015ba4`  
-Branch/worktree: `main`, primary worktree, ahead 2  
-Authority: focused product remediation authorized; audit-state writes allowed; runtime measurement plan-only  
-Dirty-state fingerprint: pre-existing untracked parked-tree review plus this audit state and dated remediation design/plan  
+Audited source/runtime boundary: baseline `8015ba4`; remediation `99f9834`; exact-source deployed Stable/current `e16c0f3` (`v0.12.0 b35`)
+Baseline/current revision: `8015ba4` / `e16c0f3`
+Branch/worktree: `main`, primary worktree, aligned with `origin/main`
+Authority: audit-state writes plus M-002/M-005 profiling; no product-code writes in the closeout
+Dirty-state fingerprint: see `STATE.md`
 Scope/exclusions/environment: see `STATE.md`  
-Last updated: 2026-07-16 Europe/Berlin
+Last updated: 2026-07-18 Europe/Berlin
 
 | Priority | ID | Categories | Location | Suspected multiplier | Depth | Status | Next mode |
 |---|---|---|---|---|---:|---|---|
 | P1 | D-001 | CPU, WebView IPC, retry, logging, failure | `MainWindow.SourceSuppressionTimer_Tick`; `PlayerWindow.SyncTimer_Tick`; `YouTubeDomBridge.Execute*Async` | 1/s + 4/s x failure duration | 4 | Fixed/verified: F-003/F-004, V-001/V-005/V-006; M-001 remains | profile only if authorized |
 | P1 | D-002 | I/O, concurrency, slow dependency, lifecycle | `MainWindow.PerformClearBrowserDataAsync`; `PrivacyService.ClearBrowserDataAsync` | one new clear per timeout while prior clear may still run | 4 | Fixed/verified: F-002, V-002/V-005/V-006 | none |
 | P1 | D-003 | CPU, logging, retry, background task | `App.StartPipeServer` | immediate retry x persistent pipe failure duration | 4 | Fixed/verified: F-001, V-003/V-005/V-006 | none |
-| P1 | D-004 | CPU, browser DOM, events, retained listeners | `YouTubeDomBridge.BuildPlayerFirstSurfaceScript` | document mutations + media events + 1/s fallback + pointer activity x session duration | 4 | Classified: M-002 | `profile` when authorized |
+| P1 | D-004 | CPU, browser DOM, events, retained listeners | `YouTubeDomBridge.BuildPlayerFirstSurfaceScript` | document mutations + media events + 1/s fallback + pointer activity x session duration | 4 | M-002 measured the Standard process subset; Focused remains inconclusive; M-005 is contextual only | targeted active profile still required |
 | P1 | D-008 | memory, handles, native/WebView lifecycle | Popout open/close ownership across `PlayerWindow`, bridges, HWND helpers, WebView2 | resources per cycle x repeated cycles/soak duration | 4 | Classified: M-004 | `profile` when authorized |
 | P2 | D-005 | filesystem I/O, UI latency, duplicate work | `MainWindow.Player_OnClosed`; `SettingsService.AtomicWrite` | two durable full-settings writes per Popout close | 4 | Rejected: R-001 | none |
 | P2 | D-006 | startup, concurrency, allocation, WebView profile | `WebViewEnvironmentService.EnsureCreatedAsync`; retry path in `MainWindow` | concurrent retries x environment creation cost | 4 | Rejected current reachability: R-002 | reopen on ownership change |
@@ -34,7 +36,7 @@ Last updated: 2026-07-16 Europe/Berlin
 - Current depth: 4 - callers, operation-specific failure semantics, timer lifecycles, logging bounds, launch rollback, and independent review were inspected; live persistent-failure cost was not measured.
 - Unknowns: which WebView failure modes return quickly and persist; actual CPU/IPC/log-write cost; whether navigation/renderer recovery naturally stops the state; acceptable retry cadence.
 - Disposition: F-003/F-004 fixed and verified by V-001/V-005/V-006; broad IPC amplification rejected by R-003.
-- Recommended next mode: M-001 profile only after current-source deployment and explicit live fault/profile authority.
+- Recommended next mode: `profile M-001` only with explicit live fault-injection/profile authority; exact-source Stable provenance is already available.
 
 ### D-002 - Timed-out profile clears can overlap
 
@@ -67,10 +69,10 @@ Last updated: 2026-07-16 Europe/Berlin
 - FACT evidence: remediation caches controls, performs conditional DOM writes, binds media events, narrows the ad observer, throttles pointer reveal to 125 ms, keeps the fallback timer active-only at one second, and uses single-flight/latest-wins host appearance IPC. The whole-document observer and global input listeners remain for the document lifetime by design.
 - Cost/amplification model: `YouTube mutation batches + media timeupdate/state events + pointer events + 1 fallback tick/s`, multiplied by watch-session duration; callbacks are mostly guarded but not free.
 - Safeguards/counter-evidence: one document-created script; child frames exit; overlay mutations are ignored; inactive state avoids most update work; no unconditional `innerHTML` churn; navigation tokens and disposal are guarded.
-- Current depth: 4 - document triggers, listener/observer teardown, SPA/off-watch behavior, active gating, host pump, and adversarial counter-evidence inspected; real event rates and renderer CPU are unmeasured.
-- Unknowns: YouTube mutation-batch rate in Standard versus Focused, callback CPU distribution, renderer allocation/retention, behavior over SPA navigation and ads.
-- Disposition: no static finding; M-002 records the matched Standard-vs-Focused measurement.
-- Recommended next mode: `profile M-002` only when authorized.
+- Current depth: 5 for the measured Standard process/runtime subset and 4 for Focused/callback attribution. M-002 established a bounded Standard plateau but failed before an accepted Focused sample.
+- Unknowns: Focused-minus-Standard process effect, YouTube mutation-batch rate, callback CPU distribution, renderer heap/node settling, and behavior over SPA navigation and ads.
+- Disposition: no finding promotion; M-002 is partial/inconclusive. M-005 can surface associations/anomalies but does not prove actual Focused DOM activity.
+- Recommended next mode: `profile M-005` for contextual trend evidence; on a signal, `deepen D-004` and design a matched active measurement before any audit/promotion decision.
 
 ### D-005 - Popout return performs the same durable settings write twice
 
@@ -117,5 +119,5 @@ Last updated: 2026-07-16 Europe/Berlin
 - Safeguards/counter-evidence: deterministic cleanup is extensive and 959 current tests pass; no confirmed leak exists; only one Popout can be live.
 - Current depth: 4 - ownership, disposal, failure, navigation generation, native cleanup tests, and prior passive sample inspected; live settling validation is absent.
 - Unknowns: process-tree private bytes/working set settling, handles/GDI/USER counts, renderer process reuse, delayed COM/WebView reclamation, SPA and DPI/resize effects.
-- Disposition: no static finding; M-004 records the current-source cycle/soak measurement.
-- Recommended next mode: `profile M-004` only after current-source deployment and explicit runtime authority.
+- Disposition: no static finding; M-004 records the exact-source Stable cycle/soak measurement plan.
+- Recommended next mode: `profile M-004` only after a safe lifecycle driver exists and explicit runtime authority is granted; exact-source Stable provenance is already available.

@@ -2,10 +2,10 @@
 
 Schema: deep-audit/v1  
 Audit slug: `piplay-runtime-2026-07-16`  
-Repository/current revision: baseline `8015ba4` on `main`  
-Source/runtime boundary and authority: see `STATE.md`  
+Repository/current revision: baseline `8015ba4`; verified remediation `99f9834`; current/released `e16c0f3` on `main`
+Source/runtime boundary and authority: see `STATE.md`; M-002/M-005 do not change R-001..R-003
 Dirty-state fingerprint/scope/exclusions/environment: see `STATE.md`  
-Last updated: 2026-07-16 Europe/Berlin
+Last updated: 2026-07-18 Europe/Berlin
 
 ### R-001 — The second Popout-return settings save is duplicate work
 

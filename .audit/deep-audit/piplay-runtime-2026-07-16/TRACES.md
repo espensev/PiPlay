@@ -1,11 +1,13 @@
 # Execution Traces
 
+Record convention: trace bodies reconstruct the baseline mechanism unless they explicitly cite later runtime evidence; each `Result` states the current disposition.
+
 Schema: deep-audit/v1  
 Audit slug: `piplay-runtime-2026-07-16`  
-Repository/current revision: `D:\Development\DesktopApps\PiPlay` at baseline `8015ba4` on `main`  
-Source/runtime boundary and authority: current source; user authorized focused product remediation after the read-only discovery pass; runtime measurement remains plan-only  
+Repository/current revision: `D:\Development\DesktopApps\PiPlay`; baseline `8015ba4`, remediation `99f9834`, current/released `e16c0f3` on `main`
+Source/runtime boundary and authority: exact-source Stable `v0.12.0 b35`; M-002/M-005 profiling authorized; no product-code writes in this closeout
 Dirty-state fingerprint/scope/exclusions/environment: see `STATE.md`  
-Last updated: 2026-07-16 Europe/Berlin
+Last updated: 2026-07-18 Europe/Berlin
 
 ### T-001 — Popout suppression and persistent DOM execution failure
 
@@ -41,11 +43,12 @@ Last updated: 2026-07-16 Europe/Berlin
 ### T-004 — Focused presentation document-lifetime work
 
 - Discovery: D-004.
-- Entry/workload: long Standard-versus-Focused playback with pointer activity, ads, and YouTube SPA watch/off-watch transitions.
+- Entry/workload: long Standard-versus-Focused playback with pointer activity, ads, and YouTube SPA watch/off-watch transitions. M-002 captured one mostly idle Standard session; M-005 observes natural process trends without proving Popout/playback activity.
 - Path: Focused installs media listeners, a player-class observer, a whole-document child-list observer, global input listeners, and an active-only 1-second fallback; host appearance/configuration is single-flight/latest-wins.
 - Safeguards: media/player observers detach on replacement/deactivation, writes are conditional, controls are cached, pointer reveal is throttled to 8/s, fallback stops off-watch, and document tokens/generations prevent stale host work.
-- Unknown cost: mutation/event rates, callback CPU, renderer allocation, heap/node settling, and ad/SPA distributions require renderer-attributed measurement.
-- Result: M-002 only; no static correction.
+- Runtime evidence: M-002 Standard process-group CPU mean 0.3713% and renderer mean 0.1428%; topology stayed at 10 processes/3 renderers; private bytes plateaued after the first hour. No accepted Focused sample exists, so no effect size is valid.
+- Unknown cost: Focused-minus-Standard process effect, mutation/event rates, callback CPU, renderer allocation, heap/node settling, and ad/SPA distributions.
+- Result: no static correction and no finding promotion. M-002 is partial/inconclusive; M-005 is association/anomaly context only and cannot estimate a causal Focused effect.
 
 ### T-005 — Dual Popout-return durable settings checkpoints
 
@@ -78,5 +81,5 @@ Last updated: 2026-07-16 Europe/Berlin
 - Discovery: D-008.
 - Entry/workload: repeated Standard/Focused open-close cycles and 30–60 minute navigation/resize/DPI soak.
 - Static ownership: close invalidates initialization generations, stops all four timers, disposes bridges before WebView, removes scripts/handlers/subclasses/native regions, and observes one-player cardinality. Real-HWND tests cover native resize-state removal.
-- Unknown cost: process-tree private bytes, JS/managed heaps, handles/GDI/USER objects, renderer reuse, threads, and close-settled slopes were not measured on current source.
+- Unknown cost: process-tree private bytes, JS/managed heaps, handles/GDI/USER objects, renderer reuse, threads, and close-settled slopes were not measured across repeated Popout cycles on exact-source Stable.
 - Result: M-004 only; no static leak correction.

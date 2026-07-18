@@ -28,12 +28,16 @@ a real desktop tool.
 Active product/source docs are this index, the product spec, changelog, QA checklist, ADRs,
 compliance policy, privacy map, feature workflow, and spec gaps/ownership notes.
 
+The active runtime-efficiency audit is operational evidence rather than product source of truth. Start
+with its [interim report](../.audit/deep-audit/piplay-runtime-2026-07-16/REPORT.md) for conclusions or
+its [state file](../.audit/deep-audit/piplay-runtime-2026-07-16/STATE.md) to resume the passive M-005 lane.
+
 Dated specs, plans, and worklogs under `docs/superpowers/` are immutable change-pass records.
 Only retained review artifacts live under `docs/reviews/`; folded one-off reviews should be deleted
 once their useful facts are captured in active docs or the matching change-pass record. Build-specific
 QA evidence may live under `docs/evidence/`, but stale screenshots should be pruned once their facts
-are folded forward. Meta-cleanup records are not retained after this policy is folded here; keeping
-cleanup-about-cleanup plans makes the active intent less clear.
+are folded forward. Meta-cleanup plans are normally pruned after policy is folded here; a compact
+cleanup audit may remain only when it carries unique pruning provenance or an unresolved owner decision.
 
 ## Current Theme Flow
 

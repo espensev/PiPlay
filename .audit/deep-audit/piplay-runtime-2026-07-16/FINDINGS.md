@@ -1,11 +1,13 @@
 # Findings
 
+Record convention: finding bodies preserve the baseline/pre-remediation behavior at `8015ba4`; each `Result` and the ranked summary state the landed `e16c0f3` disposition.
+
 Schema: deep-audit/v1  
 Audit slug: `piplay-runtime-2026-07-16`  
-Repository/current revision: baseline `8015ba4` on `main`; focused remediation in the working tree  
-Source/runtime boundary and authority: see `STATE.md`; product remediation allowed, runtime measurement plan-only  
+Repository/current revision: baseline `8015ba4`; remediation `99f9834`; current/released `e16c0f3` on `main`
+Source/runtime boundary and authority: all five fixes are landed/released; see `STATE.md`; no product-code writes in this closeout
 Dirty-state fingerprint/scope/exclusions/environment: see `STATE.md`  
-Last updated: 2026-07-16 Europe/Berlin
+Last updated: 2026-07-18 Europe/Berlin
 
 ## Ranked summary
 
@@ -22,7 +24,7 @@ Last updated: 2026-07-16 Europe/Berlin
 ### F-001 — Single-instance pipe failures retry without a bound
 
 - Severity/confidence/depth: Medium; high mechanism confidence; Depth 4.
-- Source revision/runtime boundary: `8015ba4`, current source; no failure was induced live.
+- Source revision/runtime boundary: baseline/pre-remediation `8015ba4`; no failure was induced live.
 - Location: `src/PiPlay/App.xaml.cs` single-instance identity and server loop.
 - Workload: cross-session same-channel primaries or persistent pipe namespace/ACL/resource failure.
 - Evidence and multiplier: session-scoped mutex plus channel-only machine pipe; generic catch immediately loops. Cost is exception construction + log enqueue + another attempt multiplied by failure duration at an unbounded iteration rate.
@@ -33,7 +35,7 @@ Last updated: 2026-07-16 Europe/Berlin
 ### F-002 — Timed-out browser clear can leave multiple outstanding clears
 
 - Severity/confidence/depth: Medium; high; Depth 4.
-- Source revision/runtime boundary: `8015ba4`, current source; WebView2 internal disk scheduling unmeasured.
+- Source revision/runtime boundary: baseline/pre-remediation `8015ba4`; WebView2 internal disk scheduling unmeasured.
 - Location: `MainWindow.PerformClearBrowserDataAsync`, `PrivacyService.ClearBrowserDataAsync`.
 - Workload: an `AllProfile` clear longer than 30 seconds followed by another confirmed request.
 - Evidence and multiplier: `WaitAsync` times out without canceling the underlying task; all gates reset and no task reference remains. Outstanding clear API tasks scale with repeated post-timeout confirmations.
@@ -44,7 +46,7 @@ Last updated: 2026-07-16 Europe/Berlin
 ### F-003 — Popout launch does not require acknowledged Source suppression
 
 - Severity/confidence/depth: Medium correctness impact; medium-high; Depth 4.
-- Source revision/runtime boundary: `8015ba4`, current Normal-mode Popout path; no WebView fault injected.
+- Source revision/runtime boundary: baseline/pre-remediation `8015ba4` Normal-mode Popout path; no WebView fault injected.
 - Location: `MainWindow.StartVideoPopoutAsync`, `YouTubeDomBridge.SuppressPlaybackAsync`.
 - Workload: initial Source suppression host/script failure during Popout launch.
 - Evidence and multiplier: the bridge catches the exception and completes normally; launch then starts the safety guard and constructs/shows the Popout. Source audio can continue until a later 1 Hz guard attempt succeeds.
@@ -55,7 +57,7 @@ Last updated: 2026-07-16 Europe/Berlin
 ### F-004 — Consecutive DOM host failures repeat equivalent log work
 
 - Severity/confidence/depth: Low; high for log work, measurement-bound for material CPU; Depth 4.
-- Source revision/runtime boundary: `8015ba4`, one Normal Popout.
+- Source revision/runtime boundary: baseline/pre-remediation `8015ba4`, one Normal Popout.
 - Location: `YouTubeDomBridge.ExecuteAsync`/`ExecuteVoidAsync`, the 1 Hz Source and 4 Hz Popout timers.
 - Workload/multiplier: up to five caught exceptions and log enqueues per second for persistent failure duration. Queue and disk retention are bounded; IPC cadence is the healthy cadence.
 - Correction: log first consecutive query/command failure, suppress repeats, and report suppressed count on recovery. Preserve timers.
@@ -65,7 +67,7 @@ Last updated: 2026-07-16 Europe/Berlin
 ### F-005 — Accent preview rewrites unchanged WPF resources
 
 - Severity/confidence/depth: Low deterministic efficiency defect; high; Depth 4.
-- Source revision/runtime boundary: `8015ba4`, current WPF Settings preview.
+- Source revision/runtime boundary: baseline/pre-remediation `8015ba4` WPF Settings preview.
 - Location: `ThemeResourceApplier.ApplyAccentOnly`/`SetColorPair`.
 - Workload/multiplier: up to 30 applies/s; 18 replacements/apply even when all or most values are identical. Intensity-only movement commonly changes one or two of nine pairs.
 - Correction: preserve equal correctly typed brush/color entries; repair only missing, wrong-typed, or changed values.

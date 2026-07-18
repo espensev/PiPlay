@@ -1,113 +1,113 @@
-# Final Deep Audit Report
+# Interim Deep Audit Report
 
-Schema: deep-audit/v1
-Audit slug: `piplay-runtime-2026-07-16`
-Repository root: `D:\Development\DesktopApps\PiPlay`
-Baseline/current revision: `8015ba4` on `main` (ahead 2 of `origin/main`); focused remediation lives uncommitted in the working tree
-Source/runtime boundary: current source; deployed Stable at `E:\Dev_test_implemenations\PiPlay` is `d11eac5` (v0.11.0 b34), two commits stale, and was not used as evidence for current source
-Report basis: D-001..D-008, T-001..T-008, F-001..F-005, V-001..V-006, M-001..M-004, R-001..R-003, COVERAGE.md
-Current-truth revalidation for this report: canonical gate `scripts/Test-LocalCI.ps1` re-run 2026-07-16 → **LOCAL CI: PASS**, 985/985 tests (0 failed, 0 skipped), Release build 0 warnings/0 errors
-Completion gate: met for the frozen scope; live-runtime measurements remain explicitly authority-blocked and are carried as M-001..M-004
+- Schema: deep-audit/v1
+- Audit slug: `piplay-runtime-2026-07-16`
+- Repository: `D:\Development\DesktopApps\PiPlay`; baseline/remediation/current `8015ba4` / `99f9834` / `e16c0f3` on `main`, aligned with `origin/main`
+- Runtime boundary: exact-source deployed Stable `E:\Dev_test_implemenations\PiPlay\PiPlay.exe`, `v0.12.0 b35`, source `e16c0f3`; verified from a clean temporary checkout
+- Report basis: D-001..D-008, T-001..T-008, F-001..F-005, V-001..V-006, M-001..M-005, R-001..R-003, and [COVERAGE.md](COVERAGE.md)
+- Reading map: this report is the synthesis; [STATE.md](STATE.md) is resume truth; [MEASUREMENTS.md](MEASUREMENTS.md) owns measurement detail
+- Last updated: 2026-07-18 Europe/Berlin
+- Completion gate: static audit/remediation is complete; this remains interim while M-005 gathers passive natural-session evidence
 
 ## Verdict and confidence
 
-- **Overall runtime assessment:** PiPlay's healthy steady state is disciplined. Every polling surface is bounded and single-flight (Auto 4/s with cheap preflight, Source suppression 1/s, Popout sync 4/s, accent preview ≤30/s coalesced, opacity probe 4/s only when needed), cardinality is capped by design (one primary instance, one Source, at most one Popout), and logging is a bounded-queue, batching, rotating pipeline. No unbounded hot loop exists on any healthy path.
-- **Most consequential multiplier:** failure-duration multipliers, not healthy cadence. The two material mechanisms were the named-pipe server's immediate unbounded retry under persistent construction failure (F-001) and per-second equivalent-exception logging under persistent DOM execution failure (F-004). Both are now bounded/coalesced and verified.
-- **Highest-risk scaling/lifecycle issue:** unvalidated live settling — repeated Popout open/close resource settling (M-004) and Focused-surface session cost in the renderer (M-002). Static ownership/teardown is thorough and no leak is confirmed; the risk is purely that live behavior is unmeasured.
-- **Highest-value opportunity:** already realized in the working tree. F-001..F-005 (two Medium correctness/lifecycle defects, one Medium launch-acknowledgement defect, two Low deterministic-efficiency defects) are fixed, tested (26 focused tests; suite 959→985), and independently re-reviewed with no remaining actionable findings. Remaining value is measurement-gated.
-- **Coverage and confidence:** 18 runtime areas mapped at Depth 2–4 (16 at Depth 3–4); static confidence is high across startup, steady state, failure, cancellation, return, and shutdown. Live operational cost (CPU/allocation/handles/renderer heap) is deliberately unmeasured pending a current-source Stable deployment and explicit measurement authority.
+- **Overall runtime assessment:** the inspected healthy paths are statically bounded and single-flight across timers, WebView bridges, logging, and one-Source/one-Popout ownership. Five supported Medium/Low findings were fixed, verified, landed, and released; no Critical/High finding remains. One mostly-idle Standard session plateaued after settling.
+- **Most consequential multiplier:** persistent failure duration, not healthy cadence. The named-pipe retry loop and equivalent DOM-failure logging were the strongest multipliers; both are now bounded/coalesced.
+- **M-002 conclusion:** the old 24-hour A/B logger is ended and closed. It failed after one valid four-hour Standard block because the sampler mishandled a transient WebView2 child. PiPlay and the later reboots did not cause the failure.
+- **What the valid block says:** Standard used 0.3713% mean attributed process CPU and 0.1428% renderer CPU on 32 logical processors. Private bytes settled after the first hour (post-hour slope -0.0709 MiB/min); working set, handles, threads, GDI/USER, and process topology did not show retained growth. This is useful counter-evidence to an unbounded healthy Standard-session leak.
+- **What it cannot say:** no Focused block produced accepted samples, active playback was not continuous, and callback duration/long tasks/JS heap/DOM nodes were unavailable. A Focused-minus-Standard conclusion would be invented.
+- **Highest-value next evidence:** M-005 observes natural process trends every two minutes without forcing mode, playback, windows, or restarts. It is process-presence-gated and identity-split; no product behavior is changed.
+- **Confidence:** high for the static findings/fixes and the one Standard session's plateau; low for Focused incremental cost. M-005 can surface operational anomalies but cannot establish actual Focused DOM activity or causal effect.
 
 ## Ranked findings
 
-All five findings are **Fixed/verified in the working tree** at `8015ba4`+remediation. None reached Critical/High; each Medium was adversarially verified anyway.
+All findings are landed at/after `99f9834`, released in `e16c0f3`, and covered by V-001..V-006.
 
 | Rank | ID | Severity | Confidence | Depth | Verification | Claim and resolution |
 |---:|---|---|---|---:|---|---|
-| 1 | F-001 | Medium | High (mechanism) | 4 | V-003, V-005, V-006 | Single-instance pipe used a session-scoped mutex with a machine-scoped, channel-only pipe name, and any persistent pipe failure retried immediately without bound at exception speed. Fixed: session-qualified pipe identity (`SingleInstancePipePolicy`) + cancellation-aware 250 ms→30 s exponential backoff, first-failure/recovery-summary logging, reset on success. |
-| 2 | F-002 | Medium | High | 4 | V-002, V-005, V-006 | A browser-data clear that outlived its 30 s foreground wait lost all ownership: gates reset, no task reference kept, so repeated confirmations could stack outstanding `AllProfile` clears. Fixed: `BrowserDataClearCoordinator` single-flight on the raw task, late completion/fault observed, Clear stays disabled until terminal completion, live Settings dialog refresh, timeout-boundary completion classified (`DidForegroundWaitExpire`). |
-| 3 | F-003 | Medium (correctness) | Medium-high | 4 | V-001, V-005, V-006 | Popout launch treated failed Source suppression as success (bridge swallowed host exceptions), so Source audio could keep playing until the 1 Hz guard recovered — the double-audio window. Fixed: suppression returns a true acknowledgement only when the DOM script found the video and issued mute/pause; `PopoutLaunchPolicy` blocks Popout construction on anything else and routes into the existing rollback. |
-| 4 | F-004 | Low | High (log work) | 4 | V-001, V-005, V-006 | Persistent DOM host failure formatted/enqueued up to five equivalent exceptions per second for the failure duration. Fixed: `ConsecutiveFailureGate` per weakly-held WebView and exact operation — log first failure, suppress repeats, report suppressed count on recovery. Timers/cadence deliberately preserved (see R-003). |
-| 5 | F-005 | Low | High | 4 | V-004, V-005, V-006 | Accent preview replaced all 18 accent resource entries per apply (≤30/s) even when values were unchanged; intensity-only movement typically changes 1–2 of 9 pairs. Fixed: `ThemeResourceApplier` preserves equal, correctly typed brush/color entries and repairs only missing/wrong-typed/changed values, verified against real WPF `ResourceDictionary` identity/value/frozen-state tests. |
+| 1 | F-001 | Medium | High mechanism | 4 | V-003/V-005/V-006 | Session-mismatched pipe identity plus immediate persistent-failure retry could loop at exception speed. Fixed with session-qualified identity, cancellation-aware 250 ms→30 s capped backoff, and recovery-summary logging. |
+| 2 | F-002 | Medium | High | 4 | V-002/V-005/V-006 | A browser-data clear that exceeded the foreground timeout lost task ownership and allowed overlap. Fixed with raw-task single-flight ownership through terminal completion. |
+| 3 | F-003 | Medium correctness | Medium-high | 4 | V-001/V-005/V-006 | Popout launch could proceed without acknowledged Source suppression, creating a temporary duplicate-playback window. Fixed with an explicit suppression acknowledgement and rollback on failure. |
+| 4 | F-004 | Low | High | 4 | V-001/V-005/V-006 | Persistent DOM failure formatted/enqueued equivalent errors at polling cadence. Fixed with per-WebView/per-operation first-failure suppression and recovery summaries. |
+| 5 | F-005 | Low | High | 4 | V-004/V-005/V-006 | Accent preview replaced unchanged resource pairs. Fixed with type/value/identity-preserving change-only replacement. |
 
-Validation criteria per finding live in `FINDINGS.md`; adversarial case inventories live in `VERIFICATIONS.md`.
+No M-002 result supports a new finding. D-004 remains classified. M-005 supplies contextual trend/anomaly evidence only; a matched active measurement is still required for a Focused-cost conclusion.
 
 ## Runtime architecture and cost map
 
-- **Startup and construction:** `App.OnStartup` loads theme/settings, elects one primary per session via a `Local\` mutex, starts the named-pipe handoff server on a thread-pool task, and constructs the single `MainWindow`. Shared WebView2 environment creation is lazy, effectively single-caller (R-002), and reused constant-time afterward.
-- **Timers/workers/queues/loops:** Auto detector (250 ms, gated, single-flight), Source suppression guard (1 s while a Popout owns playback), Popout sync (250 ms, generation-guarded across navigation), Focused fallback (1 s, active-only), opacity/strip probe (250 ms, only under non-default settings), 15 ms alpha animator during fades, accent preview coalescer (33 ms max cadence), logging background thread over a bounded `BlockingCollection` (4,096 entries, 64 KiB batches, ~1 MB active + one backup), pipe server loop (async idle wait; capped backoff on failure).
-- **Frequency and cardinality boundaries:** one instance/one Source/≤1 Popout; 4/s Auto; 1/s suppression; 4/s sync; ≤12×250 ms return-replay probes; ≤8/s Focused pointer reveal; ≤30/s preview applies; profile/settings cardinality is user-created and uncapped — every save serializes the full list (bounded by user behavior, flagged in coverage).
-- **Threads/dispatchers/locks:** WPF dispatcher owns windows, all DispatcherTimers, WebView handlers, native helpers, and synchronous settings writes; pipe server dispatches handoff via `Dispatcher.Invoke`; Focused appearance uses a lock-protected latest-wins pump with ≤1 WebView call in flight; native opacity/resize dictionaries are UI-thread-only and clean through `WM_NCDESTROY`.
-- **I/O and external dependencies:** WebView2 async IPC for all DOM work; durable atomic temp-flush-replace settings writes; batched log file writes with rotation; named-pipe IPC for single-instance handoff; no network I/O owned by the app beyond WebView2 itself.
-- **Failure/retry/cancellation/recovery/shutdown:** DOM bridge failures are caught, classified per operation, and (post-fix) acknowledged at launch and coalesced in logs; privacy clear owns its task to terminal completion; pipe failures back off and recover; close/return invalidates generations, stops all four Popout timers, disposes bridges before WebView2, removes scripts/handlers/subclasses/regions; `App.OnExit` cancels the pipe server and drains logs.
+- **Startup/construction:** one primary per session via a `Local\` mutex; background named-pipe handoff; one Source Window; lazy shared WebView2 environment.
+- **Timers/workers/queues:** Auto 250 ms and single-flight; Source suppression 1 s while Popout owns playback; Popout sync 250 ms and generation-guarded; Focused fallback 1 s and active-only; opacity probe 250 ms only under non-default settings; accent preview ≤30/s and coalesced; bounded 4,096-entry logging queue with batching/rotation.
+- **Cardinality:** one app instance, one Source, at most one Popout. Healthy hot-path work is constant-bounded.
+- **Concurrency:** WPF dispatcher owns window/native state; bridge calls use in-progress/generation guards; Focused appearance is latest-wins with at most one WebView call in flight; browser-data clear is task-owned single-flight.
+- **I/O:** WebView2 IPC, atomic temp-flush-replace settings writes, batched local logs, and named-pipe IPC. PiPlay owns no network telemetry.
+- **Lifecycle:** close/return invalidates generations, stops timers, disposes bridges before WebView2, removes handlers/scripts/subclasses/regions, cancels pipe work, and drains logs.
 
 ## Hot-path table
 
 | Rank | Entry/trigger | Frequency/cardinality | Dominant work | Allocation/retention | I/O/blocking | Amplification | Evidence | Action |
 |---:|---|---|---|---|---|---|---|---|
-| 1 | Popout sync timer | 4/s × 1 Popout, single-flight | WebView IPC state read + parse | small, transient | async IPC | navigation-generation bounded | T-001, V-001 | keep; M-001 if failure cost questioned |
-| 2 | Focused DOM surface | media/mutation/pointer events + 1/s active-only fallback × session | renderer-side callbacks, conditional DOM writes | renderer heap unmeasured | in-renderer | session duration | T-004 | M-002 when authorized |
-| 3 | Auto detector | 4/s while enabled | cheap URL preflight; DOM read only for unhandled watch video | negligible | async IPC | single-flight | COVERAGE | none |
-| 4 | Source suppression guard | 1/s while Popout owns playback | WebView IPC mute/pause reassert | negligible | async IPC | failure-duration (log side fixed) | T-001, F-003/F-004 | keep 1 Hz (Q-1 guard); M-001 optional |
-| 5 | Accent preview | ≤30/s during Settings drag only | derive 9 pairs; now conditional replacement + realized DynamicResource re-resolution | frozen brushes; churn now change-proportional | none | interaction-scoped | T-007, F-005, V-004 | M-003 optional |
-| 6 | Popout close/return | per user close | 2 durable full-settings writes + ≤12 replay probes | serialize full settings ×2 | flush-to-disk ×2 | user-bounded | T-005, R-001 | preserve (spec §14) |
-| 7 | Opacity/fade activity | 4/s probe + 15 ms animator, only when configured | native queries, alpha animation | negligible | none | feature-gated | COVERAGE | none |
-| 8 | Logging pipeline | event-driven, bounded queue | format/enqueue/batch/rotate | 4,096-entry cap; ~2 MB disk | batched writes | fixed by F-004 coalescing | T-001/T-003 | preserve bounds |
-| 9 | Pipe server | idle async wait; handoff per second instance | wait/read/dispatch | negligible | pipe IPC | failure now 250 ms→30 s backoff | T-003, F-001, V-003 | none |
-| 10 | Browser-data clear | user-confirmed | WebView2 `AllProfile` clear | none retained post-terminal | WebView2-internal disk | single-flight (fixed) | T-002, F-002, V-002 | none |
+| 1 | Popout sync | 4/s × one Popout, single-flight | WebView state read/parse | transient | async IPC | generation bounded | T-001/V-001 | preserve |
+| 2 | Focused DOM surface | events + active 1/s fallback × session | renderer callbacks/conditional DOM writes | heap/nodes unknown | renderer | session duration | T-004/M-002 | M-005 process subset |
+| 3 | Auto detector | 4/s when enabled | URL preflight; conditional DOM read | negligible | async IPC | single-flight | coverage | none |
+| 4 | Source suppression | 1/s while Popout owns playback | mute/pause reassert | negligible | async IPC | failure log side fixed | T-001/F-003/F-004 | preserve Q-1 guard |
+| 5 | Accent preview | ≤30/s during drag | derive pairs/change-only apply | change-proportional | none | interaction scoped | T-007/F-005 | M-003 optional |
+| 6 | Close/return | per user close | two required durable saves + bounded replay | full settings ×2 | disk flush ×2 | user bounded | T-005/R-001 | preserve |
+| 7 | Pipe server | async idle; handoff/second instance | wait/read/dispatch | negligible | pipe IPC | failure capped | T-003/F-001 | none |
+| 8 | Browser-data clear | user confirmed | WebView2 AllProfile clear | task owned | WebView2 disk | single-flight | T-002/F-002 | none |
 
 ## CPU, memory, and duplicate work
 
-- **Deterministic duplicate work found and removed:** unchanged accent resource replacement (F-005: 18 replacements/apply → change-proportional, typically ≤2 for intensity movement) and equivalent-exception log formatting under persistent DOM failure (F-004: 5/s → first + recovery summary).
-- **Suspected duplicate work that was not duplicate:** the dual Popout-return settings saves are spec-required durability checkpoints on either side of fallible Source scripting (R-001) — preserved.
-- **Algorithmic CPU:** no super-linear growth found on any reachable path; per-tick work is constant-bounded and single-flight everywhere.
-- **Allocation churn:** healthy-path churn is small and transient; the two deterministic churn sources are fixed. Realized WPF invalidation cost of preview applies remains unmeasured (M-003).
-- **Retained growth/leaks:** none confirmed statically. Popout teardown removes timers, bridges, scripts, handlers, subclasses, and HRGNs deterministically (real-HWND tests cover native resize-state removal). Live settling slopes (private bytes, handles, GDI/USER, renderer processes) are M-004; renderer heap/node settling for Focused is M-002.
+- Deterministic duplicate work removed: unchanged accent resource replacement (F-005) and equivalent failure-log formatting (F-004).
+- Suspected duplicate work rejected: dual return saves are spec-required durability boundaries (R-001).
+- No reachable super-linear CPU path was found.
+- No leak is confirmed statically or by M-002. The Standard block's full-window private-byte rise was consistent with startup settling: 30-minute means rose to about 1,239–1,244 MiB, then settled around 1,217 MiB; the post-first-hour slope was negative.
+- M-002 topology stayed exactly 10 processes/3 renderers across all 2,815 accepted rows; handles 8081→7916, threads 447→433, GDI 59→58, USER 42→42.
+- M-005 distinguishes per-session settling from cross-session drift and never stitches across root identity, configured presentation, boot, or Stable identity. Configured presentation remains context, not proof of active Popout presentation.
 
 ## I/O, concurrency, and lifecycle
 
-- **I/O granularity/timeouts:** settings writes are atomic and durable (two per return, user-bounded); log writes are batched with bounded retention; the privacy clear's 30 s wait now bounds only the foreground UX while ownership persists to terminal completion (F-002).
-- **Overlap and reentrancy:** every timer path carries an in-progress flag; the clear path is single-flight under a lock; Focused appearance IPC is latest-wins with ≤1 call in flight; environment creation is single-caller by wiring (R-002 records the reopen condition: multiple Sources or reentrant Retry).
-- **Failure amplification:** pipe failure amplification is now bounded (F-001); DOM failure amplifies neither IPC cadence (R-003) nor, post-fix, log volume (F-004); launch no longer proceeds on unacknowledged suppression (F-003).
-- **Cancellation/restart/shutdown:** app exit cancels the pipe loop cleanly; Popout navigation/close invalidates work by generation token; `WM_NCDESTROY` clears native state; log queue drains on exit. Static shutdown paths are sound; repeated-cycle settling is the remaining live question (M-004).
+- Settings writes remain atomic/durable and user-bounded; the two return checkpoints are correctness-critical.
+- Log storage is bounded and failure log volume is coalesced. The existing LibreHardwareMonitor feed is separate machine telemetry and remains untouched.
+- M-002 failed in the sampler's churn-unsafe thread read, not in PiPlay. No M-002 task/process remains; the stale abort helper was avoided because it could overwrite newer settings. The first later unexpected reboot was about eight hours after the harness failure.
+- M-005 hardens per-process reads and identity boundaries; its CPU remains a sampled-survivor lower bound. Full instrumentation and cleanup details are in [MEASUREMENTS.md](MEASUREMENTS.md).
 
 ## Measurement requirements
 
-Execution of all four is **blocked** on (a) a current-source Stable deployment via `Publish-Stable.ps1` — which itself requires committing the remediation and version stamps — and (b) explicit owner authority for fault injection/profiling/soak. Full designs with thresholds are in `MEASUREMENTS.md`.
+- **M-001 — persistent DOM failure host cost:** planned; still needs explicit fault-injection authority.
+- **M-002 — Focused DOM incremental session cost:** closed partial/inconclusive. One Standard baseline accepted; zero Focused comparator rows.
+- **M-003 — realized WPF accent-preview cost:** optional/planned.
+- **M-004 — Popout lifecycle settling:** planned; no safe unattended open/close driver exists.
+- **M-005 — natural-session trend/anomaly logging:** installed and last live-verified healthy on 2026-07-18. It samples exact Stable every 120 seconds only while PiPlay exists and retains 45 days. Acceptance requires three long sessions with at least two post-settling hours each; [MEASUREMENTS.md](MEASUREMENTS.md) owns the operational, privacy, and escalation contract.
 
-- **M-001 — persistent DOM failure host cost** (D-001/F-004): is 5 failed single-flight `ExecuteScriptAsync` calls/s material after log coalescing? Confirm ≥1 CPU point or ≥5 ms CPU/s; reject <0.5 point and <2 ms/s. Only a confirm result would justify considering polling backoff.
-- **M-002 — Focused DOM incremental session cost** (D-004): matched Standard/Focused ABBA, 3×20–30 min runs; renderer CPU, callback families, heap/node settling. Confirm ≥5 ms CPU/s callbacks, ≥1 renderer CPU point, or post-warmup heap growth.
-- **M-003 — realized WPF accent-preview cost + F-005 delta** (D-007, optional): p95 apply time, dispatcher lateness, allocation/apply across three workloads; correction success = replacements 18→≤4 below intensity 50 (≤2 above) plus ≥30% lower allocation or apply time.
-- **M-004 — Popout lifecycle settling** (D-008): 5 warmup + 50 Standard + 50 Focused cycles with 5/15/30/60 s post-close samples plus a 30–60 min navigation/resize/DPI soak; confirm retention at ≥0.5 MB/cycle + 25 MB cumulative, ≥1 handle/cycle + 25, sustained GDI/USER growth, or ≥25% cycle-latency degradation.
+M-005 does not replace renderer instrumentation for callback duration, long tasks, JS heap, DOM nodes, or actual Popout state. It can narrow general long-session process retention and surface associations; it cannot confirm or reject D-004.
 
 ## Preserve list and rejected hypotheses
 
-Preserve (correctness- or efficiency-critical; do not "optimize" away):
+Preserve:
 
-- Both durable settings checkpoints around Source return (spec §14; R-001).
-- The 1 Hz Source suppression guard cadence — it is the Q-1 double-audio recovery mechanism, not waste (T-001, R-003).
-- Single-flight in-progress flags on all four Popout/Source timers and the Auto detector.
-- The bounded logging pipeline (queue cap, batching, rotation, drop-on-full accounting).
-- Acknowledged-suppression launch precondition and captured-state rollback (F-003 fix).
-- Atomic temp-flush-replace settings persistence.
-- Generation tokens across Popout navigation/close and `WM_NCDESTROY`-driven native-state cleanup.
+- both durable settings checkpoints around Source return;
+- the 1 Hz Source suppression guard, which enforces Q-1 recovery;
+- single-flight flags/generation tokens on timers and bridge work;
+- bounded logging queue, batching, rotation, and drop accounting;
+- acknowledged suppression before Popout construction;
+- atomic settings persistence and deterministic close/disposal order.
 
-Rejected hypotheses (do not rediscover unless the recorded condition changes):
+Rejected:
 
-- **R-001** — dual return saves are duplicate work → rejected; spec-required durability. Reconsider technique only if slow-storage measurement proves material UI latency, keeping both boundaries.
-- **R-002** — shared WebView environment creation is a concurrent hot path → rejected for current wiring (one cold caller; Retry post-terminal-failure; Popout gated on `_browserReady`). Reopen if multiple Sources/callers or reentrant Retry appear.
-- **R-003** — persistent DOM failure amplifies IPC above healthy cadence → rejected; failure amplified only exception/log work (fixed by F-004), never call count.
+- R-001: dual return saves are duplicate work — rejected as required durability.
+- R-002: shared WebView environment creation is concurrently hot — rejected for current one-Source wiring.
+- R-003: DOM failure increases IPC call count above healthy cadence — rejected; only log work amplified, and F-004 fixed it.
 
 ## Staged optimization plan
 
-1. **Stage 1 — done, pending landing:** F-001..F-005 remediation is complete, tested (985/985), gate-clean, spec-preflighted, and independently re-reviewed in the working tree. Remaining steps are owner decisions, per repo rules: review → commit (with `VERSION`/`BUILD_NUMBER`/changelog stamps for a release) → `Publish-Stable.ps1` → push. No further static product work is open.
-2. **Stage 2 — measurable validation:** after a current-source Stable deploy and explicit authority, execute M-004 and M-002 first (lifecycle settling and Focused session cost are the only unbounded-in-time unknowns), then M-001/M-003 opportunistically. Act only on threshold-crossing results; every plan carries confirm/reject criteria.
-3. **Stage 3 — architecture:** none justified. Current evidence supports no architecture change; the one recorded conditional is re-opening D-006 (environment creation single-flight) if Source/window ownership ever multiplies.
+1. **Done/released:** F-001..F-005 at `99f9834`, audit state at `19bcfe8`, exact-source Stable `e16c0f3` / `v0.12.0 b35`.
+2. **Passive validation:** leave M-005 running without forced workload. Analyze only after the long-session acceptance gate. Treat threshold crossings as anomaly signals; promote nothing until a targeted matched measurement and the finding gate are satisfied.
+3. **Optional focused measurements:** M-004, then M-001/M-003, only if their specific operational questions become valuable and authority is explicit.
+4. **Architecture:** none justified by current evidence.
 
 ## Coverage and uncertainty
 
-- **Inspected:** startup/single-instance, shared WebView environment, Source init/navigation, Auto, Popout launch/suppression/sync, Focused DOM surface, appearance preview, fade/opacity, native corners/regions, return/replay, settings persistence, browser-data clear, logging, shutdown, failure/recovery — 18 areas, Depth 2–4 (see `COVERAGE.md`).
-- **Excluded by frozen scope:** build/publish/CI efficiency, security assessment, UI style, YouTube/network internals, manual QA, production load, live fault injection/profiling, deployment.
-- **Partially inspected:** compact shell (Depth 2 — feature-gated dormant since the v0.6.0 kill-switch; P2 if ever re-enabled); deployed Stable runtime (verifier-clean but two commits stale — explicitly not evidence for current source).
-- **Evidence freshness:** no drift — revision `8015ba4` unchanged since baseline; dirty tree matches the recorded remediation fingerprint; canonical gate re-run PASS 985/985 at report time.
-- **Environment/measurement limits:** no live PiPlay process was launched at any point; all runtime-cost claims are static or test-backed; live cost/settling claims are deliberately absent and carried as M-001..M-004.
-- **Exact next actions:** (1) owner review/ship decision on the working-tree remediation (separate explicit yes required for pushing protected `main`); (2) after ship, current-source Stable deploy + explicit authority → `profile M-004`, `profile M-002`, then M-001/M-003.
+- Covered at Depth 3–5: startup/single-instance, Source initialization/navigation, Auto, Popout launch/suppression/sync, Focused static lifecycle plus Standard process baseline, appearance, native window state, return, persistence, privacy clear, logging, failure/recovery, and shutdown.
+- Partially covered: Focused operational delta, callback/heap/node/frame behavior, repeated lifecycle settling, and compact shell (feature-gated/dormant).
+- Remaining measurement limits: M-002 has no accepted Focused comparator and mostly idle playback; M-005 has uncontrolled workload and no actual Popout/playback state or callback/heap/node/frame attribution. Host correlation is contextual, not causal.
+- Exact next action: continue `profile M-005` passively. At the acceptance gate, inspect per-session post-settling trends. If anomalous, `deepen D-004`/`deepen D-008` and design a targeted measurement; otherwise narrow general retention concern only and refresh this report.
