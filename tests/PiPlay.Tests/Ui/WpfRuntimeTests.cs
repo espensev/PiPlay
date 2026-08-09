@@ -2192,6 +2192,62 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal("dQw4w9WgXcQ", w.ReturnVideoIdForTests);   // launch state untouched
     });
 
+    // --- Playlist context in the popout's return identity (spec 22.1: return preserves it) ---
+
+    [Fact]
+    public void Popout_source_change_tracks_the_playlist_context() => StaTestThread.Invoke(() =>
+    {
+        var w = NewPlayer();
+        w.TrackReturnIdentity("https://www.youtube.com/watch?v=BBBBBBBBBBB&list=PL0123456789");
+
+        Assert.Equal("BBBBBBBBBBB", w.ReturnVideoIdForTests);
+        Assert.Equal("PL0123456789", w.ReturnPlaylistIdForTests);
+    });
+
+    [Fact]
+    public void Popout_source_change_clears_the_playlist_when_the_video_leaves_the_list() => StaTestThread.Invoke(() =>
+    {
+        var w = NewPlayer();
+        w.TrackReturnIdentity("https://www.youtube.com/watch?v=BBBBBBBBBBB&list=PL0123456789");
+        w.TrackReturnIdentity("https://www.youtube.com/watch?v=CCCCCCCCCCC");   // recommendation click
+
+        Assert.Equal("CCCCCCCCCCC", w.ReturnVideoIdForTests);
+        Assert.Null(w.ReturnPlaylistIdForTests);
+    });
+
+    [Fact]
+    public void Popout_source_change_without_a_video_keeps_the_last_known_identity() => StaTestThread.Invoke(() =>
+    {
+        var w = NewPlayer();
+        w.TrackReturnIdentity("https://www.youtube.com/watch?v=BBBBBBBBBBB&list=PL0123456789");
+        w.TrackReturnIdentity("https://www.youtube.com/feed/library");   // id-hiding page: no evidence of a move
+
+        Assert.Equal("BBBBBBBBBBB", w.ReturnVideoIdForTests);
+        Assert.Equal("PL0123456789", w.ReturnPlaylistIdForTests);
+    });
+
+    [Fact]
+    public void Popout_launch_seeds_the_playlist_context_from_the_target() => StaTestThread.Invoke(() =>
+    {
+        var w = new PlayerWindow(environment: null!, url: "https://www.youtube.com/playlist?list=PL0123456789",
+            topmost: false, placement: null, defaultWidth: 960, defaultHeight: 540, fadeEnabled: true,
+            fallbackTarget: new YouTubeTarget { PlaylistId = "PL0123456789", IsPlaylistOnly = true });
+
+        Assert.Null(w.ReturnVideoIdForTests);
+        Assert.Equal("PL0123456789", w.ReturnPlaylistIdForTests);
+    });
+
+    [Fact]
+    public void Retarget_follows_the_new_targets_playlist_context() => StaTestThread.Invoke(() =>
+    {
+        var w = NewPlayer();
+        Assert.True(w.TryRetargetForNewWindow("https://www.youtube.com/watch?v=recVideo001&list=PL0123456789"));
+
+        Assert.Equal("recVideo001", w.ReturnVideoIdForTests);
+        Assert.Equal("PL0123456789", w.ReturnPlaylistIdForTests);
+        Assert.Contains("list=PL0123456789", w.CurrentUrlForTests);
+    });
+
     // --- Video-aware return on the SOURCE side (overhaul Task 3) ---
 
     [Fact]
@@ -2271,6 +2327,59 @@ public class WpfRuntimeTests : IDisposable
             currentVideoId: "AAAAAAAAAAA",
             lastHandledVideoId: w.AutoLastHandledVideoIdForTests,
             popoutActive: false));
+    });
+
+    [Fact]
+    public void Return_to_a_different_video_carries_the_playlist_context() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        w.SeedPopoutReturnForTests(sourceVideoId: "AAAAAAAAAAA");
+
+        w.ApplyReturnActionAsync(new PlayerReturnState
+            {
+                VideoId = "BBBBBBBBBBB",
+                PlaylistId = "PL0123456789",
+                LastKnownSeconds = 42,
+            })
+            .GetAwaiter().GetResult();
+
+        // The queue survives the return: the source lands on the playlist's watch URL, not a bare video.
+        Assert.Equal("https://www.youtube.com/watch?v=BBBBBBBBBBB&list=PL0123456789&t=42s", w.PendingUrlForTests);
+        Assert.NotNull(w.PendingReturnReplayForTests);
+        Assert.Equal("PL0123456789", w.PendingReturnReplayForTests!.PlaylistId);
+    });
+
+    [Fact]
+    public void Playlist_only_launch_returns_by_navigating_to_the_reported_video() => StaTestThread.Invoke(() =>
+    {
+        // Popped out from a playlist PAGE (no source video id, spec 22.1): the popout started the
+        // queue, so returning must follow the user to wherever the queue got to.
+        var w = new MainWindow();
+        w.SeedPopoutReturnForTests(sourceVideoId: null, popoutLaunchedWithoutVideo: true);
+
+        w.ApplyReturnActionAsync(new PlayerReturnState
+            {
+                VideoId = "BBBBBBBBBBB",
+                PlaylistId = "PL0123456789",
+                LastKnownSeconds = 7,
+            })
+            .GetAwaiter().GetResult();
+
+        Assert.Equal("https://www.youtube.com/watch?v=BBBBBBBBBBB&list=PL0123456789&t=7s", w.PendingUrlForTests);
+        Assert.Equal("BBBBBBBBBBB", w.AutoLastHandledVideoIdForTests);   // returned video must not re-pop
+    });
+
+    [Fact]
+    public void Playlist_only_launch_with_no_reported_video_does_not_navigate() => StaTestThread.Invoke(() =>
+    {
+        // The popout never left the playlist page: there is nowhere to navigate, the source is
+        // already on the very page the user launched from.
+        var w = new MainWindow();
+        w.SeedPopoutReturnForTests(sourceVideoId: null, popoutLaunchedWithoutVideo: true);
+
+        w.ApplyReturnActionAsync(new PlayerReturnState()).GetAwaiter().GetResult();
+
+        Assert.Null(w.PendingUrlForTests);
     });
 
     [Fact]

@@ -65,6 +65,35 @@ public class ReturnPolicyTests
             ReturnPolicy.Decide(120, sourceWasPlaying: false, returnedPaused: false, "sameVideo001", "sameVideo001"));
     }
 
+    // Playlist-page launch (spec 13.1 / 22.1): the popout can start with NO source video id at all.
+    // Any video the popout then reports is somewhere the source's playlist page is not, so the
+    // source must NAVIGATE there — the timestamp fallback would strand the user on the playlist
+    // page and lose their position in the queue.
+    [Theory]
+    [InlineData(42, true)]
+    [InlineData(42, false)]
+    [InlineData(null, true)]
+    [InlineData(null, false)]
+    public void Videoless_launch_navigates_to_any_reported_video(int? lastKnownSeconds, bool wasPlaying)
+    {
+        Assert.Equal(ReturnAction.Navigate,
+            ReturnPolicy.Decide(lastKnownSeconds, wasPlaying, returnedPaused: null,
+                returnedVideoId: "newVideo0001", sourceVideoIdAtPopout: null,
+                popoutLaunchedWithoutVideo: true));
+    }
+
+    [Theory]
+    [InlineData(null, ReturnAction.Play)]   // popout never reached a video: nothing to navigate to
+    [InlineData("", ReturnAction.Play)]
+    public void Videoless_launch_without_reported_video_falls_back_to_timestamp_decision(
+        string? returnedId, ReturnAction expected)
+    {
+        Assert.Equal(expected,
+            ReturnPolicy.Decide(null, sourceWasPlaying: true, returnedPaused: null,
+                returnedVideoId: returnedId, sourceVideoIdAtPopout: null,
+                popoutLaunchedWithoutVideo: true));
+    }
+
     // Q-1 suppression mutes the source at popout launch; return must always undo that. The popout's
     // reported value wins; otherwise the pre-suppression launch value; otherwise mute is forced false
     // so a return with no captured popout state can never leave the source silent.

@@ -51,6 +51,9 @@ public partial class MainWindow : Window
     // The video the source was on when the popout launched (overhaul Task 3): compared against the
     // popout's returned video id to decide navigate-vs-seek on close (REQ-RETURN-01).
     private string? _popoutSourceVideoId;
+    // True when the popout launched from a playlist PAGE (no source video id, spec 22.1): any
+    // video the popout then reports is somewhere the source is not, so return must navigate.
+    private bool _popoutLaunchedWithoutVideo;
     private System.Windows.Threading.DispatcherTimer? _sourceSuppressionTimer;
     private bool _sourceSuppressionTickInProgress;
     private PlayerReturnState? _pendingReturnReplay;
@@ -1477,13 +1480,14 @@ public partial class MainWindow : Window
             }
 
             var target = resolvedTarget ?? await ResolvePopoutTargetAsync(core);
-            if (target is null || string.IsNullOrEmpty(target.VideoId))
+            if (target is null || !PopoutLaunchPolicy.IsLaunchableTarget(target))
             {
-                Prompt.ShowInfo(this, "Pop out video", "Open a YouTube video first, then press Pop out video.");
+                Prompt.ShowInfo(this, "Pop out video", "Open a YouTube video or playlist first, then press Pop out video.");
                 return;
             }
 
             _popoutSourceVideoId = target.VideoId;
+            _popoutLaunchedWithoutVideo = string.IsNullOrEmpty(target.VideoId);
 
             // 2b) Resolve the effective playback mode (spec 10). Profile/global compact settings
             // remain reserved data, but ResolveEffectivePopoutMode honors the compact-player
@@ -1500,8 +1504,19 @@ public partial class MainWindow : Window
             // previously log-only, invisible to the user.
             try
             {
-                await PopoutLaunchPolicy.RequireAcknowledgedSourceSuppressionAsync(
-                    () => YouTubeDomBridge.SuppressPlaybackAsync(core));
+                if (PopoutLaunchPolicy.RequiresAcknowledgedSuppression(target))
+                {
+                    await PopoutLaunchPolicy.RequireAcknowledgedSourceSuppressionAsync(
+                        () => YouTubeDomBridge.SuppressPlaybackAsync(core));
+                }
+                else if (!await YouTubeDomBridge.SuppressPlaybackAsync(core))
+                {
+                    // Playlist page: no video element is guaranteed, so "no video found" is a
+                    // legitimate outcome here, not a failed ownership transfer — a launch that owns
+                    // no playback must not abort. A playing miniplayer, when present, was still
+                    // found and suppressed by the same script above.
+                    Log.Info("Playlist-only popout: no source playback to suppress.");
+                }
             }
             catch
             {
@@ -1878,7 +1893,7 @@ public partial class MainWindow : Window
         // fall back to the older source-was-playing snapshot. 0 is a valid timestamp distinct from
         // unknown. Decision lives in ReturnPolicy.
         var action = ReturnPolicy.Decide(state.LastKnownSeconds, _sourceWasPlayingAtPopout,
-            state.Paused, state.VideoId, _popoutSourceVideoId);
+            state.Paused, state.VideoId, _popoutSourceVideoId, _popoutLaunchedWithoutVideo);
 
         // Arm before any WebView script await: the Auto timer can run as soon as Player_OnClosed
         // clears _player. A seek/play return leaves the original Source video visible; a Navigate
@@ -1911,7 +1926,8 @@ public partial class MainWindow : Window
                     state, _sourceWasPlayingAtPopout,
                     _sourceVolumeAtPopout, _sourceMutedAtPopout, _sourcePlaybackRateAtPopout);
                 NavigateInternal(YouTubeUrlHelper.BuildWatchUrl(
-                    new YouTubeTarget { VideoId = state.VideoId }, state.LastKnownSeconds));
+                    new YouTubeTarget { VideoId = state.VideoId, PlaylistId = state.PlaylistId },
+                    state.LastKnownSeconds));
                 break;
             case ReturnAction.SeekAndPlay when core is not null:
                 await YouTubeDomBridge.SeekAndPlayAsync(core, state.LastKnownSeconds!.Value);
@@ -1928,13 +1944,15 @@ public partial class MainWindow : Window
     // Return seams (overhaul Task 3, WPF lane): drive the navigate-vs-seek return decision
     // headlessly — the queued pending URL is the observable for the Navigate case.
     internal void SeedPopoutReturnForTests(
-        string sourceVideoId,
+        string? sourceVideoId,
         bool sourceWasPlayingAtPopout = false,
         double? sourceVolumeAtPopout = null,
         bool? sourceMutedAtPopout = null,
-        double? sourcePlaybackRateAtPopout = null)
+        double? sourcePlaybackRateAtPopout = null,
+        bool popoutLaunchedWithoutVideo = false)
     {
         _popoutSourceVideoId = sourceVideoId;
+        _popoutLaunchedWithoutVideo = popoutLaunchedWithoutVideo;
         _sourceWasPlayingAtPopout = sourceWasPlayingAtPopout;
         _sourceVolumeAtPopout = sourceVolumeAtPopout;
         _sourceMutedAtPopout = sourceMutedAtPopout;
@@ -1955,6 +1973,7 @@ public partial class MainWindow : Window
         return new()
         {
             VideoId = state.VideoId,
+            PlaylistId = state.PlaylistId,
             LastKnownSeconds = state.LastKnownSeconds,
             Paused = state.Paused ?? !sourceWasPlayingAtPopout,
             Volume = volume,

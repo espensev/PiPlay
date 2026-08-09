@@ -30,6 +30,13 @@ public sealed class PlayerReturnState
     /// </summary>
     public string? VideoId { get; set; }
 
+    /// <summary>
+    /// The playlist the player was last inside, if any (spec 22.1: return preserves the playlist
+    /// context). Follows <see cref="VideoId"/>: updated on every tracked navigation, and null when
+    /// the current video is not part of a playlist — a stale list must not ride a video that left it.
+    /// </summary>
+    public string? PlaylistId { get; set; }
+
     public bool Topmost { get; set; }
 
     /// <summary>Whether controls fade was enabled when the player closed (persisted for next popout).</summary>

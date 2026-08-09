@@ -139,6 +139,7 @@ public partial class PlayerWindow : Window
         _nudgePlayOnInitialPause = nudgePlayOnInitialPause;
         _currentTarget = fallbackTarget;
         _returnState.VideoId = fallbackTarget?.VideoId;   // the launch video until navigation says otherwise
+        _returnState.PlaylistId = fallbackTarget?.PlaylistId;
 
         // Mode-specific minimum (spec 10.2 / 16.1): compact embed mode needs a larger floor than the
         // 320x180 normal minimum so the embedded player controls stay usable. MinWidth/MinHeight set
@@ -382,6 +383,7 @@ public partial class PlayerWindow : Window
     {
         _currentTarget = target;
         _returnState.VideoId = target.VideoId;
+        _returnState.PlaylistId = target.PlaylistId;
         ResetReturnMediaStateForNewTarget();
         _nudgedPlay = false;
         _finalReturnPlaybackCaptured = false;
@@ -415,9 +417,18 @@ public partial class PlayerWindow : Window
     /// normal-page-only — compact tracking comes from shell state messages instead.
     /// </summary>
     private void Core_SourceChanged(object? sender, CoreWebView2SourceChangedEventArgs e)
+        => TrackReturnIdentity(Player.CoreWebView2?.Source);
+
+    /// <summary>Internal for the WPF test lane (CoreWebView2 event args cannot be constructed).</summary>
+    internal void TrackReturnIdentity(string? source)
     {
-        if (YouTubeUrlHelper.TryParse(Player.CoreWebView2?.Source, out var t) && t.VideoId is not null)
+        if (YouTubeUrlHelper.TryParse(source, out var t) && t.VideoId is not null)
+        {
             _returnState.VideoId = t.VideoId;
+            // Follows the video, including to null: a video OUTSIDE the list (recommendation
+            // click) must not return wearing the stale playlist context.
+            _returnState.PlaylistId = t.PlaylistId;
+        }
     }
 
     private void Core_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
@@ -677,6 +688,7 @@ public partial class PlayerWindow : Window
     internal string CurrentUrlForTests => _currentUrl;
     internal string? CurrentFallbackVideoIdForTests => _currentTarget?.VideoId;
     internal string? ReturnVideoIdForTests => _returnState.VideoId;
+    internal string? ReturnPlaylistIdForTests => _returnState.PlaylistId;
     internal int? ReturnSecondsForTests => _returnState.LastKnownSeconds;
     internal bool? ReturnPausedForTests => _returnState.Paused;
     internal double? ReturnVolumeForTests => _returnState.Volume;

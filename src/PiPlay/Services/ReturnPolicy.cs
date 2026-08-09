@@ -47,8 +47,16 @@ public static class ReturnPolicy
 
     public static ReturnAction Decide(
         int? lastKnownSeconds, bool sourceWasPlaying, bool? returnedPaused,
-        string? returnedVideoId, string? sourceVideoIdAtPopout)
+        string? returnedVideoId, string? sourceVideoIdAtPopout,
+        bool popoutLaunchedWithoutVideo = false)
     {
+        // Playlist-page launch (spec 13.1 / 22.1): there was no source video id to compare against,
+        // so ANY video the popout reports is somewhere the source's playlist page is not. Without
+        // this, an empty sourceVideoIdAtPopout would fall into the timestamp branch and strand the
+        // user on the playlist page, losing their position in the queue.
+        if (popoutLaunchedWithoutVideo && !string.IsNullOrEmpty(returnedVideoId))
+            return ReturnAction.Navigate;
+
         if (!string.IsNullOrEmpty(returnedVideoId) && !string.IsNullOrEmpty(sourceVideoIdAtPopout) &&
             !string.Equals(returnedVideoId, sourceVideoIdAtPopout, StringComparison.Ordinal))
         {

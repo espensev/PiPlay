@@ -1,4 +1,5 @@
 using System.IO;
+using PiPlay.Models;
 using PiPlay.Services;
 
 namespace PiPlay.Tests;
@@ -81,6 +82,30 @@ public class RuntimeFailurePolicyTests
         launchContinued = true;
 
         Assert.True(launchContinued);
+    }
+
+    // Launch gate (spec 13.1 / 22.1): a playlist page is a launchable popout target — the popout
+    // opens the playlist and starts its first playable item. Only a target with nothing playable
+    // at all keeps the "open a video first" prompt.
+    [Fact]
+    public void Popout_launch_gate_accepts_video_and_playlist_only_targets()
+    {
+        Assert.True(PopoutLaunchPolicy.IsLaunchableTarget(new YouTubeTarget { VideoId = "dQw4w9WgXcQ" }));
+        Assert.True(PopoutLaunchPolicy.IsLaunchableTarget(
+            new YouTubeTarget { PlaylistId = "PL0123456789", IsPlaylistOnly = true }));
+        Assert.False(PopoutLaunchPolicy.IsLaunchableTarget(null));
+        Assert.False(PopoutLaunchPolicy.IsLaunchableTarget(new YouTubeTarget()));
+    }
+
+    // A playlist page has no guaranteed <video> element, so "no video found" is a legitimate
+    // suppression outcome there, not a failed ownership transfer — the acknowledged-suppression
+    // contract (fail-closed abort) applies only when the source is on a concrete video.
+    [Fact]
+    public void Only_video_targets_require_acknowledged_suppression()
+    {
+        Assert.True(PopoutLaunchPolicy.RequiresAcknowledgedSuppression(new YouTubeTarget { VideoId = "dQw4w9WgXcQ" }));
+        Assert.False(PopoutLaunchPolicy.RequiresAcknowledgedSuppression(
+            new YouTubeTarget { PlaylistId = "PL0123456789", IsPlaylistOnly = true }));
     }
 
     [Fact]
