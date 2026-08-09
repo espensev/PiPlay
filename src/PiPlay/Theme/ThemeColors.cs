@@ -175,6 +175,10 @@ public static class ThemeColors
     /// algorithm"). Each theme reads the same base accent differently via its
     /// <see cref="ThemeAccentProfile"/> and its own raised surface.
     /// </summary>
+    /// <summary>Full-dial mix ceilings for the background room tones (2026-08-09 design).</summary>
+    private const double LetterboxMixCeiling = 0.06;
+    private const double BackgroundWashMixCeiling = 0.04;
+
     public static DerivedAccentSet DeriveAccentSet(
         string? baseAccent, ThemePreset preset, int? accentIntensity = null)
     {
@@ -223,9 +227,16 @@ public static class ThemeColors
         // accent (steel) may need to flip to white.
         var onAccentPressed = PickReadableForeground(pressed);
 
+        // Background room tones (2026-08-09 design): the dial also reaches the letterbox framing
+        // the video and the window background, as faint tints — 0 keeps them accent-free (pure
+        // black / the flat palette background), and the ceilings keep them tones, never colors.
+        var appBackground = ParseColor(preset.Palette.AppBackground);
+        var letterbox = Mix(Colors.Black, primary, LetterboxMixCeiling * reach);
+        var backgroundWash = Mix(appBackground, primary, BackgroundWashMixCeiling * reach);
+
         return new DerivedAccentSet(
             primary, hover, pressed, muted, border, subtle, glow, shellTint, chromeGlyph,
-            onAccent, onAccentPressed);
+            onAccent, onAccentPressed, letterbox, backgroundWash);
     }
 }
 
@@ -258,4 +269,8 @@ public sealed record DerivedAccentSet(
     /// <summary>Toolbar glyph color: ordinary text at accent intensity 0, the full accent from 50 up.</summary>
     Color ChromeGlyph,
     Color OnAccent,
-    Color OnAccentPressed);
+    Color OnAccentPressed,
+    /// <summary>Near-black room tint framing the video (2026-08-09 design); pure black at intensity 0.</summary>
+    Color Letterbox,
+    /// <summary>The window background washed faintly toward the accent; the flat palette value at intensity 0.</summary>
+    Color BackgroundWash);

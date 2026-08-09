@@ -54,6 +54,12 @@
   <Color x:Key="AccentChromeGlyphColor">#FF2BAED0</Color>
   <Color x:Key="OnAccentColor">#FF06141A</Color>
   <Color x:Key="OnAccentPressedColor">#FF06141A</Color>
+  <!-- Background room tones (2026-08-09 design) at the default accent intensity (50): the video
+       letterbox and the washed window background. Same rule as the glyph seed above: the values
+       ARE the derived defaults (pinned by the same XamlInvariantTests seed gate) — do not
+       hand-edit; take what the derivation produces. -->
+  <Color x:Key="AccentLetterboxColor">#FF010506</Color>
+  <Color x:Key="AppBackgroundWashColor">#FF06090D</Color>
 
   <SolidColorBrush x:Key="AppBackground" Color="{StaticResource AppBackgroundColor}" />
   <SolidColorBrush x:Key="SurfaceBase" Color="{StaticResource SurfaceBaseColor}" />
@@ -83,6 +89,8 @@
   <SolidColorBrush x:Key="AccentChromeGlyph" Color="{StaticResource AccentChromeGlyphColor}" />
   <SolidColorBrush x:Key="OnAccent" Color="{StaticResource OnAccentColor}" />
   <SolidColorBrush x:Key="OnAccentPressed" Color="{StaticResource OnAccentPressedColor}" />
+  <SolidColorBrush x:Key="AccentLetterbox" Color="{StaticResource AccentLetterboxColor}" />
+  <SolidColorBrush x:Key="AppBackgroundWash" Color="{StaticResource AppBackgroundWashColor}" />
 
   <!-- Semantic corner-radius tokens (review doc §8.4): theme-owned rounding, seeded with the
        sharp-dark profile. ThemeResourceApplier replaces every entry from the active preset's

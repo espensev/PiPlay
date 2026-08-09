@@ -2192,6 +2192,37 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal("dQw4w9WgXcQ", w.ReturnVideoIdForTests);   // launch state untouched
     });
 
+    // --- Background room tones (2026-08-09 profile-backgrounds design) ---
+
+    [Fact]
+    public void Backgrounds_wear_the_accent_room_tones() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        var res = System.Windows.Application.Current.Resources;
+
+        // Letterbox: the pixels framing the video in BOTH windows ride the derived tint, not Black.
+        var letterbox = Assert.IsType<SolidColorBrush>(res["AccentLetterbox"]);
+        Assert.NotEqual(Colors.Black, letterbox.Color);   // default intensity carries a faint tone
+        Assert.Same(letterbox, ((Grid)w.FindName("SourceLetterbox")!).Background);
+        Assert.Same(letterbox, ((Border)w.FindName("SourcePlaceholder")!).Background);
+        Assert.Same(letterbox, NewPlayer().Background);
+
+        // Room tone: the main window + toolbar wear the washed background, Settings keeps the flat one.
+        var wash = Assert.IsType<SolidColorBrush>(res["AppBackgroundWash"]);
+        Assert.Same(wash, w.Background);
+        Assert.Same(wash, ((Grid)w.FindName("SourceToolbar")!).Background);
+        Assert.NotEqual((Color)res["AppBackgroundColor"], wash.Color);
+    });
+
+    [Fact]
+    public void Title_wash_sweeps_into_the_washed_background() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        var backdrop = (Border)w.FindName("MainBarBackdrop")!;
+        var gradient = Assert.IsType<LinearGradientBrush>(backdrop.Background);
+        Assert.Equal(0.80, gradient.GradientStops[1].Offset, 2);
+    });
+
     // --- Playlist context in the popout's return identity (spec 22.1: return preserves it) ---
 
     [Fact]

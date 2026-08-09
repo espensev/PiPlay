@@ -98,6 +98,69 @@ public class ThemeColorsTests
         }
     }
 
+    // --- Background room tones (2026-08-09 profile-backgrounds design) ---
+
+    [Theory]
+    [InlineData("sharp-dark")]
+    [InlineData("minimal")]
+    [InlineData("soft-glass")]
+    public void Intensity_zero_keeps_the_backgrounds_accent_free(string presetId)
+    {
+        // The dial contract extends to the new surfaces: at 0 the letterbox is pure black and the
+        // window wash IS the flat palette background, byte for byte.
+        var preset = ThemeCatalog.PresetFor(presetId);
+        var set = ThemeColors.DeriveAccentSet("#A78BFA", preset, 0);
+
+        Assert.Equal(Colors.Black, set.Letterbox);
+        Assert.Equal(ThemeColors.ParseColor(preset.Palette.AppBackground), set.BackgroundWash);
+    }
+
+    [Theory]
+    [InlineData("sharp-dark")]
+    [InlineData("minimal")]
+    [InlineData("soft-glass")]
+    public void Backgrounds_follow_the_dial_as_faint_room_tints(string presetId)
+    {
+        // Letterbox ceiling 0.06 and wash ceiling 0.04 are the design literals — a change is a
+        // deliberate retune, not drift.
+        var preset = ThemeCatalog.PresetFor(presetId);
+        var appBackground = ThemeColors.ParseColor(preset.Palette.AppBackground);
+        foreach (var intensity in new[] { 25, 50, 100 })
+        {
+            var set = ThemeColors.DeriveAccentSet("#A78BFA", preset, intensity);
+            var reach = intensity / 100.0;
+            Assert.Equal(ThemeColors.Mix(Colors.Black, set.Primary, 0.06 * reach), set.Letterbox);
+            Assert.Equal(ThemeColors.Mix(appBackground, set.Primary, 0.04 * reach), set.BackgroundWash);
+        }
+    }
+
+    [Fact]
+    public void Letterbox_stays_near_black_even_for_the_brightest_accent()
+    {
+        // The letterbox frames the video: a room tint, never a color. Even a white accent at full
+        // intensity must stay within a near-black ceiling.
+        var set = ThemeColors.DeriveAccentSet("#FFFFFF", ThemeCatalog.PresetFor("sharp-dark"), 100);
+        Assert.True(set.Letterbox is { R: <= 16, G: <= 16, B: <= 16 },
+            $"letterbox {set.Letterbox} left the near-black ceiling.");
+    }
+
+    [Theory]
+    [InlineData("sharp-dark")]
+    [InlineData("minimal")]
+    [InlineData("soft-glass")]
+    public void Background_wash_keeps_primary_text_readable_at_full_intensity(string presetId)
+    {
+        var preset = ThemeCatalog.PresetFor(presetId);
+        var text = ThemeColors.ParseColor(preset.Palette.TextPrimary);
+        foreach (var accent in new[] { "#FFFFFF", "#2BAED0", "#A78BFA" })
+        {
+            var wash = ThemeColors.DeriveAccentSet(accent, preset, 100).BackgroundWash;
+            var ratio = ThemeColors.ContrastRatio(text, wash);
+            Assert.True(ratio >= 4.5,
+                $"{presetId}: TextPrimary on the {accent} wash = {ratio:F2}:1, below WCAG AA 4.5:1.");
+        }
+    }
+
     [Theory]
     [InlineData("sharp-dark")]
     [InlineData("minimal")]

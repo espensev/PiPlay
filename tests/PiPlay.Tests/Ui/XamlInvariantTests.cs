@@ -369,7 +369,9 @@ public class XamlInvariantTests
 
         Assert.Equal("{DynamicResource AccentShellTintColor}", stops[0].Attribute("Color")?.Value);
         Assert.Equal("{DynamicResource SurfaceBaseColor}", stops[1].Attribute("Color")?.Value);
-        Assert.Equal("0.62", stops[1].Attribute("Offset")?.Value);
+        // 2026-08-09 profile-backgrounds design: the wash sweeps to 0.80 so it reads as one
+        // gradient into the washed background instead of dying mid-bar.
+        Assert.Equal("0.80", stops[1].Attribute("Offset")?.Value);
     }
 
     [Fact]
@@ -1016,6 +1018,9 @@ public class XamlInvariantTests
         Assert.Equal(Hex(set.ChromeGlyph), t["AccentChromeGlyphColor"]);
         Assert.Equal(Hex(set.OnAccent), t["OnAccentColor"]);
         Assert.Equal(Hex(set.OnAccentPressed), t["OnAccentPressedColor"]);
+        // Background room tones (2026-08-09 design): same rule — seeds ARE the derived defaults.
+        Assert.Equal(Hex(set.Letterbox), t["AccentLetterboxColor"]);
+        Assert.Equal(Hex(set.BackgroundWash), t["AppBackgroundWashColor"]);
     }
 
     [Theory]

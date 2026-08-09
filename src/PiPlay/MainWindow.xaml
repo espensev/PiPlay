@@ -9,7 +9,7 @@
         WindowStyle="None"
         ResizeMode="CanResize"
         AllowsTransparency="False"
-        Background="{DynamicResource AppBackground}"
+        Background="{DynamicResource AppBackgroundWash}"
         UseLayoutRounding="False"
         SnapsToDevicePixels="True"
         PreviewKeyDown="MainWindow_PreviewKeyDown">
@@ -44,7 +44,7 @@
         <Border.Background>
           <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
             <GradientStop Color="{DynamicResource AccentShellTintColor}" Offset="0" />
-            <GradientStop Color="{DynamicResource SurfaceBaseColor}" Offset="0.62" />
+            <GradientStop Color="{DynamicResource SurfaceBaseColor}" Offset="0.80" />
           </LinearGradientBrush>
         </Border.Background>
       </Border>
@@ -75,7 +75,7 @@
     </Grid>
 
     <!-- Toolbar: navigation + URL/search + profiles + Pin + Pop out -->
-    <Grid x:Name="SourceToolbar" Grid.Row="1" Background="{DynamicResource AppBackground}"
+    <Grid x:Name="SourceToolbar" Grid.Row="1" Background="{DynamicResource AppBackgroundWash}"
           WindowChrome.IsHitTestVisibleInChrome="True"
           SizeChanged="SourceToolbar_SizeChanged">
       <Grid.ColumnDefinitions>
@@ -201,8 +201,9 @@
       </Button>
     </Grid>
 
-    <!-- Content: browser + overlays -->
-    <Grid Grid.Row="2" Background="Black">
+    <!-- Content: browser + overlays. The letterbox pixels around the video wear the derived
+         near-black room tint (2026-08-09 design), never a hard-coded black. -->
+    <Grid x:Name="SourceLetterbox" Grid.Row="2" Background="{DynamicResource AccentLetterbox}">
       <!-- Resize inset band (REQ-WINDOW-02, overhaul Task 1): the WebView2 child HWND swallows
            WM_NCHITTEST, so the top-level window must own the edge pixels for the resize subclass
            to see them. Left/right/bottom margin == BorderlessResizeHitTestPolicy.ResizeBorderDip
@@ -223,7 +224,7 @@
       </wv2:WebView2>
 
       <!-- Tier-1 Source Placeholder: shown (and the WebView hidden) while popped out (spec 13.3). -->
-      <Border x:Name="SourcePlaceholder" Background="Black" Visibility="Collapsed">
+      <Border x:Name="SourcePlaceholder" Background="{DynamicResource AccentLetterbox}" Visibility="Collapsed">
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
           <TextBlock Text="&#xE8A7;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="40"
                      Foreground="{DynamicResource AccentPrimary}" HorizontalAlignment="Center" />
