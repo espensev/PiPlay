@@ -16,6 +16,7 @@
   </ResourceDictionary.MergedDictionaries>
 
   <theme:ContrastBrushConverter x:Key="ContrastBrushConverter" />
+  <theme:AccentWashBrushConverter x:Key="AccentWashBrushConverter" />
 
   <!-- Base text -->
   <Style TargetType="TextBlock">

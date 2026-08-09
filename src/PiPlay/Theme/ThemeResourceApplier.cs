@@ -72,6 +72,11 @@ public static class ThemeResourceApplier
         // washed window background follow the accent and the intensity dial.
         SetColorPair(resources, "AccentLetterbox", set.Letterbox);
         SetColorPair(resources, "AppBackgroundWash", set.BackgroundWash);
+        SetColorPair(resources, "PopoutAccentEdge", set.PopoutEdge);
+        // The profile dropdown row wash borrows the theme's subtle alpha (each row supplies its
+        // OWN accent, so only the alpha travels through resources).
+        if (resources["ProfileRowWashAlpha"] is not byte alpha || alpha != set.Subtle.A)
+            resources["ProfileRowWashAlpha"] = set.Subtle.A;
     }
 
     private static void SetColorPair(ResourceDictionary resources, string key, Color color)

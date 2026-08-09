@@ -60,6 +60,10 @@
        hand-edit; take what the derivation produces. -->
   <Color x:Key="AccentLetterboxColor">#FF010506</Color>
   <Color x:Key="AppBackgroundWashColor">#FF06090D</Color>
+  <Color x:Key="PopoutAccentEdgeColor">#8040B6D5</Color>
+  <!-- Profile dropdown row wash alpha at the default theme (sharp-dark SubtleAlpha). Replaced by
+       ThemeResourceApplier with the active theme's value. -->
+  <sys:Byte x:Key="ProfileRowWashAlpha">34</sys:Byte>
 
   <SolidColorBrush x:Key="AppBackground" Color="{StaticResource AppBackgroundColor}" />
   <SolidColorBrush x:Key="SurfaceBase" Color="{StaticResource SurfaceBaseColor}" />
@@ -91,6 +95,7 @@
   <SolidColorBrush x:Key="OnAccentPressed" Color="{StaticResource OnAccentPressedColor}" />
   <SolidColorBrush x:Key="AccentLetterbox" Color="{StaticResource AccentLetterboxColor}" />
   <SolidColorBrush x:Key="AppBackgroundWash" Color="{StaticResource AppBackgroundWashColor}" />
+  <SolidColorBrush x:Key="PopoutAccentEdge" Color="{StaticResource PopoutAccentEdgeColor}" />
 
   <!-- Semantic corner-radius tokens (review doc §8.4): theme-owned rounding, seeded with the
        sharp-dark profile. ThemeResourceApplier replaces every entry from the active preset's

@@ -148,6 +148,24 @@ public class ThemeColorsTests
     [InlineData("sharp-dark")]
     [InlineData("minimal")]
     [InlineData("soft-glass")]
+    public void Popout_edge_fades_with_the_dial(string presetId)
+    {
+        // The active-profile popout border is the derived Border tone alpha-scaled by the dial:
+        // fully transparent at 0 (the dial contract), fully present at 100.
+        var preset = ThemeCatalog.PresetFor(presetId);
+        Assert.Equal((byte)0, ThemeColors.DeriveAccentSet("#A78BFA", preset, 0).PopoutEdge.A);
+
+        var mid = ThemeColors.DeriveAccentSet("#A78BFA", preset, 50);
+        Assert.Equal(ThemeColors.WithAlpha(mid.Border, 128), mid.PopoutEdge);
+
+        var full = ThemeColors.DeriveAccentSet("#A78BFA", preset, 100);
+        Assert.Equal(ThemeColors.WithAlpha(full.Border, 255), full.PopoutEdge);
+    }
+
+    [Theory]
+    [InlineData("sharp-dark")]
+    [InlineData("minimal")]
+    [InlineData("soft-glass")]
     public void Background_wash_keeps_primary_text_readable_at_full_intensity(string presetId)
     {
         var preset = ThemeCatalog.PresetFor(presetId);

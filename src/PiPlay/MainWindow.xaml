@@ -111,7 +111,17 @@
                   ToolTip="Saved profiles" AutomationProperties.Name="Saved profiles">
           <ComboBox.ItemTemplate>
             <DataTemplate>
-              <Grid x:Name="ProfileIdentityRow" MinWidth="0">
+              <!-- Row wash (2026-08-09 design): the row wears its OWN accent at the theme's
+                   subtle alpha, behind the identity rail. Tag carries the theme-published alpha
+                   so a live theme change reconverts, same trick as the rail's surface Tag. -->
+              <Grid x:Name="ProfileIdentityRow" MinWidth="0"
+                    Tag="{DynamicResource ProfileRowWashAlpha}">
+                <Grid.Background>
+                  <MultiBinding Converter="{StaticResource AccentWashBrushConverter}">
+                    <Binding Path="AccentColor" />
+                    <Binding Path="Tag" RelativeSource="{RelativeSource Self}" />
+                  </MultiBinding>
+                </Grid.Background>
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="12" />
                   <ColumnDefinition Width="*" />

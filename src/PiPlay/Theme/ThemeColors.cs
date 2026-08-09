@@ -233,10 +233,13 @@ public static class ThemeColors
         var appBackground = ParseColor(preset.Palette.AppBackground);
         var letterbox = Mix(Colors.Black, primary, LetterboxMixCeiling * reach);
         var backgroundWash = Mix(appBackground, primary, BackgroundWashMixCeiling * reach);
+        // The active-profile popout edge: the Border tone alpha-scaled by the dial, so 0 keeps the
+        // popout chrome-free and 100 draws the full identity line.
+        var popoutEdge = WithAlpha(border, (byte)Math.Round(0xFF * reach));
 
         return new DerivedAccentSet(
             primary, hover, pressed, muted, border, subtle, glow, shellTint, chromeGlyph,
-            onAccent, onAccentPressed, letterbox, backgroundWash);
+            onAccent, onAccentPressed, letterbox, backgroundWash, popoutEdge);
     }
 }
 
@@ -273,4 +276,6 @@ public sealed record DerivedAccentSet(
     /// <summary>Near-black room tint framing the video (2026-08-09 design); pure black at intensity 0.</summary>
     Color Letterbox,
     /// <summary>The window background washed faintly toward the accent; the flat palette value at intensity 0.</summary>
-    Color BackgroundWash);
+    Color BackgroundWash,
+    /// <summary>The popout's 1px identity edge: Border alpha-scaled by the dial; transparent at 0.</summary>
+    Color PopoutEdge);

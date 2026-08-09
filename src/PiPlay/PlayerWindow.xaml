@@ -24,6 +24,10 @@
                   UseAeroCaptionButtons="False" />
   </WindowChrome.WindowChrome>
 
+  <!-- Active-profile identity edge (2026-08-09 design): a 1px alpha-scaled accent line around
+       the player; fully transparent at accent intensity 0. -->
+  <Border x:Name="PopoutEdgeBorder" BorderBrush="{DynamicResource PopoutAccentEdge}"
+          BorderThickness="1">
   <Grid>
     <Grid.RowDefinitions>
       <!-- Auto, not a fixed 44: strip auto-hide collapses the strip element, and the row must
@@ -121,4 +125,5 @@
       </wv2:WebView2.Style>
     </wv2:WebView2>
   </Grid>
+  </Border>
 </Window>

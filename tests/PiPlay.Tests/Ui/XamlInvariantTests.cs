@@ -1021,6 +1021,7 @@ public class XamlInvariantTests
         // Background room tones (2026-08-09 design): same rule — seeds ARE the derived defaults.
         Assert.Equal(Hex(set.Letterbox), t["AccentLetterboxColor"]);
         Assert.Equal(Hex(set.BackgroundWash), t["AppBackgroundWashColor"]);
+        Assert.Equal(Hex(set.PopoutEdge), t["PopoutAccentEdgeColor"]);
     }
 
     [Theory]

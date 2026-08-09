@@ -2223,6 +2223,58 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal(0.80, gradient.GradientStops[1].Offset, 2);
     });
 
+    [Fact]
+    public void Profile_rows_wear_their_own_accent_as_a_wash() => StaTestThread.Invoke(() =>
+    {
+        // 2026-08-09 design: each dropdown row washes in its OWN accent at the theme's subtle
+        // alpha (published as ProfileRowWashAlpha), behind the identity rail.
+        var alpha = Assert.IsType<byte>(Application.Current.Resources["ProfileRowWashAlpha"]);
+
+        var window = new MainWindow();
+        var combo = (ComboBox)window.FindName("ProfilesCombo")!;
+        combo.ItemsSource = new[]
+        {
+            new Profile
+            {
+                Name = "Violet",
+                Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                AccentColor = "#A78BFA",
+            },
+        };
+        combo.SelectedIndex = 0;
+        combo.Measure(new Size(150, 32));
+        combo.Arrange(new Rect(0, 0, 150, 32));
+        combo.ApplyTemplate();
+        combo.UpdateLayout();
+
+        var content = (ContentPresenter)combo.Template.FindName("ContentSite", combo)!;
+        content.ApplyTemplate();
+        var row = Assert.IsType<Grid>(FindVisualChild(content, "ProfileIdentityRow"));
+        row.GetBindingExpression(Grid.BackgroundProperty)?.UpdateTarget();
+        Assert.Equal(Color.FromArgb(alpha, 0xA7, 0x8B, 0xFA),
+            Assert.IsType<SolidColorBrush>(row.Background).Color);
+
+        combo.ItemsSource = new[]
+        {
+            new Profile { Name = "Plain", Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+        };
+        combo.SelectedIndex = 0;
+        combo.UpdateLayout();
+        content.ApplyTemplate();
+        row = Assert.IsType<Grid>(FindVisualChild(content, "ProfileIdentityRow"));
+        row.GetBindingExpression(Grid.BackgroundProperty)?.UpdateTarget();
+        Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(row.Background).Color);
+    });
+
+    [Fact]
+    public void Popout_wears_the_accent_edge() => StaTestThread.Invoke(() =>
+    {
+        var p = NewPlayer();
+        var edge = (Border)p.FindName("PopoutEdgeBorder")!;
+        Assert.Equal(new Thickness(1), edge.BorderThickness);
+        Assert.Same(Application.Current.Resources["PopoutAccentEdge"], edge.BorderBrush);
+    });
+
     // --- Playlist context in the popout's return identity (spec 22.1: return preserves it) ---
 
     [Fact]
