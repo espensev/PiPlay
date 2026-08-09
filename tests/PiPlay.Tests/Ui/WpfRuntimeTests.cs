@@ -1174,14 +1174,14 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void Source_placeholder_surfaces_and_clears_the_fallback_note() => StaTestThread.Invoke(() =>
     {
-        // The mix/radio FallbackReason was log-only; it now rides the placeholder (Q-6) and must
+        // A FallbackReason (today: a malformed playlist link) rides the placeholder (Q-6) and must
         // be cleared with it so a stale note can't survive into the next popout.
         var w = new MainWindow();
         var note = (TextBlock)w.FindName("PlaceholderNoteText")!;
 
-        w.ShowSourcePlaceholder(true, "Mix/radio playlists aren't supported in Video Popout - popped out the current video.");
+        w.ShowSourcePlaceholder(true, "That playlist link couldn't be read - popped out the current video.");
         Assert.Equal(Visibility.Visible, note.Visibility);
-        Assert.Contains("Mix/radio", note.Text);
+        Assert.Contains("playlist link", note.Text);
 
         w.ShowSourcePlaceholder(true);   // no reason this time
         Assert.Equal(Visibility.Collapsed, note.Visibility);
@@ -2202,6 +2202,17 @@ public class WpfRuntimeTests : IDisposable
 
         Assert.Equal("BBBBBBBBBBB", w.ReturnVideoIdForTests);
         Assert.Equal("PL0123456789", w.ReturnPlaylistIdForTests);
+    });
+
+    [Fact]
+    public void Popout_source_change_tracks_mix_lists_like_any_playlist() => StaTestThread.Invoke(() =>
+    {
+        // RD queues advance in the Normal popout; return must follow the mix, not strip it.
+        var w = NewPlayer();
+        w.TrackReturnIdentity("https://www.youtube.com/watch?v=BBBBBBBBBBB&list=RDdQw4w9WgXcQ");
+
+        Assert.Equal("BBBBBBBBBBB", w.ReturnVideoIdForTests);
+        Assert.Equal("RDdQw4w9WgXcQ", w.ReturnPlaylistIdForTests);
     });
 
     [Fact]

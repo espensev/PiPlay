@@ -1371,7 +1371,8 @@ A build should not be called “release candidate” until the following pass.
 | Double-click popout | Rapidly click Pop out | Only one player opens |
 | Playlist watch URL | Pop out `watch?v=X&list=PL...` | Preserves video `X` and playlist context |
 | Playlist page | Pop out `playlist?list=PL...` | Starts the first playable item in the playlist |
-| Mix/radio fallback | Pop out unsupported list such as `list=RD...` or restricted/radio list | Pops out the current single video with a non-blocking note; popout does not fail |
+| Mix/radio popout | Pop out `watch?v=X&list=RD...` | Normal popout carries the mix: the queue advances in the popout and survives return; compact tiers omit auto-generated lists (single video, no failure) |
+| Malformed playlist fallback | Pop out a watch URL whose `list=` id is malformed | Pops out the current single video with a non-blocking note; popout does not fail |
 | Source external link | Open a non-YouTube link from Source Window | Link opens in the system browser; PiPlay WebView remains on the allowed surface |
 | Popout external link | Trigger off-YouTube navigation in Popout Player | Player does not navigate away from YouTube; request is blocked or opened externally |
 | Login popup | Trigger sign-in/new window | App handles allowed Google auth surface intentionally |

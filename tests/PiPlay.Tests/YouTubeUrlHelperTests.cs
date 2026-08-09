@@ -43,25 +43,48 @@ public class YouTubeUrlHelperTests
     [InlineData("x%26t%3D9999")]   // decoded '&'/'=' must never re-enter a built URL
     [InlineData("PL%20abc")]       // embedded space
     [InlineData("a")]              // too short to be a real list id
-    public void Malformed_playlist_id_is_dropped_but_the_video_survives(string list)
+    public void Malformed_playlist_id_is_dropped_with_a_note_but_the_video_survives(string list)
     {
         Assert.True(YouTubeUrlHelper.TryParse(
             $"https://www.youtube.com/watch?v=dQw4w9WgXcQ&list={list}", out var t));
         Assert.Equal("dQw4w9WgXcQ", t.VideoId);
         Assert.Null(t.PlaylistId);
+        // The user pasted a playlist link and got a single video: say so (Q-6 non-blocking note)
+        // instead of the pre-2026-08 silent drop.
+        Assert.False(string.IsNullOrEmpty(t.FallbackReason));
         Assert.DoesNotContain("%", YouTubeUrlHelper.BuildWatchUrl(t));
         Assert.DoesNotContain("list", YouTubeUrlHelper.BuildWatchUrl(t));
     }
 
     [Fact]
-    public void Mix_radio_list_falls_back_to_current_video_with_note()
+    public void Mix_radio_list_is_kept_and_carried_to_the_watch_url()
     {
-        // list=RD... is a mix/radio: keep the video, drop the list, set a non-blocking note (spec 22.1).
+        // list=RD... queues play natively on the full watch page, so Normal popouts carry them
+        // like any playlist (spec 22.1, 2026-08-09 design). The old parse-time drop is gone.
         Assert.True(YouTubeUrlHelper.TryParse(
             "https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDdQw4w9WgXcQ", out var t));
         Assert.Equal("dQw4w9WgXcQ", t.VideoId);
-        Assert.Null(t.PlaylistId);
-        Assert.False(string.IsNullOrEmpty(t.FallbackReason));
+        Assert.Equal("RDdQw4w9WgXcQ", t.PlaylistId);
+        Assert.Null(t.FallbackReason);
+        Assert.Equal("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDdQw4w9WgXcQ",
+            YouTubeUrlHelper.BuildWatchUrl(t));
+    }
+
+    [Fact]
+    public void Shell_and_embed_urls_omit_auto_generated_lists()
+    {
+        // The IFrame API cannot load auto-generated (RD) lists, so the compact tiers degrade to
+        // the single video exactly where the limitation lives; regular lists are still carried.
+        var mix = new PiPlay.Models.YouTubeTarget { VideoId = "dQw4w9WgXcQ", PlaylistId = "RDdQw4w9WgXcQ" };
+        var shellMix = YouTubeUrlHelper.BuildShellUrl(mix, null, "https://piplay.local/player.html");
+        Assert.DoesNotContain("list=", shellMix);
+        Assert.Contains("v=dQw4w9WgXcQ", shellMix);
+        Assert.DoesNotContain("list=", YouTubeUrlHelper.BuildEmbedUrl(mix));
+
+        var playlist = new PiPlay.Models.YouTubeTarget { VideoId = "dQw4w9WgXcQ", PlaylistId = "PLabc" };
+        Assert.Contains("list=PLabc",
+            YouTubeUrlHelper.BuildShellUrl(playlist, null, "https://piplay.local/player.html"));
+        Assert.Contains("list=PLabc", YouTubeUrlHelper.BuildEmbedUrl(playlist));
     }
 
     [Theory]

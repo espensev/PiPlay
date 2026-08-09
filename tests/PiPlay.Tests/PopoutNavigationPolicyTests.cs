@@ -21,15 +21,15 @@ public class PopoutNavigationPolicyTests
     }
 
     [Fact]
-    public void Mix_radio_lists_retarget_to_the_video_with_the_fallback_note()
+    public void Mix_radio_lists_retarget_with_the_mix_kept()
     {
         var action = PopoutNavigationPolicy.DecideNewWindow(
             "https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDdQw4w9WgXcQ", out var target);
 
         Assert.Equal(PopoutNewWindowAction.RetargetInPlace, action);
         Assert.Equal("dQw4w9WgXcQ", target!.VideoId);
-        Assert.Null(target.PlaylistId);          // RD list dropped, same degrade as the popout launch
-        Assert.NotNull(target.FallbackReason);
+        Assert.Equal("RDdQw4w9WgXcQ", target.PlaylistId);   // mixes ride Normal like any playlist
+        Assert.Null(target.FallbackReason);
     }
 
     // Everything without a concrete video id goes external: whole-site YouTube pages cannot be
