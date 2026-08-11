@@ -81,10 +81,10 @@ Publishing refuses concurrent runs and preflights tag collisions. It copies to a
 
 ## 5. Open the PR
 
-Complete `.github/pull_request_template.md`: design spec, requirements, acceptance criteria, commands/results, docs/changelog impact, and manual evidence. Current checks:
+Complete `.github/pull_request_template.md`: design spec, requirements, acceptance criteria, commands/results, docs/changelog impact, and manual evidence. Workflow checks:
 
 - `Build and test (Windows)` calls `scripts/Test-LocalCI.ps1`. Public PRs use hosted `windows-latest`; trusted `main`/manual events may use repository variable `PIPLAY_WINDOWS_RUNNER`. Keep it unset until a dedicated disposable runner is ready; an offline selected runner does not fail over automatically.
 - To enable that runner later, set `PIPLAY_WINDOWS_RUNNER=piplay-ci`, manually dispatch CI, verify the intended runner through the Actions Jobs API, then clear the variable and rerun to prove hosted recovery. The variable is one scalar label; a label array requires `fromJSON`.
 - `Require design spec` runs unconditionally and decides from the changed-file list so required-check status cannot remain pending on docs-only PRs.
 
-After their first successful GitHub run, configure both `Build and test (Windows)` and `Require design spec` as required `main` branch-protection checks.
+When branch protection is enabled, require both `Build and test (Windows)` and `Require design spec` on `main`.
