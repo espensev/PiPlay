@@ -24,7 +24,7 @@
                   UseAeroCaptionButtons="False" />
   </WindowChrome.WindowChrome>
 
-  <!-- Active-profile identity edge (2026-08-09 design): a 1px alpha-scaled accent line around
+  <!-- Active-profile identity edge (docs/Theme_Preset_Differences.md): a 1px alpha-scaled accent line around
        the player; fully transparent at accent intensity 0. -->
   <Border x:Name="PopoutEdgeBorder" BorderBrush="{DynamicResource PopoutAccentEdge}"
           BorderThickness="1">

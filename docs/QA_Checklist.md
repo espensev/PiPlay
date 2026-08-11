@@ -33,7 +33,7 @@ Mark each item pass, issue (link), blocked, or skipped.
 ## Window, input, and presentation
 
 - [ ] Source never restores/resizes below 760 x 480 DIP. Normal Popout remains usable at 320 x 180; dormant Compact remains forced off and would require 480 x 270.
-- [ ] Source/Popout edge resize acquires across the 12 DIP outer band over WebView content; 96 DIP corner lengths give diagonal resize without stealing controls. The band reads as black canvas/letterbox, not a second frame.
+- [ ] Source/Popout edge resize acquires across the 12 DIP outer band over WebView content; 96 DIP corner lengths give diagonal resize without stealing controls. The band reads as near-black canvas/letterbox, not a second frame.
 - [ ] The 44 DIP top handle moves natively. Passive-picture mouse/pen click stays a click below system threshold; deliberate drag moves only after threshold. Timeline, volume, captions, settings, fullscreen, links, menus, end cards, ads, and overlay controls never drag.
 - [ ] Page wheel/touchpad scrolling requires one click into the page for focus, then works—including at reduced opacity. Wheel input over the 12 DIP resize band is inert; scrolling just inside the band is unaffected.
 - [ ] Passive drag is inert while maximized or after button release. Standard first child-frame load does not crash (`STATUS_BREAKPOINT` regression); no child-frame message wiring exists.
@@ -69,7 +69,9 @@ Mark each item pass, issue (link), blocked, or skipped.
 
 ## Evidence
 
-Capture at fractional DPI, using build-specific names under `docs/evidence/` such as `v0.12.1-b36-main-chrome.png`. Capture Source chrome, tooltips, open profile menu, Settings Appearance, Standard/Focused Popout, and every questionable state. Account-specific unavailable states are blocked, never faked.
+Keep `docs/evidence/` sparse: only current, build-specific release/review evidence belongs there. Fold durable facts from old evidence into active docs or change records, then delete stale screenshots and one-off notes. Never use generic `current` names.
+
+Capture at fractional DPI, using names such as `v0.12.1-b36-main-chrome.png`. Capture Source chrome, tooltips, open profile menu, Settings Appearance, Standard/Focused Popout, and every questionable state. Account-specific unavailable states are blocked, never faked.
 
 ```text
 Build / commit / tag:

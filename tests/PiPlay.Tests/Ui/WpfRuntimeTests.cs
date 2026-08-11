@@ -2192,7 +2192,7 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal("dQw4w9WgXcQ", w.ReturnVideoIdForTests);   // launch state untouched
     });
 
-    // --- Background room tones (2026-08-09 profile-backgrounds design) ---
+    // --- Background room tones (docs/Theme_Preset_Differences.md) ---
 
     [Fact]
     public void Backgrounds_wear_the_accent_room_tones() => StaTestThread.Invoke(() =>
@@ -2226,7 +2226,7 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void Profile_rows_wear_their_own_accent_as_a_wash() => StaTestThread.Invoke(() =>
     {
-        // 2026-08-09 design: each dropdown row washes in its OWN accent at the theme's subtle
+        // docs/Theme_Preset_Differences.md: each dropdown row washes in its OWN accent at the theme's subtle
         // alpha (published as ProfileRowWashAlpha), behind the identity rail.
         var alpha = Assert.IsType<byte>(Application.Current.Resources["ProfileRowWashAlpha"]);
 
@@ -2813,6 +2813,12 @@ public class WpfRuntimeTests : IDisposable
             Style = (Style)Application.Current.FindResource("DarkTextBox"),
         };
         var host = new Border { Background = Brushes.Black, Child = box, UseLayoutRounding = false };
+        using var presentationSource = new HwndSource(new HwndSourceParameters("PiPlay URL text render test")
+        {
+            Width = 320,
+            Height = (int)Math.Ceiling(expectedHeight),
+            WindowStyle = unchecked((int)0x80000000), // WS_POPUP without WS_VISIBLE
+        }) { RootVisual = host };
 
         host.Measure(new Size(320, double.PositiveInfinity));   // unconstrained height: MinHeight drives it
         var h = host.DesiredSize.Height;

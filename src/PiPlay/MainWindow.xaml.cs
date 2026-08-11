@@ -1723,7 +1723,8 @@ public partial class MainWindow : Window
 
     internal void ShowSourcePlaceholder(bool visible, string? note = null)
     {
-        // Tier-1 placeholder (spec 13.3): hide the source WebView, show the WPF black panel.
+        // Tier-1 placeholder (spec 13.3): hide the source WebView, show the accent-derived
+        // near-black letterbox panel.
         Browser.Visibility = visible ? Visibility.Hidden : Visibility.Visible;
         SourcePlaceholder.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
         _sourceNavigationSuspended = visible;

@@ -111,7 +111,7 @@
                   ToolTip="Saved profiles" AutomationProperties.Name="Saved profiles">
           <ComboBox.ItemTemplate>
             <DataTemplate>
-              <!-- Row wash (2026-08-09 design): the row wears its OWN accent at the theme's
+              <!-- Row wash (docs/Theme_Preset_Differences.md): the row wears its OWN accent at the theme's
                    subtle alpha, behind the identity rail. Tag carries the theme-published alpha
                    so a live theme change reconverts, same trick as the rail's surface Tag. -->
               <Grid x:Name="ProfileIdentityRow" MinWidth="0"
@@ -212,7 +212,7 @@
     </Grid>
 
     <!-- Content: browser + overlays. The letterbox pixels around the video wear the derived
-         near-black room tint (2026-08-09 design), never a hard-coded black. -->
+         near-black room tint (docs/Theme_Preset_Differences.md), never a hard-coded black. -->
     <Grid x:Name="SourceLetterbox" Grid.Row="2" Background="{DynamicResource AccentLetterbox}">
       <!-- Resize inset band (REQ-WINDOW-02, overhaul Task 1): the WebView2 child HWND swallows
            WM_NCHITTEST, so the top-level window must own the edge pixels for the resize subclass

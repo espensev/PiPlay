@@ -68,7 +68,7 @@ public static class ThemeResourceApplier
         SetColorPair(resources, "OnAccentPressed", set.OnAccentPressed);
         // Keep AccentPrimaryLight defined as an alias to AccentHover for one migration pass.
         SetColorPair(resources, "AccentPrimaryLight", set.Hover);
-        // Background room tones (2026-08-09 design): the letterbox framing the video and the
+        // Background room tones (docs/Theme_Preset_Differences.md): the letterbox framing the video and the
         // washed window background follow the accent and the intensity dial.
         SetColorPair(resources, "AccentLetterbox", set.Letterbox);
         SetColorPair(resources, "AppBackgroundWash", set.BackgroundWash);

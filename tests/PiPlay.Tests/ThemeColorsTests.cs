@@ -98,7 +98,7 @@ public class ThemeColorsTests
         }
     }
 
-    // --- Background room tones (2026-08-09 profile-backgrounds design) ---
+    // --- Background room tones (docs/Theme_Preset_Differences.md) ---
 
     [Theory]
     [InlineData("sharp-dark")]
