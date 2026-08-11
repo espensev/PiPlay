@@ -2813,6 +2813,12 @@ public class WpfRuntimeTests : IDisposable
             Style = (Style)Application.Current.FindResource("DarkTextBox"),
         };
         var host = new Border { Background = Brushes.Black, Child = box, UseLayoutRounding = false };
+        using var presentationSource = new HwndSource(new HwndSourceParameters("PiPlay URL text render test")
+        {
+            Width = 320,
+            Height = (int)Math.Ceiling(expectedHeight),
+            WindowStyle = unchecked((int)0x80000000), // WS_POPUP without WS_VISIBLE
+        }) { RootVisual = host };
 
         host.Measure(new Size(320, double.PositiveInfinity));   // unconstrained height: MinHeight drives it
         var h = host.DesiredSize.Height;
