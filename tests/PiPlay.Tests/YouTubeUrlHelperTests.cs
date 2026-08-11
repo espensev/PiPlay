@@ -60,7 +60,7 @@ public class YouTubeUrlHelperTests
     public void Mix_radio_list_is_kept_and_carried_to_the_watch_url()
     {
         // list=RD... queues play natively on the full watch page, so Normal popouts carry them
-        // like any playlist (spec 22.1, 2026-08-09 design). The old parse-time drop is gone.
+        // like any playlist (docs/PiPlay_Product_Engineering_Spec.md §22.1). The old parse-time drop is gone.
         Assert.True(YouTubeUrlHelper.TryParse(
             "https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDdQw4w9WgXcQ", out var t));
         Assert.Equal("dQw4w9WgXcQ", t.VideoId);

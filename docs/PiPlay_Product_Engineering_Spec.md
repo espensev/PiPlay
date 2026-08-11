@@ -163,15 +163,9 @@ The dormant shell is served as `https://piplay.local/player.html` from `src\PiPl
 
 ## 11. Architecture
 
-```text
-App
-├─ Source Window: browser, navigation, profiles, placeholder, launch/return
-├─ Popout Player: playback WebView, native chrome, state sync, close signal
-├─ Services: WebView environment, URL/DOM/navigation, settings, profiles, placement, logging
-└─ Data root: settings.json, logs/, WebView2UserData/
-```
-
 One WPF dispatcher owns window/native state. Timers and page calls are single-flight/generation-guarded. Logging uses one bounded background queue. Close invalidates generations, stops timers, removes handlers/scripts/native hooks, disposes bridges before WebView, and drains logs.
+
+Auto and Popout sync run at 250 ms with single-flight guards; Source suppression runs at 1 s while Popout owns playback; Focused fallback runs at 1 s only while active. Single-instance pipe retry is cancellation-aware, backs off from 250 ms to 30 s, and summarizes recovery once.
 
 ## 12. Component contracts
 
@@ -189,7 +183,7 @@ One WPF dispatcher owns window/native state. Timers and page calls are single-fl
 
 ### 12.4 YouTubeUrlHelper
 
-- Supports `youtube.com/watch`, `youtu.be`, `/shorts/`, `/embed/`, watch playlists/mixes, and `/playlist?list=`; malformed list IDs set non-blocking `FallbackReason` instead of failing the video.
+- Supports `youtube.com/watch`, `youtu.be`, `/shorts/`, `/embed/`, watch playlists/mixes, and `/playlist?list=`. `ApplyList` retains charset-valid list IDs; `BuildWatchUrl` carries valid `RD...` with no `FallbackReason` or unsupported-mix note, while `BuildShellUrl` and `BuildEmbedUrl` omit it because the YouTube IFrame API cannot load auto-generated lists. Malformed list IDs set non-blocking `FallbackReason` instead of failing the video.
 
 ### 12.5 YouTubeDomBridge
 
@@ -339,7 +333,6 @@ Never log cookies, authorization headers, full credential URLs, command lines co
 - Every icon-only control has an accessible name and visible keyboard focus. Pin/transfer names follow current state.
 - `Ctrl+L` and `F6` select the Source URL while navigation is available. Standard YouTube shortcuts remain available when WebView is focused.
 - Dark surfaces meet contrast requirements; arbitrary stored accents retain readable presentation tokens. Popout is always recoverable at every opacity.
-- Future: high-contrast-specific behavior, configurable title-bar size, larger touch targets.
 
 ## 21. Packaging and release
 
@@ -386,17 +379,15 @@ Run two hours of repeated Popout/return, 20 app restarts, logged-in/out, autopla
 
 - Warm Popout video visible in about 1.5 s; cold first-run environment initialization exempt.
 - CPU/GPU comparable to a normal browser WebView for the same playback.
-- Static runtime audit preserves bounded/single-flight hot paths; unresolved measurements are recorded under `.audit/deep-audit/piplay-runtime-2026-07-16/`.
+- Static runtime audit preserves bounded/single-flight hot paths; unresolved measurements live in `SPEC_GAPS_AND_OWNERSHIP.md`.
 
 ### 22.5 Definition of Done
 
 Automated tests, deployed functional/manual checks, and true-render chrome checks are equal release gates. Use `QA_Checklist.md`; diagnostic/dirty deployments are not release evidence.
 
-## 23. Current and deferred scope
+## 23. Deferred scope
 
-Current: Source browsing; one Standard/Focused Popout; playlist/mix context; return; Pin/Auto/Fade; profiles; appearance/opacity; privacy controls; placement/DPI; local logging; runtime recovery; deterministic and deployed gates.
-
-Deferred: re-enabling Compact, main-window Browse/Cinema/Compact layouts, chrome-only/video-opaque transparency, tray mode, optional global hotkeys, import/export, installer/auto-update, multiple players, and cross-platform work.
+Deferred: re-enabling Compact, main-window Browse/Cinema/Compact layouts, chrome-only/video-opaque transparency, wallpapers/imagery or any surface under/over video pending an architecture lift, tray mode, optional global hotkeys, import/export, installer/auto-update, multiple players, cross-platform work, high-contrast-specific behavior, configurable title-bar size, and larger touch targets.
 
 ## 24. Unresolved work
 
@@ -442,11 +433,3 @@ The 12 DIP band and 96 DIP corner reach in section 16.3 are native hit-test dime
 ### 26.6 Transparency caution
 
 WebView2 remains an opaque child HWND; keep `AllowsTransparency=False` and the no-click-through rule in section 7.4.
-
-## 27. Primary references
-
-- [.NET support policy](https://dotnet.microsoft.com/en-us/platform/support/policy)
-- [WebView2 Evergreen vs Fixed Version](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/evergreen-vs-fixed-version)
-- [WebView2 WPF and composition control](https://learn.microsoft.com/en-us/microsoft-edge/webview2/platforms/wpf)
-- [YouTube IFrame Player API](https://developers.google.com/youtube/iframe_api_reference)
-- [Win32 `WM_NCHITTEST`](https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-nchittest)

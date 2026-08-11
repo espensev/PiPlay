@@ -54,7 +54,7 @@
   <Color x:Key="AccentChromeGlyphColor">#FF2BAED0</Color>
   <Color x:Key="OnAccentColor">#FF06141A</Color>
   <Color x:Key="OnAccentPressedColor">#FF06141A</Color>
-  <!-- Background room tones (2026-08-09 design) at the default accent intensity (50): the video
+  <!-- Background room tones (docs/Theme_Preset_Differences.md) at the default accent intensity (50): the video
        letterbox and the washed window background. Same rule as the glyph seed above: the values
        ARE the derived defaults (pinned by the same XamlInvariantTests seed gate) — do not
        hand-edit; take what the derivation produces. -->

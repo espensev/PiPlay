@@ -69,7 +69,9 @@ Mark each item pass, issue (link), blocked, or skipped.
 
 ## Evidence
 
-Capture at fractional DPI, using build-specific names under `docs/evidence/` such as `v0.12.1-b36-main-chrome.png`. Capture Source chrome, tooltips, open profile menu, Settings Appearance, Standard/Focused Popout, and every questionable state. Account-specific unavailable states are blocked, never faked.
+Keep `docs/evidence/` sparse: only current, build-specific release/review evidence belongs there. Fold durable facts from old evidence into active docs or change records, then delete stale screenshots and one-off notes. Never use generic `current` names.
+
+Capture at fractional DPI, using names such as `v0.12.1-b36-main-chrome.png`. Capture Source chrome, tooltips, open profile menu, Settings Appearance, Standard/Focused Popout, and every questionable state. Account-specific unavailable states are blocked, never faked.
 
 ```text
 Build / commit / tag:
