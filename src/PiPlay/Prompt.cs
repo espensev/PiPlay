@@ -42,7 +42,7 @@ internal static class Prompt
             SnapsToDevicePixels = true,
         };
 
-        // Same native corner shape as the themed owner windows (review doc §8.7): without this,
+        // Same native corner shape as the themed owner windows (docs/Theme_Preset_Differences.md): without this,
         // a round/square theme would leave the prompt as the only differently-shaped dialog. And the
         // same P1 borderless treatment — suppress the Win11 DWM frame hairline so prompts match.
         win.SourceInitialized += (_, _) =>

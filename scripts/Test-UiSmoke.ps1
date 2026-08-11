@@ -6,7 +6,7 @@
 .DESCRIPTION
   Layer 4 of the regression suite (see docs/AGENTS.md and docs/QA_Checklist.md). NOT part of
   `dotnet test` — it needs an interactive desktop, the WebView2 runtime, and network. Run it as
-  a release gate alongside docs/QA_Checklist.md section 8. Capture at a fractional DPI (e.g.
+  a release gate alongside the Evidence section in docs/QA_Checklist.md. Capture at a fractional DPI (e.g.
   150%) to expose the rounding/clipping class of bug (see docs/AGENTS.md).
 .EXAMPLE
   pwsh -File scripts/Test-UiSmoke.ps1

@@ -12,7 +12,7 @@ namespace PiPlay.Models;
 public sealed class AppSettings
 {
     /// <summary>
-    /// Schema 3 (end-pass review F2): null theme behavior values mean "use the preset default".
+    /// Schema 3 theme persistence rule: null theme behavior values mean "use the preset default".
     /// Schema ≤2 wrote theme blocks whose nulls meant "fall back to the legacy Player fields",
     /// so SettingsService backfills those nulls from Player once on first load.
     /// </summary>
@@ -120,7 +120,7 @@ public sealed class ThemeSettings
     public string FadeDelayPreset { get; set; } = ThemeCatalog.DefaultFadeDelayPreset;
 
     /// <summary>
-    /// Corner profile override (review doc §8.1): "theme" (default) follows the selected preset's
+    /// Corner profile override (docs/Theme_Preset_Differences.md): "theme" (default) follows the selected preset's
     /// radii + native corner mode; "square"/"small"/"round" swap the whole profile (legacy "soft"
     /// normalizes to "round" — both were always DWMWCP_ROUND). A
     /// missing value deserializes to null and sanitizes to "theme", so existing settings.json
@@ -129,7 +129,7 @@ public sealed class ThemeSettings
     public string CornerStyle { get; set; } = ThemeCatalog.DefaultCornerStyle;
 
     /// <summary>
-    /// Behavior OVERRIDES, not final values (end-pass review §3.2): null = follow the selected
+    /// Behavior OVERRIDES, not final values (docs/Theme_Preset_Differences.md): null = follow the selected
     /// preset's default; the resolver applies preset default → override → normalized. The
     /// property names keep their original JSON spelling for settings back-compat.
     /// </summary>
@@ -149,7 +149,7 @@ public sealed class ThemeSettings
         AccentColor = ThemeCatalog.AccentColorForLegacyAccent(player.PinAccent),
         FadeDelayPreset = ThemeCatalog.FadeDelayPresetForMilliseconds(player.FadeIdleDelayMs),
         // The legacy behavior values become EXPLICIT overrides at seed time, so the resolver's
-        // preset-default fallback (end-pass review F2) can never change a migrated user's
+        // preset-default fallback (docs/Theme_Preset_Differences.md) can never change a migrated user's
         // configured look. Callers sanitize Player before seeding, so these are normalized.
         StripAutoHide = player.StripAutoHide,
         ActiveWindowOpacity = player.ConstantWindowOpacity,

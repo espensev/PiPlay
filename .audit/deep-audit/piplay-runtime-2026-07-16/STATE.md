@@ -16,7 +16,7 @@ Exclusions: build/publish/CI efficiency, security assessment, UI style, YouTube/
 Workload assumptions: one app instance, one Source Window, at most one Popout Player, ordinary YouTube watch navigation, optional Auto/Focused/fade/opacity customization, and repeated open/close as a scalability boundary  
 Environment: Windows 11, WPF `net10.0-windows`, WebView2 Evergreen, 32 logical processors
 Audit started: 2026-07-16 Europe/Berlin  
-Last updated: 2026-07-18 Europe/Berlin
+Last updated: 2026-07-19 Europe/Berlin
 Product-code writes: not allowed in this closeout; the previously authorized remediation is landed and released
 Audit-state writes: allowed  
 Runtime measurements: M-002 unattended A/B profiling and the M-005 low-rate passive follow-up explicitly authorized; no fault injection or interactive lifecycle driver authorized
@@ -59,16 +59,16 @@ Runtime measurements: M-002 unattended A/B profiling and the M-005 low-rate pass
 | ID | Status | Durable conclusion | Next action |
 |---|---|---|---|
 | M-002 | Closed, partial/inconclusive | One mostly-idle four-hour Standard block plateaued after settling. No accepted Focused comparator exists; the harness failed before the later reboots. | Do not rerun the forced campaign. |
-| M-005 | Installed; last verified healthy 2026-07-18 | Low-rate natural-session data may surface process-level drift or anomalies, but cannot prove active Focused behavior or causality. | Analyze after three sessions with at least two post-settling hours each. |
+| M-005 | Retired 2026-07-19 | The scheduled logger opened a visible Windows Terminal at sign-in. Both the logger and watchdog tasks were removed; retained files are historical evidence only. | Do not reinstall a scheduled shell-based logger. |
 
-M-005 operational surfaces:
+M-005 retained surfaces:
 
-- Tasks: `PiPlay-Passive-Runtime-Logger` plus the independent 15-minute `PiPlay-Passive-Runtime-Watchdog`.
-- Scripts/status: `C:\ProgramData\PiPlayPassiveRuntime\PiPlayPassiveLogger.ps1`, `Ensure-PiPlayPassiveLogger.ps1`, and `Get-PiPlayPassiveLoggerStatus.ps1`.
-- Output and bounds: `C:\ProgramData\PiPlayPassiveRuntime\logs`; one process inventory every 120 seconds; PiPlay-presence-gated rows; daily rotation; 45-day retention; six-hour idle heartbeats.
+- Removed tasks: `PiPlay-Passive-Runtime-Logger` and `PiPlay-Passive-Runtime-Watchdog`. No PiPlay passive-runtime task or logger process remained after removal on verified machine `snd-desk`.
+- Preserved scripts/status: `C:\ProgramData\PiPlayPassiveRuntime\PiPlayPassiveLogger.ps1`, `Ensure-PiPlayPassiveLogger.ps1`, and `Get-PiPlayPassiveLoggerStatus.ps1`. They are not scheduled and must not be treated as live instrumentation.
+- Preserved output: `C:\ProgramData\PiPlayPassiveRuntime\logs`. Existing files remain available for historical inspection; no further collection is expected.
 - Integrity/privacy: only Sev, SYSTEM, and Administrators can modify the protected installation; Users have read/execute only. No execution-policy bypass, URLs, settings payloads, command lines, or network telemetry.
 - Attribution limits: samples split on boot, root process, configured presentation, and Stable identity. CPU is a sampled-survivor lower bound. LibreHardwareMonitor is preserved as independent timestamp context only.
-- Live status: `& 'C:\ProgramData\PiPlayPassiveRuntime\Get-PiPlayPassiveLoggerStatus.ps1'`.
+- Retirement reason: an interactive scheduled PowerShell action created a visible blank Windows Terminal despite `-WindowStyle Hidden`; the exact Terminal process was closed and machine-wide enabled interactive shell-task/startup checks were brought to zero.
 
 ## Remediation verification
 

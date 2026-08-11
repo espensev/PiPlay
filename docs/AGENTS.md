@@ -1,71 +1,56 @@
-# AGENTS.md — Working in the PiPlay repo
+# Working in PiPlay
 
-Orientation for AI agents (Claude Code, etc.) and new contributors. Read this and the spec before changing code or docs.
+## Authority and change records
 
-## Source of truth
-- The product & engineering spec is authoritative: `PiPlay_Product_Engineering_Spec.md` (this folder).
-- Architecture decisions and their rationale live in `adr/`. If you change a decision, add or supersede an ADR — do not just change code silently.
+- `PiPlay_Product_Engineering_Spec.md` owns product behavior and requirement IDs.
+- `DECISIONS.md` owns architecture decisions. Add or supersede a stable decision ID instead of silently contradicting one.
+- `SPEC_GAPS_AND_OWNERSHIP.md` owns unresolved work and code boundaries.
+- Non-trivial code changes require `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` with goals, requirements, decisions, non-goals, files, tests, and unresolved questions. Start from `docs/superpowers/templates/feature-design-template.md`.
+- Multi-step work requires a dated plan from `docs/superpowers/templates/plan-template.md` while work remains. Delete completed plans and status/worklog prose after durable facts move into canonical docs.
+- The `Require design spec` check applies to PRs changing `src/`, `scripts/`, or `tests/`. A deliberate exception is one PR-body line: `Spec-Exception: <reason>`.
+- Reference the served `Q-*`/`REQ-*` IDs in PRs and tests.
 
-## Design docs (per change pass)
-Before writing code for any non-trivial change, record the **goals and approach** of that pass in a dated design spec at `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`:
-- Open with a `## Goals` section, then the requirement IDs it serves (`Q-n`, `REQ-*`), the settled decisions, and the changes by file. Start from the skeletons in `docs/superpowers/templates/` (design, plan, and worklog).
-- Multi-step work also gets an implementation plan at `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`; a substantial session (a release or a multi-fix sweep) also earns a worklog at `docs/superpowers/worklog/YYYY-MM-DD-<topic>.md`.
-- These are **subordinate** to the product spec (still authoritative) and the ADRs (which own architecture decisions); they capture what one pass set out to do and why. Link the spec from the PR.
-- `docs/Feature_Workflow.md` is the full contributor path: the **Definition of Ready** that makes a spec implementable, and the CI **spec-check gate** that fails a `src/`/`scripts/`/`tests/` PR carrying no changed dated `-design.md` spec (override deliberately with a `Spec-Exception:` line in the PR body).
-- Gold-standard examples: spec `docs/superpowers/specs/2026-06-06-profile-edit-validation-design.md`, plan `docs/superpowers/plans/2026-06-06-profile-edit-validation.md`, worklog `docs/superpowers/worklog/2026-06-06-stable-publish-session.md`.
-
-## Terminology (do not drift)
-Use these names everywhere — UI, code, comments, tests, commits, issues:
+## Product language
 
 | Term | Meaning |
 |---|---|
 | PiPlay | The app/product. |
-| Video Popout | The feature that moves the current YouTube video into a floating player. |
-| Popout Player | The floating, borderless playback window. |
-| Source Window | The main PiPlay browser window. |
-| Source Placeholder | The black area shown while the video is popped out. |
+| Video Popout | Moving current YouTube playback to the floating player. |
+| Popout Player | Floating borderless playback window. |
+| Source Window | Main PiPlay browser window. |
+| Source Placeholder | Black area shown while playback is popped out. |
 | Pin | Keep the active surface always-on-top. |
-| Fade | Hover/idle fading of controls (and optional whole-popout opacity). |
-| Auto | Auto-pop-out of supported watch videos; off by default. |
+| Fade | Idle/hover fading; never click-through. |
+| Auto | Automatic `/watch` popout; off by default. |
 
-`Detach`, `PlayerWindow`, and `MainWindow` are **internal-only** names (the code already uses `MainWindow`/`PlayerWindow`). Never surface them in user-facing text.
+`MainWindow`, `PlayerWindow`, `Detach`, and `fake PiP` are internal-only names.
 
-## Quality bar (spec section 3)
-Quality outranks scope: no duplicate audio after popout (Q-1); no lost video/timestamp/window context on return (Q-2); DOM injection stays isolated and best-effort (Q-3); use Evergreen WebView2 (Q-4); no invasive YouTube behavior (Q-5); recover cleanly from every error (Q-6); native-quality window behavior including DPI (Q-7); a visible player stays interactable — no click-through (Q-8).
+## Non-negotiable constraints
 
-## Hard non-goals (do not implement)
-- Downloading videos; blocking ads or touching monetization; bypassing DRM/region/age gates.
-- Click-through / mouse pass-through windows; making the WebView itself transparent.
-- Global hotkeys as *required* functionality.
-- Multiple simultaneous Popout Players — single-player by design for now (see `adr/0005-single-player.md`).
-- Cross-platform builds.
+- Q-1: no duplicate audio. Q-2: preserve video/timestamp/window context on return. Q-3: DOM injection is isolated and best-effort. Q-4: use WebView2 Evergreen. Q-5: do not interfere with ads, monetization, credentials, DRM, regions, age gates, or required controls. Q-6: recover from failures. Q-7: native-quality window/DPI behavior. Q-8: every visible player remains interactable.
+- Windows-only WPF on `net10.0-windows`; `Nullable` and `ImplicitUsings` enabled. No trimming, NativeAOT, or single-file publish.
+- One Popout Player. No click-through, transparent WebView, video downloading, ad blocking, required global hotkeys, cross-platform build, or credential/network telemetry.
+- All WebView JavaScript belongs in `YouTubeDomBridge`. Page-to-host protocols are exact-schema, versioned, nonce/document-token checked, and source checked; never accept pointer coordinates, arbitrary URLs, commands, or filesystem access.
+- Save settings atomically: temp file, writer/stream flush, then same-volume `File.Move(..., overwrite: true)` or `File.Replace`. Never use `File.Copy` over live settings.
+- Per-monitor DPI is `PerMonitorV2` in `src\PiPlay\app.manifest`. Source minimum is 760 x 480 DIP; Normal Popout 320 x 180; dormant Compact 480 x 270.
+- Logs are local and bounded. Never log cookies, authorization headers, credential URLs, or unsanitized search text.
 
-## Conventions
-- WPF on `net10.0-windows`; `Nullable` and `ImplicitUsings` enabled. No trimming / NativeAOT / single-file yet (`adr/0002-target-net-10.md`).
-- Settings are written atomically (temp file + flush + `File.Move`/`File.Replace`), never `File.Copy`. Never lose settings on a partial write.
-- Per-monitor DPI (PerMonitorV2) is declared in `src\PiPlay\app.manifest`.
-- No network telemetry. Logs are local only and must never contain cookies, auth headers, or credential URLs.
-- Reference requirement IDs (`Q-n`, `REQ-*`) in PRs and tests. Update `CHANGELOG.md` for user-visible changes.
-- **Code signing is NOT a release gate.** Signing is optional (`Publish-Stable.ps1 -SignScript <path>`,
-  which runs before the manifest hashes are written). Release provenance comes from the exact-source
-  commit, the `stable-vX.Y.Z-bN` tag, and `Verify-StableDeploy.ps1` — not from a signature. `REQ-RELEASE-01`
-  remains on the books for eventual public distribution but is deferred and non-gating today; see
-  `SPEC_GAPS_AND_OWNERSHIP.md`. Do not add an Authenticode check to the release-evidence path.
-- Before opening a PR, run the same deterministic gate as CI: `pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1`. Release candidates also need the manual smoke and `QA_Checklist.md` — both run against the **deployed Stable copy**, never repo build output (next bullet).
-- **Manual testing happens outside the repo.** Any manual/human test pass uses the deployed Stable copy at `E:\Dev_test_implemenations\PiPlay\PiPlay.exe`, deployed only via `scripts\Publish-Stable.ps1` (`adr/0007-stable-channel-and-portable-data.md`). Repo build output (`src\...\bin\...`, `bin\publish\...`) is for the automated dev loop only — stale binaries are the classic false test pass. Before testing, run `.\scripts\Verify-StableDeploy.ps1`: one command that re-hashes the deployed artifacts and fails closed unless artifact hashes, manifest, marker, version/build files, source commit, and stable tag agree.
-- **Version discipline.** Release-candidate publishes are exact-source: update `VERSION`/`BUILD_NUMBER` and `CHANGELOG.md`, commit those stamps, then run `.\scripts\Publish-Stable.ps1` from a clean tree. The script builds with `-NoVersionBump -NoBuildNumberBump`, deploys Stable, verifies it, and creates the local `stable-vX.Y.Z-bN` tag on that exact commit. `-AllowVersionBump` and `-AllowDirty` exist only for diagnostic/non-release deploys and are marked as not release evidence.
+## WPF traps already settled
 
-## UI implementation notes (REQ-UI-01 / REQ-UI-02)
+- Explicitly dark-template every popup-bearing control, including dropdown/menu item containers and tooltips.
+- Render icon glyphs through an element whose template/local value sets `Segoe Fluent Icons` with `Segoe MDL2 Assets` fallback. An implicit `TextBlock` style can otherwise replace the font or active color.
+- Keep `UseLayoutRounding="False"` at Window level. At fractional DPI, `True` clipped the editable URL line box; mixing rounding between a parent and hosted text made it worse.
+- Keep `AllowsTransparency=False`; WebView2 is an HWND child. Effective `Round` Popouts use the DPI-scaled native region defined by ADR-0008 in `DECISIONS.md`.
 
-The spec keeps visual identity general; these are the WPF specifics that satisfy it. They exist because chrome drift to light/default theming is the most common regression here.
+## Verify and release
 
-- **Dark everything that pops up.** WPF's default `ComboBox` dropdown, `ContextMenu`, `Menu`, and `ToolTip` are light-themed. Each needs an explicit dark `ControlTemplate`/style covering the popup and item containers (e.g. `ComboBoxItem`), not just the closed control. Define an app-level dark `ToolTip` style so every tooltip inherits it, and place tooltips so they don't occlude their control (esp. caption buttons).
-- **Icon glyphs must resolve on the element that renders them.** Setting the icon font via a style `Setter` on a button is not enough: an implicit `TextBlock` style (e.g. one that sets `FontFamily`) clobbers the auto-generated content `TextBlock` and the glyph falls back to `.notdef` boxes — while an inline `TextBlock` that sets the font locally renders fine. Render glyph content through a `TextBlock` inside the control template with the icon `FontFamily` and `Foreground` set in-template (template-property precedence beats implicit styles), or host the glyph in an element carrying the font directly. Use one icon family (`Segoe Fluent Icons` with `Segoe MDL2 Assets` fallback).
-- **Don't let an implicit `TextBlock` style leak into control templates.** A keyless `<Style TargetType="TextBlock">` that sets `Foreground`/`FontFamily` applies to content presenters too and can override active/hover colors (e.g. Pin-active cyan, close-hover white). Set per-control colors in-template via `TemplateBinding`, or scope the base text style with a key.
-- **`UseLayoutRounding="True"` on a Window can clip editable text at fractional DPI.** It was set on both windows and, at non-integer scales (e.g. 133/177%), rounded the `TextBox`'s internal `TextBoxView` line box off the device grid so the URL text rendered as a thin clipped band (and trying to compensate inside the textbox template — padding, `VerticalContentAlignment`, `Display` formatting, per-control `UseLayoutRounding=False` — did **not** fix it; mixing rounding settings between parent and child made it worse). The fix was to set `UseLayoutRounding="False"` at the window level. Keep it off unless you have a specific crisp-edge need, and never mix rounding settings across a parent/child that hosts text.
-- Verify with fresh screenshots against the section 22.2 Chrome acceptance checks before calling a build a release candidate. Capture at a fractional DPI (e.g. 150%) — integer-scale captures hide the rounding/clipping class of bug.
+```powershell
+pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1
+```
 
-## Multi-agent workflow
-When work is split across parallel agents, each agent reads this file and the spec first, writes only within its assigned area, and treats the terminology table above as the shared vocabulary.
+- Release candidates also run `QA_Checklist.md` against the deployed Stable copy at `E:\Dev_test_implemenations\PiPlay\PiPlay.exe`, never repo output.
+- Commit `VERSION`, `BUILD_NUMBER`, and `docs/CHANGELOG.md`, then run `.\scripts\Publish-Stable.ps1` from a clean tree and `.\scripts\Verify-StableDeploy.ps1` before manual testing.
+- Provenance is the exact-source commit, `stable-vX.Y.Z-bN`, and verifier output. Signing is optional through `-SignScript <path>` and is not a release gate. `-AllowVersionBump` and `-AllowDirty` produce diagnostic-only evidence.
+- Public pull requests stay on hosted `windows-latest`. `PIPLAY_WINDOWS_RUNNER` is for trusted `main`/manual runs only; leave it unset until a dedicated disposable PiPlay runner exists. There is no automatic hosted failover once a self-hosted label is selected.
 
-> If this file is moved to the repo root, prefix the doc paths above with `docs/`.
+Parallel agents must read this file and the product spec, use the terminology above, and write only inside assigned ownership.

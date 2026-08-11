@@ -35,7 +35,7 @@ Archive/
 ## Curated, stable-named evidence is committed deliberately; these raw runs are not.
 docs/evidence/ui-smoke-*.png
 
-## Owner's raw review inbox (un-curated drops; the processed copies live in docs/reviews/). Never shared.
+## Owner's raw review inbox. Never shared; only unresolved factual reviews are promoted temporarily.
 PRI-READ/
 
 ## Owner's loose visual references dropped at the repo root (kept on disk, never shared).

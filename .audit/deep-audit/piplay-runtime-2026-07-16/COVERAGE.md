@@ -1,55 +1,26 @@
-# Coverage Map
+# Runtime audit coverage
 
-Schema: deep-audit/v1  
-Audit slug: `piplay-runtime-2026-07-16`  
-Repository/current revision: `D:\Development\DesktopApps\PiPlay`; baseline `8015ba4`, verified remediation `99f9834`, current/released `e16c0f3` on `main`
-Source/runtime boundary: deployed Stable is exact-source `e16c0f3` (`v0.12.0 b35`) and passed verification from a clean temporary checkout; M-002/M-005 samples are accepted only from that Stable executable and are split by boot/build identity
-Authority: audit-state writes, M-002 profiling, and the low-rate M-005 passive follow-up are authorized; no product-code writes
-Dirty-state fingerprint/scope/exclusions/environment: see `STATE.md`  
-Last updated: 2026-07-18 Europe/Berlin
+- Audit: `piplay-runtime-2026-07-16` (`deep-audit/v1`).
+- Source: baseline `8015ba4`; remediation `99f9834`; released Stable `e16c0f3` (`v0.12.0 b35`).
+- Last updated: 2026-07-19 Europe/Berlin.
+- Scope: Windows 11, WPF `net10.0-windows`, WebView2 Evergreen, one Source Window, and at most one Popout Player.
+- Exact environment, authority, and dirty-state fingerprint are in [STATE.md](STATE.md).
 
-| Runtime area | Entry point | Evidence inspected | Depth | Status | Gap | Next mode |
-|---|---|---|---:|---|---|---|
-| Process startup | `App.OnStartup` | theme/settings load, mutex, pipe server, MainWindow creation | 4 | F-001 fixed; V-003/V-005/V-006 | live failure not induced | none |
-| Single-instance handoff | `StartPipeServer`, `TrySendToExistingInstance` | wait/read/dispatcher/cancel/error loop, session namespace | 4 | F-001 fixed; V-003/V-005/V-006 | live failure not induced | none |
-| Shared WebView environment | `EnsureCreatedAsync` | directory/options/create/reuse and every caller | 4 | R-002, current path bounded | future ownership expansion | reopen on change |
-| Source initialization/navigation | `InitializeBrowserAsync`, Core events | awaits, handlers, navigation, close guards, Retry visibility | 4 | Mapped/guarded | live runtime failure | optional fault test |
-| Auto detector | `_autoTimer`, `AutoTimer_Tick` | 250 ms cadence, cheap preflight, single-flight DOM read, lifecycle gates | 3 | Guarded | live cadence cost not measured; expected low | revisit after P1 |
-| Popout launch | `StartVideoPopoutAsync` | state read, target resolution, suppression, environment, Player creation, rollback | 3 | Mapped | live latency distribution | optional profile |
-| Source suppression | launch + `_sourceSuppressionTimer` | acknowledged launch precondition, 1-second command, per-operation failure gate, stop paths | 4 | F-003/F-004 fixed; V-001/V-005/V-006 | live failure cost M-001 | profile only if authorized |
-| Popout state sync | `_syncTimer`, `SyncTimer_Tick` | 250 ms cadence, URL/nav/final-state/single-flight and per-operation log gates | 4 | F-004 fixed; M-001 remains | live failure cost | profile only if authorized |
-| Compact shell | shell bridge and `player-shell.js` | 250 ms shell state, watchdog, fallback, disposal | 2 | Feature-gated/dormant | current kill-switch reachability not fully traced | P2 later |
-| Focused DOM surface | generated script + bridge | observer/listener/timer/media events, auth, appearance pump, disposal; M-002 Standard block plus M-005 contextual trends | 4 | Static path covered; M-002 measured the Standard process subset; Focused remains inconclusive | no actual-active Focused comparator; callback/heap/node/frame attribution unavailable | targeted active profile required |
-| Appearance preview | accent coalescer/resources | 33 ms max cadence, dedupe, conditional exact derived-pair deltas, Popout pump | 4 | F-005 fixed; V-004/V-005/V-006; M-003 remains | realized WPF frame/allocation data | optional profile |
-| Fade/opacity activity | idle timer, 250 ms cursor probe, 15 ms alpha animator | feature gates, native queries, animation teardown | 3 | Mapped/guarded | live power cost under non-default settings | optional profile |
-| Native corners/regions | size/DPI/move lifecycle | eligibility short-circuit, snap classification, region replacement/clear | 3 | Mapped/guarded | sustained resize/DPI soak | `profile M-004` |
-| Return/navigation replay | `Player_OnClosed`, `ApplyReturnActionAsync`, replay loop | return decision, up to 12 x 250 ms probes, stale-state guards, spec-required dual saves | 4 | R-001; bounded/required | optional slow-disk latency | preserve |
-| Settings/profile persistence | `SettingsService` | load/sanitize, full JSON save, durable temp flush/replace, call sites | 3 | Mapped | slow-disk UI latency, profile cardinality | P2 profile |
-| Browser-data clear | `PerformClearBrowserDataAsync` | confirmation, single-flight AllProfile task, 30 s foreground wait, late observer/live UI refresh | 4 | F-002 fixed; V-002/V-005/V-006 | WebView2 internal disk scheduling | none |
-| Logging | `Log` | bounded queue, background thread, batching, retry retention, rotation, drain | 4 | Preserve-worthy bounds; feeds D-001/D-003 | sustained sink-failure behavior | reopen only on sustained sink-failure evidence |
-| Shutdown | `MainWindow_Closing`, `PlayerWindow_Closing/Closed`, `App.OnExit` | timer stops, generations, state capture, bridge/WebView dispose, pipe cancel, log drain | 4 | Static path sound | repeated-cycle settling | `profile M-004` |
-| Failure/recovery | WebView init, DOM bridge, Popout rollback, privacy timeout, pipe loop | catches, acknowledged outcomes, retry/lifecycle gates, cross-session identity | 4 | F-001 through F-004 fixed; V-001/V-002/V-003/V-005/V-006 | live fault cost M-001 | profile only if authorized |
-| Automated tests | focused/full/local-CI lanes | current Debug suite, Release build, spec gate, independent reviews | 4 | 26/26 focused; 985/985 full; CI/reviews PASS | tests are not end-to-end resource measurements | profile plans |
-| Deployed runtime | Stable verifier + active-process provenance | 21 Stable artifacts hash clean; clean-checkout verifier PASS; diagnostic PID 17740 excluded; exact Stable PID 64176 attributed for M-002; M-005 labels every new session by build/boot | 5 | M-002 closed partial; M-005 installed and last verified healthy 2026-07-18 | natural-session acceptance threshold not met | `profile M-005` |
+| Runtime area | Depth | Result | Remaining gap |
+|---|---:|---|---|
+| Startup and single-instance handoff | 4 | F-001 fixed and verified | Live failure not induced |
+| Shared WebView environment | 4 | Current ownership is bounded | Reopen if ownership expands |
+| Source initialization/navigation | 4 | Mapped and guarded | Optional live fault test |
+| Auto detector | 3 | 250 ms, cheap preflight, single-flight | Live cadence cost unmeasured |
+| Popout launch and Source suppression | 4 | F-003/F-004 fixed and verified | M-001 requires fault authority |
+| Popout state sync | 4 | 250 ms and single-flight | Live failure cost unmeasured |
+| Compact shell | 2 | Feature-gated/dormant | Reachability not fully traced |
+| Focused DOM surface | 4 | Static lifecycle covered; Standard process baseline measured | No active Focused comparator or Focused callback/heap/node/frame attribution |
+| Appearance preview | 4 | F-005 fixed and verified | M-003 optional |
+| Native window state | 4 | UI-thread ownership and cleanup traced | Repeated mixed-DPI lifecycle unmeasured |
+| Source return and persistence | 4 | Required checkpoints verified | Live failure injection absent |
+| Privacy clear | 4 | F-002 fixed and verified | WebView2 internal disk scheduling is unmeasured |
+| Logging and shutdown | 4 | Queue, rotation, cancellation, and drain bounded | Disk-failure behavior not profiled |
+| Long-session process trends | 3 | One Standard block plateaued | M-005 retired; no passive follow-up |
 
-## Frequency and cardinality boundaries
-
-- One primary app instance per channel, one Source Window, and at most one Popout Player.
-- Auto dispatcher wake-up: 4/s while enabled; WebView state read only for a current, unhandled watch video.
-- Source suppression: 1 WebView command/s while a Popout owns playback.
-- Normal Popout state sync: 4 WebView reads/s while navigation is complete; single-flight.
-- Return replay after different-video navigation: at most 12 reads at 250 ms spacing, bounded to roughly 3 seconds.
-- Focused surface: media-driven updates plus active-only 1/s fallback, one player-class observer, one document child-list observer, and throttled pointer reveal (at most one reveal per 125 ms).
-- Opacity/strip activity probe: 4/s only when non-default idle opacity or strip auto-hide needs it.
-- Accent preview: latest pair at most once per 33 ms; no full-theme apply.
-- Log queue: 4,096 entries; batch target 64 KiB; retained failed batch capped near 512 KiB; active log plus one rotated backup near 1 MB each.
-- Profile/settings cardinality is user-created and not explicitly capped; every save serializes the full list.
-
-## Thread, task, dispatcher, lock, and queue boundaries
-
-- WPF UI dispatcher owns window state, all DispatcherTimers, WebView event handlers, native-window helpers, and synchronous settings writes.
-- Named-pipe server runs on a thread-pool task and synchronously dispatches handoff to the UI with `Dispatcher.Invoke`.
-- Logging uses one dedicated background thread and a bounded `BlockingCollection` drop-on-full queue.
-- WebView2 calls are asynchronous IPC; callers generally resume on the UI context. Timer paths use in-progress flags to prevent overlap.
-- Focused appearance uses a lock-protected latest-value pump with at most one WebView call in flight.
-- Native opacity and resize state dictionaries are documented UI-thread-only and clean through `WM_NCDESTROY`.
+No audit evidence supports a super-linear reachable path or a confirmed leak. Remaining runtime claims require the specific measurements listed in [REPORT.md](REPORT.md), not inference from configuration or host telemetry.

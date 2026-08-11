@@ -79,7 +79,7 @@ public class ThemeCatalogTests
         Assert.Equal(milliseconds == 777 ? 2500 : milliseconds, ThemeCatalog.FadeDelayMillisecondsForPreset(expected));
     }
 
-    // --- Visual token sets: radii + native corner mode (review doc §8.8) ---
+    // --- Visual token sets: radii + native corner mode (docs/Theme_Preset_Differences.md) ---
 
     private static IEnumerable<double> AllRadii(ThemeRadii r) =>
         [r.MainWindowFrame, r.PopoutFrame, r.TitleBar, r.Button, r.IconButton, r.Input,
@@ -99,7 +99,7 @@ public class ThemeCatalogTests
         var softGlass = ThemeCatalog.PresetFor("soft-glass");
         Assert.True(softGlass.Radii.PopoutFrame >= softGlass.Radii.MainWindowFrame);
 
-        // Theme personality ordering (review doc §8.1): sharp <= minimal <= soft-glass per token.
+        // Theme personality ordering (docs/Theme_Preset_Differences.md): sharp <= minimal <= soft-glass per token.
         var sharp = AllRadii(ThemeCatalog.PresetFor("sharp-dark").Radii).ToArray();
         var minimal = AllRadii(ThemeCatalog.PresetFor("minimal").Radii).ToArray();
         var soft = AllRadii(softGlass.Radii).ToArray();
@@ -159,7 +159,7 @@ public class ThemeCatalogTests
             ThemeCatalog.DwmCornersFor(ThemeCatalog.PresetFor(ThemeCatalog.DefaultThemeId), ThemeCatalog.DefaultCornerStyle));
     }
 
-    // --- Accent switch rule (end-pass review §3.3, claim-response review R4) ---
+    // --- Accent switch rule (docs/Theme_Preset_Differences.md) ---
 
     [Theory]
     [InlineData("#2BAED0", "sharp-dark", "soft-glass", "#9E84F0")]   // on previous default → adopt next default
@@ -174,7 +174,7 @@ public class ThemeCatalogTests
             current, ThemeCatalog.PresetFor(fromTheme), ThemeCatalog.PresetFor(toTheme)));
     }
 
-    // --- Per-preset palette readability (review doc §7 + §8.8), same Wcag gates as the
+    // --- Per-preset palette readability (docs/Theme_Preset_Differences.md), same Wcag gates as the
     // Colors.xaml seed theories in XamlInvariantTests but across EVERY preset palette. ---
 
     public static IEnumerable<object[]> PresetIds() =>
@@ -207,7 +207,7 @@ public class ThemeCatalogTests
         }
     }
 
-    // --- TG-2 / TG-10: spec-literal exact-value gates (theme-v2 tight-scope, 2026-06-14) ---
+    // --- TG-2 / TG-10: exact-value gates (docs/Theme_Preset_Differences.md) ---
     // These pin the spec's target tables as HARDCODED literals, NOT derived from the catalog. The
     // existing XamlInvariantTests seed test only proves Colors.xaml ↔ catalog consistency; changing
     // the catalog and that test together stays green and enforces nothing against the spec. These
@@ -354,7 +354,7 @@ public class ThemeCatalogTests
     }
 
     // --- CON-1 (theme-v2 Phase B): derived accent tokens stay WCAG-safe in their PINNED pairings,
-    // across every offered accent x every theme profile (see docs/superpowers/specs/2026-06-14-theme-v2-tight-scope-design.md).
+    // across every offered accent x every theme profile (see docs/Theme_Preset_Differences.md).
     // The naive derivation reused OnAccent on the darker pressed fill, dropping the dim steel chip to
     // 3.82:1; OnAccentPressed is re-picked against the pressed fill so it stays readable. Uses the
     // independent Wcag oracle (not the production ContrastRatio it polices). AccentMuted/Subtle/Glow
@@ -396,8 +396,8 @@ public class ThemeCatalogTests
         Assert.True(borderOnRaised >= 3.0, $"{presetId}/{accentKey}: AccentBorder on SurfaceRaised = {borderOnRaised:F2}:1.");
     }
 
-    // --- Task 5 / TG-3: density + elevation spec-literal gates (theme-v2 tight-scope §"Density
-    // targets" / §"Elevation targets"). Like the palette/radii literals above, these pin the spec's
+    // --- TG-3: density + elevation exact-value gates (docs/Theme_Preset_Differences.md).
+    // Like the palette/radii literals above, these pin the canonical values
     // target tables as HARDCODED literals, independent of the catalog. TG-3: a <= ordering gate is NOT
     // enough — it passes when all three presets collapse to the identical "Safe fallback" column, the
     // exact "Sharp compact / Soft Glass airy" regression the density pass exists to prevent — and

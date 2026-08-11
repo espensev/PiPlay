@@ -1,52 +1,44 @@
 # <Feature> — design
 
-<!--
-Copy this file to docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md and fill every section.
-Delete this comment and any guidance comments before committing.
-This skeleton mirrors the house style (see 2026-06-06-profile-edit-validation-design.md) and the
-Definition of Ready in docs/Feature_Workflow.md.
--->
+Copy to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`. Remove this note before committing.
 
-## Goals
+## Goal
 
-<!-- The gap this closes and what "done" looks like, in a few sentences. State what is explicitly NOT
-     changing — the happy path you are preserving. -->
+<What changes and what remains unchanged.>
 
 ## Requirements served
 
-<!-- Requirement / quality IDs this satisfies (REQ-*, Q-*, spec § numbers). If this is purely
-     tooling/docs, say so and cite the motivating note or issue instead. -->
+- <REQ-*, Q-*, spec section, or `tooling/docs`>
 
 ## Acceptance criteria
 
-<!-- Observable, checkable conditions that make the change "done". -->
--
+- <Observable, testable result>
 
-## Settled decisions
+## Decisions in force
 
-<!-- Numbered. Each decision plus the one-line reason it beat the alternative. -->
-1.
+- <Decision and any rationale that constrains future work>
 
-## Non-goals / out of scope
+## Constraints and warnings
 
-<!-- What this pass deliberately does NOT do, so reviewers don't expect it. -->
--
+- <Interface, ownership, compatibility, privacy, or release constraint>
 
-## Testing approach
+## Non-goals
 
-<!-- Which layer covers what (logic/unit, markup, wpf, manual smoke). What is verified locally vs live. -->
+- <Explicitly excluded work>
 
-## Changes by file
+## Changes
 
-| File | Change |
+| File, interface, or ownership seam | Required change |
 |---|---|
 | | |
 
-## Docs & changelog impact
+**Docs/changelog:** <Required changes or N/A.>
 
-<!-- `docs/CHANGELOG.md` entry for user-visible changes (or N/A); any ADRs / docs to update. -->
+## Verification
 
-## Unresolved decisions
+- <Exact automated command>
+- <Required manual or deployed check>
 
-<!-- Open questions, blocking or deferred. "None" if fully settled. -->
-- None
+## Unresolved work
+
+- None.

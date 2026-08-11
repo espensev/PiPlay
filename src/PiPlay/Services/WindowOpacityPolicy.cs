@@ -3,13 +3,13 @@ namespace PiPlay.Services;
 /// <summary>
 /// Pure decision logic for whole-window opacity on the Popout Player (spec 7.3, Phase 4). Kept
 /// free of WPF/Win32 types so the idle/constant interplay, the floors, and the alpha mapping can
-/// be unit tested without a window. Two persisted levels exist (spec design 2026-06-10):
+/// be unit tested without a window. Two persisted levels exist (spec 7.3):
 /// <c>player.constantWindowOpacity</c> (the "Active" look) and <c>player.idleWindowOpacity</c>
 /// (the level the window eases to when idle). Idleness comes from the SAME idle source as the
 /// controls fade (<see cref="PlayerWindow"/>'s idle timer fed by <see cref="FadePolicy"/>
 /// vocabulary) — there is exactly one definition of "idle" per window. Opacity changes animate
 /// over <see cref="FadeDurationMs"/>, the controls-fade duration, so the window has one fade
-/// rhythm. Click-through is a hard non-goal at every opacity (spec 7.5 / ADR-0006):
+/// rhythm. Click-through is a hard non-goal at every opacity (spec 7.4 / ADR-0006):
 /// WS_EX_TRANSPARENT is never set, which is asserted at the applier seam, not here.
 /// </summary>
 public static class WindowOpacityPolicy
@@ -37,7 +37,7 @@ public static class WindowOpacityPolicy
     /// <summary>
     /// Opacity animation duration, in milliseconds. Deliberately the controls-fade duration
     /// (<see cref="FadePolicy.FadeDurationMs"/>) so the strip fade and the window fade share one
-    /// rhythm (design 2026-06-10 §5).
+    /// rhythm (spec 7.1–7.3).
     /// </summary>
     public const int FadeDurationMs = FadePolicy.FadeDurationMs;
 

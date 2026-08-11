@@ -102,7 +102,7 @@ public class PlayerShellAssetTests
     [Fact]
     public void Shell_js_allowlists_exactly_the_protocol_request_actions()
     {
-        // Both sides allowlist the request channel (design 2026-06-10 §2): the JS set must equal
+        // Both sides allowlist the request channel (spec 12.5 / docs/YouTube_Compliance.md): the JS set must equal
         // the C# closed set, or one side could widen the channel unilaterally.
         var js = Read("player-shell.js");
         var declaration = Regex.Match(js, @"REQUEST_ACTIONS\s*=\s*\[([^\]]*)\]");

@@ -10,7 +10,7 @@ namespace PiPlay.Tests;
 ///
 /// During theme design we repeatedly hand-compute contrast for candidate hex pairs: the base palette
 /// AND the Phase-B *derived* tokens (AccentPressed/AccentMuted — see CON-1 in
-/// docs/superpowers/specs/2026-06-14-theme-v2-tight-scope-design.md), where a wrong by-hand number emits a false
+/// docs/Theme_Preset_Differences.md), where a wrong by-hand number emits a false
 /// "WCAG-safe" verdict. Paste a candidate pair into the [InlineData] rows below, set its floor, then:
 ///
 ///   dotnet test PiPlay.sln --filter "FullyQualifiedName~ContrastReportTests" --logger "console;verbosity=detailed"
@@ -57,8 +57,8 @@ public class ContrastReportTests
     [Fact]
     public void Report_agrees_with_the_shipping_gates()
     {
-        // (a) Published reference: white #FFFFFF on the sharp/soft-glass rose #E45D75 is 3.43:1 (review §1
-        //     + ThemeCatalogTests white-on-Danger gate). Tolerance < 0.005 = the published 2-dp precision,
+        // (a) Published reference: white #FFFFFF on the sharp/soft-glass rose #E45D75 is 3.43:1
+        //     (ThemeCatalogTests white-on-Danger gate). Tolerance < 0.005 = the published 2-dp precision,
         //     and avoids a banker's-rounding dependency on the exact tie.
         var rose = Wcag.ContrastRatio("#FFFFFF", "#E45D75");
         Assert.True(System.Math.Abs(rose - 3.43) < 0.005,

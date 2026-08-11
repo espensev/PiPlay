@@ -121,7 +121,7 @@ public static class ThemeResourceApplier
         resources["RadiusSwatch"] = new CornerRadius(radii.Swatch);
         resources["RadiusScrollbarThumb"] = new CornerRadius(radii.ScrollbarThumb);
         resources["RadiusToolTip"] = new CornerRadius(radii.ToolTip);
-        // Compatibility aliases (review doc §8.4) for one migration pass; kept as separate
+        // Compatibility aliases (docs/Theme_Preset_Differences.md) for one migration pass; kept as separate
         // entries, not resource-to-resource references.
         resources["ControlCornerRadius"] = new CornerRadius(radii.Input);
         resources["ButtonCornerRadius"] = new CornerRadius(radii.Button);

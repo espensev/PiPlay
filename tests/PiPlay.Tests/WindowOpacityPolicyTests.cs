@@ -69,7 +69,7 @@ public class WindowOpacityPolicyTests
     [Fact]
     public void Window_fade_shares_the_controls_fade_duration()
     {
-        // One fade rhythm per window (design 2026-06-10 §5): the strip fade and the window fade
+        // One fade rhythm per window (spec 7.1–7.3): the strip fade and the window fade
         // must never drift apart.
         Assert.Equal(FadePolicy.FadeDurationMs, WindowOpacityPolicy.FadeDurationMs);
     }

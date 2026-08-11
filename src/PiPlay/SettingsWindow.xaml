@@ -204,7 +204,7 @@
                      Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
         </Grid>
 
-        <!-- Corner style (review doc §8.1): an override of the theme's whole corner PROFILE
+        <!-- Corner style (docs/Theme_Preset_Differences.md): an override of the theme's whole corner PROFILE
              (control radii + native window corner), never individual per-control radii. "Theme"
              keeps preset-owned corners. Chip names use the CornerStyle prefix — the catalog-drift
              test predicates key on Theme*Preset / CornerStyle* names. -->

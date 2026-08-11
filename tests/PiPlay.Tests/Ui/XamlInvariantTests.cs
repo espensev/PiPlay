@@ -773,7 +773,7 @@ public class XamlInvariantTests
         }
     }
 
-    // --- Theme-owned rounding (review doc §8): no scattered hardcoded radii ---
+    // --- Theme-owned rounding (docs/Theme_Preset_Differences.md): no scattered hardcoded radii ---
 
     [Theory]
     [InlineData("MainWindow.xaml")]
@@ -855,7 +855,7 @@ public class XamlInvariantTests
             ("RadiusSwatch", Inv(radii.Swatch)),
             ("RadiusScrollbarThumb", Inv(radii.ScrollbarThumb)),
             ("RadiusToolTip", Inv(radii.ToolTip)),
-            // Compatibility aliases follow Input/Button (review doc §8.4).
+            // Compatibility aliases follow Input/Button (docs/Theme_Preset_Differences.md).
             ("ControlCornerRadius", Inv(radii.Input)),
             ("ButtonCornerRadius", Inv(radii.Button)),
         })
@@ -1069,7 +1069,7 @@ public class XamlInvariantTests
         var presetTags = NamesWhere(n => n.StartsWith("Theme") && n.EndsWith("Preset")).Select(Tag).ToHashSet();
         Assert.Equal(ThemeCatalog.Presets.Select(p => p.Id).ToHashSet(), presetTags!);
 
-        // Corner-style chip Tags are the catalog corner style keys (review doc §8.1 override).
+        // Corner-style chip Tags are the catalog corner style keys (docs/Theme_Preset_Differences.md).
         var cornerTags = NamesWhere(n => n.StartsWith("CornerStyle")).Select(Tag).ToHashSet();
         Assert.Equal(ThemeCatalog.CornerStyleOptions.Select(o => o.Key).ToHashSet(), cornerTags!);
     }
@@ -1128,7 +1128,7 @@ public class XamlInvariantTests
             .Value.Trim();
 
         // Softened from the old hard greys (#FF2B3645 / #FF3E4B5C) so control outlines read as a
-        // faint hairline on the dark UI instead of a boxed-in grey rectangle (owner review P1/P2).
+        // faint hairline on the dark UI instead of a boxed-in grey rectangle.
         Assert.Equal("#FF181F29", ColorOf("BorderSubtleColor"));
         Assert.Equal("#FF262F3D", ColorOf("BorderStrongColor"));
     }

@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
 
-    <!-- Quality-first publish posture (spec 9.2): no trimming/single-file/AOT yet. -->
+    <!-- Quality-first publish posture (spec 9 / ADR-0002): no trimming/single-file/AOT. -->
     <PublishTrimmed>false</PublishTrimmed>
     <PublishSingleFile>false</PublishSingleFile>
     <SelfContained>false</SelfContained>

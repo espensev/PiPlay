@@ -60,7 +60,7 @@ public partial class PlayerWindow : Window
     private double _constantWindowOpacity;
     private double _idleWindowOpacity;
     private bool _windowOpacityIdle;
-    private DwmCornerMode _dwmCornerMode;            // theme/override native corner shape (review doc §8.7)
+    private DwmCornerMode _dwmCornerMode;            // theme/override native corner shape (docs/Theme_Preset_Differences.md)
     private double _popoutCornerRadiusDip;           // large Round silhouette; resolved ThemeRadii.PopoutFrame
     private bool _customWindowRegionApplied;
     private int _probeCursorX, _probeCursorY;        // last cursor position the activity probe saw
@@ -185,7 +185,7 @@ public partial class PlayerWindow : Window
         _opacityHoverPoll = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _opacityHoverPoll.Tick += OpacityHoverPoll_Tick;
 
-        // Idle timer drives the fade-out; any mouse move restarts it (spec 22.1 fade row).
+        // Idle timer drives the fade-out; any mouse move restarts it (spec 7.1–7.2).
         // Both timers exist before ApplyAppearance, which touches the interval AND the probe.
         _idleTimer = new DispatcherTimer();
         _idleTimer.Tick += IdleTimer_Tick;
@@ -219,7 +219,7 @@ public partial class PlayerWindow : Window
         SourceInitialized += (_, _) =>
         {
             if (_placement is not null) WindowPlacementService.Restore(this, _placement);
-            // Theme-driven native corners (review doc §8.7): explicit theme/override data, no
+            // Theme-driven native corners (docs/Theme_Preset_Differences.md): explicit theme/override data, no
             // longer an opacity side effect. Default mode leaves the window DWM-pristine.
             ApplyCornerModeToHwnd();
             ApplyWindowOpacityToHwnd(animate: false);   // appear at the configured level, no flash
@@ -523,7 +523,7 @@ public partial class PlayerWindow : Window
     }
 
     /// <summary>
-    /// Map an allowlisted shell window-action request (design 2026-06-10 §2) onto the EXISTING
+    /// Map an allowlisted shell window-action request (spec 12.5 / docs/YouTube_Compliance.md) onto the EXISTING
     /// native handlers — the shell can ask for exactly what the chrome strip already does, never
     /// more. Off-allowlist actions were already dropped at the parse layer (they arrive as
     /// Unknown, which the bridge never surfaces), so this switch is the second of two gates.
@@ -1044,7 +1044,7 @@ public partial class PlayerWindow : Window
         {
             HideControls();
             // Window opacity idles on the SAME tick with the SAME inputs (one idleness definition,
-            // design 2026-06-10 §5).
+            // spec 7.1–7.3).
             EnterWindowOpacityIdle();
         }
         else if (_fadeEnabled)
@@ -1081,7 +1081,7 @@ public partial class PlayerWindow : Window
         var active = WindowOpacityPolicy.Effective(isIdle: false, _constantWindowOpacity, _idleWindowOpacity);
         var idle = WindowOpacityPolicy.Effective(isIdle: true, _constantWindowOpacity, _idleWindowOpacity);
         // Corner shape is theme/override data applied separately (ApplyCornerMode) — opacity no
-        // longer drives DWM rounding (review doc §2.6 decoupling).
+        // longer drives DWM rounding (docs/Theme_Preset_Differences.md).
         WindowOpacityApplier.Apply(hwnd, _windowOpacityIdle ? idle : active, animate);
         UpdateActivityProbe();
     }

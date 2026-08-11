@@ -132,7 +132,7 @@ public partial class MainWindow : Window
             MaximizeButton.Content = WindowState == WindowState.Maximized ? GlyphRestore : GlyphMaximize;
         SourceInitialized += (_, _) =>
         {
-            // Theme-driven native corner shape (review doc §8.7): explicit theme/override data,
+            // Theme-driven native corner shape (docs/Theme_Preset_Differences.md): explicit theme/override data,
             // never an opacity side effect. Default mode leaves the window DWM-pristine.
             ApplyOwnCornerMode();
             if (_placementRestored) return;
@@ -921,7 +921,7 @@ public partial class MainWindow : Window
             Topmost = owner.Topmost || Topmost || (_player?.Topmost ?? false),
         };
         _settingsDialog = dialog;
-        // Live preview (spec 7.3 / plan Task 3): slider moves apply to the open popout immediately.
+        // Live preview (spec 7.3 / docs/Theme_Preset_Differences.md): slider moves apply to the open popout immediately.
         // animate:false — the event fires per drag tick; restarting the 150ms fade each tick would
         // stair-step and churn animation timers. The drag itself is the animation.
         dialog.OpacityPreviewChanged += (constant, idle) =>

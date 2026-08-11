@@ -182,7 +182,7 @@ public sealed class SettingsService
         s.Theme.AccentIntensity = ThemeCatalog.NormalizeAccentIntensity(s.Theme.AccentIntensity);
         s.Theme.ActiveWindowOpacity = NormalizeOptionalOpacity(s.Theme.ActiveWindowOpacity);
         s.Theme.IdleWindowOpacity = NormalizeOptionalOpacity(s.Theme.IdleWindowOpacity);
-        // Schema ≤2 semantic switch (end-pass review F2): those files' null theme behavior
+        // Schema ≤2 semantic switch (docs/Theme_Preset_Differences.md): those files' null theme behavior
         // values meant "use the legacy Player fields", so backfill them as explicit overrides
         // once — under schema 3 a null means "use the preset default", and a configured look
         // must never change across the upgrade. Runs after the opacity normalization so an

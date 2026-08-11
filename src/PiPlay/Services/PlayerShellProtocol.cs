@@ -62,7 +62,7 @@ public static class PlayerShellProtocol
     public const string FieldAction = "action";
     public const string FieldVideoId = "videoId";
 
-    // Allowlisted shell -> host window actions (Phase 4, design 2026-06-10 §2): the shell may
+    // Allowlisted shell -> host window actions (spec 12.5 / docs/YouTube_Compliance.md): the shell may
     // REQUEST these; the host validates against this closed set and maps each to the existing
     // native handler. Anything else parses to Unknown — never an exception, never a new
     // capability. Both sides allowlist (player-shell.js mirrors this set).

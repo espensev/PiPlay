@@ -1,43 +1,32 @@
 ## Summary
 
-<!-- What changes and why, in 2-4 sentences. -->
+<!-- What changed and why. -->
 
-## Design spec
+## Design contract
 
-<!--
-Link the dated spec under docs/superpowers/specs/, e.g.
-docs/superpowers/specs/2026-06-06-<topic>-design.md
+<!-- Link docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md. For a deliberate exception, add this as its own line: -->
+<!-- Spec-Exception: <reason> -->
 
-No spec because the change is trivial/urgent? The "Require design spec" check honors an explicit
-override — uncomment and fill in the next line (it must be its own line in this description):
--->
-<!-- Spec-Exception: <why this change needs no design spec> -->
+## Requirements and acceptance
 
-## Requirements served
+<!-- Q-*, REQ-*, or tooling/docs; observable done conditions. -->
 
-<!-- Requirement / quality IDs, e.g. REQ-UI-01, REQ-PROFILE-01, Q-6. "None (tooling/docs)" is fine. -->
-
-## Acceptance criteria
-
-<!-- Observable conditions that make this PR "done". -->
 - [ ]
 
 ## Verification
-
-<!-- Commands run and their results. Mark anything not run, and anything only verifiable live. -->
 
 ```powershell
 pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1
 ```
 
-## Docs / changelog impact
+<!-- Record commands/results and anything not run or only verifiable live. -->
 
-- [ ] `docs/CHANGELOG.md` updated (user-visible change) — or N/A
-- [ ] Relevant `docs/` / ADRs updated — or N/A
+## Documentation
 
-## Manual QA evidence
+- [ ] `docs/CHANGELOG.md` updated for user-visible work, or N/A.
+- [ ] Product spec, decisions, QA, and open issues updated where affected, or N/A.
+- [ ] Completed plan/review/status prose removed after durable facts were merged, or N/A.
 
-<!-- For release-candidate or visual work: evidence paths under docs/evidence/. Otherwise "N/A".
-     Manual testing runs against the DEPLOYED Stable copy (E:\Dev_test_implemenations\PiPlay), never
-     repo build output. State the tested build identity (version/build/commit) as printed by
-     .\scripts\Verify-StableDeploy.ps1. -->
+## Manual release evidence
+
+<!-- For release/visual work: use E:\Dev_test_implemenations\PiPlay\PiPlay.exe only. Record version/build/commit/tag from .\scripts\Verify-StableDeploy.ps1 and evidence paths under docs/evidence/. Otherwise N/A. -->

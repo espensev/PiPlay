@@ -13,7 +13,7 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
-  <!-- Sharp Dark palette seeds (theme-v2 tight-scope spec §"Palette targets"): the darkest, coolest
+  <!-- Sharp Dark palette seeds (docs/Theme_Preset_Differences.md): the darkest, coolest
        base. The warmer pre-theme tones now live on as the Minimal preset. -->
   <Color x:Key="AppBackgroundColor">#FF050609</Color>
   <Color x:Key="SurfaceBaseColor">#FF0B0E12</Color>
@@ -97,7 +97,7 @@
   <SolidColorBrush x:Key="AppBackgroundWash" Color="{StaticResource AppBackgroundWashColor}" />
   <SolidColorBrush x:Key="PopoutAccentEdge" Color="{StaticResource PopoutAccentEdgeColor}" />
 
-  <!-- Semantic corner-radius tokens (review doc §8.4): theme-owned rounding, seeded with the
+  <!-- Semantic corner-radius tokens (docs/Theme_Preset_Differences.md): theme-owned rounding, seeded with the
        sharp-dark profile. ThemeResourceApplier replaces every entry from the active preset's
        ThemeRadii (plus the user's corner-style override); control consumers reference them via
        DynamicResource. Deliberately NOT one universal radius — a popout frame, a button, a
@@ -117,13 +117,13 @@
   <CornerRadius x:Key="RadiusScrollbarThumb">3</CornerRadius>
   <CornerRadius x:Key="RadiusToolTip">4</CornerRadius>
 
-  <!-- Temporary compatibility aliases while styles migrate (review doc §8.4): kept as separate
+  <!-- Temporary compatibility aliases while styles migrate (docs/Theme_Preset_Differences.md): kept as separate
        entries (NOT resource-to-resource references) and updated by ThemeResourceApplier alongside
        the semantic tokens (Control follows Input, Button follows Button). -->
   <CornerRadius x:Key="ControlCornerRadius">3</CornerRadius>
   <CornerRadius x:Key="ButtonCornerRadius">3</CornerRadius>
 
-  <!-- Density tokens (theme-v2 tight-scope spec §"Density targets"): theme-owned control sizing,
+  <!-- Density tokens (docs/Theme_Preset_Differences.md): theme-owned control sizing,
        seeded with the sharp-dark (default) profile. ThemeResourceApplier replaces every entry from the
        active preset's ThemeDensity; control consumers reference them via DynamicResource and migrate to
        the tokens in the density-consumer pass. Heights/sizes are Double; paddings + the uniform default
@@ -140,7 +140,7 @@
        weight earns its own pixel-snapping/layout-rounding gate). -->
   <Thickness x:Key="BorderThicknessDefault">1</Thickness>
 
-  <!-- Inner elevation (theme-v2 tight-scope spec §"Elevation targets"): the popup/panel drop-shadow.
+  <!-- Inner elevation (docs/Theme_Preset_Differences.md): the popup/panel drop-shadow.
        Sharp Dark (default) is flat — both seed as x:Null so the design-time / pre-Apply Effect is null,
        exactly the value the applier writes for sharp-dark. ThemeResourceApplier replaces these with
        frozen DropShadowEffects for Minimal and Soft Glass. Inner-only; never an outer-window glow. -->

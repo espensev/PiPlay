@@ -1,99 +1,49 @@
-# PiPlay — YouTube usage & compliance
+# YouTube usage and compliance
 
-**Status:** Beta candidate. Review before every public release. This is an engineering policy statement, not legal advice.
+PiPlay is an independent, unaffiliated desktop client. It displays real `youtube.com` pages through Microsoft Edge WebView2 and adds native window behavior. This engineering policy is not legal advice.
 
-PiPlay is an independent, unaffiliated desktop client. It is not endorsed by or connected to YouTube or Google. It displays `youtube.com` inside Microsoft Edge WebView2 and adds native window behavior (move, resize, pin, fade) on top. The goal is to make normal YouTube playback behave like a desktop tool — not to alter, replace, or extract from YouTube.
+## Allowed behavior
 
-## What PiPlay does
-- Loads and displays standard `youtube.com` pages in WebView2 with normal login / session / Premium behavior.
-- Runs isolated, centralized JavaScript for local playback state/control, passive surface-drag detection,
-  and the optional Focused presentation described below (spec section 12.5).
-- Plays the popped-out video in a second WebView pointed at a standard YouTube URL. PiPlay does not
-  replace, proxy, extract, or re-host the media.
+- Normal YouTube pages, login/session/Premium behavior, playlists, mixes, captions, settings, quality, branding, and ads remain YouTube-owned.
+- PiPlay may centrally read/apply local playback state, detect trusted passive-surface drag, and present the optional Focused layout over the real `/watch` player.
+- Popout uses a standard YouTube URL. PiPlay does not proxy, extract, replace, or re-host media.
 
-## What PiPlay does not do
-- No downloading, ripping, or offline copying of video or audio.
-- No blocking, skipping, or altering of ads; no change to monetization.
-- No bypassing of DRM, age gates, region restrictions, or playback restrictions.
-- No removal of required player controls or branding.
-- No interception, inspection, or storage of YouTube / Google credentials.
-- No faking of platform behavior in ways that create account or compliance risk.
+## Prohibited behavior
 
-These map to quality principle Q-5 ("no invasive YouTube behavior") and spec section 19 (Security and privacy).
+- Downloading, ripping, offline copying, proxying, or extracting video/audio.
+- Blocking, skipping, accelerating, hiding, or otherwise altering ads or monetization.
+- Bypassing DRM, age, region, login, or playback restrictions.
+- Removing required controls/branding or intercepting, inspecting, or storing Google/YouTube credentials.
+- Faking platform behavior in a way that creates compliance/account risk.
 
-## Standard and Focused presentations
+## Standard and Focused
 
-Standard is the default and leaves the normal watch page presentation intact. Focused is an optional,
-local presentation of that same real YouTube `/watch` player; it is not an alternate player and does not
-enable the dormant Compact/IFrame architecture.
+- Standard is default. Focused is a reversible, best-effort local presentation of the same top-level HTTPS YouTube `/watch` page; it is not Compact/IFrame playback.
+- Focused uses `object-fit: contain`, never default `cover`; nonmatching ratios letterbox rather than crop.
+- Empty overlay pixels pass input. YouTube controls, branding, settings, quality, captions, fullscreen, ad UI/disclosures/links, and native Skip controls remain visible and reachable.
+- Captions/Next convenience actions delegate to native YouTube controls and do nothing if unavailable. Selector/injection failure restores the ordinary page and native Popout strip.
 
-Focused presentation must remain:
+## Advertisement invariant
 
-- limited to a supported top-level HTTPS YouTube watch document;
-- idempotent, reversible, and best-effort, with selector or injection failure leaving the ordinary page
-  and native Popout controls usable;
-- no-crop (`object-fit: contain`), never `cover` by default, and never a media replacement or extraction;
-- pointer-transparent outside its actual controls; and
-- compatible with YouTube's required player controls, branding, settings, quality and captions surfaces,
-  fullscreen path, and complete ad UI. PiPlay styling or auto-hide behavior must not remove, disable, or
-  permanently obscure those surfaces.
+- While `ad-showing`/`ad-interrupting`, PiPlay must not write `currentTime`, change playback rate, invoke Next, or issue another skip-capable action.
+- Custom progress/Next surfaces are hidden/disabled and recheck ad state before action. Unknown ad state fails closed.
+- User play/pause/mute may delegate to ordinary YouTube controls; PiPlay must not automate them to change ad delivery.
 
-The Focused overlay may provide convenience controls, but it does not replace YouTube's complete control
-system. Best-effort actions such as captions and Next hand off to the corresponding native YouTube control;
-if that control is unavailable, PiPlay must do nothing rather than simulate or bypass it.
+## Passive drag boundary
 
-## Advertisement invariants
+- Only a real trusted (`event.isTrusted`) primary mouse/pen gesture in the current top document may arm on passive player pixels.
+- Exclude buttons, links, inputs, progress/seek/volume, menus, captions, settings/fullscreen, end cards, ads with actions, and PiPlay overlay controls.
+- Preserve clicks below system drag threshold. Synthetic, stale, child-frame, touch, non-primary, or released gestures never move the native window or suppress a click.
+- The one closed drag request contains no coordinates; host accepts it only while the physical left button is down and the Popout is movable.
 
-PiPlay must never skip, seek through, accelerate, suppress, hide, or otherwise alter an advertisement or
-its monetization. In particular:
+## Native action boundary
 
-- custom code must not write `HTMLMediaElement.currentTime`, change playback rate, invoke Next, or trigger
-  another skip-capable action while an ad is active;
-- the Focused progress rail and other skip-capable convenience actions must be disabled and non-interactive
-  whenever an ad is active; if ad state cannot be determined reliably, they fail closed;
-- required native ad controls, skip buttons where YouTube supplies them, disclosures, branding, links, and
-  click targets remain visible and reachable; and
-- ordinary user-initiated play/pause or mute behavior may be handed to YouTube's normal player controls, but
-  PiPlay must not automate those actions to change ad delivery.
+Focused may request only `close`, `pinToggle`, `fullscreenToggle`, and `settings`. Every message must be exact-schema/version checked, carry the window nonce and independently rotated current-document token, come from the current trusted top-level HTTPS YouTube source, and originate from trusted input.
 
-These constraints apply even if YouTube currently rejects a prohibited media write itself. PiPlay must
-enforce the invariant rather than rely on page behavior.
+Reject unknown fields/actions, malformed payloads, nonce/token mismatch, old navigation, foreign sources, and synthetic events. Never expose arbitrary URLs, scripts, shell commands, credentials, or filesystem operations. Defer reentrant Close/Settings work outside the WebView callback.
 
-## Passive surface drag
+## Release gate
 
-Whole-surface dragging is a native-window convenience, not page input interception. The injected drag
-detector must:
-
-- run only in the top document and arm only from a real, trusted (`event.isTrusted`) primary mouse or pen
-  gesture over passive player pixels;
-- exclude controls, progress/seek surfaces, links, menus, captions, end cards, ad actions, and PiPlay overlay
-  controls;
-- preserve an ordinary click and begin a move only after the pointer crosses the documented threshold; and
-- emit one closed-protocol request which the host accepts only while the physical left button is down and
-  the Popout is in a movable state.
-
-Synthetic, stale, replayed, child-frame, touch, and non-primary gestures must not initiate a native move or
-cause PiPlay to suppress the page's click.
-
-## Native Focused actions
-
-The Focused page-to-host bridge is a narrow capability boundary. Its only accepted actions are `close`,
-`pinToggle`, `fullscreenToggle`, and `settings`. Every request must be exact-schema and version checked,
-carry both the window nonce and the independently rotated current-document token, come from the current
-top-level trusted HTTPS YouTube navigation, and originate from a trusted user event. Synthetic `.click()`
-or dispatched pointer/keyboard events must not invoke native behavior.
-
-The host must reject unknown fields/actions, untrusted sources, old-navigation messages, malformed payloads,
-and nonce mismatches. It must not expose arbitrary URLs, script execution, shell commands, or filesystem
-operations through this bridge. Reentrant actions such as Close and Settings are deferred outside the
-WebView callback.
-
-## Notes for contributors
-- Keep injected JavaScript limited to the surfaces above; centralize it and test both generated syntax and
-  executable DOM behavior (Q-3). Tests must cover ads, synthetic events, stale navigation messages,
-  excluded drag targets, and selector failure.
-- Treat the YouTube Terms of Service and any embedded-player / IFrame API terms as the governing rules, and re-check them before a release. Reference links are in spec section 27.
-- If a feature request would require anything under "does not do," it is out of scope — raise it as an ADR before acting.
-- Before public release, manually exercise Standard and Focused against ordinary playback and live ad states
-  in a clean deployed Stable build. Confirm that all required YouTube/ad controls remain reachable and that
-  custom seek/next actions fail closed during ads.
+- Keep all selectors/scripts in `YouTubeDomBridge`; test generated syntax plus executable DOM behavior for ads, stale/synthetic messages, drag exclusions, and selector failure.
+- Before public release, re-check current [YouTube Terms of Service](https://www.youtube.com/static?template=terms) and [IFrame API documentation](https://developers.google.com/youtube/iframe_api_reference).
+- Exercise Standard and Focused with ordinary playback and live ads on a verified deployed Stable build. If a requested feature requires prohibited behavior, stop and make an explicit architecture/product decision.

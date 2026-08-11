@@ -1899,7 +1899,7 @@ public class WpfRuntimeTests : IDisposable
     public void Prompt_shell_has_no_visible_inner_border() => StaTestThread.Invoke(() =>
     {
         // P1 borderless: with the DWM frame suppressed, the prompt's content Border must not redraw a
-        // 1px inner frame (owner review — "make the prompt's inner border transparent").
+        // 1px inner frame; the prompt's inner border remains transparent.
         var shell = Prompt.BuildShell(owner: null, "Test", out _);
         var border = Assert.IsType<Border>(shell.Content);
         Assert.Equal(new Thickness(0), border.BorderThickness);

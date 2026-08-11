@@ -191,7 +191,7 @@ public static class ThemeColors
         // finish their fade-in at the midpoint so default 50 reproduces v0.9.0 exactly.
         var reach = ThemeCatalog.NormalizeAccentIntensity(accentIntensity) / 100.0;
         var glyphReach = Math.Min(reach * 2.0, 1.0);
-        // REQ-UI-01 / spec section 20: arbitrary stored colors remain exact, while the presentation
+        // REQ-UI-01 / spec section 17: arbitrary stored colors remain exact, while the presentation
         // token clears the 3:1 non-text contrast floor on the lightest shipped dark interaction surface.
         var primary = EnsureContrast(requested, surfaceHover);
 

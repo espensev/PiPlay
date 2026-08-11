@@ -67,8 +67,8 @@ public static class PlaybackModePolicy
         };
 
     /// <summary>
-    /// Master switch for the embed Compact player. Dropped 2026-06: the embedded IFrame breaks on
-    /// embed-disabled videos for near-zero visible gain (owner review §4). False = new popouts are
+    /// Master switch for the embed Compact player. Per spec 10.2–10.3, the embedded IFrame breaks on
+    /// embed-disabled videos for near-zero visible gain. False = new popouts are
     /// always Normal. The Compact path (ResolveEffectiveMode, the shell/IFrame, Profile.Mode) is kept
     /// DORMANT behind this flag rather than deleted, because the shell is the compact timestamp source.
     /// </summary>

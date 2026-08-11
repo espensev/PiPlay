@@ -127,7 +127,7 @@ public class PlayerShellProtocolTests
     [InlineData("{\"v\":2,\"type\":\"request\",\"action\":\"\"}")]           // empty action
     public void Off_allowlist_requests_degrade_to_unknown(string json)
     {
-        // The closed set is the security property (design 2026-06-10 §2): an injected or future
+        // The closed set is the security property (spec 12.5 / docs/YouTube_Compliance.md): an injected or future
         // action must die at the parse layer, before any host handler can see it.
         Assert.Equal(ShellMessageKind.Unknown, PlayerShellProtocol.Parse(json).Kind);
     }

@@ -4,7 +4,7 @@ using PiPlay.Theme;
 namespace PiPlay.Tests;
 
 /// <summary>
-/// Effective-behavior resolution (end-pass review F2): preset default → explicit override →
+/// Effective-behavior resolution (docs/Theme_Preset_Differences.md): preset default → explicit override →
 /// normalized. The raw-PlayerSettings fallback exists ONLY for the no-theme-block legacy path —
 /// ThemeSettings.FromLegacy copies legacy behavior values into explicit overrides at seed time.
 /// </summary>

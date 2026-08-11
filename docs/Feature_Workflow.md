@@ -1,204 +1,90 @@
-# PiPlay feature workflow
+# Feature workflow
 
-Use this path for any non-trivial product, UI, quality, or pipeline change.
+Use this for non-trivial product, UI, reliability, or pipeline changes.
 
-**The path at a glance:**
+## 1. Bound the change
 
-| Step | Output |
-|---|---|
-| 0. Discover *(optional)* | Answers to open questions before committing to a design. |
-| 1. Orient | The spec, ADRs, and ownership boundaries that bound the change. |
-| 2. Write the change note | A dated **design spec** (always) and a dated **plan** (multi-step work). |
-| 3. Implement | Code inside the ownership seams; `docs/CHANGELOG.md` for user-visible changes. |
-| 4. Test & review | The deterministic lane green; a review pass on risky changes. |
-| 5. Open the PR | The pre-filled template, filled; both CI checks green. |
-| 6. Record the session *(optional)* | A **worklog** for releases and multi-fix sweeps. |
+Read:
 
-The per-pass records start from skeletons in
-[`docs/superpowers/templates/`](superpowers/templates/README.md).
+- `docs/AGENTS.md` for repository constraints and terminology.
+- `docs/PiPlay_Product_Engineering_Spec.md` for normative behavior.
+- `docs/DECISIONS.md` before changing architecture, platform, WebView2, packaging, or window policy.
+- `docs/SPEC_GAPS_AND_OWNERSHIP.md` for unresolved work and ownership.
+- `docs/YouTube_Compliance.md` for YouTube/page-script changes.
 
-> Steps below that reference a `/command` (e.g. `/discover`, `/code-review`, `/qa`) use the
-> maintainer's Claude Code skills, not tooling this repo ships — the workflow stands without them.
+## 2. Record the contract
 
-## 0. Discover (optional)
+Add `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` from `docs/superpowers/templates/feature-design-template.md`. It must state:
 
-If a change has open questions that block a confident design — feasibility, dependency reach, which
-pattern to follow, where the risk concentrates — answer them *before* writing the spec rather than
-mid-implementation. The `/discover` skill produces a structured findings document for exactly this.
-Skip this step when the design is already obvious; it exists to de-risk the genuinely uncertain
-change, not to add ceremony to the routine one.
+- goals and observable acceptance criteria;
+- requirement IDs (`Q-*`, `REQ-*`, or `tooling/docs`);
+- settled decisions and non-goals;
+- affected files and ownership seams;
+- automated versus deployed/manual verification;
+- documentation/changelog impact;
+- unresolved questions, or `none`.
 
-## 1. Orient
+Multi-step work requires `docs/superpowers/templates/plan-template.md` for temporary coordination. Remove a completed plan after its durable decisions, constraints, commands, and open work are in canonical docs. Do not retain worklogs or narrative status reports.
 
-Read these first:
+The PR gate fails code changes under `src/`, `scripts/`, or `tests/` without a changed dated design spec. Override only with a PR-body line `Spec-Exception: <reason>`. The gate proves that a spec changed, not that it is correct; reviewers still read it.
 
-- `docs/AGENTS.md` for repo rules, vocabulary, quality bar, and ownership boundaries.
-- `docs/PiPlay_Product_Engineering_Spec.md` for normative behavior and requirement IDs.
-- `docs/SPEC_GAPS_AND_OWNERSHIP.md` for open product decisions and code ownership.
-- `docs/adr/` before changing architecture, platform, WebView2, packaging, or window policy.
+## 3. Implement through existing seams
 
-If a request touches YouTube behavior, also read `docs/YouTube_Compliance.md`.
+- URL parsing/targets: `YouTubeUrlHelper`.
+- YouTube DOM scripts: `YouTubeDomBridge`.
+- Navigation: `NavigationPolicy` and `PopoutNavigationPolicy`.
+- Atomic settings/recovery: `SettingsService`.
+- Profiles: `ProfileService`.
+- Placement/DPI: `WindowPlacementService` and `PlacementMath`.
+- Local redacted diagnostics: `LoggingService`.
+- Update `docs/CHANGELOG.md` for user-visible changes.
 
-## 2. Write the change note
-
-Before code for a non-trivial change, add:
-
-- A dated design spec at `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`.
-  Start from `docs/superpowers/templates/feature-design-template.md`.
-- A dated implementation plan at `docs/superpowers/plans/YYYY-MM-DD-<topic>.md` when the work spans
-  multiple steps. Start from `docs/superpowers/templates/plan-template.md`.
-
-Link the spec from the PR.
-
-### Definition of Ready
-
-A change is ready to implement once its design spec settles all of:
-
-- **Goals** — the gap closed and what "done" looks like; what stays unchanged.
-- **Requirement IDs served** — `REQ-*`, `Q-*`, or spec § numbers (or "tooling/docs" with the motivating note).
-- **Acceptance criteria** — observable, checkable conditions for "done".
-- **Settled decisions** — each key choice plus the one-line reason it beat the alternative.
-- **Non-goals** — what this pass deliberately does not do.
-- **Affected files** — the expected change-by-file list.
-- **Test plan** — which layer covers what, and what is verified live vs locally.
-- **Docs / changelog impact** — `docs/CHANGELOG.md` for user-visible changes; any ADRs.
-- **Unresolved decisions** — open questions, or "none".
-
-CI enforces the spec half of this: any PR touching `src/`, `scripts/`, or `tests/` must ship a changed
-dated spec (see step 5).
-
-## 3. Implement inside the ownership boundaries
-
-Keep product terms stable: Video Popout, Popout Player, Source Window, Source Placeholder,
-Pin, Fade, and Auto. Do not surface internal names such as `MainWindow`, `PlayerWindow`, or
-`Detach` in user-facing UI.
-
-Prefer existing seams:
-
-- URL parsing and YouTube target construction: `YouTubeUrlHelper`.
-- JavaScript snippets: `YouTubeDomBridge`.
-- Navigation policy: `NavigationPolicy`.
-- Atomic settings and recovery: `SettingsService`.
-- Profile persistence and validation: `ProfileService`.
-- Placement math and monitor restore: `WindowPlacementService` / `PlacementMath`.
-- Local diagnostics and URL redaction: `LoggingService`.
-
-Update `docs/CHANGELOG.md` for user-visible changes.
-
-## 4. Test & review
-
-Run the same deterministic lane that CI runs:
+## 4. Verify
 
 ```powershell
-pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1
-```
-
-Use narrower filters while developing:
-
-```powershell
+# Fast development filters
 dotnet test --filter Category=Logic
 dotnet test --filter Category=Markup
 dotnet test --filter Category=Wpf
+
+# Canonical local/CI gate
+pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1
 ```
 
-Release candidates still need the manual lane — run it against the **deployed Stable copy**, never
-the repo tree (stale repo binaries are the classic false pass; see `AGENTS.md` Conventions):
+Release candidates additionally require the verified deployed Stable copy and `docs/QA_Checklist.md`:
 
 ```powershell
-# Commit VERSION/BUILD_NUMBER/CHANGELOG first.
-.\scripts\Publish-Stable.ps1                 # exact-source gate + build + deploy + verify + local stable tag
-.\scripts\Verify-StableDeploy.ps1            # fail-closed release proof before testing
-pwsh -File scripts\Test-UiSmoke.ps1 -ExePath E:\Dev_test_implemenations\PiPlay\PiPlay.exe
+# Commit VERSION, BUILD_NUMBER, and docs/CHANGELOG.md first.
+.\scripts\Publish-Stable.ps1
+.\scripts\Verify-StableDeploy.ps1
+pwsh -File .\scripts\Test-UiSmoke.ps1 -ExePath E:\Dev_test_implemenations\PiPlay\PiPlay.exe
 ```
 
-Then run `docs/QA_Checklist.md` for shareable builds — also against the deployed exe.
+Never use repo build output as manual QA. Signing is optional via `Publish-Stable.ps1 -SignScript <path>`; it must precede manifest hashes.
 
-### Review the risky changes
+Version rules:
 
-Tests prove behavior; a review pass catches the rest. For a change that concentrates risk — a
-multi-fix sweep, a security-sensitive seam, or anything touching settings/persistence — make a
-deliberate review pass part of the work, not an afterthought. `/code-review` flags correctness and
-simplification findings on the diff; `/qa` triages failures and coverage gaps. The stable-publish
-sweep (`docs/superpowers/worklog/2026-06-06-stable-publish-session.md`) is the model: four real bugs
-were found and adversarially verified before they shipped, not after.
+- user-visible feature/behavior: minor;
+- breaking change/milestone: major;
+- fix or small tweak: patch;
+- identical-source rebuild/doc-only deploy: keep `VERSION`, increment `BUILD_NUMBER`.
 
-### Stable publish (deploy a differentiable copy)
-
-To cut a **stable** copy that runs side by side with the dev app and deploy it for test use:
+`Publish-Stable.ps1` is exact-source by default, preserves deployed `PiPlayData`, and creates `stable-vX.Y.Z-bN`. Push the commit/tag only after `VERDICT: RELEASE VERIFIED`. `-AllowVersionBump` and `-AllowDirty` are diagnostic and not release evidence.
 
 ```powershell
-.\scripts\Publish-Stable.ps1            # deploys to E:\Dev_test_implemenations\PiPlay (override with -DeployRoot)
+# Diagnostic-only deploys; never release evidence.
+.\scripts\Publish-Stable.ps1 -AllowVersionBump -Version patch
+.\scripts\Publish-Stable.ps1 -AllowDirty
 ```
 
-This test-gates, builds the **Stable** channel (baked in via `-p:PiPlayChannel=Stable`) from the
-already-committed `VERSION`/`BUILD_NUMBER`, validates publish metadata, deploys a runnable copy,
-creates/verifies the local `stable-vX.Y.Z-bN` tag, and replaces binaries while **preserving** the
-`PiPlayData` runtime folder. A Stable copy is differentiable from dev: data beside the exe, its own
-single-instance identity, and a `PiPlay — Stable vX.Y.Z (bN)` title. After deploying, launch the
-deployed `PiPlay.exe` and confirm it opens its own window with an isolated `PiPlayData` folder beside
-it. Background and trade-offs: `docs/adr/0007-stable-channel-and-portable-data.md`.
-
-**Choosing the version move** (`VERSION` is the semantic version; `BUILD_NUMBER` is monotonic):
-
-- New user-visible feature or behavior → bump minor; breaking change / milestone → bump major.
-- Fixes and small tweaks only → bump patch.
-- Rebuild of identical source (re-deploy, doc-only) → keep `VERSION`, increment `BUILD_NUMBER`.
-- Commit `VERSION`/`BUILD_NUMBER` and `CHANGELOG.md` before running `Publish-Stable.ps1`.
-
-`Publish-Stable.ps1` is exact-source by default and refuses a dirty working tree. It also creates the
-local `stable-vX.Y.Z-bN` tag after deploy and before final verification. Push the commit and tag only
-after the verifier prints `VERDICT: RELEASE VERIFIED`. `-AllowVersionBump` and `-AllowDirty` are
-diagnostic escape hatches; their manifests/verifier output are marked not release evidence and are
-not valid release-candidate QA inputs. If binaries must be signed, pass `-SignScript <path>` so
-signing happens before final hashes are written.
+Publishing refuses concurrent runs and preflights tag collisions. It copies to a sibling staging directory, re-hashes the staged payload, then swaps with backup/rollback. A failed or interrupted swap restores the previous copy when possible; an incomplete rollback preserves and reports the backup path for manual recovery.
 
 ## 5. Open the PR
 
-The PR description is pre-filled from `.github/pull_request_template.md`; fill every section:
+Complete `.github/pull_request_template.md`: design spec, requirements, acceptance criteria, commands/results, docs/changelog impact, and manual evidence. Current checks:
 
-- Design spec link.
-- Requirement IDs served, such as `Q-6`, `REQ-UI-01`, or `REQ-PROFILE-01`.
-- Acceptance criteria.
-- Local verification commands and results.
-- Docs / changelog impact, and any manual QA evidence paths under `docs/evidence/` for
-  release-candidate or visual work.
+- `Build and test (Windows)` calls `scripts/Test-LocalCI.ps1`. Public PRs use hosted `windows-latest`; trusted `main`/manual events may use repository variable `PIPLAY_WINDOWS_RUNNER`. Keep it unset until a dedicated disposable runner is ready; an offline selected runner does not fail over automatically.
+- To enable that runner later, set `PIPLAY_WINDOWS_RUNNER=piplay-ci`, manually dispatch CI, verify the intended runner through the Actions Jobs API, then clear the variable and rerun to prove hosted recovery. The variable is one scalar label; a label array requires `fromJSON`.
+- `Require design spec` runs unconditionally and decides from the changed-file list so required-check status cannot remain pending on docs-only PRs.
 
-Two GitHub Actions checks run on every pull request:
-
-- **Build and test (Windows)** (`.github/workflows/ci.yml`) — calls the same `Test-LocalCI.ps1`
-  deterministic test/build gate used by developers. This canonical job routes pull requests to
-  `windows-latest`; trusted `main` pushes and manual dispatches use the runner label in repository
-  variable `PIPLAY_WINDOWS_RUNNER`, falling back to `windows-latest` while that variable is unset.
-  Because a contributed workflow can propose targeting a repository runner label directly, any
-  runner registered to this public repository must still be disposable, isolated, and untrusted.
-  Push validation is branch-only, so a Stable tag pointing at an already-tested `main` commit does
-  not launch the same build again. A selected self-hosted runner that later goes offline does not
-  fail over automatically: clear the variable and rerun to recover on hosted Windows.
-- **Require design spec** (`.github/workflows/spec-check.yml`) — fails a PR that changes `src/`,
-  `scripts/`, or `tests/` without a changed dated spec matching
-  `docs/superpowers/specs/YYYY-MM-DD-*-design.md`. To override deliberately (a trivial or urgent
-  change), add a line `Spec-Exception: <reason>` to the PR description; the check then passes and
-  records the reason.
-
-  **Known limitation, accepted deliberately:** *any* changed dated `-design.md` satisfies the gate. It
-  proves a spec **moved**, not that the spec is good or that it describes the change in the PR. It is a
-  prompt to think, not a quality bar — reviewers still have to read the spec. The gate also runs
-  unconditionally (no `paths:` filter) and decides inside the job, because a path-filtered required check
-  can hang a PR in "pending" forever.
-
-  **Deliberately not built:** machine-readable plans, a JSON plan-as-source-of-truth with runtime task
-  state, an agent roster, or an observer process. The workflow is intentionally a set of conventions plus
-  one CI gate, not a framework.
-
-After a check's first successful run on GitHub, make it a required branch-protection check for `main`
-so red commits cannot merge unnoticed.
-
-## 6. Record the session (optional)
-
-After a substantial session — a release, a multi-fix sweep, anything whose *path* (not just its
-result) is worth replaying — add a worklog at `docs/superpowers/worklog/YYYY-MM-DD-<topic>.md`. Start
-from `docs/superpowers/templates/worklog-template.md`. It captures the request, what was reviewed, the
-decisions and why, the verification, and the disposition (branch, PR, tag, deploy). The full Claude
-Code transcript is auto-persisted under the session directory; the worklog is the human-readable
-summary that survives it. Routine single-task changes don't need one — the spec and plan already cover
-them.
+After their first successful GitHub run, configure both `Build and test (Windows)` and `Require design spec` as required `main` branch-protection checks.

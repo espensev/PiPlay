@@ -18,7 +18,7 @@ namespace PiPlay.Services;
 /// 2. WPF rewrites its cached exstyle wholesale during move/size/topmost operations, so a one-shot
 ///    SetWindowLongPtr is not durable — the forcing stays on for as long as opacity is engaged.
 ///
-/// WS_EX_TRANSPARENT is never set (spec 7.5 / ADR-0006 / Q-8): the subclass only ever ORs the
+/// WS_EX_TRANSPARENT is never set (spec 7.4 / ADR-0006 / Q-8): the subclass only ever ORs the
 /// layered bit, and the recorded per-window state lets tests assert no write carried the
 /// transparent bit. Alpha animates over <see cref="WindowOpacityPolicy.FadeDurationMs"/> in
 /// DispatcherTimer steps — native layered alpha is invisible to WPF's animation system. When the
@@ -118,7 +118,7 @@ public static class WindowOpacityApplier
     }
 
     /// <summary>
-    /// DWM corner preference, theme/user-driven (review doc §8.7; the spike S-3 rounded look is
+    /// DWM corner preference, theme/user-driven (docs/Theme_Preset_Differences.md; the rounded look is
     /// now <see cref="DwmCornerMode.Round"/>). Never touches a window whose corners were never
     /// changed when asked for <see cref="DwmCornerMode.Default"/>, so default-look windows stay
     /// pristine. Silently a no-op on Windows 10 (DWM rejects the attribute).
