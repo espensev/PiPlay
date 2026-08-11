@@ -71,7 +71,7 @@ Mark each item pass, issue (link), blocked, or skipped.
 
 Keep `docs/evidence/` sparse: only current, build-specific release/review evidence belongs there. Fold durable facts from old evidence into active docs or change records, then delete stale screenshots and one-off notes. Never use generic `current` names.
 
-Capture at fractional DPI. Name files `v<version>-b<build>-<short-commit>-<surface>.png`, using the verified release stamp and source commit. Capture Source chrome, tooltips, open profile menu, Settings Appearance, Standard/Focused Popout, and every questionable state. Account-specific unavailable states are blocked, never faked.
+Capture at fractional DPI. Name files `v{version}-b{build}-{short-commit}-{surface}.png`, using the verified release stamp and source commit. Capture Source chrome, tooltips, open profile menu, Settings Appearance, Standard/Focused Popout, and every questionable state. Account-specific unavailable states are blocked, never faked.
 
 ```text
 Build / commit / tag:
