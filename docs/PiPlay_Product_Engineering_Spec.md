@@ -16,7 +16,7 @@ PiPlay is a Windows desktop utility for playing YouTube in a movable, resizable 
 | Video Popout | Transfer of current playback to the floating player. |
 | Popout Player | Floating borderless playback window. |
 | Source Window | Main PiPlay browsing window. |
-| Source Placeholder | Black surface shown while Source playback is popped out. |
+| Source Placeholder | Accent-derived near-black letterbox surface shown while Source playback is popped out. |
 | Pin | Keep the active PiPlay surface topmost. |
 | Fade | Idle/hover fading; never click-through. |
 | Auto | Automatic `/watch` popout; off by default. |

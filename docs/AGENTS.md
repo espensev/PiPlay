@@ -18,7 +18,7 @@
 | Video Popout | Moving current YouTube playback to the floating player. |
 | Popout Player | Floating borderless playback window. |
 | Source Window | Main PiPlay browser window. |
-| Source Placeholder | Black area shown while playback is popped out. |
+| Source Placeholder | Accent-derived near-black letterbox area shown while playback is popped out. |
 | Pin | Keep the active surface always-on-top. |
 | Fade | Idle/hover fading; never click-through. |
 | Auto | Automatic `/watch` popout; off by default. |
