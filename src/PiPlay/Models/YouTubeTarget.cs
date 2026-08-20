@@ -13,7 +13,11 @@ public sealed class YouTubeTarget
     /// <summary>Start offset in seconds. Nullable; 0 is a valid, known offset.</summary>
     public int? StartSeconds { get; set; }
 
-    /// <summary>True for a playlist?list= page with no specific video.</summary>
+    /// <summary>
+    /// True for a playlist?list= page with no specific video of its own. VideoId may still be
+    /// filled in at launch with the page's first playable item (PopoutTargetResolver) — the flag
+    /// then records that the id is the popout's launch plan, not a video the Source was showing.
+    /// </summary>
     public bool IsPlaylistOnly { get; set; }
 
     /// <summary>Non-null when the target was degraded (e.g. a mix/radio list was dropped).</summary>

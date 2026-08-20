@@ -51,7 +51,8 @@ public partial class MainWindow : Window
     // The video the source was on when the popout launched (overhaul Task 3): compared against the
     // popout's returned video id to decide navigate-vs-seek on close (REQ-RETURN-01).
     private string? _popoutSourceVideoId;
-    // True when the popout launched from a playlist PAGE (no source video id, spec 22.1): any
+    // True when the popout launched from a playlist PAGE (spec 22.1): even when the launch
+    // resolved the page's first item to start, that id is the popout's, not the Source's — any
     // video the popout then reports is somewhere the source is not, so return must navigate.
     private bool _popoutLaunchedWithoutVideo;
     private System.Windows.Threading.DispatcherTimer? _sourceSuppressionTimer;
@@ -1486,8 +1487,22 @@ public partial class MainWindow : Window
                 return;
             }
 
-            _popoutSourceVideoId = target.VideoId;
-            _popoutLaunchedWithoutVideo = string.IsNullOrEmpty(target.VideoId);
+            // 2a) Spec 13.1 / 22.1: a playlist-only launch starts the page's first playable item.
+            // YouTube has no videoless "start playlist" watch URL (playlist?list= is a static browse
+            // page and playnext=1 is dead), so resolve the first item off the page the Source is
+            // already showing. Best-effort (Q-3): when the read fails, the popout degrades to the
+            // playlist page itself — spec 22.1's "may launch" covers that.
+            if (target.IsPlaylistOnly && string.IsNullOrEmpty(target.VideoId))
+            {
+                target = PopoutTargetResolver.WithFirstPlaylistItem(
+                    target, await YouTubeDomBridge.ReadFirstPlaylistItemUrlAsync(core));
+            }
+
+            // A playlist page shows no video the popout took over: a first-item id resolved above is
+            // the popout's launch plan, not the Source's video — never same-video-seek the Source
+            // with it, and treat any video the popout returns as new context to navigate to.
+            _popoutSourceVideoId = target.IsPlaylistOnly ? null : target.VideoId;
+            _popoutLaunchedWithoutVideo = target.IsPlaylistOnly || string.IsNullOrEmpty(target.VideoId);
 
             // 2b) Resolve the effective playback mode (spec 10). Profile/global compact settings
             // remain reserved data, but ResolveEffectivePopoutMode honors the compact-player
@@ -1548,7 +1563,7 @@ public partial class MainWindow : Window
                 EffectiveFadeIdleDelayMs, mode, target,
                 EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity,
                 EffectiveStripAutoHide, EffectiveDwmCornerMode, EffectivePopoutCornerRadiusDip,
-                nudgePlayOnInitialPause: _sourceWasPlayingAtPopout,
+                nudgePlayOnInitialPause: _sourceWasPlayingAtPopout || _popoutLaunchedWithoutVideo,
                 presentation: presentation);
             _player.PlayerClosed += Player_OnClosed;
             _player.SettingsRequested += Player_SettingsRequested;
