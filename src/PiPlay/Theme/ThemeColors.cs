@@ -170,15 +170,15 @@ public static class ThemeColors
             _            => new ThemeAccentProfile(0.18, 0.16, 0.58, 0.10, 0x22, 0x33),   // sharp-dark / default
         };
 
+    /// <summary>Full-dial mix ceilings for the background room tones (docs/Theme_Preset_Differences.md).</summary>
+    private const double LetterboxMixCeiling = 0.06;
+    private const double BackgroundWashMixCeiling = 0.04;
+
     /// <summary>
     /// Derive the accent state tokens for one base accent under a theme (theme-v2 "Derivation
     /// algorithm"). Each theme reads the same base accent differently via its
     /// <see cref="ThemeAccentProfile"/> and its own raised surface.
     /// </summary>
-    /// <summary>Full-dial mix ceilings for the background room tones (docs/Theme_Preset_Differences.md).</summary>
-    private const double LetterboxMixCeiling = 0.06;
-    private const double BackgroundWashMixCeiling = 0.04;
-
     public static DerivedAccentSet DeriveAccentSet(
         string? baseAccent, ThemePreset preset, int? accentIntensity = null)
     {
