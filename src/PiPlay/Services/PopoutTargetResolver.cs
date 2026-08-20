@@ -48,12 +48,12 @@ public static class PopoutTargetResolver
     }
 
     /// <summary>
-    /// Auto reads the video identity off the address BEFORE it awaits its own DOM read, so the YouTube
-    /// SPA can advance the Source underneath that await (autoplay-next, or a click landing in that
-    /// instant). Honoring the captured identity blindly would pop video A while the Source has already
-    /// moved to B, and latch A as "the video the Source was on" — so the return seeks the Source, now
-    /// showing B, to A's timestamp. That wrong-video seek is exactly what ReturnPolicy's Navigate branch
-    /// exists to prevent, and it cannot see this because both ids it compares say A.
+    /// A DOM read yields back to the dispatcher, so the YouTube SPA can advance the Source underneath
+    /// it (autoplay-next, or a click landing in that instant). Honoring the captured identity blindly
+    /// would pop video/playlist A while the Source has already moved to B. For a captured video, an
+    /// address with no video id is not positive evidence of a move because hidden-address surfaces are
+    /// why Auto carries a captured identity. A playlist-only page always exposes its list in the Source
+    /// URL, so it stands only while the live address remains a playlist-only page with the same list.
     ///
     /// So the captured identity stands until the LIVE address positively contradicts it. An address with
     /// no video id is NOT evidence of a move — pages whose URL hides the id are the whole reason the
@@ -62,7 +62,19 @@ public static class PopoutTargetResolver
     /// </summary>
     public static bool CapturedTargetStillMatchesSource(YouTubeTarget? captured, string? liveSource)
     {
-        if (captured is null || string.IsNullOrEmpty(captured.VideoId)) return false;
+        if (captured is null) return false;
+
+        if (captured.IsPlaylistOnly)
+        {
+            if (string.IsNullOrEmpty(captured.PlaylistId)
+                || !YouTubeUrlHelper.TryParse(liveSource, out var livePlaylist)
+                || !livePlaylist.IsPlaylistOnly)
+                return false;
+
+            return string.Equals(captured.PlaylistId, livePlaylist.PlaylistId, StringComparison.Ordinal);
+        }
+
+        if (string.IsNullOrEmpty(captured.VideoId)) return false;
 
         if (!YouTubeUrlHelper.TryParse(liveSource, out var live) || string.IsNullOrEmpty(live.VideoId))
             return true;

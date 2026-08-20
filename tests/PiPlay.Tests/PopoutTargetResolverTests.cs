@@ -125,6 +125,20 @@ public class PopoutTargetResolverTests
             "https://www.youtube.com/watch?v=AAAAAAAAAAA&list=PLabc&index=2"));
     }
 
+    [Theory]
+    [InlineData("https://www.youtube.com/playlist?list=PLabc", true)]
+    [InlineData("https://www.youtube.com/playlist?index=2&list=PLabc", true)]
+    [InlineData("https://www.youtube.com/playlist?list=PLother", false)]
+    [InlineData("https://www.youtube.com/watch?v=AAAAAAAAAAA&list=PLabc", false)]
+    [InlineData(null, false)]
+    public void A_captured_playlist_stands_only_while_the_live_source_shows_the_same_playlist_page(
+        string? liveSource,
+        bool expected)
+    {
+        Assert.Equal(expected, PopoutTargetResolver.CapturedTargetStillMatchesSource(
+            Target("https://www.youtube.com/playlist?list=PLabc"), liveSource));
+    }
+
     /// <summary>
     /// An address with no video id is not evidence of a move. Pages whose URL hides the id are the whole
     /// reason the caller captured an identity instead of re-resolving, so treating "no id" as a move
