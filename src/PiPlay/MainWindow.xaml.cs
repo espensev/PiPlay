@@ -1494,8 +1494,14 @@ public partial class MainWindow : Window
             // playlist page itself — spec 22.1's "may launch" covers that.
             if (target.IsPlaylistOnly && string.IsNullOrEmpty(target.VideoId))
             {
-                target = PopoutTargetResolver.WithFirstPlaylistItem(
-                    target, await YouTubeDomBridge.ReadFirstPlaylistItemUrlAsync(core));
+                var firstItemUrl = await YouTubeDomBridge.ReadFirstPlaylistItemUrlAsync(core);
+                if (!PopoutTargetResolver.CapturedTargetStillMatchesSource(target, core.Source))
+                {
+                    Log.Info("Video Popout: the Source moved away from the captured playlist while resolving its first item; abandoning this launch.");
+                    return;
+                }
+
+                target = PopoutTargetResolver.WithFirstPlaylistItem(target, firstItemUrl);
             }
 
             // A playlist page shows no video the popout took over: a first-item id resolved above is
