@@ -23,6 +23,31 @@ public static class PopoutTargetResolver
     }
 
     /// <summary>
+    /// Overlay the first playable item read off a playlist browse page onto a playlist-only target
+    /// (spec 13.1 / 22.1: a playlist-only launch starts a playable item). Only the item's video id is
+    /// adopted — the target keeps its own playlist id, so a page-provided link pointing into another
+    /// list (or anywhere else) can at worst start a different first video, never redirect the launch.
+    /// The id itself is charset-validated by <see cref="YouTubeUrlHelper.TryParse"/>; the raw link is
+    /// never navigated. Returns the target unchanged when it is not playlist-only, already has a
+    /// video, or the link doesn't parse to a video — the popout then degrades to the playlist page.
+    /// </summary>
+    public static YouTubeTarget WithFirstPlaylistItem(YouTubeTarget target, string? firstItemUrl)
+    {
+        if (!target.IsPlaylistOnly || !string.IsNullOrEmpty(target.VideoId)) return target;
+        if (!YouTubeUrlHelper.TryParse(firstItemUrl, out var item) || string.IsNullOrEmpty(item.VideoId))
+            return target;
+
+        return new YouTubeTarget
+        {
+            VideoId = item.VideoId,
+            PlaylistId = target.PlaylistId,
+            StartSeconds = target.StartSeconds,
+            IsPlaylistOnly = true,
+            FallbackReason = target.FallbackReason,
+        };
+    }
+
+    /// <summary>
     /// Auto reads the video identity off the address BEFORE it awaits its own DOM read, so the YouTube
     /// SPA can advance the Source underneath that await (autoplay-next, or a click landing in that
     /// instant). Honoring the captured identity blindly would pop video A while the Source has already

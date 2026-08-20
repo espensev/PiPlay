@@ -48,6 +48,21 @@ public static class YouTubeDomBridge
   return location.href;
 })()";
 
+    // Header renderers (the Play All button) come before list rows in document order, and
+    // querySelectorAll returns document order — so the playlist's own start link wins when present.
+    private const string FirstPlaylistItemScript = @"
+(() => {
+  const links = document.querySelectorAll(
+    'ytd-playlist-header-renderer a[href*=""/watch""], ' +
+    'yt-page-header-renderer a[href*=""/watch""], ' +
+    'ytd-playlist-video-renderer a[href*=""/watch""], ' +
+    'yt-lockup-view-model a[href*=""/watch""]');
+  for (const a of links) {
+    if (a.href) return a.href;
+  }
+  return null;
+})()";
+
     private static readonly string SuppressPlaybackScript = $@"
 (() => {{
   const v = {VideoSelector};
@@ -171,6 +186,21 @@ public static class YouTubeDomBridge
     public static async Task<string?> ReadCanonicalUrlAsync(CoreWebView2 webView)
     {
         var raw = await ExecuteAsync(webView, CanonicalUrlScript, "canonical-url read");
+        if (raw is null) return null;
+        try { return JsonSerializer.Deserialize<string>(raw); }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Read the first playable item's watch link off a playlist browse page (the header's Play All,
+    /// else the first list row), or null when nothing playable is rendered. Best-effort (Q-3): the
+    /// caller degrades to popping the playlist page itself. The result is a page-provided string —
+    /// callers must strictly re-parse it (PopoutTargetResolver.WithFirstPlaylistItem) and never
+    /// navigate it raw.
+    /// </summary>
+    public static async Task<string?> ReadFirstPlaylistItemUrlAsync(CoreWebView2 webView)
+    {
+        var raw = await ExecuteAsync(webView, FirstPlaylistItemScript, "playlist first-item read");
         if (raw is null) return null;
         try { return JsonSerializer.Deserialize<string>(raw); }
         catch { return null; }

@@ -39,6 +39,67 @@ public class PopoutTargetResolverTests
         Assert.Equal("PLabc", target.PlaylistId);
     }
 
+    // --- Playlist-only launches start the page's first playable item (spec 13.1 / 22.1) ---
+
+    [Fact]
+    public void A_playlist_only_target_adopts_the_first_items_video_id_and_keeps_its_own_list()
+    {
+        var target = PopoutTargetResolver.WithFirstPlaylistItem(
+            Target("https://www.youtube.com/playlist?list=PLabc"),
+            "https://www.youtube.com/watch?v=AAAAAAAAAAA&list=PLabc&index=1");
+
+        Assert.Equal("AAAAAAAAAAA", target.VideoId);
+        Assert.Equal("PLabc", target.PlaylistId);
+        Assert.True(target.IsPlaylistOnly);
+    }
+
+    /// <summary>
+    /// The link is page-provided (DOM read), so only the charset-validated video id may be adopted.
+    /// A link into ANOTHER list must not swap the playlist the user chose to launch.
+    /// </summary>
+    [Fact]
+    public void A_first_item_link_into_another_list_cannot_swap_the_launched_playlist()
+    {
+        var target = PopoutTargetResolver.WithFirstPlaylistItem(
+            Target("https://www.youtube.com/playlist?list=PLabc"),
+            "https://www.youtube.com/watch?v=AAAAAAAAAAA&list=PLother");
+
+        Assert.Equal("AAAAAAAAAAA", target.VideoId);
+        Assert.Equal("PLabc", target.PlaylistId);
+    }
+
+    /// <summary>
+    /// A link that doesn't strictly parse to a YouTube video (off-host, malformed id, another
+    /// browse page, or nothing rendered at all) leaves the target unchanged — the popout then
+    /// degrades to the playlist page itself instead of trusting a page string.
+    /// </summary>
+    [Theory]
+    [InlineData("https://evil.example.com/watch?v=AAAAAAAAAAA")]
+    [InlineData("https://www.youtube.com/watch?v=tooshort")]
+    [InlineData("https://www.youtube.com/playlist?list=PLother")]
+    [InlineData("not a url")]
+    [InlineData(null)]
+    public void An_unparsable_first_item_link_leaves_the_playlist_target_unchanged(string? link)
+    {
+        var target = PopoutTargetResolver.WithFirstPlaylistItem(
+            Target("https://www.youtube.com/playlist?list=PLabc"), link);
+
+        Assert.Null(target.VideoId);
+        Assert.Equal("PLabc", target.PlaylistId);
+        Assert.True(target.IsPlaylistOnly);
+    }
+
+    [Fact]
+    public void A_target_that_already_names_a_video_ignores_the_first_item_overlay()
+    {
+        var target = PopoutTargetResolver.WithFirstPlaylistItem(
+            Target("https://www.youtube.com/watch?v=BBBBBBBBBBB&list=PLabc"),
+            "https://www.youtube.com/watch?v=AAAAAAAAAAA&list=PLabc");
+
+        Assert.Equal("BBBBBBBBBBB", target.VideoId);
+        Assert.False(target.IsPlaylistOnly);
+    }
+
     // --- The captured identity must not outlive the Source it was captured from ---
 
     /// <summary>

@@ -99,13 +99,21 @@ public class RuntimeFailurePolicyTests
 
     // A playlist page has no guaranteed <video> element, so "no video found" is a legitimate
     // suppression outcome there, not a failed ownership transfer — the acknowledged-suppression
-    // contract (fail-closed abort) applies only when the source is on a concrete video.
+    // contract (fail-closed abort) applies only when the source is on a concrete video. That holds
+    // even after the launch resolves the page's first playable item onto the target: the id names
+    // what the POPOUT will start, not anything audible on the source's browse page.
     [Fact]
     public void Only_video_targets_require_acknowledged_suppression()
     {
         Assert.True(PopoutLaunchPolicy.RequiresAcknowledgedSuppression(new YouTubeTarget { VideoId = "dQw4w9WgXcQ" }));
         Assert.False(PopoutLaunchPolicy.RequiresAcknowledgedSuppression(
             new YouTubeTarget { PlaylistId = "PL0123456789", IsPlaylistOnly = true }));
+        Assert.False(PopoutLaunchPolicy.RequiresAcknowledgedSuppression(new YouTubeTarget
+        {
+            VideoId = "dQw4w9WgXcQ",
+            PlaylistId = "PL0123456789",
+            IsPlaylistOnly = true,
+        }));
     }
 
     [Fact]
