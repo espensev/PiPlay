@@ -2,6 +2,10 @@
 
 Shipped user-visible changes. `VERSION` and `BUILD_NUMBER` are the current release stamp; Git retains older release history.
 
+## 0.13.2 — 2026-08-23 (build 39)
+
+- The deployed UI smoke now isolates browser/app data, captures the foreground PiPlay HWND in the correct mixed-DPI coordinate space, and fails closed on blank or uniform frames.
+
 ## 0.13.1 — 2026-08-23 (build 38)
 
 - Playlist-only launches start the adopted first playable item at the beginning instead of inheriting an unrelated miniplayer, preview, or playlist-URL timestamp.
