@@ -19,16 +19,22 @@
   .\scripts\Test-DeploySwap.ps1
 #>
 [CmdletBinding()]
-param([string]$RepoRoot = (Split-Path -Parent $PSScriptRoot))
+param([string]$RepoRoot)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
+    $RepoRoot = Split-Path -Parent $PSScriptRoot
+}
 
 . (Join-Path $RepoRoot "scripts\DeploySwap.ps1")
 
 $sandbox = Join-Path ([System.IO.Path]::GetTempPath()) ("DeploySwapTests-" + [guid]::NewGuid().ToString("N"))
 $pass = 0
 $fail = 0
+$deployAliasM = $null
+$sourceAliasM = $null
 
 function Check([string]$name, [scriptblock]$assertion) {
     try {
@@ -58,7 +64,7 @@ function New-Payload {
         $rel = $f.FullName.Substring($Dir.Length).TrimStart('\')
         $hashes += [pscustomobject]@{
             path   = $rel
-            sha256 = (Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash.ToUpperInvariant()
+            sha256 = Get-Sha256Hex -Path $f.FullName
             size   = [int64]$f.Length
         }
     }
@@ -239,9 +245,124 @@ try {
     $threwG = $false
     try { Get-DeploySwapPaths -DeployRoot "E:\" | Out-Null } catch { $threwG = $true }
     Check "G1 refuses a drive root (no sibling space)" { $threwG }
+
+    # -------------------------------- I. manifest paths cannot escape or alias the staged root
+    $stageI = Join-Path $sandbox "I\staging"
+    New-Item -ItemType Directory -Path $stageI -Force | Out-Null
+    $outsideI = Join-Path $sandbox "I\outside.bin"
+    Set-Content -LiteralPath $outsideI -Value "outside" -Encoding UTF8
+    $outsideItemI = Get-Item -LiteralPath $outsideI
+    $outsideEntryI = [pscustomobject]@{
+        path = "..\outside.bin"
+        sha256 = Get-Sha256Hex -Path $outsideI
+        size = [int64]$outsideItemI.Length
+    }
+    [pscustomobject]@{ artifactHashes = @($outsideEntryI) } |
+        ConvertTo-Json -Depth 5 |
+        Set-Content -LiteralPath (Join-Path $stageI "build-info.json") -Encoding UTF8
+
+    $errI1 = $null
+    try { Test-StagedPayload -StagingDir $stageI | Out-Null } catch { $errI1 = $_.Exception.Message }
+    Check "I1 staged verification rejects parent traversal" { $errI1 -match 'traversal' }
+
+    $insideI = Join-Path $stageI "PiPlay.exe"
+    Set-Content -LiteralPath $insideI -Value "inside" -Encoding UTF8
+    $insideItemI = Get-Item -LiteralPath $insideI
+    $insideEntryI = [pscustomobject]@{
+        path = "PiPlay.exe"
+        sha256 = Get-Sha256Hex -Path $insideI
+        size = [int64]$insideItemI.Length
+    }
+    [pscustomobject]@{ artifactHashes = @($insideEntryI, $insideEntryI) } |
+        ConvertTo-Json -Depth 5 |
+        Set-Content -LiteralPath (Join-Path $stageI "build-info.json") -Encoding UTF8
+
+    $errI2 = $null
+    try { Test-StagedPayload -StagingDir $stageI | Out-Null } catch { $errI2 = $_.Exception.Message }
+    Check "I2 staged verification rejects duplicate artifacts" { $errI2 -match 'duplicate' }
+
+    # ------------------ J. a publish source nested in the deploy root is rejected before mutation
+    $rootJ = Join-Path $sandbox "J\PiPlay"
+    $srcJ = Join-Path $rootJ "source"
+    New-DeployRootWithOldPayload -Root $rootJ
+    New-Payload -Dir $srcJ -Token "NEW"
+    $errJ = $null
+    try {
+        Invoke-StagedDeploy -DeployRoot $rootJ -SourceDir $srcJ -DataFolderName "PiPlayData" `
+            -MarkerName ".piplay.publish.marker" -MarkerText "version=new" | Out-Null
+    } catch { $errJ = $_.Exception.Message }
+    Check "J1 nested source/deploy overlap fails closed" { $errJ -match 'overlap' }
+    Check "J2 overlap guard preserves the old deploy"   { (Get-ExeToken $rootJ) -eq "exe-OLD" }
+    Check "J3 overlap guard preserves the source"       { (Get-Content -LiteralPath (Join-Path $srcJ "PiPlay.exe") -Raw).Trim() -eq "exe-NEW" }
+
+    # ------------------------ K. a source at the staging sibling is not deleted during pre-cleanup
+    $rootK = Join-Path $sandbox "K\PiPlay"
+    New-DeployRootWithOldPayload -Root $rootK
+    $pathsK = Get-DeploySwapPaths -DeployRoot $rootK
+    New-Payload -Dir $pathsK.Staging -Token "NEW"
+    $errK = $null
+    try {
+        Invoke-StagedDeploy -DeployRoot $rootK -SourceDir $pathsK.Staging -DataFolderName "PiPlayData" `
+            -MarkerName ".piplay.publish.marker" -MarkerText "version=new" | Out-Null
+    } catch { $errK = $_.Exception.Message }
+    Check "K1 staging/source overlap fails closed" { $errK -match 'overlap' }
+    Check "K2 staging/source guard preserves source" {
+        (Get-Content -LiteralPath (Join-Path $pathsK.Staging "PiPlay.exe") -Raw).Trim() -eq "exe-NEW"
+    }
+
+    # -------------------------------------- L. swap-path derivation rejects the active repository
+    $errL = $null
+    try { Get-DeploySwapPaths -DeployRoot $RepoRoot | Out-Null } catch { $errL = $_.Exception.Message }
+    Check "L1 repository deploy root fails closed" { $errL -match 'overlap.*repository' }
+
+    # -------- M. independent aliases to one physical payload must fail before the marker is changed
+    $physicalM = Join-Path $sandbox "M\physical"
+    $aliasesM = Join-Path $sandbox "M\aliases"
+    New-Payload -Dir $physicalM -Token "OLD"
+    Set-Content -LiteralPath (Join-Path $physicalM ".piplay.publish.marker") `
+        -Value "version=old" -Encoding UTF8
+    New-Item -ItemType Directory -Path $aliasesM -Force | Out-Null
+    $deployAliasM = Join-Path $aliasesM "deploy"
+    $sourceAliasM = Join-Path $aliasesM "source"
+    New-Item -ItemType Junction -Path $deployAliasM -Target $physicalM | Out-Null
+    New-Item -ItemType Junction -Path $sourceAliasM -Target $physicalM | Out-Null
+
+    $errM = $null
+    try {
+        Invoke-StagedDeploy -DeployRoot $deployAliasM -SourceDir $sourceAliasM `
+            -DataFolderName "PiPlayData" -MarkerName ".piplay.publish.marker" `
+            -MarkerText "version=new" | Out-Null
+    } catch { $errM = $_.Exception.Message }
+    Check "M1 physical source/deploy aliases fail closed" { $errM -match 'reparse point' }
+    Check "M2 alias rejection occurs before marker mutation" {
+        (Get-Content -LiteralPath (Join-Path $physicalM ".piplay.publish.marker") -Raw).Trim() -eq "version=old"
+    }
+
+    # ---------------- N. an extended namespace alias is rejected before touching the real payload
+    $rootN = Join-Path $sandbox "N\PiPlay"
+    $srcN = Join-Path $sandbox "N\source"
+    New-DeployRootWithOldPayload -Root $rootN
+    New-Payload -Dir $srcN -Token "NEW"
+    $namespaceRootN = "\\?\$rootN"
+    $errN = $null
+    try {
+        Invoke-StagedDeploy -DeployRoot $namespaceRootN -SourceDir $srcN `
+            -DataFolderName "PiPlayData" -MarkerName ".piplay.publish.marker" `
+            -MarkerText "version=new" | Out-Null
+    } catch { $errN = $_.Exception.Message }
+    Check "N1 namespace deploy alias fails closed" { $errN -match 'Windows device or extended path namespace' }
+    Check "N2 namespace rejection preserves old executable" { (Get-ExeToken $rootN) -eq "exe-OLD" }
+    Check "N3 namespace rejection preserves old marker" {
+        (Get-Content -LiteralPath (Join-Path $rootN ".piplay.publish.marker") -Raw).Trim() -eq "version=old"
+    }
 }
 finally {
     Write-Host ""
+    foreach ($alias in @($deployAliasM, $sourceAliasM)) {
+        if ($alias -and (Test-Path -LiteralPath $alias)) {
+            [System.IO.Directory]::Delete($alias)
+        }
+    }
     if (Test-Path -LiteralPath $sandbox) {
         Remove-Item -LiteralPath $sandbox -Recurse -Force -ErrorAction SilentlyContinue
     }

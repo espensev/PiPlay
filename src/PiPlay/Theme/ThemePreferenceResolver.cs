@@ -16,8 +16,8 @@ public static class ThemePreferenceResolver
             ? PlayerAppearancePolicy.NormalizeFadeIdleDelayMs(player.FadeIdleDelayMs)
             : ThemeCatalog.FadeDelayMillisecondsForPreset(theme.FadeDelayPreset);
 
-    // Behavior values resolve preset default → explicit override → normalized
-    // (docs/Theme_Preset_Differences.md): a theme block with null overrides gets the PRESET's behavior, so a hand-edited
+    // Behavior values resolve preset default → explicit override → normalized. A theme block with
+    // null overrides gets the preset's behavior, so a hand-edited
     // "themeId": "soft-glass" is translucent without manual slider work. Migration safety: the
     // raw-PlayerSettings fallback applies only when there is NO theme block at all —
     // ThemeSettings.FromLegacy copies the legacy behavior values into explicit overrides at seed

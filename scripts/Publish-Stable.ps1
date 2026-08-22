@@ -5,7 +5,8 @@
 
 .DESCRIPTION
   Thin wrapper over scripts\Build-PiPlay.ps1 that:
-    0. takes a publish lock (per repo + per deploy root) so two publishes cannot interleave, and - for
+    0. takes a publish lock (per repo, plus per deploy root when deployment is enabled) so two
+       publishes cannot interleave, and - for
        an exact-source release - PREFLIGHTS the stable tag it is about to create. A tag collision is a
        one-second failure now instead of a failure after the deployed copy has already been replaced;
     1. (optionally) runs the deterministic test lane as a gate;
@@ -13,7 +14,7 @@
        own data root (PiPlayData beside the exe), its own single-instance identity, and a
        "PiPlay - Stable vX.Y.Z (bN)" title so it is differentiable from the dev app;
     3. validates the publish metadata (SHA256/size) via scripts\Test-PublishMetadata.ps1;
-    4. deploys to a deploy root (default E:\Dev_test_implemenations\PiPlay) via a STAGED SWAP
+    4. deploys to -DeployRoot or PIPLAY_STABLE_ROOT via a STAGED SWAP
        (scripts\DeploySwap.ps1): the payload is copied to a sibling .staging directory and re-hashed
        there, the old payload is moved aside to a sibling .backup, and only then is the verified
        payload moved in. A corrupt copy dies before the live copy is touched; a failure mid-swap rolls
@@ -26,8 +27,9 @@
        the tag - so a verification failure never leaves a release-looking tag behind. Diagnostic
        publishes skip the tag and verify once in diagnostics-only mode. Prints a summary.
 
-  The deployed copy at the deploy root is the ONLY sanctioned target for manual/human testing
-  (root CLAUDE.md, docs\AGENTS.md). By default, this script is an exact-source release path:
+  The canonical candidate/acceptance/release lifecycle is defined in
+  docs\PiPlay_Product_Engineering_Spec.md. Desk-candidate acceptance is not release provenance.
+  By default, this script is an exact-source release path:
   VERSION/BUILD_NUMBER must already be committed, the working tree must be clean, the build uses
   -NoVersionBump -NoBuildNumberBump, and the script creates/verifies stable-vX.Y.Z-bN on that
   exact source commit.
@@ -47,11 +49,11 @@
 .EXAMPLE
   .\scripts\Publish-Stable.ps1 -AllowVersionBump -Version minor
 .EXAMPLE
-  .\scripts\Publish-Stable.ps1 -DeployRoot 'E:\Dev_test_implemenations\PiPlay' -SkipTests -AllowDirty
+  .\scripts\Publish-Stable.ps1 -DeployRoot (Join-Path $env:LOCALAPPDATA 'PiPlayStable') -SkipTests -AllowDirty
 #>
 [CmdletBinding()]
 param(
-    [string]$DeployRoot = "E:\Dev_test_implemenations\PiPlay",
+    [string]$DeployRoot,
     [string]$Version,
     [switch]$NoVersionBump,
     [int]$BuildNumber = 0,
@@ -71,12 +73,7 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "NativeCommand.ps1")
 . (Join-Path $PSScriptRoot "DeploySwap.ps1")
 . (Join-Path $PSScriptRoot "PublishLock.ps1")
-
-if (-not [System.IO.Path]::IsPathRooted($DeployRoot)) {
-    # A bare token like '--help' binds positionally to -DeployRoot and would deploy a full
-    # publish tree into a junk folder next to this script. Use Get-Help for usage.
-    throw "DeployRoot must be an absolute path (got '$DeployRoot'). For usage, run: Get-Help $PSCommandPath"
-}
+. (Join-Path $PSScriptRoot "StableDeployRoot.ps1")
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $buildScript = Join-Path $PSScriptRoot "Build-PiPlay.ps1"
@@ -92,13 +89,33 @@ function Write-Step([int]$n, [string]$message) { Write-Host "`n[$n] $message" -F
 function Invoke-Git {
     param([Parameter(Mandatory = $true)][string[]]$GitArgs)
 
-    $out = Invoke-NativeCommandQuiet { & git -C $repoRoot @GitArgs }
-    if ($LASTEXITCODE -ne 0) { return $null }
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git) { return $null }
+    $global:LASTEXITCODE = 0
+    $out = Invoke-NativeCommandQuiet { & $git.Source -C $repoRoot @GitArgs }
+    $gitExitCode = $LASTEXITCODE
+    if ($gitExitCode -ne 0) { return $null }
+    return $out
+}
+
+function Invoke-GitRequired {
+    param([Parameter(Mandatory = $true)][string[]]$GitArgs)
+
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git) {
+        throw "Git is required to query source dirty state before stable publication."
+    }
+    $global:LASTEXITCODE = 0
+    $out = Invoke-NativeCommandQuiet { & $git.Source -C $repoRoot @GitArgs }
+    $gitExitCode = $LASTEXITCODE
+    if ($gitExitCode -ne 0) {
+        throw "Required git status query failed (exit $gitExitCode); source cleanliness is unknown."
+    }
     return $out
 }
 
 function Get-GitDirtyEntries {
-    $status = @(Invoke-Git @("status", "--porcelain", "--untracked-files=all"))
+    $status = @(Invoke-GitRequired @("status", "--porcelain", "--untracked-files=all"))
     return @($status | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 }
 
@@ -123,9 +140,17 @@ function Assert-StableTag {
     Write-Host "  Created stable tag: $TagName -> $Commit" -ForegroundColor Green
 }
 
+if (-not $SkipDeploy) {
+    $DeployRoot = Resolve-StableDeployRoot -DeployRoot $DeployRoot
+}
+
 Write-Host "--- PiPlay stable publish ---" -ForegroundColor Cyan
 Write-Host "Repo root   : $repoRoot"
-Write-Host "Deploy root : $DeployRoot"
+if ($SkipDeploy) {
+    Write-Host "Deploy root : skipped (-SkipDeploy)" -ForegroundColor DarkGray
+} else {
+    Write-Host "Deploy root : $DeployRoot"
+}
 if ($SignScript) { Write-Host "Signing     : external script ($SignScript)" -ForegroundColor Cyan }
 else { Write-Host "Signing     : not configured" -ForegroundColor DarkGray }
 
@@ -155,17 +180,18 @@ if ($dirtyEntries.Count -gt 0) {
     Write-Warning "$message`nContinuing because -AllowDirty was passed. This deploy will be marked NOT release evidence."
 }
 if ($AllowVersionBump) {
-    Write-Warning "-AllowVersionBump was passed. VERSION/BUILD_NUMBER may be stamped after sourceCommit; this deploy will be marked NOT release evidence unless the resulting tree is committed and republished exact-source."
+    Write-Warning "-AllowVersionBump was passed. Intentional VERSION/BUILD_NUMBER changes will be captured as dirty source; this deploy is NOT release evidence and must be committed and republished exact-source for release provenance."
 }
 
-# Serialize publishes before anything expensive or destructive happens. The locks are held for exactly
-# as long as this script body runs: the finally at the bottom releases them on EVERY exit path, because
-# a mutex belongs to the thread that took it and PowerShell's console host outlives (and reuses) that
-# thread. See Close-PublishLocks.
-New-PublishLock -Key "repo|$repoRoot" -What "this repository ($repoRoot)" | Out-Null
-New-PublishLock -Key "deploy|$DeployRoot" -What "this deploy root ($DeployRoot)" | Out-Null
-
 try {
+# Serialize publishes before anything expensive or destructive happens. Lock acquisition itself is
+# protected by this try/finally: if the repository lock succeeds and the deploy-root lock throws, the
+# first lock must still be released. A mutex belongs to the thread that took it and PowerShell's console
+# host outlives (and reuses) that thread. See Close-PublishLocks.
+New-PublishLock -Key "repo|$repoRoot" -What "this repository ($repoRoot)" | Out-Null
+if (-not $SkipDeploy) {
+    New-PublishLock -Key "deploy|$DeployRoot" -What "this deploy root ($DeployRoot)" | Out-Null
+}
 
 # 0. Tag preflight. The stable tag used to be checked only AFTER the test lane, the build, and the
 # destructive deploy - so a colliding tag replaced Stable and only then failed at the very last step.
@@ -195,22 +221,21 @@ creation. Choose the version move, edit VERSION/BUILD_NUMBER, commit the stamps,
     }
 }
 
-# 1. Test gate (mirror CI's deterministic lane).
+# 1. Full source gate shared with local development and hosted CI.
 if ($SkipTests) {
     Write-Step 1 "Test gate skipped (-SkipTests)."
 } else {
-    Write-Step 1 "Running deterministic test lane (gate)..."
-    $prevDataRoot = $env:PIPLAY_DATA_ROOT
-    $testDataRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("PiPlayStablePublishTests-" + [guid]::NewGuid().ToString("N"))
-    $env:PIPLAY_DATA_ROOT = $testDataRoot
-    try {
-        & dotnet test (Join-Path $repoRoot "PiPlay.sln") --configuration Debug
-        if ($LASTEXITCODE -ne 0) { throw "Test lane failed; aborting stable publish." }
-    } finally {
-        $env:PIPLAY_DATA_ROOT = $prevDataRoot
-        if (Test-Path -LiteralPath $testDataRoot) {
-            Remove-Item -LiteralPath $testDataRoot -Recurse -Force -ErrorAction SilentlyContinue
-        }
+    Write-Step 1 "Running the shared full local-CI source gate..."
+    $localCiScript = Join-Path $PSScriptRoot "Test-LocalCI.ps1"
+    if (-not (Test-Path -LiteralPath $localCiScript -PathType Leaf)) {
+        throw "Shared local-CI gate not found: $localCiScript"
+    }
+    $powerShellPath = (Get-Command pwsh -ErrorAction Stop).Source
+    $global:LASTEXITCODE = 0
+    & $powerShellPath -NoProfile -File $localCiScript
+    $localCiExitCode = $LASTEXITCODE
+    if ($localCiExitCode -ne 0) {
+        throw "Shared local-CI source gate failed (exit $localCiExitCode); aborting stable publish."
     }
 }
 
@@ -269,10 +294,11 @@ if ($AllowDirty) {
     $nonReleaseReasons += "-AllowDirty diagnostic deploy: built with a dirty working tree; deployed bytes may not match any commit"
 }
 if ($AllowVersionBump) {
-    $nonReleaseReasons += "-AllowVersionBump diagnostic publish: VERSION/BUILD_NUMBER may be stamped after sourceCommit"
+    $nonReleaseReasons += "-AllowVersionBump diagnostic publish: intentional VERSION/BUILD_NUMBER changes are captured as dirty source"
 }
 if ($nonReleaseReasons.Count -gt 0) {
     $buildParams["NonReleaseReason"] = ($nonReleaseReasons -join "; ")
+    $buildParams["AllowDirtySource"] = $true
 }
 & $buildScript @buildParams
 if ($LASTEXITCODE -ne 0) { throw "Build-PiPlay.ps1 failed (exit $LASTEXITCODE)." }

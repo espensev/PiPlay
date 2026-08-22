@@ -7,7 +7,7 @@ internal static class PopoutLaunchPolicy
 {
     /// <summary>
     /// A target the popout can launch: a concrete video, or a playlist page whose first playable
-    /// item the popout will start (spec 13.1 / 22.1). Anything else keeps the "open a video first"
+    /// item the popout will start. Anything else keeps the "open a video first"
     /// prompt.
     /// </summary>
     public static bool IsLaunchableTarget(YouTubeTarget? target) => target is { IsValid: true };

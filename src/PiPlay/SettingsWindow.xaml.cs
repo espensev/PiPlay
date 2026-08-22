@@ -12,7 +12,7 @@ namespace PiPlay;
 internal enum PrivacyAction { None, ResetAppState, ClearBrowserData }
 
 /// <summary>
-/// Themed Settings window (spec 12, Phase 2). Hosts the Privacy section. It confirms an action and
+/// Themed Settings window. Hosts the Privacy section. It confirms an action and
 /// records <see cref="RequestedAction"/>, then closes — it performs no app/WebView work itself
 /// (MainWindow does, after the modal closes). Visible wording is sourced from
 /// <see cref="PrivacyService"/> so the UI and the tested constants cannot drift.
@@ -29,7 +29,7 @@ public partial class SettingsWindow : Window
     internal string ThemeId { get; private set; }
     internal string AccentColor { get; private set; }
 
-    /// <summary>Corner profile override (docs/Theme_Preset_Differences.md): "theme" follows the preset; the other
+    /// <summary>Corner profile override (ThemeCatalog and ThemeColors): "theme" follows the preset; the other
     /// styles swap the whole radius + native-corner profile.</summary>
     internal string CornerStyle { get; private set; }
     internal int FadeIdleDelayMs { get; private set; }
@@ -64,7 +64,7 @@ public partial class SettingsWindow : Window
         StripAutoHideOverride ?? ThemeCatalog.PresetFor(ThemeId).DefaultStripAutoHide;
 
     /// <summary>Raised on every opacity slider move so MainWindow can live-preview the levels on
-    /// the open popout (spec 7.3 / docs/Theme_Preset_Differences.md). Args: (constant, idle).</summary>
+    /// the open popout. Args: (constant, idle).</summary>
     internal event Action<double, double>? OpacityPreviewChanged;
     internal event Action<string>? AccentPreviewChanged;
 
@@ -106,7 +106,7 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         ApplyInitialBounds();
         // The dialog wears the theme/override corner shape itself, and re-applies it on chip
-        // clicks — instant feedback for the corner-style row (docs/Theme_Preset_Differences.md).
+        // clicks — instant feedback for the corner-style row (ThemeCatalog and ThemeColors).
         SourceInitialized += (_, _) => ApplyOwnCornerMode();
 
         ThemeId = ThemeCatalog.NormalizeThemeId(themeId);
@@ -131,7 +131,7 @@ public partial class SettingsWindow : Window
         StripAutoHideOverride = stripAutoHideOverride;
         StripAutoHideToggle.IsChecked = StripAutoHide;
 
-        // A hand-edited sub-floor override (the spec 7.3 explicit unlock) is preserved exactly
+        // A hand-edited sub-floor override is preserved exactly
         // until the user moves that slider: the DISPLAY clamps to the 45% floor, the stored
         // override doesn't.
         ActiveOpacityOverride = NormalizeOverride(activeOpacityOverride);
@@ -219,10 +219,10 @@ public partial class SettingsWindow : Window
     {
         var previousPreset = ThemeCatalog.PresetFor(ThemeId);
         ThemeId = ThemeCatalog.NormalizeThemeId(((FrameworkElement)sender).Tag as string);
-        // An explicit preset selection adopts the preset's defaults (docs/Theme_Preset_Differences.md) — fade
+        // An explicit preset selection adopts the preset's defaults: fade
         // delay, top-bar auto-hide, opacity levels, and theme-owned corners. The controls below
         // can then fine-tune each one; manual changes after this click are overrides. A GLOBAL accent
-        // follows the docs/Theme_Preset_Differences.md switch rule (custom values survive). A profile-owned accent is always
+        // follows ThemeCatalog.AccentForThemeSwitch (custom values survive). A profile-owned accent is always
         // explicit, even if its bytes equal the old preset default, so a preset switch never rewrites it.
         var preset = ThemeCatalog.PresetFor(ThemeId);
         if (_accentFollowsThemePreset)

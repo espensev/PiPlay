@@ -6,7 +6,7 @@ using PiPlay.Services;
 namespace PiPlay.Tests;
 
 /// <summary>
-/// Static invariants for the compact-player shell assets (spec 10.3): structure, the host/bridge
+/// Static invariants for the compact-player shell assets: structure, the host/bridge
 /// contract, no third-party origins, no credential-bearing strings, and that the build copies them
 /// to the output (so a CopyToOutputDirectory misconfig fails here, not at runtime as a blank player).
 /// </summary>
@@ -102,7 +102,7 @@ public class PlayerShellAssetTests
     [Fact]
     public void Shell_js_allowlists_exactly_the_protocol_request_actions()
     {
-        // Both sides allowlist the request channel (spec 12.5 / docs/YouTube_Compliance.md): the JS set must equal
+        // Both sides allowlist the request channel (PlayerShellProtocol.AllowedRequests): the JS set must equal
         // the C# closed set, or one side could widen the channel unilaterally.
         var js = Read("player-shell.js");
         var declaration = Regex.Match(js, @"REQUEST_ACTIONS\s*=\s*\[([^\]]*)\]");
@@ -121,7 +121,7 @@ public class PlayerShellAssetTests
     public void Shell_js_protocol_version_matches_the_csharp_contract()
     {
         // The version is declared on both sides; a one-sided bump is exactly the drift this
-        // suite exists to catch (spec 10.3 versioned-contract rule).
+        // suite exists to catch.
         var declaration = Regex.Match(Read("player-shell.js"), @"PROTOCOL_VERSION\s*=\s*(\d+)");
         Assert.True(declaration.Success, "player-shell.js no longer declares PROTOCOL_VERSION.");
         Assert.Equal(PlayerShellProtocol.Version, int.Parse(declaration.Groups[1].Value));

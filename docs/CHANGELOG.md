@@ -1,10 +1,11 @@
 # Changelog
 
-Only unreleased user-visible changes belong here. `VERSION` and `BUILD_NUMBER` own the current release stamp; unresolved gates live in `SPEC_GAPS_AND_OWNERSHIP.md`, and Git preserves released notes.
+Only current unreleased user-visible changes belong here.
 
-## [0.13.0] - 2026-08-20
+## Unreleased
 
-- Playlist-only pages can launch a Popout that starts the page's first playable item (falling back to the playlist page when none is rendered), and return carries current video plus playlist/mix context.
-- Normal Popouts retain `RD...` mix/radio queues. Compact URLs omit auto-generated lists; malformed list IDs fall back to one video with a non-blocking note.
-- Profile accent now reaches the near-black Source/Popout letterbox, Source room-tone background, individual profile-row washes, and a 1 px inset Popout identity edge. Accent intensity `0` removes the shared background/edge reach; profile-row washes remain at preset `SubtleAlpha`.
-- Source title wash extends through the washed background instead of ending mid-toolbar.
+- Popout launch abandons a captured playlist if the Source moves before first-item resolution, preventing a stale list/video pairing (`MainWindow.StartVideoPopoutAsync`; `PopoutTargetResolverTests.A_captured_playlist_stands_only_while_the_live_source_shows_the_same_playlist_page`; 2026-08-20).
+- Playlist-only pages can launch a Popout from the first playable item, fall back to the playlist page when none is rendered, and return current video plus playlist context (`PopoutTargetResolver.WithFirstPlaylistItem`; `PopoutTargetResolverTests`; `WpfRuntimeTests.Popout_source_change_tracks_the_playlist_context`).
+- Normal Popouts retain `RD...` mix/radio queues; malformed list IDs fall back to one video with a non-blocking note (`YouTubeUrlHelper`; `YouTubeUrlHelperTests`).
+- Profile accent reaches the near-black Source/Popout letterbox, Source background, profile-row washes, and a 1 px Popout edge. Intensity `0` removes background/edge reach while rows retain preset `SubtleAlpha` (`ThemeColors.DeriveAccentSet`; `ThemeColorsTests`; `WpfRuntimeTests`).
+- The Source title wash extends into the washed background instead of ending mid-toolbar (`MainWindow.xaml:MainBarBackdrop`; `XamlInvariantTests.Source_title_bar_carries_global_accent_as_a_gradient_wash_REQ_UI_01`).

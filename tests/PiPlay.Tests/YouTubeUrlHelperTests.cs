@@ -60,7 +60,7 @@ public class YouTubeUrlHelperTests
     public void Mix_radio_list_is_kept_and_carried_to_the_watch_url()
     {
         // list=RD... queues play natively on the full watch page, so Normal popouts carry them
-        // like any playlist (docs/PiPlay_Product_Engineering_Spec.md §22.1). The old parse-time drop is gone.
+        // like any playlist (PopoutTargetResolver). The old parse-time drop is gone.
         Assert.True(YouTubeUrlHelper.TryParse(
             "https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDdQw4w9WgXcQ", out var t));
         Assert.Equal("dQw4w9WgXcQ", t.VideoId);
@@ -170,7 +170,7 @@ public class YouTubeUrlHelperTests
     public void TryParse_keeps_video_when_timestamp_is_out_of_range()
     {
         // A real link carrying an out-of-range t= must degrade to "no offset" and still navigate -
-        // never throw into the generic crash dialog (spec 17: broken URLs fail gracefully).
+        // never throw into the generic crash dialog.
         Assert.True(YouTubeUrlHelper.TryParse(
             "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=99999999999h", out var t));
         Assert.Equal("dQw4w9WgXcQ", t.VideoId);
@@ -193,7 +193,7 @@ public class YouTubeUrlHelperTests
             YouTubeUrlHelper.BuildEmbedUrl(t, 30));
     }
 
-    // --- Compact shell URL (spec 10.3): only non-sensitive target params on the shell base ---
+    // --- Compact shell URL: only non-sensitive target params on the shell base ---
 
     [Fact]
     public void Builds_shell_url_with_only_nonsensitive_target_params()

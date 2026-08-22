@@ -98,7 +98,7 @@ public class ThemeColorsTests
         }
     }
 
-    // --- Background room tones (docs/Theme_Preset_Differences.md) ---
+    // --- Background room tones (ThemeCatalog and ThemeColors) ---
 
     [Theory]
     [InlineData("sharp-dark")]
@@ -331,7 +331,7 @@ public class ThemeColorsTests
         Assert.Equal(Color.FromRgb(0x38, 0xD9, 0x96), brush.Color);
     }
 
-    // --- theme-v2 derived accent tokens (Phase B / CON-1) ---
+    // --- Derived accent tokens (CON-1) ---
 
     [Fact]
     public void Mix_blends_channelwise_and_clamps()

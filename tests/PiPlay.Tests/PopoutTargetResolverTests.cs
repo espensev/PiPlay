@@ -39,7 +39,7 @@ public class PopoutTargetResolverTests
         Assert.Equal("PLabc", target.PlaylistId);
     }
 
-    // --- Playlist-only launches start the page's first playable item (spec 13.1 / 22.1) ---
+    // --- Playlist-only launches start the page's first playable item ---
 
     [Fact]
     public void A_playlist_only_target_adopts_the_first_items_video_id_and_keeps_its_own_list()

@@ -1,8 +1,8 @@
 namespace PiPlay.Services;
 
 /// <summary>
-/// Pure decisions for the compact (PiPlay shell) error/fallback path (spec 10.3, Q-6, Stage 4 of
-/// the compact-player sweep): maps shell-reported YouTube IFrame API error codes to user-facing
+/// Pure decisions for the compact (PiPlay shell) error/fallback path (Q-6): maps shell-reported
+/// YouTube IFrame API error codes to user-facing
 /// messages, decides when a recovered playback auto-dismisses the error state, and owns the
 /// host-side "the IFrame API never came up" timeout. No UI or WebView dependencies, so every
 /// fallback decision is unit-testable. The wire transport lives in <see cref="PlayerShellProtocol"/>;
@@ -36,7 +36,7 @@ public static class PlayerShellErrorPolicy
     public static readonly TimeSpan ReadyTimeout = TimeSpan.FromSeconds(20);
 
     /// <summary>
-    /// User-facing message for a shell-reported IFrame API error code (spec 10.3 error message).
+    /// User-facing message for a shell-reported IFrame API error code.
     /// Unknown/null codes get a generic message — the bar must stay meaningful for codes this
     /// policy has never seen.
     /// </summary>

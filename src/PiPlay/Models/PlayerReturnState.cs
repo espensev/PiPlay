@@ -1,7 +1,7 @@
 namespace PiPlay.Models;
 
 /// <summary>
-/// State reported by the Popout Player back to the Source Window when it closes (spec 14).
+/// State reported by the Popout Player back to the Source Window when it closes.
 /// The Source Window owns <c>sourceWasPlayingAtPopout</c> (captured before pausing) and
 /// uses it together with <see cref="LastKnownSeconds"/> to honor REQ-RETURN-01.
 /// </summary>
@@ -31,8 +31,8 @@ public sealed class PlayerReturnState
     public string? VideoId { get; set; }
 
     /// <summary>
-    /// The playlist the player was last inside, if any (spec 22.1: return preserves the playlist
-    /// context). Follows <see cref="VideoId"/>: updated on every tracked navigation, and null when
+    /// The playlist the player was last inside, if any. Follows <see cref="VideoId"/>: updated on
+    /// every tracked navigation, and null when
     /// the current video is not part of a playlist — a stale list must not ride a video that left it.
     /// </summary>
     public string? PlaylistId { get; set; }

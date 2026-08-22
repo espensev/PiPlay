@@ -13,7 +13,7 @@ using PiPlay.Theme;
 namespace PiPlay;
 
 /// <summary>
-/// MainWindow / Source Window (spec 12.1). Hosts the YouTube browsing WebView, applies the
+/// MainWindow / Source Window. Hosts the YouTube browsing WebView, applies the
 /// navigation allowlist, starts the Video Popout lifecycle, shows/hides the Source
 /// Placeholder, and coordinates return.
 /// </summary>
@@ -34,7 +34,7 @@ public partial class MainWindow : Window
     private bool _loadingProfiles;
     private string? _pendingUrl;
 
-    // Video Popout lifecycle state (spec 13).
+    // Video Popout lifecycle state.
     private bool _popoutInProgress;
     private bool _returnInProgress;
     private PlayerWindow? _player;
@@ -51,7 +51,7 @@ public partial class MainWindow : Window
     // The video the source was on when the popout launched (overhaul Task 3): compared against the
     // popout's returned video id to decide navigate-vs-seek on close (REQ-RETURN-01).
     private string? _popoutSourceVideoId;
-    // True when the popout launched from a playlist PAGE (spec 22.1): even when the launch
+    // True when the popout launched from a playlist PAGE: even when the launch
     // resolved the page's first item to start, that id is the popout's, not the Source's — any
     // video the popout then reports is somewhere the source is not, so return must navigate.
     private bool _popoutLaunchedWithoutVideo;
@@ -60,7 +60,7 @@ public partial class MainWindow : Window
     private PlayerReturnState? _pendingReturnReplay;
     private bool _pendingReturnReplayInProgress;
 
-    // Auto (spec §6.1): source-side playback detector + the de-dup key that blocks the return-resume
+    // Auto: source-side playback detector + the de-dup key that blocks the return-resume
     // re-pop loop. The timer only runs while Auto is on and the browser is ready.
     private System.Windows.Threading.DispatcherTimer? _autoTimer;
     private bool _autoTickInProgress;
@@ -133,7 +133,7 @@ public partial class MainWindow : Window
             MaximizeButton.Content = WindowState == WindowState.Maximized ? GlyphRestore : GlyphMaximize;
         SourceInitialized += (_, _) =>
         {
-            // Theme-driven native corner shape (docs/Theme_Preset_Differences.md): explicit theme/override data,
+            // Theme-driven native corner shape (ThemeCatalog and ThemeColors): explicit theme/override data,
             // never an opacity side effect. Default mode leaves the window DWM-pristine.
             ApplyOwnCornerMode();
             if (_placementRestored) return;
@@ -182,7 +182,7 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e) => await InitializeBrowserAsync();
 
-    // --- WebView2 initialization + recovery (spec 15, Q-6) ---
+    // --- WebView2 initialization + recovery ---
 
     private async Task InitializeBrowserAsync()
     {
@@ -256,7 +256,7 @@ public partial class MainWindow : Window
 
     private async void RetryRuntime_Click(object sender, RoutedEventArgs e) => await InitializeBrowserAsync();
 
-    // --- Navigation policy (spec 15.2) - shared helper, two distinct handlers ---
+    // --- Navigation policy - shared helper, two distinct handlers ---
 
     private void Core_NavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
     {
@@ -522,7 +522,7 @@ public partial class MainWindow : Window
         }
     }
 
-    // --- Pin / topmost (spec 6.3) ---
+    // --- Pin / topmost ---
 
     private void PinToggle_Click(object sender, RoutedEventArgs e)
     {
@@ -615,7 +615,7 @@ public partial class MainWindow : Window
         PinnedHint.Foreground = pinBrush;
     }
 
-    // --- Auto: auto-popout on playback (spec §6.1) ---
+    // --- Auto: auto-popout on playback ---
 
     private void AutoToggle_Click(object sender, RoutedEventArgs e)
     {
@@ -718,7 +718,7 @@ public partial class MainWindow : Window
         }
     }
 
-    // --- Profiles (spec 17, MVP basic save/load) ---
+    // --- Profiles ---
 
     private void LoadProfilesIntoCombo()
     {
@@ -822,7 +822,7 @@ public partial class MainWindow : Window
             return;   // cancelled (and an invalid edit never gets here)
         }
 
-        // Name, Url, and the Phase 3 playback Mode are editable; carry the other Phase 2 fields through.
+        // Carry non-editable placement, pin, and fade fields through the profile edit.
         var updated = new Profile
         {
             Name = edited.Value.Name,
@@ -838,7 +838,7 @@ public partial class MainWindow : Window
         var outcome = ProfileService.Update(_settings, original.Name, updated);
         if (outcome == ProfileUpdateOutcome.NameConflict)
         {
-            // Same overwrite/rename prompt the Save path uses (spec 17: no silent clutter).
+            // Same overwrite/rename prompt the Save path uses (no silent clutter).
             if (!Prompt.AskConfirm(this, "Overwrite profile?",
                     $"A profile named \"{updated.Name}\" already exists. Overwrite it?", "Overwrite"))
             {
@@ -873,7 +873,7 @@ public partial class MainWindow : Window
         Log.Info("Profile deleted.");
     }
 
-    // --- Privacy actions: Settings window (spec 19, Phase 2, REQ-PRIVACY-01/02) ---
+    // --- Privacy actions: Settings window (REQ-PRIVACY-01/02) ---
 
     /// <summary>Whether Clear browser data can run right now (live core + no prior clear in flight).</summary>
     internal bool CanClearBrowserData =>
@@ -922,7 +922,7 @@ public partial class MainWindow : Window
             Topmost = owner.Topmost || Topmost || (_player?.Topmost ?? false),
         };
         _settingsDialog = dialog;
-        // Live preview (spec 7.3 / docs/Theme_Preset_Differences.md): slider moves apply to the open popout immediately.
+        // Live preview: slider moves apply to the open popout immediately.
         // animate:false — the event fires per drag tick; restarting the 150ms fade each tick would
         // stair-step and churn animation timers. The drag itself is the animation.
         dialog.OpacityPreviewChanged += (constant, idle) =>
@@ -1058,7 +1058,7 @@ public partial class MainWindow : Window
         ProfileAccentService.ResolvedAccentColor(_settings, EffectiveAccentColor);
 
     /// <summary>
-    /// Tells Settings which color its accent picker is about to edit (P2, spec decision 7). The picker
+    /// Tells Settings which color its accent picker is about to edit. The picker
     /// always edits whatever is painting the app, so it must say which — otherwise a user editing "the
     /// app accent" while a colored profile is active would not know they were changing that profile.
     /// </summary>
@@ -1424,7 +1424,7 @@ public partial class MainWindow : Window
     /// <summary>Test-only: the navigation queued while the browser was not ready (null = none).</summary>
     internal string? PendingUrlForTests => _pendingUrl;
 
-    // --- Video Popout lifecycle (spec 13) ---
+    // --- Video Popout lifecycle ---
 
     private async void PopOutButton_Click(object sender, RoutedEventArgs e)
     {
@@ -1445,7 +1445,7 @@ public partial class MainWindow : Window
 
     private async Task StartVideoPopoutAsync(YouTubeTarget? resolvedTarget = null)
     {
-        // Guards (spec 13.4): browser ready, no popout in flight, single player (ADR-0005).
+        // Guards: browser ready, no popout in flight, single player (ADR-0005).
         if (!CanStartVideoPopout) return;
 
         _popoutInProgress = true;
@@ -1487,11 +1487,11 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // 2a) Spec 13.1 / 22.1: a playlist-only launch starts the page's first playable item.
+            // 2a) A playlist-only launch starts the page's first playable item.
             // YouTube has no videoless "start playlist" watch URL (playlist?list= is a static browse
             // page and playnext=1 is dead), so resolve the first item off the page the Source is
             // already showing. Best-effort (Q-3): when the read fails, the popout degrades to the
-            // playlist page itself — spec 22.1's "may launch" covers that.
+            // playlist page itself as the fallback.
             if (target.IsPlaylistOnly && string.IsNullOrEmpty(target.VideoId))
             {
                 var firstItemUrl = await YouTubeDomBridge.ReadFirstPlaylistItemUrlAsync(core);
@@ -1510,7 +1510,7 @@ public partial class MainWindow : Window
             _popoutSourceVideoId = target.IsPlaylistOnly ? null : target.VideoId;
             _popoutLaunchedWithoutVideo = target.IsPlaylistOnly || string.IsNullOrEmpty(target.VideoId);
 
-            // 2b) Resolve the effective playback mode (spec 10). Profile/global compact settings
+            // 2b) Resolve the effective playback mode. Profile/global compact settings
             // remain reserved data, but ResolveEffectivePopoutMode honors the compact-player
             // kill-switch, so new popouts force Normal while compact is disabled.
             var mode = PlaybackModePolicy.ResolveEffectivePopoutMode(
@@ -1558,8 +1558,8 @@ public partial class MainWindow : Window
             var env = App.Current.WebViewEnvironment.Environment
                       ?? await App.Current.WebViewEnvironment.EnsureCreatedAsync();
 
-            // The target doubles as the compact error bar's fallback handle (spec 10.3 / Q-6,
-            // Stage 4): a compact player that can't play rebuilds the normal watch URL from it,
+            // The target doubles as the compact error bar's fallback handle (Q-6): a compact
+            // player that cannot play rebuilds the normal watch URL from it,
             // so carry the live timestamp onto it — a shell that errors before ever playing has
             // no shell-reported seconds, and the fallback must not restart the video at 0:00.
             target.StartSeconds = seconds ?? target.StartSeconds;
@@ -1582,7 +1582,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            // Failure after pause (spec 13.5): restore the source and resume if it had been playing.
+            // Failure after pause: restore the source and resume if it had been playing.
             Log.Error("Video Popout failed; restoring source.", ex);
             StopSourceSuppressionGuard();
             ShowSourcePlaceholder(false);
@@ -1744,7 +1744,7 @@ public partial class MainWindow : Window
 
     internal void ShowSourcePlaceholder(bool visible, string? note = null)
     {
-        // Tier-1 placeholder (spec 13.3): hide the source WebView, show the accent-derived
+        // Tier-1 placeholder: hide the source WebView, show the accent-derived
         // near-black letterbox panel.
         Browser.Visibility = visible ? Visibility.Hidden : Visibility.Visible;
         SourcePlaceholder.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
@@ -1870,7 +1870,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // Return to the source (spec 14). LastKnownSeconds is nullable; 0 is a valid timestamp.
+            // Return to the source. LastKnownSeconds is nullable; 0 is a valid timestamp.
             // ApplyReturnActionAsync self-skips while Clear browser data is wiping the session.
             BeginReturnTransition();
             ShowSourcePlaceholder(false);
@@ -2009,7 +2009,7 @@ public partial class MainWindow : Window
     public void ActivateFromSecondInstance(string? url)
     {
         // Un-minimize to the window's prior state (Normal or Maximized) rather than forcing Normal,
-        // which would silently drop a maximized layout the user left (REQ-WINDOW-01 / spec 16.4).
+        // which would silently drop a maximized layout the user left (REQ-WINDOW-01).
         // RestoreWindow remembers the pre-minimize state; the guard keeps it from un-maximizing.
         if (WindowState == WindowState.Minimized) System.Windows.SystemCommands.RestoreWindow(this);
         Show();

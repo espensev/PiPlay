@@ -8,7 +8,7 @@ namespace PiPlay.Services;
 
 /// <summary>
 /// Saves/restores native window placement and clamps a window to a visible monitor work
-/// area when the monitor layout changes (spec 16.4, REQ-WINDOW-01, REQ-PROFILE-02).
+/// area when the monitor layout changes (REQ-WINDOW-01; REQ-PROFILE-02).
 /// Uses Win32 placement APIs directly (pixel coordinates) so it is correct under
 /// PerMonitor V2 DPI without any extra dependency. PiPlay never restores a window
 /// fully off-screen.

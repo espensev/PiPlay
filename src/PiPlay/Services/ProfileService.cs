@@ -3,7 +3,7 @@ using PiPlay.Theme;
 
 namespace PiPlay.Services;
 
-/// <summary>Result of <see cref="ProfileService.Update"/> (the Phase 2 edit path).</summary>
+/// <summary>Result of <see cref="ProfileService.Update"/>.</summary>
 public enum ProfileUpdateOutcome
 {
     /// <summary>The named profile was found and replaced in place.</summary>
@@ -16,8 +16,8 @@ public enum ProfileUpdateOutcome
 }
 
 /// <summary>
-/// Basic profile management for the MVP (spec 17): find, upsert (overwrite by name),
-/// remove, and graceful URL validation. Phase 2 adds <see cref="Update"/> for the edit path.
+/// Basic profile management for the MVP: find, upsert (overwrite by name),
+/// remove, graceful URL validation, and <see cref="Update"/> for the edit path.
 /// Profiles live in <see cref="AppSettings.Profiles"/>; persistence is owned by
 /// <see cref="SettingsService"/>.
 /// </summary>
@@ -72,7 +72,7 @@ public static class ProfileService
     /// *different* existing profile, returns <see cref="ProfileUpdateOutcome.NameConflict"/> and
     /// makes no change unless <paramref name="overwrite"/> is set — then the colliding profile is
     /// removed and the edited profile keeps the original's slot. The caller surfaces the
-    /// overwrite/rename prompt (spec 17: duplicate names prompt instead of silent clutter).
+    /// overwrite/rename prompt (duplicate names prompt instead of silent clutter).
     /// </summary>
     public static ProfileUpdateOutcome Update(
         AppSettings settings, string originalName, Profile updated, bool overwrite = false)
@@ -94,7 +94,7 @@ public static class ProfileService
         return ProfileUpdateOutcome.Updated;
     }
 
-    /// <summary>Validate a profile URL. Broken URLs must fail gracefully, even in the MVP (spec 17).</summary>
+    /// <summary>Validate a profile URL. Broken URLs must fail gracefully, even in the MVP.</summary>
     public static (bool Ok, string? Error) ValidateUrl(string? url)
     {
         if (string.IsNullOrWhiteSpace(url))

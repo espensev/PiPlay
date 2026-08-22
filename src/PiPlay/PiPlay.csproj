@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
 
-    <!-- Quality-first publish posture (spec 9 / ADR-0002): no trimming/single-file/AOT. -->
+    <!-- Quality-first publish posture (ADR-0002): no trimming/single-file/AOT. -->
     <PublishTrimmed>false</PublishTrimmed>
     <PublishSingleFile>false</PublishSingleFile>
     <SelfContained>false</SelfContained>
@@ -16,7 +16,7 @@
     <AssemblyName>PiPlay</AssemblyName>
     <RootNamespace>PiPlay</RootNamespace>
 
-    <!-- App / taskbar icon and per-monitor DPI manifest (spec 5.4, REQ-WINDOW-01). -->
+    <!-- App / taskbar icon and per-monitor DPI manifest (REQ-WINDOW-01). -->
     <ApplicationIcon>Assets\piplay.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
 
@@ -78,7 +78,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Compact-player shell assets (spec 10.3): copied beside the app so WebView2 can map the
+    <!-- Compact-player shell assets: copied beside the app so WebView2 can map the
          PlayerShell folder to the https://piplay.local/ virtual host at runtime. These files are
          already default-included as None, so we Update (not Include) to set the copy behavior and
          avoid a duplicate-item build error. -->

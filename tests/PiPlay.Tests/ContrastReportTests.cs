@@ -4,20 +4,8 @@ using Xunit.Abstractions;
 namespace PiPlay.Tests;
 
 /// <summary>
-/// Layer 2 (Logic) — a RUNNABLE WCAG contrast report, not just a gate. It reuses the canonical
-/// <see cref="Wcag.ContrastRatio"/> formula (same assembly/namespace, no InternalsVisibleTo) so the
-/// ratios it prints are the EXACT ratios the catalog/markup gates enforce — never a reimplementation.
-///
-/// During theme design we repeatedly hand-compute contrast for candidate hex pairs: the base palette
-/// AND the Phase-B *derived* tokens (AccentPressed/AccentMuted — see CON-1 in
-/// docs/Theme_Preset_Differences.md), where a wrong by-hand number emits a false
-/// "WCAG-safe" verdict. Paste a candidate pair into the [InlineData] rows below, set its floor, then:
-///
-///   dotnet test PiPlay.sln --filter "FullyQualifiedName~ContrastReportTests" --logger "console;verbosity=detailed"
-///
-/// Each row prints "label: fg on bg = R.RR:1 (floor F.F)" and asserts ratio &gt;= floor, so the same run
-/// both reports the numbers and fails if a candidate breaches its floor. (Without the --logger flag the
-/// gate still runs, but xUnit suppresses ITestOutputHelper output on a passing test.)
+/// Runs WCAG contrast checks with the independent <see cref="Wcag.ContrastRatio"/> test oracle and
+/// emits each measured ratio through xUnit output.
 /// </summary>
 [Trait(TestCategories.Key, TestCategories.Logic)]
 public class ContrastReportTests
@@ -32,13 +20,6 @@ public class ContrastReportTests
     [InlineData("#FFFFFF", "#E8564C", "white text on Danger (minimal warm)", 3.0)]
     [InlineData("#FF06141A", "#00D4FF", "dark button text on accent cyan (install default)", 4.5)]
     [InlineData("#FF06141A", "#4A8FAB", "dark button text on accent steel (dimmest chip)", 4.5)]
-    // --- CON-1 candidate rows (Phase B): paste DERIVED tokens here to validate them BEFORE they ship.
-    //     The Phase-B mixes (ThemeAccentProfile) do not exist in src yet, so these stay COMMENTED — a
-    //     live [InlineData] would red CI before Phase B lands the corrected mix. The hexes below are
-    //     ILLUSTRATIVE (recompute from the real mix when Phase B exists); per the review they FAIL the
-    //     4.5 floor today, which is exactly the CON-1 breach to fix:
-    //   [InlineData("#FF06141A", "<AccentPressed-steel>", "AccentPressed steel under dark text (CON-1 ~3.82)", 4.5)]
-    //   [InlineData("#FF06141A", "<AccentMuted-steel>",   "AccentMuted steel under dark text (CON-1 ~1.98)", 4.5)]
     public void Contrast_report_for_candidate_pairs(string fg, string bg, string label, double floor)
     {
         var ratio = Wcag.ContrastRatio(fg, bg);

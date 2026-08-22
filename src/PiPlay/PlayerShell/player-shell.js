@@ -1,4 +1,4 @@
-// PiPlay compact-player shell logic (spec 10.3).
+// PiPlay compact-player shell logic.
 //
 // Bridges the YouTube IFrame API player to the PiPlay host over WebView2 messaging, following the
 // PlayerShellProtocol contract (mirrored in src/PiPlay/Services/PlayerShellProtocol.cs):
@@ -17,11 +17,11 @@
     try { if (host) host.postMessage(JSON.stringify(message)); } catch (e) { /* best-effort */ }
   }
 
-  // Allowlisted shell -> host window actions (Phase 4). The host validates against the same
+  // Allowlisted shell -> host window actions. The host validates against the same
   // closed set (PlayerShellProtocol); both sides allowlist so neither can widen the channel.
   var REQUEST_ACTIONS = ["close", "pinToggle", "fullscreenToggle"];
 
-  // Overlay controls (Phase 4 Task 5) call this for window-level actions; transport-only here.
+  // Overlay controls call this for window-level actions; transport-only here.
   function postRequest(action) {
     if (REQUEST_ACTIONS.indexOf(action) < 0) return;
     postToHost({ type: "request", action: action });

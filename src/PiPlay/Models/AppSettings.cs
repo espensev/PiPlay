@@ -5,9 +5,10 @@ using PiPlay.Theme;
 namespace PiPlay.Models;
 
 /// <summary>
-/// Root application settings (spec 12.6). Persisted atomically to
-/// %LOCALAPPDATA%/PiPlay/settings.json. Browser session/cookies are NOT stored here -
-/// the WebView2 user-data folder owns that.
+/// Root application settings. Persisted atomically to
+/// <see cref="PiPlay.Services.AppPaths.SettingsFile"/> under the data-root precedence implemented
+/// by <see cref="PiPlay.Services.AppPaths.ResolveRoot"/>. Browser session/cookies are not stored
+/// here; the WebView2 user-data folder owns them.
 /// </summary>
 public sealed class AppSettings
 {
@@ -22,7 +23,7 @@ public sealed class AppSettings
     public string LastUrl { get; set; } = "https://www.youtube.com/";
 
     /// <summary>
-    /// Auto (spec §6.1): automatically start a Video Popout when a /watch video is playing. Off by
+    /// Auto: automatically start a Video Popout when a /watch video is playing. Off by
     /// default; a missing value deserializes to false, so every existing settings.json loads as Auto off.
     /// </summary>
     public bool AutoPopout { get; set; }
@@ -49,7 +50,7 @@ public sealed class PlayerSettings
     public bool Topmost { get; set; } = true;
 
     /// <summary>
-    /// Global default playback mode for new popouts (spec 10.2, Phase 3). <c>false</c> = Normal page
+    /// Global default playback mode for new popouts. <c>false</c> = Normal page
     /// mode (the default and fallback); <c>true</c> = Compact embedded mode. A per-profile
     /// <see cref="Profile.Mode"/> overrides this per launch (REQ-PROFILE-01). Off by default; a
     /// missing value deserializes to false, so every existing settings.json keeps Normal mode.
@@ -65,7 +66,7 @@ public sealed class PlayerSettings
     public bool FocusedPresentation { get; set; }
 
     /// <summary>
-    /// Fade the Popout Player controls when idle (spec 11, Phase 2). On by default;
+    /// Fade the Popout Player controls when idle. On by default;
     /// when off the chrome strip stays visible exactly as in the MVP.
     /// </summary>
     public bool FadeEnabled { get; set; } = true;
@@ -74,7 +75,7 @@ public sealed class PlayerSettings
     public int FadeIdleDelayMs { get; set; } = 2500;
 
     /// <summary>
-    /// Whole-window opacity the Popout Player eases to when idle (spec 7.3, Phase 4). 1.0 = no
+    /// Whole-window opacity the Popout Player eases to when idle. 1.0 = no
     /// idle fade (the default); a missing value deserializes to 1.0, so existing settings.json
     /// files keep today's look. Sanitized by <see cref="Services.WindowOpacityPolicy.Normalize"/>:
     /// values outside 0.1–1.0 reset to 1.0; 0.1–0.45 is the hand-edit unlock range (the UI slider
@@ -83,14 +84,14 @@ public sealed class PlayerSettings
     public double IdleWindowOpacity { get; set; } = 1.0;
 
     /// <summary>
-    /// Whole-window opacity of the Popout Player while active (spec 7.3, Phase 4 — the "Active"
+    /// Whole-window opacity of the Popout Player while active (the "Active"
     /// slider; the user's opaque reference look is this at 1.0). Same default, back-compat, and
     /// sanitization rules as <see cref="IdleWindowOpacity"/>.
     /// </summary>
     public double ConstantWindowOpacity { get; set; } = 1.0;
 
     /// <summary>
-    /// Auto-hide the Popout Player's chrome strip (spec 7.2, Phase 4): an idle-faded strip also
+    /// Auto-hide the Popout Player's chrome strip: an idle-faded strip also
     /// height-collapses so the video fills the window; hovering the top edge reveals it. Shares
     /// the controls-fade idle source, so it only engages while <see cref="FadeEnabled"/> is on.
     /// Off by default; a missing value deserializes to false, so existing settings.json files
@@ -120,7 +121,7 @@ public sealed class ThemeSettings
     public string FadeDelayPreset { get; set; } = ThemeCatalog.DefaultFadeDelayPreset;
 
     /// <summary>
-    /// Corner profile override (docs/Theme_Preset_Differences.md): "theme" (default) follows the selected preset's
+    /// Corner profile override (ThemeCatalog and ThemeColors): "theme" (default) follows the selected preset's
     /// radii + native corner mode; "square"/"small"/"round" swap the whole profile (legacy "soft"
     /// normalizes to "round" — both were always DWMWCP_ROUND). A
     /// missing value deserializes to null and sanitizes to "theme", so existing settings.json
@@ -129,7 +130,7 @@ public sealed class ThemeSettings
     public string CornerStyle { get; set; } = ThemeCatalog.DefaultCornerStyle;
 
     /// <summary>
-    /// Behavior OVERRIDES, not final values (docs/Theme_Preset_Differences.md): null = follow the selected
+    /// Behavior OVERRIDES, not final values (ThemeCatalog and ThemeColors): null = follow the selected
     /// preset's default; the resolver applies preset default → override → normalized. The
     /// property names keep their original JSON spelling for settings back-compat.
     /// </summary>
@@ -149,7 +150,7 @@ public sealed class ThemeSettings
         AccentColor = ThemeCatalog.AccentColorForLegacyAccent(player.PinAccent),
         FadeDelayPreset = ThemeCatalog.FadeDelayPresetForMilliseconds(player.FadeIdleDelayMs),
         // The legacy behavior values become EXPLICIT overrides at seed time, so the resolver's
-        // preset-default fallback (docs/Theme_Preset_Differences.md) can never change a migrated user's
+        // preset-default fallback (ThemeCatalog and ThemeColors) can never change a migrated user's
         // configured look. Callers sanitize Player before seeding, so these are normalized.
         StripAutoHide = player.StripAutoHide,
         ActiveWindowOpacity = player.ConstantWindowOpacity,

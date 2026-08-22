@@ -369,7 +369,7 @@ public class XamlInvariantTests
 
         Assert.Equal("{DynamicResource AccentShellTintColor}", stops[0].Attribute("Color")?.Value);
         Assert.Equal("{DynamicResource SurfaceBaseColor}", stops[1].Attribute("Color")?.Value);
-        // docs/Theme_Preset_Differences.md: the wash sweeps to 0.80 so it reads as one
+        // ThemeCatalog and ThemeColors: the wash sweeps to 0.80 so it reads as one
         // gradient into the washed background instead of dying mid-bar.
         Assert.Equal("0.80", stops[1].Attribute("Offset")?.Value);
     }
@@ -578,7 +578,7 @@ public class XamlInvariantTests
         Assert.Contains("Settings controls whether its row also hides", fade.Attribute("ToolTip")?.Value);
     }
 
-    // --- Strip auto-hide layout (spec 7.2, Phase 4 Task 4) ---
+    // --- Strip auto-hide layout ---
 
     [Fact]
     public void Player_strip_row_is_auto_sized_so_a_collapsed_strip_returns_its_height()
@@ -602,7 +602,7 @@ public class XamlInvariantTests
         Assert.Equal("Drag to move popout", handle.Attribute("ToolTip")?.Value);
     }
 
-    // --- Opacity sliders pin the policy floor (spec 7.3, Phase 4) ---
+    // --- Opacity sliders pin the policy floor ---
 
     [Theory]
     [InlineData("ActiveOpacitySlider")]
@@ -680,7 +680,7 @@ public class XamlInvariantTests
         Assert.Contains(expected, backgrounds);
     }
 
-    // --- Compact error bar (spec 10.3 / Q-6, Stage 4) ---
+    // --- Compact error bar (Q-6) ---
 
     [Fact]
     public void Player_error_bar_is_collapsed_by_default_with_accessible_actions()
@@ -773,7 +773,7 @@ public class XamlInvariantTests
         }
     }
 
-    // --- Theme-owned rounding (docs/Theme_Preset_Differences.md): no scattered hardcoded radii ---
+    // --- Theme-owned rounding (ThemeCatalog and ThemeColors): no scattered hardcoded radii ---
 
     [Theory]
     [InlineData("MainWindow.xaml")]
@@ -855,7 +855,7 @@ public class XamlInvariantTests
             ("RadiusSwatch", Inv(radii.Swatch)),
             ("RadiusScrollbarThumb", Inv(radii.ScrollbarThumb)),
             ("RadiusToolTip", Inv(radii.ToolTip)),
-            // Compatibility aliases follow Input/Button (docs/Theme_Preset_Differences.md).
+            // Compatibility aliases follow Input/Button (ThemeCatalog and ThemeColors).
             ("ControlCornerRadius", Inv(radii.Input)),
             ("ButtonCornerRadius", Inv(radii.Button)),
         })
@@ -1018,7 +1018,7 @@ public class XamlInvariantTests
         Assert.Equal(Hex(set.ChromeGlyph), t["AccentChromeGlyphColor"]);
         Assert.Equal(Hex(set.OnAccent), t["OnAccentColor"]);
         Assert.Equal(Hex(set.OnAccentPressed), t["OnAccentPressedColor"]);
-        // Background room tones (docs/Theme_Preset_Differences.md): seeds ARE the derived defaults.
+        // Background room tones (ThemeCatalog and ThemeColors): seeds ARE the derived defaults.
         Assert.Equal(Hex(set.Letterbox), t["AccentLetterboxColor"]);
         Assert.Equal(Hex(set.BackgroundWash), t["AppBackgroundWashColor"]);
         Assert.Equal(Hex(set.PopoutEdge), t["PopoutAccentEdgeColor"]);
@@ -1069,7 +1069,7 @@ public class XamlInvariantTests
         var presetTags = NamesWhere(n => n.StartsWith("Theme") && n.EndsWith("Preset")).Select(Tag).ToHashSet();
         Assert.Equal(ThemeCatalog.Presets.Select(p => p.Id).ToHashSet(), presetTags!);
 
-        // Corner-style chip Tags are the catalog corner style keys (docs/Theme_Preset_Differences.md).
+        // Corner-style chip Tags are the catalog corner style keys (ThemeCatalog and ThemeColors).
         var cornerTags = NamesWhere(n => n.StartsWith("CornerStyle")).Select(Tag).ToHashSet();
         Assert.Equal(ThemeCatalog.CornerStyleOptions.Select(o => o.Key).ToHashSet(), cornerTags!);
     }

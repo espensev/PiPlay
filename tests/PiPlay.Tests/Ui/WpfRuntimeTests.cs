@@ -218,7 +218,7 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void ThemeResourceApplier_derives_and_applies_the_accent_state_tokens_REQ_UI_01() => StaTestThread.Invoke(() =>
     {
-        // Phase B / Task 4: the applier derives the accent state set for the resolved (accent x theme)
+        // The applier derives the accent state set for the resolved (accent x theme)
         // and replaces every token + its Color companion, so DynamicResource consumers re-resolve.
         // Uses dim steel on soft-glass — the CON-1 case whose pressed foreground must flip to white.
         var res = new ResourceDictionary();
@@ -1211,7 +1211,7 @@ public class WpfRuntimeTests : IDisposable
         Assert.NotNull(url.Template.FindName("PART_ContentHost", url));
     });
 
-    // --- Compact player mode (Phase 3, Stage 1): mode-specific minimums + settings/profile UI ---
+    // --- Compact player mode: mode-specific minimums and settings/profile UI ---
 
     [Fact]
     public void PlayerWindow_uses_normal_minimum_size_by_default() => StaTestThread.Invoke(() =>
@@ -1286,7 +1286,7 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void MainWindow_reverts_a_previewed_accent_on_dismiss() => StaTestThread.Invoke(() =>
     {
-        // Spec D5 / plan-review P1: dismissing Settings without applying (ShowDialog() != true) and
+        // Dismissing Settings without applying (ShowDialog() != true) and
         // cancelling the profile edit must revert every previewed accent surface to the resolved accent.
         var w = new MainWindow();
         w.ReplaceSettingsForTests(new AppSettings());   // global accent = default, no profile override
@@ -1325,7 +1325,7 @@ public class WpfRuntimeTests : IDisposable
     public void PlayerWindow_uses_compact_minimum_and_clamps_launch_size_up() => StaTestThread.Invoke(() =>
     {
         // Launch below the compact floor: MinWidth/MinHeight must be the compact minimum and the
-        // resolved launch size must clamp up to it (spec 10.2: no 320x180 for embed mode).
+        // resolved launch size must clamp up to it (no 320x180 for embed mode).
         var w = new PlayerWindow(
             environment: null!,
             url: "https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1",
@@ -1342,7 +1342,7 @@ public class WpfRuntimeTests : IDisposable
         Assert.True(w.Height >= PlaybackModePolicy.CompactMinHeight, $"Height {w.Height} below compact floor.");
     });
 
-    // --- Compact error bar + normal-page fallback (Phase 3, Stage 4: spec 10.3 / Q-6) ---
+    // --- Compact error bar + normal-page fallback (Q-6) ---
 
     private static PlayerWindow NewCompactPlayer() =>
         new(environment: null!, url: "https://piplay.local/player.html?v=dQw4w9WgXcQ",
@@ -1474,7 +1474,7 @@ public class WpfRuntimeTests : IDisposable
         Assert.Null(new SettingsWindow(isBrowserReady: true).FindName("CompactModeHintText"));
     });
 
-    // --- Whole-window opacity (spec 7.3, Phase 4) ---
+    // --- Whole-window opacity ---
 
     [Fact]
     public void SettingsWindow_reflects_and_updates_window_opacity() => StaTestThread.Invoke(() =>
@@ -1499,7 +1499,7 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void SettingsWindow_preserves_hand_edited_sub_floor_opacity_until_the_slider_moves() => StaTestThread.Invoke(() =>
     {
-        // Spec 7.3 explicit unlock: a hand-edited 0.25 displays clamped at the 45% slider floor
+        // A hand-edited 0.25 displays clamped at the 45% slider floor
         // but must survive an unrelated settings change untouched.
         var w = new SettingsWindow(isBrowserReady: true, activeOpacityOverride: 0.25, idleOpacityOverride: 1.0);
 
@@ -1912,7 +1912,7 @@ public class WpfRuntimeTests : IDisposable
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr SetWindowLongPtrW(IntPtr hwnd, int index, IntPtr newValue);
 
-    // --- Shell request channel + strip auto-hide (spec 7.2 / 10.3, Phase 4 Task 4) ---
+    // --- Shell request channel + strip auto-hide ---
 
     private static PlayerWindow NewCompactAutoHidePlayer() =>
         new(environment: null!, url: "https://piplay.local/player.html?v=dQw4w9WgXcQ",
@@ -2192,7 +2192,7 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal("dQw4w9WgXcQ", w.ReturnVideoIdForTests);   // launch state untouched
     });
 
-    // --- Background room tones (docs/Theme_Preset_Differences.md) ---
+    // --- Background room tones (ThemeCatalog and ThemeColors) ---
 
     [Fact]
     public void Backgrounds_wear_the_accent_room_tones() => StaTestThread.Invoke(() =>
@@ -2226,7 +2226,7 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void Profile_rows_wear_their_own_accent_as_a_wash() => StaTestThread.Invoke(() =>
     {
-        // docs/Theme_Preset_Differences.md: each dropdown row washes in its OWN accent at the theme's subtle
+        // ThemeCatalog and ThemeColors: each dropdown row washes in its OWN accent at the theme's subtle
         // alpha (published as ProfileRowWashAlpha), behind the identity rail.
         var alpha = Assert.IsType<byte>(Application.Current.Resources["ProfileRowWashAlpha"]);
 
@@ -2275,7 +2275,7 @@ public class WpfRuntimeTests : IDisposable
         Assert.Same(Application.Current.Resources["PopoutAccentEdge"], edge.BorderBrush);
     });
 
-    // --- Playlist context in the popout's return identity (spec 22.1: return preserves it) ---
+    // --- Playlist context in the popout's return identity (return preserves it) ---
 
     [Fact]
     public void Popout_source_change_tracks_the_playlist_context() => StaTestThread.Invoke(() =>
@@ -2446,7 +2446,7 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void Playlist_only_launch_returns_by_navigating_to_the_reported_video() => StaTestThread.Invoke(() =>
     {
-        // Popped out from a playlist PAGE (no source video id, spec 22.1): the popout started the
+        // Popped out from a playlist page with no source video id: the popout started the
         // queue, so returning must follow the user to wherever the queue got to.
         var w = new MainWindow();
         w.SeedPopoutReturnForTests(sourceVideoId: null, popoutLaunchedWithoutVideo: true);
@@ -2530,7 +2530,7 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void Strip_does_not_collapse_when_auto_hide_is_off() => StaTestThread.Invoke(() =>
     {
-        var w = NewCompactPlayer();   // fade on, auto-hide off: Stage 4 behavior byte-for-byte
+        var w = NewCompactPlayer();   // fade on, auto-hide off
         w.HideControlsForTests();
         w.CompleteHideFadeForTests();
 
@@ -2813,13 +2813,7 @@ public class WpfRuntimeTests : IDisposable
             Style = (Style)Application.Current.FindResource("DarkTextBox"),
         };
         var host = new Border { Background = Brushes.Black, Child = box, UseLayoutRounding = false };
-        using var presentationSource = new HwndSource(new HwndSourceParameters("PiPlay URL text render test")
-        {
-            Width = 320,
-            Height = (int)Math.Ceiling(expectedHeight),
-            WindowStyle = unchecked((int)0x80000000), // WS_POPUP without WS_VISIBLE
-        }) { RootVisual = host };
-
+        Assert.Null(PresentationSource.FromVisual(host)); // Detached from an HwndTarget.
         host.Measure(new Size(320, double.PositiveInfinity));   // unconstrained height: MinHeight drives it
         var h = host.DesiredSize.Height;
         host.Arrange(new Rect(0, 0, 320, h));

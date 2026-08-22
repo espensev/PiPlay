@@ -8,10 +8,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Get-Sha256Hex {
-    param([Parameter(Mandatory = $true)][string]$Path)
-    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToUpperInvariant()
-}
+. (Join-Path $PSScriptRoot 'StableDeployRoot.ps1')
 
 function Assert-HasProperties {
     param(
@@ -38,6 +35,8 @@ function Get-BuildInfoPath {
     return $null
 }
 
+$PublishRoot = Resolve-FullyQualifiedFileSystemPath -Path $PublishRoot -Name 'PublishRoot'
+Assert-NoExistingReparsePointComponents -Path $PublishRoot -Name 'PublishRoot'
 if (-not (Test-Path -LiteralPath $PublishRoot)) {
     throw "Publish root not found: $PublishRoot"
 }
@@ -79,7 +78,13 @@ foreach ($target in $targets) {
 
     foreach ($entry in $artifactHashes) {
         Assert-HasProperties -Object $entry -PropertyNames @('path', 'size', 'sha256') -Context "artifact entry in $buildInfoPath"
-        $artifactPath = Join-Path $target $entry.path
+    }
+    $resolvedArtifacts = @(Resolve-ManifestArtifactPaths `
+        -PayloadRoot $target -Entries $artifactHashes)
+
+    foreach ($resolvedArtifact in $resolvedArtifacts) {
+        $entry = $resolvedArtifact.Entry
+        $artifactPath = $resolvedArtifact.FullPath
         if (-not (Test-Path -LiteralPath $artifactPath)) {
             throw "Artifact '$($entry.path)' listed in $buildInfoPath does not exist."
         }

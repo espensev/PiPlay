@@ -3,7 +3,7 @@ namespace PiPlay.Models;
 /// <summary>
 /// Result of parsing a YouTube URL (produced by YouTubeUrlHelper). Carries whatever was
 /// found plus an optional FallbackReason used for the playlist mix/radio degrade case
-/// (spec 12.4, 22.1) so the UI can show a non-blocking note without failing the popout.
+/// so the UI can show a non-blocking note without failing the popout.
 /// </summary>
 public sealed class YouTubeTarget
 {

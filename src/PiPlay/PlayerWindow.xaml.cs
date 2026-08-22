@@ -13,7 +13,7 @@ using PiPlay.Theme;
 namespace PiPlay;
 
 /// <summary>
-/// PlayerWindow / Popout Player (spec 12.2): a borderless media window hosting the
+/// PlayerWindow / Popout Player: a borderless media window hosting the
 /// popped-out YouTube playback on the shared WebView2 environment. Provides native-quality
 /// move/resize, a Pin toggle, polls the last-known timestamp, and reports return state to
 /// the Source Window when it closes.
@@ -34,33 +34,33 @@ public partial class PlayerWindow : Window
     // window without un-expanding one the user expanded deliberately.
     private bool _maximizedForFullScreenElement;
 
-    // Mutable: the compact fallback (spec 10.3 / Q-6) flips the window to normal-mode behavior in
+    // Mutable: the compact fallback (Q-6) flips the window to normal-mode behavior in
     // place, so the mode-dependent seams (timestamp source, minimum size) follow the live surface.
     private PlaybackMode _mode;
 
-    // Controls fade (spec 11, Phase 2): idle/hover state machine over the chrome strip only.
+    // Controls fade: idle/hover state machine over the chrome strip only.
     private readonly DispatcherTimer _idleTimer;
     private bool _fadeEnabled;
     private bool _isDragging;
     private bool _controlsVisible = true;
     private string _accentColor = ThemeCatalog.DefaultAccentColor;
 
-    // Strip auto-hide (spec 7.2 chrome fade, Phase 4): when on, an idle-hidden strip also
+    // Strip auto-hide: when on, an idle-hidden strip also
     // height-collapses so the video fills the window; the top-edge hover band (via the activity
     // probe — WPF sees no mouse over the WebView2 child) reveals it. Same idle source as the
     // fade, so fade-off means no auto-hide either.
     private bool _stripAutoHide;
 
-    // Whole-window opacity (spec 7.3, Phase 4): two persisted levels applied as layered alpha by
+    // Whole-window opacity: two persisted levels applied as layered alpha by
     // WindowOpacityApplier. Idle ONSET shares _idleTimer with the controls fade (one idleness
     // definition); the hover-restore poll exists because WPF receives no mouse events over the
-    // WebView2 child HWND (Stage 0 spike finding), so restoring on movement over the video needs
+    // WebView2 child HWND, so restoring on movement over the video uses
     // a cursor probe. The poll runs while anything needs it (idle dip configured, or strip
     // auto-hide armed) — see UpdateActivityProbe; off at defaults.
     private double _constantWindowOpacity;
     private double _idleWindowOpacity;
     private bool _windowOpacityIdle;
-    private DwmCornerMode _dwmCornerMode;            // theme/override native corner shape (docs/Theme_Preset_Differences.md)
+    private DwmCornerMode _dwmCornerMode;            // theme/override native corner shape (ThemeCatalog and ThemeColors)
     private double _popoutCornerRadiusDip;           // large Round silhouette; resolved ThemeRadii.PopoutFrame
     private bool _customWindowRegionApplied;
     private int _probeCursorX, _probeCursorY;        // last cursor position the activity probe saw
@@ -78,7 +78,7 @@ public partial class PlayerWindow : Window
     private bool _nudgePlayOnInitialPause;
     private bool _finalReturnPlaybackCaptured;
 
-    // Compact (shell) mode only: the host side of the IFrame-API bridge (spec 10.3), the one-shot
+    // Compact (shell) mode only: the host side of the IFrame-API bridge, the one-shot
     // "the IFrame API never came up" watchdog, and the one-way fallback latch.
     private PlayerShellBridge? _shellBridge;
     private PlayerSurfaceDragBridge? _surfaceDragBridge;
@@ -94,11 +94,11 @@ public partial class PlayerWindow : Window
 
     // Mutable navigation state (overhaul Task 3): an in-place retarget (recommendation click via
     // NewWindowRequested) moves the player off its launch video, so the current URL and the target
-    // the error bar's fallback reopens (Stage 4 / Q-6) must follow the LIVE video, not the launch one.
+    // the error bar's fallback reopens (Q-6) must follow the LIVE video, not the launch one.
     private string _currentUrl;
     private YouTubeTarget? _currentTarget;
 
-    /// <summary>Raised once when the player has closed, carrying the state needed to return (spec 14).</summary>
+    /// <summary>Raised once when the player has closed, carrying the state needed to return.</summary>
     public event EventHandler<PlayerReturnState>? PlayerClosed;
 
     /// <summary>
@@ -141,7 +141,7 @@ public partial class PlayerWindow : Window
         _returnState.VideoId = fallbackTarget?.VideoId;   // the launch video until navigation says otherwise
         _returnState.PlaylistId = fallbackTarget?.PlaylistId;
 
-        // Mode-specific minimum (spec 10.2 / 16.1): compact embed mode needs a larger floor than the
+        // Mode-specific minimum: compact embed mode needs a larger floor than the
         // 320x180 normal minimum so the embedded player controls stay usable. MinWidth/MinHeight set
         // the floor and clamp the launch size up (the Math.Max below). A saved sub-minimum placement
         // is raised to the same floor via PlacementMath.EnsureMinSize (the saved bounds are physical
@@ -174,7 +174,7 @@ public partial class PlayerWindow : Window
 
         // Compact only: if the shell never sends ANY bridge message (ready/state/error) within the
         // policy window, the IFrame API is dead (blocked script, offline) — surface the error bar
-        // (spec 10.3 / Q-6). Any inbound message stops it.
+        // (Q-6); any inbound message stops it.
         _shellReadyTimer = new DispatcherTimer { Interval = PlayerShellErrorPolicy.ReadyTimeout };
         _shellReadyTimer.Tick += ShellReadyTimer_Tick;
 
@@ -185,7 +185,7 @@ public partial class PlayerWindow : Window
         _opacityHoverPoll = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _opacityHoverPoll.Tick += OpacityHoverPoll_Tick;
 
-        // Idle timer drives the fade-out; any mouse move restarts it (spec 7.1–7.2).
+        // Idle timer drives the fade-out; any mouse move restarts it.
         // Both timers exist before ApplyAppearance, which touches the interval AND the probe.
         _idleTimer = new DispatcherTimer();
         _idleTimer.Tick += IdleTimer_Tick;
@@ -219,7 +219,7 @@ public partial class PlayerWindow : Window
         SourceInitialized += (_, _) =>
         {
             if (_placement is not null) WindowPlacementService.Restore(this, _placement);
-            // Theme-driven native corners (docs/Theme_Preset_Differences.md): explicit theme/override data, no
+            // Theme-driven native corners (ThemeCatalog and ThemeColors): explicit theme/override data, no
             // longer an opacity side effect. Default mode leaves the window DWM-pristine.
             ApplyCornerModeToHwnd();
             ApplyWindowOpacityToHwnd(animate: false);   // appear at the configured level, no flash
@@ -259,7 +259,7 @@ public partial class PlayerWindow : Window
 
             if (_mode == PlaybackMode.Compact)
             {
-                // Compact mode hosts the local shell (spec 10.3): map its virtual host before
+                // Compact mode hosts the local shell: map its virtual host before
                 // navigating, then let the shell bridge (IFrame API state) drive the return timestamp.
                 WebViewEnvironmentService.MapShellVirtualHost(core);
                 _shellBridge = new PlayerShellBridge(core);
@@ -440,7 +440,7 @@ public partial class PlayerWindow : Window
             !CompleteNavigation(_navigationGeneration, e.IsSuccess)) return;
 
         // A compact shell that failed to load outright can never message the host — surface the
-        // error bar now instead of waiting out the watchdog (spec 10.3 / Q-6, Stage 4).
+        // error bar now instead of waiting out the watchdog (Q-6).
         if (_mode == PlaybackMode.Compact && !e.IsSuccess)
         {
             _shellReadyTimer.Stop();
@@ -493,7 +493,7 @@ public partial class PlayerWindow : Window
         _returnState.PlaybackRate = null;
     }
 
-    // --- Compact shell bridge + error/fallback path (spec 10.3 / Q-6, Stage 4) ---
+    // --- Compact shell bridge + error/fallback path (Q-6) ---
 
     private void ShellBridge_Ready(object? sender, EventArgs e) => _shellReadyTimer.Stop();
 
@@ -523,7 +523,7 @@ public partial class PlayerWindow : Window
     }
 
     /// <summary>
-    /// Map an allowlisted shell window-action request (spec 12.5 / docs/YouTube_Compliance.md) onto the EXISTING
+    /// Map an allowlisted shell window-action request (PlayerShellProtocol.AllowedRequests) onto the EXISTING
     /// native handlers — the shell can ask for exactly what the chrome strip already does, never
     /// more. Off-allowlist actions were already dropped at the parse layer (they arrive as
     /// Unknown, which the bridge never surfaces), so this switch is the second of two gates.
@@ -625,7 +625,7 @@ public partial class PlayerWindow : Window
     {
         ErrorText.Text = message;
         ErrorBar.Visibility = Visibility.Visible;
-        // Redacted target only (spec 17): never the full query string.
+        // Redacted target only: never the full query string.
         Log.Info($"Compact player error shown (\"{message}\") for {Log.RedactUrl(_currentUrl)}; " +
                  "normal-page fallback offered.");
     }
@@ -735,7 +735,7 @@ public partial class PlayerWindow : Window
             if (state is null || !IsSyncPollCurrent(generation) || _finalReturnPlaybackCaptured) return;
 
             // The popout is the active surface now: if it came up paused, nudge play once
-            // (play() is an allowed control per spec 19). Best-effort; never forced again.
+            // with the allowlisted play() control. Best-effort; never forced again.
             // REQ-RETURN-07: a popout launched from a paused source is never auto-nudged.
             if (_nudgePlayOnInitialPause && !_nudgedPlay && state.Paused)
             {
@@ -866,7 +866,7 @@ public partial class PlayerWindow : Window
     }
 
     /// <summary>
-    /// Secondary expand route (spec settled decision 14): a compact fullscreen ELEMENT (the
+    /// Secondary expand route: a compact fullscreen ELEMENT (the
     /// shell's YouTube fullscreen button) expands the window; exiting restores it ONLY if the
     /// element caused the expansion. Gated on the LIVE mode — the compact→normal fallback flips
     /// <see cref="_mode"/> in place, and the normal watch page must not gain a fullscreen
@@ -921,7 +921,7 @@ public partial class PlayerWindow : Window
     internal string ExpandGlyphForTests => (string)ExpandButton.Content;
     internal string ExpandToolTipForTests => (string)ExpandButton.ToolTip;
 
-    // --- Controls fade (spec 11, Phase 2) ---
+    // --- Controls fade ---
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e) =>
         SettingsRequested?.Invoke(this, EventArgs.Empty);
@@ -1043,8 +1043,7 @@ public partial class PlayerWindow : Window
         if (FadePolicy.ShouldHide(_fadeEnabled, ChromeStrip.IsMouseOver, _isDragging, idleElapsed: true))
         {
             HideControls();
-            // Window opacity idles on the SAME tick with the SAME inputs (one idleness definition,
-            // spec 7.1–7.3).
+            // Window opacity idles on the same tick with the same inputs as the controls fade.
             EnterWindowOpacityIdle();
         }
         else if (_fadeEnabled)
@@ -1054,7 +1053,7 @@ public partial class PlayerWindow : Window
         }
     }
 
-    // --- Whole-window opacity (spec 7.3, Phase 4) ---
+    // --- Whole-window opacity ---
 
     internal (double Constant, double Idle) WindowOpacityLevelsForTests => (_constantWindowOpacity, _idleWindowOpacity);
     internal bool IsWindowOpacityIdleForTests => _windowOpacityIdle;
@@ -1081,7 +1080,7 @@ public partial class PlayerWindow : Window
         var active = WindowOpacityPolicy.Effective(isIdle: false, _constantWindowOpacity, _idleWindowOpacity);
         var idle = WindowOpacityPolicy.Effective(isIdle: true, _constantWindowOpacity, _idleWindowOpacity);
         // Corner shape is theme/override data applied separately (ApplyCornerMode) — opacity no
-        // longer drives DWM rounding (docs/Theme_Preset_Differences.md).
+        // longer drives DWM rounding (ThemeCatalog and ThemeColors).
         WindowOpacityApplier.Apply(hwnd, _windowOpacityIdle ? idle : active, animate);
         UpdateActivityProbe();
     }
@@ -1263,7 +1262,7 @@ public partial class PlayerWindow : Window
     /// Activity sensor for the area WPF can't see (the WebView2 child swallows all mouse input):
     /// records the last cursor MOVE over this window so idle onset is prevented during sustained
     /// movement over the video, and restores immediately when movement happens while opacity-idle
-    /// — spec 7.3 "hover restores full opacity". A cursor parked on the video still goes (and
+    /// immediately. A cursor parked on the video still goes (and
     /// stays) idle.
     /// </summary>
     private void OpacityHoverPoll_Tick(object? sender, EventArgs e)
@@ -1282,7 +1281,7 @@ public partial class PlayerWindow : Window
         if (hwnd == IntPtr.Zero || !WindowOpacityApplier.IsPointOverWindow(hwnd, x, y)) return;
         _lastInWindowCursorMoveMs = Environment.TickCount64;
 
-        // Top-edge band reveals a collapsed strip (spec 7.2: hover restores full chrome).
+        // Top-edge band reveals a collapsed strip (hover restores full chrome).
         if (!_focusedSurfaceActive && _stripAutoHide &&
             p.Y <= FadePolicy.TopEdgeRevealBandDip && ChromeStrip.Visibility != Visibility.Visible)
         {
@@ -1290,7 +1289,7 @@ public partial class PlayerWindow : Window
             return;
         }
 
-        // Movement elsewhere over the video restores window opacity (spec 7.3) and re-arms
+        // Movement elsewhere over the video restores window opacity and re-arms
         // idleness WITHOUT popping the strip up — the strip reveals only via its own hover paths.
         if (_windowOpacityIdle)
         {
@@ -1332,7 +1331,7 @@ public partial class PlayerWindow : Window
     {
         if (_controlsVisible) return;   // re-shown mid-fade: leave it interactive
         ChromeStrip.IsHitTestVisible = false;
-        // Strip auto-hide (Phase 4): once fully faded, also height-collapse so the video fills
+        // Once fully faded, strip auto-hide also height-collapses so the video fills
         // the window; the top-edge hover band or any reveal path restores the row.
         if (_stripAutoHide) ChromeStrip.Visibility = Visibility.Collapsed;
     }
@@ -1344,7 +1343,7 @@ public partial class PlayerWindow : Window
         ChromeStrip.BeginAnimation(OpacityProperty, animation);
     }
 
-    // --- Close / return (spec 14) ---
+    // --- Close / return ---
 
     private void PlayerWindow_Closing(object? sender, CancelEventArgs e)
     {

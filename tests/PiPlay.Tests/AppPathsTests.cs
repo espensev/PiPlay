@@ -44,29 +44,29 @@ public class AppPathsTests
     [InlineData(PiPlayChannel.Stable)]
     public void ResolveRoot_env_override_wins_for_any_channel(PiPlayChannel channel)
     {
-        var root = AppPaths.ResolveRoot(@"C:\override", channel, @"E:\app", @"C:\Users\u\AppData\Local");
-        Assert.Equal(@"C:\override", root);
+        var root = AppPaths.ResolveRoot(@"X:\override", channel, @"Y:\app", @"Z:\LocalAppData");
+        Assert.Equal(@"X:\override", root);
     }
 
     [Fact]
     public void ResolveRoot_empty_env_override_is_ignored()
     {
-        var root = AppPaths.ResolveRoot("", PiPlayChannel.Default, @"E:\app", @"C:\local");
-        Assert.Equal(Path.Combine(@"C:\local", "PiPlay"), root);
+        var root = AppPaths.ResolveRoot("", PiPlayChannel.Default, @"Y:\app", @"Z:\local");
+        Assert.Equal(Path.Combine(@"Z:\local", "PiPlay"), root);
     }
 
     [Fact]
     public void ResolveRoot_default_channel_uses_localappdata()
     {
-        var root = AppPaths.ResolveRoot(null, PiPlayChannel.Default, @"E:\app", @"C:\Users\u\AppData\Local");
-        Assert.Equal(Path.Combine(@"C:\Users\u\AppData\Local", "PiPlay"), root);
+        var root = AppPaths.ResolveRoot(null, PiPlayChannel.Default, @"Y:\app", @"Z:\LocalAppData");
+        Assert.Equal(Path.Combine(@"Z:\LocalAppData", "PiPlay"), root);
     }
 
     [Fact]
     public void ResolveRoot_stable_channel_is_portable_beside_the_exe()
     {
         // A deployed stable copy keeps its data self-contained next to the exe (isolated from dev).
-        var root = AppPaths.ResolveRoot(null, PiPlayChannel.Stable, @"E:\Dev_test_implemenations\PiPlay", @"C:\local");
-        Assert.Equal(Path.Combine(@"E:\Dev_test_implemenations\PiPlay", "PiPlayData"), root);
+        var root = AppPaths.ResolveRoot(null, PiPlayChannel.Stable, @"Y:\Stable", @"Z:\local");
+        Assert.Equal(Path.Combine(@"Y:\Stable", "PiPlayData"), root);
     }
 }

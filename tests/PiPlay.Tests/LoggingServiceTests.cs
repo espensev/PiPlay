@@ -5,7 +5,7 @@ using PiPlay.Services;
 namespace PiPlay.Tests;
 
 /// <summary>
-/// Locks the URL-redaction contract (spec §18): logs must never carry the query string, which
+/// Locks the URL-redaction contract: logs must never carry the query string, which
 /// can hold tokens, timestamps, or playlist context. Surfaced by the spec-conformance review
 /// as untested security-relevant logic.
 /// </summary>

@@ -30,9 +30,12 @@
 
 Set-StrictMode -Version Latest
 
+. (Join-Path $PSScriptRoot "StableDeployRoot.ps1")
+
 function Get-DeploySwapPaths {
     param([Parameter(Mandatory = $true)][string]$DeployRoot)
 
+    $DeployRoot = Resolve-StableDeployRoot -DeployRoot $DeployRoot
     $parent = Split-Path -Parent $DeployRoot
     if ([string]::IsNullOrWhiteSpace($parent)) {
         throw "DeployRoot must live inside a parent directory (got '$DeployRoot'); the staging/backup siblings have nowhere to go."
@@ -41,11 +44,18 @@ function Get-DeploySwapPaths {
 
     # Siblings, not children: they must never be seen by the deployed-artifact re-hash, and a
     # same-volume sibling keeps every swap move a rename instead of a copy.
-    return [pscustomobject]@{
+    $paths = [pscustomobject]@{
         DeployRoot = $DeployRoot
         Staging    = Join-Path $parent "$leaf.staging"
         Backup     = Join-Path $parent "$leaf.backup"
     }
+    Assert-FileSystemPathsDisjoint -FirstPath $paths.Staging `
+        -SecondPath $script:PiPlayStableRootRepository `
+        -FirstName "Deploy staging root" -SecondName "repository"
+    Assert-FileSystemPathsDisjoint -FirstPath $paths.Backup `
+        -SecondPath $script:PiPlayStableRootRepository `
+        -FirstName "Deploy backup root" -SecondName "repository"
+    return $paths
 }
 
 <#
@@ -125,12 +135,14 @@ function Test-StagedPayload {
     $buildInfo = Get-Content -LiteralPath $buildInfoPath -Raw | ConvertFrom-Json
     $entries = @($buildInfo.artifactHashes)
     if ($entries.Count -eq 0) { throw "Staged payload manifest lists no artifacts; refusing to swap it in." }
+    $resolvedEntries = @(Resolve-ManifestArtifactPaths -PayloadRoot $StagingDir -Entries $entries)
 
     $failures = @()
-    foreach ($entry in $entries) {
-        $artifactPath = Join-Path $StagingDir $entry.path
+    foreach ($resolvedEntry in $resolvedEntries) {
+        $entry = $resolvedEntry.Entry
+        $artifactPath = $resolvedEntry.FullPath
         if (-not (Test-Path -LiteralPath $artifactPath)) { $failures += "missing: $($entry.path)"; continue }
-        $hash = (Get-FileHash -LiteralPath $artifactPath -Algorithm SHA256).Hash.ToUpperInvariant()
+        $hash = Get-Sha256Hex -Path $artifactPath
         if ($hash -ne $entry.sha256) { $failures += "hash mismatch: $($entry.path)"; continue }
         if ([int64](Get-Item -LiteralPath $artifactPath).Length -ne [int64]$entry.size) {
             $failures += "size mismatch: $($entry.path)"
@@ -238,8 +250,16 @@ function Invoke-StagedDeploy {
         [string]$ExeName = "PiPlay.exe"
     )
 
-    if (-not (Test-Path -LiteralPath $SourceDir)) { throw "Publish output not found at $SourceDir." }
     $paths = Get-DeploySwapPaths -DeployRoot $DeployRoot
+    $DeployRoot = $paths.DeployRoot
+    $SourceDir = Resolve-FullyQualifiedFileSystemPath -Path $SourceDir -Name "SourceDir"
+    Assert-FileSystemPathsDisjoint -FirstPath $SourceDir -SecondPath $DeployRoot `
+        -FirstName "SourceDir" -SecondName "DeployRoot"
+    Assert-FileSystemPathsDisjoint -FirstPath $SourceDir -SecondPath $paths.Staging `
+        -FirstName "SourceDir" -SecondName "deploy staging root"
+    Assert-FileSystemPathsDisjoint -FirstPath $SourceDir -SecondPath $paths.Backup `
+        -FirstName "SourceDir" -SecondName "deploy backup root"
+    if (-not (Test-Path -LiteralPath $SourceDir)) { throw "Publish output not found at $SourceDir." }
     New-Item -ItemType Directory -Path $DeployRoot -Force | Out-Null
 
     # 1. STAGE - the slow copy happens beside the live copy, never over it.

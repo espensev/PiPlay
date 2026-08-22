@@ -1,9 +1,9 @@
 namespace PiPlay.Models;
 
 /// <summary>
-/// A named saved launch target (spec 17). Nullable fields fall back to the global
+/// A named saved launch target. Nullable fields fall back to the global
 /// default per field; non-null fields override it (REQ-PROFILE-01). MVP uses Name + Url;
-/// the other fields are carried for Phase 2 profile editing.
+/// the other fields are carried through profile editing.
 /// </summary>
 public sealed class Profile
 {
@@ -11,7 +11,7 @@ public sealed class Profile
     public string Url { get; set; } = "";
 
     /// <summary>
-    /// Per-profile playback mode override (spec 10, Phase 3). <c>null</c> = use the global
+    /// Per-profile playback mode override. <c>null</c> = use the global
     /// <see cref="PlayerSettings.CompactMode"/> default; <c>"normal"</c> forces Normal page mode;
     /// <c>"compact"</c> forces Compact embedded mode. The legacy/internal <c>"embed"</c> token is
     /// accepted as a <c>"compact"</c> alias and normalized on load (see

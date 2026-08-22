@@ -7,8 +7,9 @@ using System.Threading;
 namespace PiPlay.Services;
 
 /// <summary>
-/// Lightweight, thread-safe local file logging (spec 18). Logs to
-/// %LOCALAPPDATA%/PiPlay/logs/piplay.log with simple size-based rotation.
+/// Lightweight, thread-safe local file logging. Writes to <see cref="AppPaths.LogFile"/> under
+/// the data-root precedence implemented by <see cref="AppPaths.ResolveRoot"/>, with simple
+/// size-based rotation.
 /// Never throws. Never logs cookies, auth headers, or credential-bearing URLs -
 /// use <see cref="RedactUrl"/> for anything URL-shaped.
 ///

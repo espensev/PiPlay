@@ -161,7 +161,7 @@ public static class ThemeColors
         return darkContrast >= whiteContrast ? DarkForeground : Colors.White;
     }
 
-    /// <summary>The theme-v2 accent derivation profile for a theme id (spec "Suggested profiles").</summary>
+    /// <summary>The theme-v2 accent derivation profile for a theme id.</summary>
     public static ThemeAccentProfile AccentProfileFor(string? themeId) =>
         ThemeCatalog.NormalizeThemeId(themeId) switch
         {
@@ -170,7 +170,7 @@ public static class ThemeColors
             _            => new ThemeAccentProfile(0.18, 0.16, 0.58, 0.10, 0x22, 0x33),   // sharp-dark / default
         };
 
-    /// <summary>Full-dial mix ceilings for the background room tones (docs/Theme_Preset_Differences.md).</summary>
+    /// <summary>Full-dial mix ceilings for the background room tones (ThemeCatalog and ThemeColors).</summary>
     private const double LetterboxMixCeiling = 0.06;
     private const double BackgroundWashMixCeiling = 0.04;
 
@@ -191,7 +191,7 @@ public static class ThemeColors
         // finish their fade-in at the midpoint so default 50 reproduces v0.9.0 exactly.
         var reach = ThemeCatalog.NormalizeAccentIntensity(accentIntensity) / 100.0;
         var glyphReach = Math.Min(reach * 2.0, 1.0);
-        // REQ-UI-01 / spec section 17: arbitrary stored colors remain exact, while the presentation
+        // REQ-UI-01: arbitrary stored colors remain exact, while the presentation
         // token clears the 3:1 non-text contrast floor on the lightest shipped dark interaction surface.
         var primary = EnsureContrast(requested, surfaceHover);
 
@@ -227,7 +227,7 @@ public static class ThemeColors
         // accent (steel) may need to flip to white.
         var onAccentPressed = PickReadableForeground(pressed);
 
-        // Background room tones (docs/Theme_Preset_Differences.md): the dial also reaches the letterbox framing
+        // Background room tones (ThemeCatalog and ThemeColors): the dial also reaches the letterbox framing
         // the video and the window background, as faint tints — 0 keeps them accent-free (pure
         // black / the flat palette background), and the ceilings keep them tones, never colors.
         var appBackground = ParseColor(preset.Palette.AppBackground);
@@ -244,8 +244,8 @@ public static class ThemeColors
 }
 
 /// <summary>
-/// Per-theme recipe for turning one base accent into the derived accent state tokens (theme-v2
-/// spec "Derivation algorithm"). The same base accent reads differently per theme because each
+/// Per-theme recipe for turning one base accent into derived accent state tokens. The same base
+/// accent reads differently per theme because each
 /// preset mixes it toward white/black/its own raised surface by different amounts.
 /// </summary>
 public sealed record ThemeAccentProfile(
@@ -257,8 +257,8 @@ public sealed record ThemeAccentProfile(
     byte GlowAlpha);
 
 /// <summary>
-/// The derived accent state colors for one (base accent x theme) pairing. A pure value set — the
-/// spec forbids persisting derived colors; the applier turns these into frozen brushes at apply time.
+/// The derived accent state colors for one (base accent x theme) pairing. A pure value set;
+/// ThemeResourceApplier turns these into frozen brushes at apply time.
 /// </summary>
 public sealed record DerivedAccentSet(
     Color Primary,
@@ -273,7 +273,7 @@ public sealed record DerivedAccentSet(
     Color ChromeGlyph,
     Color OnAccent,
     Color OnAccentPressed,
-    /// <summary>Near-black room tint framing the video (docs/Theme_Preset_Differences.md); pure black at intensity 0.</summary>
+    /// <summary>Near-black room tint framing the video (ThemeCatalog and ThemeColors); pure black at intensity 0.</summary>
     Color Letterbox,
     /// <summary>The window background washed faintly toward the accent; the flat palette value at intensity 0.</summary>
     Color BackgroundWash,

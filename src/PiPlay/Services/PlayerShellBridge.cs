@@ -3,7 +3,7 @@ using Microsoft.Web.WebView2.Core;
 namespace PiPlay.Services;
 
 /// <summary>
-/// Host side of the compact (PiPlay shell) playback bridge (spec 10.3). Wraps the single
+/// Host side of the compact (PiPlay shell) playback bridge. Wraps the single
 /// CoreWebView2 hosting the local shell: it parses inbound shell messages via
 /// <see cref="PlayerShellProtocol"/> and raises typed events, and posts host commands to the shell.
 /// In compact mode the shell (YouTube IFrame API), not the YouTube page DOM, is the source of truth
@@ -16,7 +16,7 @@ public sealed class PlayerShellBridge : IDisposable
     private readonly CoreWebView2 _core;
     private bool _disposed;
 
-    /// <summary>Raised when the shell's player has loaded and is ready (spec 10.3 ready message).</summary>
+    /// <summary>Raised when the shell's player has loaded and is ready.</summary>
     public event EventHandler? Ready;
 
     /// <summary>Raised on each shell state update (current time / player state / duration).</summary>
@@ -25,7 +25,7 @@ public sealed class PlayerShellBridge : IDisposable
     /// <summary>Raised when the shell reports a player error (embed-disabled, unavailable, etc.).</summary>
     public event EventHandler<InboundShellMessage>? ErrorReceived;
 
-    /// <summary>Raised for an allowlisted shell window-action request (Phase 4: close / pinToggle /
+    /// <summary>Raised for an allowlisted shell window-action request (close / pinToggle /
     /// fullscreenToggle). Non-allowlisted actions never get here — they parse to Unknown.</summary>
     public event EventHandler<InboundShellMessage>? RequestReceived;
 

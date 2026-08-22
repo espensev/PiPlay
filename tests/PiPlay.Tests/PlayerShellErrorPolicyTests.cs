@@ -5,7 +5,7 @@ namespace PiPlay.Tests;
 [Trait(TestCategories.Key, TestCategories.Logic)]
 public class PlayerShellErrorPolicyTests
 {
-    // --- Code -> user-facing message (spec 10.3 / Q-6) ---
+    // --- Code -> user-facing message (Q-6) ---
 
     [Theory]
     [InlineData("101")]

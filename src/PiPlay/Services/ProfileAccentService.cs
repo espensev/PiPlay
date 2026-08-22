@@ -48,7 +48,7 @@ public static class ProfileAccentService
     }
 
     /// <summary>
-    /// Commits a color picked in Settings to whatever is actually painting the app (P2, spec decision 7):
+    /// Commits a color picked in Settings to whatever is actually painting the app:
     /// the active profile's own color if it has one, otherwise the global default.
     /// <para>
     /// Writing unconditionally to the global would be the bug: with a colored profile overriding it, the

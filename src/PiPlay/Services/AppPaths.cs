@@ -2,7 +2,7 @@ using System.IO;
 
 namespace PiPlay.Services;
 
-/// <summary>Central definition of every on-disk location PiPlay uses (spec 11, 18, Data &amp; Privacy Map).</summary>
+/// <summary>Central definition of every on-disk location PiPlay uses.</summary>
 public static class AppPaths
 {
     /// <summary>

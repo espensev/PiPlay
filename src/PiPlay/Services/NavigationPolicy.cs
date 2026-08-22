@@ -11,7 +11,7 @@ public enum NavigationSurface
 }
 
 /// <summary>
-/// The shared allowlist policy from spec 15.2, used by both windows and both event handlers
+/// The shared allowlist policy used by both windows and both event handlers
 /// (NavigationStarting and NewWindowRequested) so the rules can't drift.
 ///
 /// Intent: the allowlist is a guardrail that stops the WebView wandering onto unrelated sites
@@ -22,7 +22,7 @@ public enum NavigationSurface
 public static class NavigationPolicy
 {
     /// <summary>
-    /// Virtual-host name for the local compact-player shell (spec 10.3), served from a WebView2
+    /// Virtual-host name for the local compact-player shell, served from a WebView2
     /// folder mapping. The single source of truth for the host: <see cref="WebViewEnvironmentService"/>
     /// derives the shell origin/URL from it, and the allowlist permits it on the Popout Player only.
     /// </summary>
@@ -51,7 +51,7 @@ public static class NavigationPolicy
         // dead-end the player either.
         if (IsYouTubeHost(host) || IsGoogleAuthHost(host)) return true;
 
-        // The local compact-player shell (spec 10.3) is allowed on the Popout Player only — it never
+        // The local compact-player shell is allowed on the Popout Player only — it never
         // loads on the Source Window. Exact host match (not a broad ".local") so nothing else local
         // is permitted. The shell's nested youtube.com iframe is a frame navigation, not affected by
         // this top-level allowlist.

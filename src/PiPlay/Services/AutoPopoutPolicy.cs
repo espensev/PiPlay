@@ -10,7 +10,7 @@ public enum AutoPopDecision
 }
 
 /// <summary>
-/// Pure decision for Auto (spec §6.1), extracted from <see cref="MainWindow"/> so the
+/// Pure decision for Auto, extracted from <see cref="MainWindow"/> so the
 /// false-positive / anti-loop branches are testable without WebView2. Pop only when Auto is on, a
 /// <c>/watch</c> video with an id is playing, it is <b>not</b> the id we last handled, and no popout is
 /// already active. The "last handled id" de-dup is what blocks the return-resume re-pop loop (the return

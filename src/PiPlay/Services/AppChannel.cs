@@ -8,7 +8,7 @@ public enum PiPlayChannel
     /// <summary>The normal dev/installed app: %LOCALAPPDATA%\PiPlay data, the original single-instance identity.</summary>
     Default,
 
-    /// <summary>A stable copy deployed for side-by-side test use (spec: stable publish). Portable data
+    /// <summary>A stable copy deployed for side-by-side test use (stable publish). Portable data
     /// beside the exe and its own single-instance identity so it never collides with the dev app.</summary>
     Stable,
 }

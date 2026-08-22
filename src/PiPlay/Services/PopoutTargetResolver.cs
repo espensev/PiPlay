@@ -24,7 +24,7 @@ public static class PopoutTargetResolver
 
     /// <summary>
     /// Overlay the first playable item read off a playlist browse page onto a playlist-only target
-    /// (spec 13.1 / 22.1: a playlist-only launch starts a playable item). Only the item's video id is
+    /// (a playlist-only launch starts a playable item). Only the item's video id is
     /// adopted — the target keeps its own playlist id, so a page-provided link pointing into another
     /// list (or anywhere else) can at worst start a different first video, never redirect the launch.
     /// The id itself is charset-validated by <see cref="YouTubeUrlHelper.TryParse"/>; the raw link is

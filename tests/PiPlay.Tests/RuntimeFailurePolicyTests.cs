@@ -84,7 +84,7 @@ public class RuntimeFailurePolicyTests
         Assert.True(launchContinued);
     }
 
-    // Launch gate (spec 13.1 / 22.1): a playlist page is a launchable popout target — the popout
+    // Launch gate: a playlist page is a launchable popout target — the popout
     // opens the playlist and starts its first playable item. Only a target with nothing playable
     // at all keeps the "open a video first" prompt.
     [Fact]

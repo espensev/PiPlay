@@ -1,32 +1,15 @@
-## Summary
+## Change
 
-<!-- What changed and why. -->
+State the user-visible or engineering outcome and its evidence.
 
-## Design contract
+## Automated verification
 
-<!-- Link docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md. For a deliberate exception, add this as its own line: -->
-<!-- Spec-Exception: <reason> -->
-
-## Requirements and acceptance
-
-<!-- Q-*, REQ-*, or tooling/docs; observable done conditions. -->
-
-- [ ]
-
-## Verification
+Record the focused checks and:
 
 ```powershell
 pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1
 ```
 
-<!-- Record commands/results and anything not run or only verifiable live. -->
+## Unresolved verification
 
-## Documentation
-
-- [ ] `docs/CHANGELOG.md` updated for user-visible work, or N/A.
-- [ ] Product spec, decisions, QA, and open issues updated where affected, or N/A.
-- [ ] Completed plan/review/status prose removed after durable facts were merged, or N/A.
-
-## Manual release evidence
-
-<!-- For release/visual work: use E:\Dev_test_implemenations\PiPlay\PiPlay.exe only. Record version/build/commit/tag from .\scripts\Verify-StableDeploy.ps1 and evidence paths under docs/evidence/. Otherwise N/A. -->
+List only release-only live/rendering checks or `None`. Do not request routine manual retesting already covered by automation.

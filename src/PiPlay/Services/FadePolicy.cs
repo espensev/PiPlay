@@ -1,7 +1,7 @@
 namespace PiPlay.Services;
 
 /// <summary>
-/// Pure decision logic for the Popout Player controls fade (spec 11, Phase 2). Kept free of
+/// Pure decision logic for the Popout Player controls fade. Kept free of
 /// WPF types so the idle/hover state machine can be unit tested without a window. The
 /// <see cref="PlayerWindow"/> feeds it live input (pointer-over, dragging, idle-timer state)
 /// and animates the chrome strip based on the result.
@@ -16,7 +16,7 @@ public static class FadePolicy
 
     /// <summary>
     /// Height of the top-edge hover band, in DIPs, that reveals a height-collapsed chrome strip
-    /// (Phase 4 strip auto-hide). Half the strip height: generous enough to hit at speed, small
+    /// for strip auto-hide. Half the strip height: generous enough to hit at speed, small
     /// enough that normal interaction with the video never reveals by accident.
     /// </summary>
     public const int TopEdgeRevealBandDip = 16;

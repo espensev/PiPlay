@@ -17,8 +17,10 @@
   was, and nondeterministically. So the caller MUST release on every exit path:
 
       . (Join-Path $PSScriptRoot "PublishLock.ps1")
-      New-PublishLock -Key "repo|$repoRoot" -What "this repository" | Out-Null
-      try   { <the publish> }
+      try   {
+          New-PublishLock -Key "repo|$repoRoot" -What "this repository" | Out-Null
+          <the publish>
+      }
       finally { Close-PublishLocks }
 
   A publish that CRASHES needs no cleanup: process death closes the handle, and the next run's

@@ -35,17 +35,21 @@ $testDataRoot = Join-Path ([System.IO.Path]::GetTempPath()) (
 
 function New-LocalCiPlan {
     $buildScript = Join-Path $repoRoot "Build-PiPlay.ps1"
+    $stableRootTestScript = Join-Path $PSScriptRoot "Test-StableDeployRoot.ps1"
+    $deploySwapTestScript = Join-Path $PSScriptRoot "Test-DeploySwap.ps1"
+    $documentationTestScript = Join-Path $PSScriptRoot "Test-Documentation.ps1"
 
     return [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 3
         repoRoot = $repoRoot
         workingDirectory = $repoRoot
         testDataRoot = $testDataRoot
         cleanupTestDataRoot = -not $KeepTestDataRoot
         requirements = [ordered]@{
-            nodeMajor = 24
+            nodeMinimumMajor = 24
             dotnetGlobalJson = "global.json"
             powerShell = "pwsh"
+            windowsPowerShell = "powershell.exe"
         }
         environment = [ordered]@{
             DOTNET_CLI_TELEMETRY_OPTOUT = "1"
@@ -69,6 +73,36 @@ function New-LocalCiPlan {
                 name = "restore"
                 filePath = "dotnet"
                 arguments = @("restore", "PiPlay.sln", "-p:BuildInParallel=false")
+                environment = [ordered]@{}
+            },
+            [ordered]@{
+                name = "stable-root-policy-pwsh"
+                filePath = "pwsh"
+                arguments = @("-NoProfile", "-File", $stableRootTestScript)
+                environment = [ordered]@{}
+            },
+            [ordered]@{
+                name = "deploy-swap-policy-pwsh"
+                filePath = "pwsh"
+                arguments = @("-NoProfile", "-File", $deploySwapTestScript)
+                environment = [ordered]@{}
+            },
+            [ordered]@{
+                name = "stable-root-policy-windows-powershell"
+                filePath = "powershell.exe"
+                arguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $stableRootTestScript)
+                environment = [ordered]@{}
+            },
+            [ordered]@{
+                name = "deploy-swap-policy-windows-powershell"
+                filePath = "powershell.exe"
+                arguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $deploySwapTestScript)
+                environment = [ordered]@{}
+            },
+            [ordered]@{
+                name = "documentation"
+                filePath = "pwsh"
+                arguments = @("-NoProfile", "-File", $documentationTestScript)
                 environment = [ordered]@{}
             },
             [ordered]@{
@@ -158,7 +192,7 @@ function Set-ProcessEnvironment {
 function Invoke-NodeVersionStep {
     param(
         [Parameter(Mandatory = $true)]$Step,
-        [Parameter(Mandatory = $true)][int]$RequiredMajor
+        [Parameter(Mandatory = $true)][int]$MinimumMajor
     )
 
     $filePath = [string]$Step.filePath
@@ -174,8 +208,13 @@ function Invoke-NodeVersionStep {
     if ($exitCode -ne 0) {
         throw "Local CI step '$($Step.name)' failed with exit code $exitCode."
     }
-    if ($nodeVersion -notmatch "^v?$RequiredMajor\.") {
-        throw "PiPlay local CI requires Node $RequiredMajor; found '$nodeVersion'."
+    $versionMatch = [regex]::Match($nodeVersion, '^v?(?<major>\d+)\.')
+    if (-not $versionMatch.Success) {
+        throw "PiPlay local CI could not parse the Node version '$nodeVersion'."
+    }
+    $nodeMajor = [int]$versionMatch.Groups['major'].Value
+    if ($nodeMajor -lt $MinimumMajor) {
+        throw "PiPlay local CI requires Node $MinimumMajor or newer; found '$nodeVersion'."
     }
 }
 
@@ -190,14 +229,20 @@ if ($Plan) {
     exit 0
 }
 
-foreach ($relativePath in @("PiPlay.sln", "global.json", "Build-PiPlay.ps1")) {
+foreach ($relativePath in @(
+    "PiPlay.sln",
+    "global.json",
+    "Build-PiPlay.ps1",
+    "scripts\Test-StableDeployRoot.ps1",
+    "scripts\Test-DeploySwap.ps1",
+    "scripts\Test-Documentation.ps1")) {
     $requiredPath = Join-Path $repoRoot $relativePath
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
         throw "Required local CI input not found: $requiredPath"
     }
 }
 
-foreach ($commandName in @("dotnet", "node", "pwsh")) {
+foreach ($commandName in @("dotnet", "node", "pwsh", "powershell.exe")) {
     if (-not (Get-Command $commandName -ErrorAction SilentlyContinue)) {
         throw "Required local CI command '$commandName' is not available on PATH."
     }
@@ -213,7 +258,7 @@ try {
 
     foreach ($step in $localCiPlan.steps) {
         if ($step.name -eq "node-version") {
-            Invoke-NodeVersionStep -Step $step -RequiredMajor $localCiPlan.requirements.nodeMajor
+            Invoke-NodeVersionStep -Step $step -MinimumMajor $localCiPlan.requirements.nodeMinimumMajor
         } elseif ($step.name -eq "test") {
             try {
                 New-Item -ItemType Directory -Path $testDataRoot -Force | Out-Null

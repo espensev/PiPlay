@@ -65,7 +65,7 @@ public class ReturnPolicyTests
             ReturnPolicy.Decide(120, sourceWasPlaying: false, returnedPaused: false, "sameVideo001", "sameVideo001"));
     }
 
-    // Playlist-page launch (spec 13.1 / 22.1): the popout can start with NO source video id at all.
+    // Playlist-page launch: the popout can start with NO source video id at all.
     // Any video the popout then reports is somewhere the source's playlist page is not, so the
     // source must NAVIGATE there — the timestamp fallback would strand the user on the playlist
     // page and lose their position in the queue.

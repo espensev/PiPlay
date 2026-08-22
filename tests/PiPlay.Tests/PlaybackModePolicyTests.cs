@@ -42,7 +42,7 @@ public class PlaybackModePolicyTests
         Assert.Equal(expected, PlaybackModePolicy.ResolveEffectiveMode(profileMode, globalCompact));
     }
 
-    // --- Mode-specific minimums: compact is larger than normal (spec 10.2 / 16.1) ---
+    // --- Mode-specific minimums: compact is larger than normal ---
 
     [Fact]
     public void Normal_mode_uses_the_320x180_minimum()
@@ -62,7 +62,7 @@ public class PlaybackModePolicyTests
         Assert.True(PlaybackModePolicy.CompactMinHeight > PlaybackModePolicy.NormalMinHeight);
     }
 
-    // --- DOM-sync-timer selection: exactly one timestamp source per mode (spec 10.3) ---
+    // --- DOM-sync-timer selection: exactly one timestamp source per mode ---
 
     [Theory]
     [InlineData(PlaybackMode.Normal, true)]    // normal polls the YouTube page DOM

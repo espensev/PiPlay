@@ -7,23 +7,15 @@ namespace PiPlay.Services;
 /// <summary>
 /// Applies whole-window opacity to a borderless PiPlay window as layered-window alpha
 /// (WS_EX_LAYERED + SetLayeredWindowAttributes(LWA_ALPHA)) on the top-level HWND, plus the DWM
-/// rounded-corner preference for the floating look (spec 7.3, Phase 4; verified live by the
-/// Stage 0 spikes — the load-bearing native facts are recorded inline below).
+/// rounded-corner preference for the floating look.
 ///
-/// Two native facts from the spikes shape this class:
-/// 1. WPF's HwndTarget strips WS_EX_LAYERED out of any exstyle change while the window doesn't
-///    use per-pixel opacity, so the bit only survives behind a comctl32 subclass that forces it
-///    back into STYLESTRUCT.styleNew inside WM_STYLECHANGING and does NOT chain for that message
-///    (chaining would let HwndTarget edit it out again).
-/// 2. WPF rewrites its cached exstyle wholesale during move/size/topmost operations, so a one-shot
-///    SetWindowLongPtr is not durable — the forcing stays on for as long as opacity is engaged.
+/// A comctl32 subclass preserves WS_EX_LAYERED in STYLESTRUCT.styleNew while opacity is engaged.
 ///
-/// WS_EX_TRANSPARENT is never set (spec 7.4 / ADR-0006 / Q-8): the subclass only ever ORs the
+/// WS_EX_TRANSPARENT is never set (ADR-0006; Q-8): the subclass only ever ORs the
 /// layered bit, and the recorded per-window state lets tests assert no write carried the
 /// transparent bit. Alpha animates over <see cref="WindowOpacityPolicy.FadeDurationMs"/> in
 /// DispatcherTimer steps — native layered alpha is invisible to WPF's animation system. When the
-/// target returns to fully opaque the applier disengages (clears the bit, stops forcing), so a
-/// window with the feature off is byte-identical to the pre-Phase-4 window.
+/// target returns to fully opaque the applier disengages (clears the bit and stops forcing).
 /// All members are UI-thread-only, like <see cref="BorderlessWindowHelper"/>.
 /// </summary>
 public static class WindowOpacityApplier
@@ -118,7 +110,7 @@ public static class WindowOpacityApplier
     }
 
     /// <summary>
-    /// DWM corner preference, theme/user-driven (docs/Theme_Preset_Differences.md; the rounded look is
+    /// DWM corner preference, theme/user-driven (ThemeCatalog and ThemeColors; the rounded look is
     /// now <see cref="DwmCornerMode.Round"/>). Never touches a window whose corners were never
     /// changed when asked for <see cref="DwmCornerMode.Default"/>, so default-look windows stay
     /// pristine. Silently a no-op on Windows 10 (DWM rejects the attribute).
@@ -174,8 +166,7 @@ public static class WindowOpacityApplier
     /// (the system border is an accessibility boundary/focus cue). Pure so the logic lane can pin it.</summary>
     internal static bool ShouldSuppressBorder(bool suppress, bool highContrast) => suppress && !highContrast;
 
-    /// <summary>Cursor position probe for the hover-restore poll (WPF gets no mouse events over
-    /// the WebView2 child HWND — Stage 0 spike finding).</summary>
+    /// <summary>Cursor position probe used by the hover-restore poll over the WebView2 child.</summary>
     internal static bool TryGetCursorPos(out int x, out int y)
     {
         if (GetCursorPos(out var p)) { x = p.X; y = p.Y; return true; }

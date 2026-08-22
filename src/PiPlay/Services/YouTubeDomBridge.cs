@@ -15,13 +15,13 @@ public sealed record PlayerState(
     double? PlaybackRate);
 
 /// <summary>
-/// The ONE place that talks to the YouTube page DOM (spec 12.5, Q-3). All JavaScript is
-/// centralized here, uses the resilient selector from spec 26.3, and is best-effort:
+/// The ONE place that talks to the YouTube page DOM. All JavaScript is
+/// centralized here, uses <see cref="VideoSelector"/>, and is best-effort:
 /// every call swallows and logs failures so script errors can never crash the app.
 /// </summary>
 public static class YouTubeDomBridge
 {
-    // Resilient video selector (spec 26.3).
+    // Resilient video selector.
     private const string VideoSelector =
         "(document.querySelector('#movie_player video.html5-main-video')" +
         "||document.querySelector('video.html5-main-video')" +

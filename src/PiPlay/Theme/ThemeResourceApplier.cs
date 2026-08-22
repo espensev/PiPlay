@@ -68,7 +68,7 @@ public static class ThemeResourceApplier
         SetColorPair(resources, "OnAccentPressed", set.OnAccentPressed);
         // Keep AccentPrimaryLight defined as an alias to AccentHover for one migration pass.
         SetColorPair(resources, "AccentPrimaryLight", set.Hover);
-        // Background room tones (docs/Theme_Preset_Differences.md): the letterbox framing the video and the
+        // Background room tones (ThemeCatalog and ThemeColors): the letterbox framing the video and the
         // washed window background follow the accent and the intensity dial.
         SetColorPair(resources, "AccentLetterbox", set.Letterbox);
         SetColorPair(resources, "AppBackgroundWash", set.BackgroundWash);
@@ -121,7 +121,7 @@ public static class ThemeResourceApplier
         resources["RadiusSwatch"] = new CornerRadius(radii.Swatch);
         resources["RadiusScrollbarThumb"] = new CornerRadius(radii.ScrollbarThumb);
         resources["RadiusToolTip"] = new CornerRadius(radii.ToolTip);
-        // Compatibility aliases (docs/Theme_Preset_Differences.md) for one migration pass; kept as separate
+        // Compatibility aliases (ThemeCatalog and ThemeColors) for one migration pass; kept as separate
         // entries, not resource-to-resource references.
         resources["ControlCornerRadius"] = new CornerRadius(radii.Input);
         resources["ButtonCornerRadius"] = new CornerRadius(radii.Button);

@@ -54,7 +54,11 @@ param(
     # When set, records this publish as NOT release evidence with this exact reason, independent of
     # source-tree dirtiness. Publish-Stable.ps1 passes it for -AllowDirty / -AllowVersionBump
     # diagnostic publishes so a clean-tree no-op can never mint release evidence.
-    [string]$NonReleaseReason
+    [string]$NonReleaseReason,
+
+    # Dirty source is permitted only for an explicitly non-release diagnostic. Release and desk-
+    # candidate callers omit this switch and therefore require clean source at both snapshot gates.
+    [switch]$AllowDirtySource
 )
 
 Set-StrictMode -Version Latest
@@ -67,9 +71,9 @@ $ProjectRelativePath = "src\PiPlay\PiPlay.csproj"
 $PublishExtras = @(
     "README.md",
     "docs\CHANGELOG.md",
-    "docs\YouTube_Compliance.md",
-    "docs\Data_and_Privacy_Map.md",
-    "docs\QA_Checklist.md"
+    "docs\PiPlay_Product_Engineering_Spec.md",
+    "scripts\StableDeployRoot.ps1",
+    "scripts\Test-UiSmoke.ps1"
 )
 
 $script:Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
@@ -139,14 +143,24 @@ function Invoke-External {
     param(
         [Parameter(Mandatory = $true)][string]$FilePath,
         [Parameter(Mandatory = $true)][string[]]$Arguments,
-        [Parameter(Mandatory = $true)][string]$FailureMessage
+        [Parameter(Mandatory = $true)][string]$FailureMessage,
+        [string]$WorkingDirectory
     )
 
     Write-Host "  > $FilePath $($Arguments -join ' ')" -ForegroundColor DarkGray
-    $global:LASTEXITCODE = 0
-    & $FilePath @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "$FailureMessage (exit code: $LASTEXITCODE)."
+    $locationPushed = $false
+    try {
+        if (-not [string]::IsNullOrWhiteSpace($WorkingDirectory)) {
+            Push-Location -LiteralPath $WorkingDirectory
+            $locationPushed = $true
+        }
+        $global:LASTEXITCODE = 0
+        & $FilePath @Arguments
+        if ($LASTEXITCODE -ne 0) {
+            throw "$FailureMessage (exit code: $LASTEXITCODE)."
+        }
+    } finally {
+        if ($locationPushed) { Pop-Location }
     }
 }
 
@@ -256,7 +270,20 @@ function Set-BuildNumberValue {
 
 function Get-Sha256Hex {
     param([Parameter(Mandatory = $true)][string]$Path)
-    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToUpperInvariant()
+
+    # Keep the release inventory independent of module auto-loading. Windows PowerShell 5.1 can run
+    # this script in hosts whose inherited PSModulePath does not expose Get-FileHash.
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            return ([System.BitConverter]::ToString($sha256.ComputeHash($stream))).Replace('-', '')
+        } finally {
+            $sha256.Dispose()
+        }
+    } finally {
+        $stream.Dispose()
+    }
 }
 
 function Get-SourceCommit {
@@ -277,22 +304,160 @@ function Get-SourceDirtyEntries {
     param([Parameter(Mandatory = $true)][string]$RepositoryRoot)
 
     $git = Get-Command git -ErrorAction SilentlyContinue
-    if (-not $git) { return @() }
+    if (-not $git) {
+        throw "Git is required to query source dirty state before writing build provenance."
+    }
 
+    $global:LASTEXITCODE = 0
     $status = @(Invoke-NativeCommandQuiet { & $git.Source -C $RepositoryRoot status --porcelain --untracked-files=all })
-    if ($LASTEXITCODE -ne 0) { return @() }
+    $statusExitCode = $LASTEXITCODE
+    if ($statusExitCode -ne 0) {
+        throw "Required git status query failed (exit $statusExitCode); source cleanliness is unknown."
+    }
     return @($status | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
+function Get-RequiredSourceSnapshot {
+    param([Parameter(Mandatory = $true)][string]$RepositoryRoot)
+
+    $commitBeforeStatus = Get-SourceCommit -RepositoryRoot $RepositoryRoot
+    if ([string]::IsNullOrWhiteSpace($commitBeforeStatus) -or
+        $commitBeforeStatus -notmatch '^[0-9a-fA-F]{40}$') {
+        throw "Could not resolve a 40-hex HEAD commit for build provenance."
+    }
+
+    $dirtyEntries = @(Get-SourceDirtyEntries -RepositoryRoot $RepositoryRoot |
+        ForEach-Object { [string]$_ } |
+        Sort-Object -CaseSensitive)
+    $commitAfterStatus = Get-SourceCommit -RepositoryRoot $RepositoryRoot
+    if ([string]::IsNullOrWhiteSpace($commitAfterStatus) -or
+        $commitAfterStatus -notmatch '^[0-9a-fA-F]{40}$') {
+        throw "Could not re-resolve a 40-hex HEAD commit after the source status query."
+    }
+    if ($commitBeforeStatus -cne $commitAfterStatus) {
+        throw "Source HEAD changed while its dirty state was being captured."
+    }
+
+    return [pscustomobject]@{
+        Commit = $commitBeforeStatus.ToLowerInvariant()
+        DirtyEntries = $dirtyEntries
+    }
+}
+
+function Assert-SourceSnapshotUnchanged {
+    param(
+        [Parameter(Mandatory = $true)]$InitialSnapshot,
+        [Parameter(Mandatory = $true)]$CurrentSnapshot,
+        [switch]$RequireClean
+    )
+
+    $initialCommit = [string]$InitialSnapshot.Commit
+    $currentCommit = [string]$CurrentSnapshot.Commit
+    if ($initialCommit -cne $currentCommit) {
+        throw "Source HEAD changed during build (initial $initialCommit; current $currentCommit)."
+    }
+
+    $initialDirtyEntries = @($InitialSnapshot.DirtyEntries |
+        ForEach-Object { [string]$_ } |
+        Sort-Object -CaseSensitive)
+    $currentDirtyEntries = @($CurrentSnapshot.DirtyEntries |
+        ForEach-Object { [string]$_ } |
+        Sort-Object -CaseSensitive)
+    $initialState = [string]::Join([char]0, $initialDirtyEntries)
+    $currentState = [string]::Join([char]0, $currentDirtyEntries)
+    if ($initialState -cne $currentState) {
+        throw "Source dirty state changed during build."
+    }
+    if ($RequireClean -and ($initialDirtyEntries.Count -gt 0 -or $currentDirtyEntries.Count -gt 0)) {
+        throw "Release and desk-candidate publishes require clean source at both snapshot gates."
+    }
+}
+
+function Remove-ArchivedSourceSnapshot {
+    param([Parameter(Mandatory = $true)][string]$ContainerRoot)
+
+    $tempRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd('\', '/') +
+        [System.IO.Path]::DirectorySeparatorChar
+    $resolvedContainer = [System.IO.Path]::GetFullPath($ContainerRoot)
+    $leaf = Split-Path -Path $resolvedContainer -Leaf
+    if (-not $resolvedContainer.StartsWith($tempRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $leaf -notmatch '^PiPlaySource-[0-9a-f]{32}$') {
+        throw "Refusing to remove unexpected archived-source path '$resolvedContainer'."
+    }
+    if (Test-Path -LiteralPath $resolvedContainer) {
+        Remove-Item -LiteralPath $resolvedContainer -Recurse -Force
+    }
+}
+
+function New-ArchivedSourceSnapshot {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepositoryRoot,
+        [Parameter(Mandatory = $true)][string]$Commit
+    )
+
+    if ($Commit -notmatch '^[0-9a-fA-F]{40}$') {
+        throw "Archived source requires a 40-hex commit, got '$Commit'."
+    }
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git) { throw "Git is required to create the immutable source archive." }
+
+    $containerRoot = Join-Path ([System.IO.Path]::GetTempPath()) `
+        ("PiPlaySource-" + [guid]::NewGuid().ToString('N'))
+    $sourceRoot = Join-Path $containerRoot 'source'
+    $archivePath = Join-Path $containerRoot 'source.zip'
+    try {
+        New-Item -ItemType Directory -Path $sourceRoot -Force | Out-Null
+        Invoke-External `
+            -FilePath $git.Source `
+            -Arguments @('-C', $RepositoryRoot, 'archive', '--format=zip', "--output=$archivePath", $Commit) `
+            -FailureMessage "Could not archive source commit $Commit"
+        # Expand without Microsoft.PowerShell.Archive: Windows PowerShell 5.1 hosts with a
+        # stripped PSModulePath cannot auto-load that module (same constraint as Get-Sha256Hex).
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($archivePath, $sourceRoot)
+        Remove-Item -LiteralPath $archivePath -Force
+        return [pscustomobject]@{
+            ContainerRoot = $containerRoot
+            SourceRoot = $sourceRoot
+        }
+    } catch {
+        if (Test-Path -LiteralPath $containerRoot) {
+            Remove-ArchivedSourceSnapshot -ContainerRoot $containerRoot
+        }
+        throw
+    }
+}
+
+function Assert-ArchivedSourceStamps {
+    param(
+        [Parameter(Mandatory = $true)][string]$SourceRoot,
+        [Parameter(Mandatory = $true)][string]$ResolvedVersion,
+        [Parameter(Mandatory = $true)][int]$ResolvedBuildNumber
+    )
+
+    $archivedVersionFile = Join-Path $SourceRoot 'VERSION'
+    $archivedBuildNumberFile = Join-Path $SourceRoot 'BUILD_NUMBER'
+    if (-not (Test-Path -LiteralPath $archivedVersionFile -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $archivedBuildNumberFile -PathType Leaf)) {
+        throw "Captured source commit is missing VERSION or BUILD_NUMBER."
+    }
+
+    $archivedVersion = Get-ProjectVersion -VersionFile $archivedVersionFile
+    $archivedBuildNumber = Get-BuildNumberValue -BuildNumberFile $archivedBuildNumberFile
+    if ($archivedVersion -cne $ResolvedVersion -or $archivedBuildNumber -ne $ResolvedBuildNumber) {
+        throw "Resolved stamps VERSION=$ResolvedVersion BUILD_NUMBER=$ResolvedBuildNumber do not match captured source commit stamps VERSION=$archivedVersion BUILD_NUMBER=$archivedBuildNumber. Source changed before capture; retry the build."
+    }
 }
 
 function Get-HashEntries {
     param([Parameter(Mandatory = $true)][string]$Root)
 
     $entries = @()
-    $excludedNames = @("build-info.json", "BUILDINFO.json", "VERSION_TABLE.json")
+    $excludedRootNames = @("build-info.json", "BUILDINFO.json")
     $files = @(Get-ChildItem -LiteralPath $Root -Recurse -File -Force -ErrorAction SilentlyContinue | Sort-Object FullName)
     foreach ($file in $files) {
-        if ($excludedNames -contains $file.Name) { continue }
         $relative = (Get-RelativePathCompat -Root $Root -Path $file.FullName).Replace('\', '/')
+        if ($relative -notmatch '/' -and $excludedRootNames -contains $file.Name) { continue }
         $entries += [ordered]@{
             path = $relative
             size = $file.Length
@@ -416,13 +581,14 @@ function Write-BuildInfo {
         [bool]$SigningEnabled = $false,
         [string]$SignScript,
         [string]$NonReleaseReason,
-        [Parameter(Mandatory = $true)][string]$RepositoryRoot
+        [Parameter(Mandatory = $true)][string]$SourceCommit,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$SourceDirtyEntries
     )
 
     $artifactHashes = @(Get-HashEntries -Root $VersionRoot)
     $publishedArtifacts = @(Get-PublishedArtifacts -VersionRoot $VersionRoot -ProjectName $ProjectName)
-    $sourceCommit = Get-SourceCommit -RepositoryRoot $RepositoryRoot
-    $sourceDirtyEntries = @(Get-SourceDirtyEntries -RepositoryRoot $RepositoryRoot)
+    $sourceCommit = $SourceCommit
+    $sourceDirtyEntries = @($SourceDirtyEntries)
     $sourceDirty = $sourceDirtyEntries.Count -gt 0
     # Release evidence requires BOTH a clean source tree AND no explicit non-release reason. An
     # explicit reason (a diagnostic escape hatch) forces non-release even from a clean tree, so a
@@ -534,6 +700,36 @@ function Update-BuildInfoArchive {
     return $BuildInfoPath
 }
 
+function Update-BuildInfoArtifactInventory {
+    param(
+        [Parameter(Mandatory = $true)][string]$BuildInfoPath,
+        [Parameter(Mandatory = $true)][string]$VersionRoot
+    )
+
+    $buildInfo = Get-Content -LiteralPath $BuildInfoPath -Raw | ConvertFrom-Json
+    $artifactHashes = @(Get-HashEntries -Root $VersionRoot)
+    $buildInfo.artifactCount = $artifactHashes.Count
+    $buildInfo.artifactHashes = $artifactHashes
+
+    $primaryArtifact = [string](Get-ObjectPropertyValue -Object $buildInfo -Name 'primaryArtifact')
+    if (-not [string]::IsNullOrWhiteSpace($primaryArtifact)) {
+        $primaryHash = $artifactHashes |
+            Where-Object { $_.path -ieq $primaryArtifact } |
+            Select-Object -First 1
+        if ($primaryHash) {
+            $buildInfo.sha256 = $primaryHash.sha256
+            $buildInfo.size = $primaryHash.size
+        }
+    }
+
+    Write-JsonNoBom -Path $BuildInfoPath -Value $buildInfo -Depth 12
+    Write-JsonNoBom `
+        -Path (Join-Path (Split-Path -Parent $BuildInfoPath) 'BUILDINFO.json') `
+        -Value $buildInfo `
+        -Depth 12
+    return $BuildInfoPath
+}
+
 function Invoke-SignScript {
     param(
         [Parameter(Mandatory = $true)][string]$ScriptPath,
@@ -584,8 +780,10 @@ function Write-VersionTable {
         $artifactHashes = @()
         foreach ($hashEntry in @(Get-ObjectPropertyValue -Object $buildInfo -Name "artifactHashes")) {
             if (-not $hashEntry) { continue }
+            $hashPath = [string](Get-ObjectPropertyValue -Object $hashEntry -Name 'path')
+            if ($hashPath -ieq 'VERSION_TABLE.json') { continue }
             $artifactHashes += [ordered]@{
-                path = Get-ObjectPropertyValue -Object $hashEntry -Name "path"
+                path = $hashPath
                 size = Get-ObjectPropertyValue -Object $hashEntry -Name "size"
                 sha256 = Get-ObjectPropertyValue -Object $hashEntry -Name "sha256"
             }
@@ -728,16 +926,16 @@ if ($Help) {
     Write-Host "  .\Build-PiPlay.ps1 [-Stage Build|Publish|Release] [options]"
     Write-Host ""
     Write-Host "MAIN OPTIONS" -ForegroundColor Yellow
-    Write-Host "  -Stage <value>          Build, Publish, or Release (default: Release)"
+    Write-Host "  -Stage <value>          Build, Publish, or Release (default: Release; snapshot rules below)"
     Write-Host "  -Configuration <value>  Debug or Release (default: Release)"
     Write-Host "  -Framework <tfm>        Target framework (default: net10.0-windows)"
     Write-Host "  -Runtime <rid>          Publish runtime (default: win-x64)"
     Write-Host "  -SelfContained          Publish self-contained output"
-    Write-Host "  -Version <value>        patch, minor, major, or explicit semver; default bumps patch"
-    Write-Host "  -NoVersionBump          Keep VERSION unchanged"
-    Write-Host "  -BuildNumber <n>        Use an explicit BUILD_NUMBER for publish/release"
-    Write-Host "  -NoBuildNumberBump      Keep BUILD_NUMBER unchanged"
-    Write-Host "  -NoRestore              Skip dotnet restore"
+    Write-Host "  -Version <value>        Intentionally stamp VERSION (diagnostic snapshot rules apply)"
+    Write-Host "  -NoVersionBump          Keep VERSION unchanged for a clean publish/release"
+    Write-Host "  -BuildNumber <n>        Intentionally stamp BUILD_NUMBER (diagnostic rules apply)"
+    Write-Host "  -NoBuildNumberBump      Keep BUILD_NUMBER unchanged for a clean publish/release"
+    Write-Host "  -NoRestore              Skip restore for Build/live dirty diagnostics; rejected for clean archived Publish/Release"
     Write-Host "  -ClearCache             Remove src\**\bin and src\**\obj before build"
     Write-Host "  -StopProcessName <n>    Stop this process before publish/release (default: PiPlay)"
     Write-Host ""
@@ -750,19 +948,33 @@ if ($Help) {
     Write-Host "  -NoArchive              Skip archive zip in Release stage"
     Write-Host "  -SignScript <path>      Run this signing script after publish and before metadata hashes"
     Write-Host "  -NonReleaseReason <s>   Force releaseEvidence=false with this reason (diagnostic publishes)"
+    Write-Host "  -AllowDirtySource       Permit one unchanged dirty snapshot only with -NonReleaseReason"
+    Write-Host ""
+    Write-Host "SOURCE SNAPSHOT" -ForegroundColor Yellow
+    Write-Host "  Publish/Release source snapshot: HEAD and git status must remain identical before"
+    Write-Host "  build inputs and after extras/signing. Clean source builds from a git archive of"
+    Write-Host "  the captured commit; an allowed dirty diagnostic uses live source and is non-release."
+    Write-Host "  Intentional VERSION/BUILD_NUMBER stamping is diagnostic and requires both"
+    Write-Host "  -AllowDirtySource and -NonReleaseReason."
     Write-Host ""
     Write-Host "SIGNING" -ForegroundColor Yellow
     Write-Host "  Optional -SignScript runs before build-info.json hashes are written."
     Write-Host ""
     Write-Host "EXAMPLES" -ForegroundColor Yellow
     Write-Host "  .\Build-PiPlay.ps1 -Stage Build -NoVersionBump"
-    Write-Host "  .\Build-PiPlay.ps1 -Stage Release -Version patch"
-    Write-Host "  .\Build-PiPlay.ps1 -Stage Release -SelfContained"
+    Write-Host "  Clean release:"
+    Write-Host "    .\Build-PiPlay.ps1 -Stage Release -NoVersionBump -NoBuildNumberBump"
+    Write-Host "  Clean self-contained release:"
+    Write-Host "    .\Build-PiPlay.ps1 -Stage Release -NoVersionBump -NoBuildNumberBump -SelfContained"
+    Write-Host "  Diagnostic stamp:"
+    Write-Host "    .\Build-PiPlay.ps1 -Stage Release -Version patch -AllowDirtySource -NonReleaseReason 'local diagnostic version stamp'"
     exit 0
 }
 
 $timer = [System.Diagnostics.Stopwatch]::StartNew()
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$buildSourceRoot = $repoRoot
+$archivedSourceContainer = $null
 $projectPath = Resolve-RepoPath -Root $repoRoot -Path $ProjectRelativePath
 $publishRootResolved = Resolve-RepoPath -Root $repoRoot -Path $PublishRoot
 $versionFile = Join-Path $repoRoot "VERSION"
@@ -780,6 +992,9 @@ if (-not (Test-Path -LiteralPath $projectPath)) {
 if ($PSBoundParameters.ContainsKey("BuildNumber") -and $BuildNumber -lt 0) {
     throw "-BuildNumber cannot be negative."
 }
+if ($AllowDirtySource -and [string]::IsNullOrWhiteSpace($NonReleaseReason)) {
+    throw "-AllowDirtySource requires -NonReleaseReason and can produce only diagnostic, non-release evidence."
+}
 
 $originalVersion = Get-ProjectVersion -VersionFile $versionFile
 $originalBuildNumber = Get-BuildNumberValue -BuildNumberFile $buildNumberFile
@@ -790,7 +1005,8 @@ $buildNumberUpdated = $false
 $artifactProduced = $false
 $versionRoot = $null
 $versionRootCreated = $false
-$sourceCommit = Get-SourceCommit -RepositoryRoot $repoRoot
+$sourceSnapshot = $null
+$finalSourceSnapshot = $null
 $signScriptResolved = $null
 if ($SignScript) {
     $signScriptResolved = Resolve-RepoPath -Root $repoRoot -Path $SignScript
@@ -863,6 +1079,38 @@ try {
     # InformationalVersion=false in PiPlay.csproj which suppresses the SDK's +sha.
     $informationalVersion = $resolvedVersion
 
+    if ($Stage -ne "Build") {
+        $sourceSnapshot = Get-RequiredSourceSnapshot -RepositoryRoot $repoRoot
+        Assert-SourceSnapshotUnchanged `
+            -InitialSnapshot $sourceSnapshot `
+            -CurrentSnapshot $sourceSnapshot `
+            -RequireClean:(-not $AllowDirtySource)
+
+        if (@($sourceSnapshot.DirtyEntries).Count -eq 0) {
+            if ($NoRestore) {
+                throw "-NoRestore cannot be used for clean Publish/Release because the immutable source archive contains no restored build state."
+            }
+            Write-Host ""
+            Write-Host "[1a] Materializing captured source commit..." -ForegroundColor Yellow
+            $archivedSource = New-ArchivedSourceSnapshot `
+                -RepositoryRoot $repoRoot `
+                -Commit $sourceSnapshot.Commit
+            $archivedSourceContainer = $archivedSource.ContainerRoot
+            $buildSourceRoot = $archivedSource.SourceRoot
+            Assert-ArchivedSourceStamps `
+                -SourceRoot $buildSourceRoot `
+                -ResolvedVersion $resolvedVersion `
+                -ResolvedBuildNumber $resolvedBuildNumber
+            $projectPath = Resolve-RepoPath -Root $buildSourceRoot -Path $ProjectRelativePath
+            if (-not (Test-Path -LiteralPath $projectPath -PathType Leaf)) {
+                throw "Archived project file not found: $projectPath"
+            }
+            Write-Host "  Build source : archived commit $($sourceSnapshot.Commit)" -ForegroundColor Cyan
+        } else {
+            Write-Host "  Build source : live dirty diagnostic (not release evidence)" -ForegroundColor Yellow
+        }
+    }
+
     if (-not $NoRestore) {
         Write-Host ""
         Write-Host "[2] Restore..." -ForegroundColor Yellow
@@ -873,7 +1121,8 @@ try {
             # the RID restore so the following --no-restore build has netX-windows/<rid> assets.
             $restoreArgs += @("-r", $Runtime, "--force")
         }
-        Invoke-External -FilePath "dotnet" -Arguments $restoreArgs -FailureMessage "Restore failed"
+        Invoke-External -FilePath "dotnet" -Arguments $restoreArgs -FailureMessage "Restore failed" `
+            -WorkingDirectory $buildSourceRoot
     } else {
         Write-Host ""
         Write-Host "[2] Restore skipped (-NoRestore)." -ForegroundColor Yellow
@@ -897,7 +1146,8 @@ try {
     if ($Runtime) { $buildArgs += @("-r", $Runtime, "--self-contained", $selfContainedValue) }
     $buildArgs += $propertyArgs
     $buildArgs += "--no-restore"
-    Invoke-External -FilePath "dotnet" -Arguments $buildArgs -FailureMessage "Build failed"
+    Invoke-External -FilePath "dotnet" -Arguments $buildArgs -FailureMessage "Build failed" `
+        -WorkingDirectory $buildSourceRoot
 
     if ($Stage -eq "Build") {
         $timer.Stop()
@@ -932,12 +1182,13 @@ try {
     if ($Runtime) { $publishArgs += @("-r", $Runtime, "--self-contained", $selfContainedValue) }
     $publishArgs += $propertyArgs
     $publishArgs += "--no-restore"
-    Invoke-External -FilePath "dotnet" -Arguments $publishArgs -FailureMessage "Publish failed"
+    Invoke-External -FilePath "dotnet" -Arguments $publishArgs -FailureMessage "Publish failed" `
+        -WorkingDirectory $buildSourceRoot
     # The stamped binary now exists on disk. A later post-publish step failing must NOT roll back the
     # version/build counters - that would orphan this artifact and break monotonic build numbers.
     $artifactProduced = $true
 
-    Copy-PublishExtras -RepositoryRoot $repoRoot -VersionRoot $versionRoot -Extras $PublishExtras
+    Copy-PublishExtras -RepositoryRoot $buildSourceRoot -VersionRoot $versionRoot -Extras $PublishExtras
 
     if ($signScriptResolved) {
         Write-Host ""
@@ -951,6 +1202,12 @@ try {
             -Channel $Channel `
             -Configuration $Configuration
     }
+
+    $finalSourceSnapshot = Get-RequiredSourceSnapshot -RepositoryRoot $repoRoot
+    Assert-SourceSnapshotUnchanged `
+        -InitialSnapshot $sourceSnapshot `
+        -CurrentSnapshot $finalSourceSnapshot `
+        -RequireClean:(-not $AllowDirtySource)
 
     $buildInfoPath = Write-BuildInfo `
         -VersionRoot $versionRoot `
@@ -966,7 +1223,8 @@ try {
         -SigningEnabled ([bool]$signScriptResolved) `
         -SignScript $signScriptResolved `
         -NonReleaseReason $NonReleaseReason `
-        -RepositoryRoot $repoRoot
+        -SourceCommit $sourceSnapshot.Commit `
+        -SourceDirtyEntries $sourceSnapshot.DirtyEntries
 
     $archivePath = $null
     if ($Stage -eq "Release" -and -not $NoArchive) {
@@ -984,6 +1242,9 @@ try {
         Write-Host "[6] Writing version table..." -ForegroundColor Yellow
         $versionTablePath = Write-VersionTable -PublishRoot $publishRootResolved -ProjectName $ProjectName
         Copy-Item -LiteralPath $versionTablePath -Destination (Join-Path $versionRoot "VERSION_TABLE.json") -Force
+        $buildInfoPath = Update-BuildInfoArtifactInventory `
+            -BuildInfoPath $buildInfoPath `
+            -VersionRoot $versionRoot
     }
 
     $latestRoot = $null
@@ -1010,7 +1271,7 @@ try {
     Write-Host "Build info     : $buildInfoPath"
     if ($summaryBuildInfo.sha256) { Write-Host "SHA256         : $($summaryBuildInfo.sha256)" -ForegroundColor Green }
     if ($summaryBuildInfo.size) { Write-Host ("Size           : {0:N0} bytes" -f $summaryBuildInfo.size) }
-    if ($sourceCommit) { Write-Host "Commit         : $sourceCommit" }
+    if ($summaryBuildInfo.sourceCommit) { Write-Host "Commit         : $($summaryBuildInfo.sourceCommit)" }
     if ($latestRoot) { Write-Host "Latest path    : $latestRoot" }
     if ($versionTablePath) { Write-Host "Version table  : $versionTablePath" }
     if ($archivePath) { Write-Host ("Archive        : {0} ({1:N0} bytes)" -f (Split-Path $archivePath -Leaf), (Get-Item -LiteralPath $archivePath).Length) }
@@ -1054,6 +1315,14 @@ try {
     }
 
     throw
+} finally {
+    if ($archivedSourceContainer) {
+        try {
+            Remove-ArchivedSourceSnapshot -ContainerRoot $archivedSourceContainer
+        } catch {
+            Write-Warning "Could not remove archived source snapshot '$archivedSourceContainer': $($_.Exception.Message)"
+        }
+    }
 }
 
 exit 0

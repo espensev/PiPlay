@@ -1,7 +1,7 @@
 <!--
-  PiPlay control styles - dark, minimal, utility-first (spec section 5).
+  PiPlay control styles - dark, minimal, utility-first.
   Soft rounded rectangles, high-contrast controls, low-glow cyan/purple accents.
-  Pin/Fade active state defaults to AccentCyan and can be overridden per control (spec 6.3).
+  Pin/Fade active state defaults to AccentCyan and can be overridden per control.
 
   Theme-controlled values (palette brushes + Radius* corner tokens) are referenced via
   DynamicResource: ThemeResourceApplier REPLACES those dictionary entries on theme change and

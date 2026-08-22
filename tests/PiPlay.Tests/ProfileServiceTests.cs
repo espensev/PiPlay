@@ -126,7 +126,7 @@ public class ProfileServiceTests
         Assert.Equal("#131820", ProfileService.NormalizeAccentForStorage("#131820"));
     }
 
-    // --- Update (Phase 2 edit path): position-preserving + collision-aware ---
+    // --- Update: position-preserving and collision-aware ---
 
     [Fact]
     public void Update_changes_url_in_place_and_keeps_position()

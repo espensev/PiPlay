@@ -5,7 +5,7 @@ using PiPlay.Theme;
 namespace PiPlay.Tests;
 
 /// <summary>
-/// The profile dropdown row wash (docs/Theme_Preset_Differences.md): each row wears its OWN
+/// The profile dropdown row wash (ThemeCatalog and ThemeColors): each row wears its OWN
 /// accent at the active theme's subtle alpha, published by ThemeResourceApplier. Null/invalid
 /// accents render no wash at all — the plain row surface is the fallback, matching the identity
 /// rail's contract.

@@ -1,6 +1,6 @@
 namespace PiPlay.Services;
 
-/// <summary>What the Source Window should do on return from the Popout Player (spec 14).</summary>
+/// <summary>What the Source Window should do on return from the Popout Player.</summary>
 public enum ReturnAction
 {
     /// <summary>Do nothing: timestamp unknown and the source was paused at popout.</summary>
@@ -50,7 +50,7 @@ public static class ReturnPolicy
         string? returnedVideoId, string? sourceVideoIdAtPopout,
         bool popoutLaunchedWithoutVideo = false)
     {
-        // Playlist-page launch (spec 13.1 / 22.1): there was no source video id to compare against,
+        // Playlist-page launch: there was no source video id to compare against,
         // so ANY video the popout reports is somewhere the source's playlist page is not. Without
         // this, an empty sourceVideoIdAtPopout would fall into the timestamp branch and strand the
         // user on the playlist page, losing their position in the queue.

@@ -1,5 +1,5 @@
 <!--
-  PiPlay color tokens - spec section 5.2.
+  PiPlay color tokens.
   Matte black, low-glow cyan/purple accents, utility-first dark UI.
   Each token is exposed as both a Color and a SolidColorBrush.
 
@@ -13,7 +13,7 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
-  <!-- Sharp Dark palette seeds (docs/Theme_Preset_Differences.md): the darkest, coolest
+  <!-- Sharp Dark palette seeds (ThemeCatalog and ThemeColors): the darkest, coolest
        base. The warmer pre-theme tones now live on as the Minimal preset. -->
   <Color x:Key="AppBackgroundColor">#FF050609</Color>
   <Color x:Key="SurfaceBaseColor">#FF0B0E12</Color>
@@ -38,7 +38,7 @@
   <Color x:Key="AccentPrimaryColor">#FF2BAED0</Color>
   <Color x:Key="AccentPrimaryLightColor">#FF51BDD8</Color>
 
-  <!-- Derived accent state seeds (theme-v2 Phase B / Task 4): cyan under the sharp-dark profile, the
+  <!-- Derived accent state seeds: cyan under the sharp-dark profile, the
        default theme. ThemeResourceApplier replaces these from ThemeColors.DeriveAccentSet at startup
        and on accent change. OnAccentPressed re-picks the foreground for the darker pressed fill (CON-1)
        — dark here because cyan's pressed stays bright. AccentPrimaryLight aliases AccentHover. -->
@@ -54,7 +54,7 @@
   <Color x:Key="AccentChromeGlyphColor">#FF2BAED0</Color>
   <Color x:Key="OnAccentColor">#FF06141A</Color>
   <Color x:Key="OnAccentPressedColor">#FF06141A</Color>
-  <!-- Background room tones (docs/Theme_Preset_Differences.md) at the default accent intensity (50): the video
+  <!-- Background room tones (ThemeCatalog and ThemeColors) at the default accent intensity (50): the video
        letterbox and the washed window background. Same rule as the glyph seed above: the values
        ARE the derived defaults (pinned by the same XamlInvariantTests seed gate) — do not
        hand-edit; take what the derivation produces. -->
@@ -97,7 +97,7 @@
   <SolidColorBrush x:Key="AppBackgroundWash" Color="{StaticResource AppBackgroundWashColor}" />
   <SolidColorBrush x:Key="PopoutAccentEdge" Color="{StaticResource PopoutAccentEdgeColor}" />
 
-  <!-- Semantic corner-radius tokens (docs/Theme_Preset_Differences.md): theme-owned rounding, seeded with the
+  <!-- Semantic corner-radius tokens (ThemeCatalog and ThemeColors): theme-owned rounding, seeded with the
        sharp-dark profile. ThemeResourceApplier replaces every entry from the active preset's
        ThemeRadii (plus the user's corner-style override); control consumers reference them via
        DynamicResource. Deliberately NOT one universal radius — a popout frame, a button, a
@@ -117,13 +117,13 @@
   <CornerRadius x:Key="RadiusScrollbarThumb">3</CornerRadius>
   <CornerRadius x:Key="RadiusToolTip">4</CornerRadius>
 
-  <!-- Temporary compatibility aliases while styles migrate (docs/Theme_Preset_Differences.md): kept as separate
+  <!-- Temporary compatibility aliases while styles migrate (ThemeCatalog and ThemeColors): kept as separate
        entries (NOT resource-to-resource references) and updated by ThemeResourceApplier alongside
        the semantic tokens (Control follows Input, Button follows Button). -->
   <CornerRadius x:Key="ControlCornerRadius">3</CornerRadius>
   <CornerRadius x:Key="ButtonCornerRadius">3</CornerRadius>
 
-  <!-- Density tokens (docs/Theme_Preset_Differences.md): theme-owned control sizing,
+  <!-- Density tokens (ThemeCatalog and ThemeColors): theme-owned control sizing,
        seeded with the sharp-dark (default) profile. ThemeResourceApplier replaces every entry from the
        active preset's ThemeDensity; control consumers reference them via DynamicResource and migrate to
        the tokens in the density-consumer pass. Heights/sizes are Double; paddings + the uniform default
@@ -140,7 +140,7 @@
        weight earns its own pixel-snapping/layout-rounding gate). -->
   <Thickness x:Key="BorderThicknessDefault">1</Thickness>
 
-  <!-- Inner elevation (docs/Theme_Preset_Differences.md): the popup/panel drop-shadow.
+  <!-- Inner elevation (ThemeCatalog and ThemeColors): the popup/panel drop-shadow.
        Sharp Dark (default) is flat — both seed as x:Null so the design-time / pre-Apply Effect is null,
        exactly the value the applier writes for sharp-dark. ThemeResourceApplier replaces these with
        frozen DropShadowEffects for Minimal and Soft Glass. Inner-only; never an outer-window glow. -->

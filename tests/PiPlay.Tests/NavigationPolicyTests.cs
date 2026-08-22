@@ -90,7 +90,7 @@ public class NavigationPolicyTests
         Assert.False(NavigationPolicy.IsAllowed(null, NavigationSurface.Source));
     }
 
-    // --- Compact shell virtual host (spec 10.3): allowed on the Popout Player only ---
+    // --- Compact shell virtual host: allowed on the Popout Player only ---
 
     [Fact]
     public void Compact_shell_host_is_allowed_on_the_player_only()

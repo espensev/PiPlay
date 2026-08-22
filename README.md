@@ -1,63 +1,57 @@
 # PiPlay
 
-PiPlay is a Windows desktop utility that plays YouTube in a movable, resizable native **Popout Player**. It supports return-to-source playback, Pin, Auto, Fade, profiles, Standard/Focused presentation, playlists and mixes, privacy controls, and live theme/accent changes.
+PiPlay is a Windows WPF app that moves YouTube playback into one native Popout Player and returns it to the Source Window; the [product contract](docs/PiPlay_Product_Engineering_Spec.md) defines its supported behavior and boundaries.
 
-## Use
+## Run
 
-Requirements: Windows 10/11 x64, Microsoft Edge WebView2 Evergreen Runtime, and the .NET 10 desktop runtime unless the app is published self-contained.
+PiPlay needs the .NET 10 Desktop Runtime and Microsoft Edge WebView2 Evergreen. The project is framework-dependent and references WebView2 SDK `1.0.3967.48` (`src/PiPlay/PiPlay.csproj`). Microsoft documents that production WebView2 apps require the WebView2 Runtime: [WebView2 distribution](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution).
 
-1. Launch PiPlay and open a YouTube video or playlist.
+1. Start PiPlay and open a YouTube video or playlist.
 2. Select **Pop out video**.
-3. Move, resize, Pin, Fade, or change the Popout presentation.
-4. Select **Bring video back** or close the player to return playback to the Source Window. **Show Popout** only restores/focuses the existing player.
+3. Move, resize, Pin, Fade, or change the presentation.
+4. Select **Bring video back** or close the player to return playback. **Show Popout** only restores or focuses the existing player (`MainWindow.ActivateExistingPlayer`, `MainWindow.BringVideoBackAsync`).
 
-PiPlay intentionally supports one Popout Player. It does not download media, bypass YouTube restrictions, remove ads, make WebView2 transparent, or allow click-through.
+## Develop and verify
 
-## Develop
+Install the SDK selected by `global.json`, PowerShell 7, and Node 24 or newer. GitHub Actions pins Node 24; the local gate accepts later majors (`.github/workflows/ci.yml`; `scripts/Test-LocalCI.ps1:New-LocalCiPlan`).
 
 ```powershell
-dotnet build PiPlay.sln -c Debug
-dotnet run --project src\PiPlay\PiPlay.csproj
+dotnet run --project .\src\PiPlay\PiPlay.csproj
 
-# Inspect or run the same deterministic gate as CI.
+# Inspect or run the same gate used by CI.
 pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1 -Plan
 pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1
 ```
 
-The executable DOM tests require Node 24 but no `npm install`, browser, network, or visible desktop. See [tests/README.md](tests/README.md) for filters and test boundaries.
+The gate checks the Stable-root policy, documentation links and paths, restore, the Debug test suite, executable DOM behavior, and a non-mutating Release build. Test state uses a unique temporary `PIPLAY_DATA_ROOT` and is cleaned in `finally` (`scripts/Test-LocalCI.ps1`; `LocalCiPlanTests`).
 
-## Publish and test
+## Data and privacy
 
-Repo output is for automated development only. All manual/release-candidate testing uses the deployed Stable copy at `E:\Dev_test_implemenations\PiPlay\PiPlay.exe`.
+`PIPLAY_DATA_ROOT` overrides all app data locations. Otherwise Stable stores `PiPlayData` beside its executable and Default uses the operating system's Local Application Data folder. `AppPaths` defines `settings.json`, `logs/piplay.log`, and `WebView2UserData`; `AppPathsTests` pins the precedence.
 
-```powershell
-# Exact-source release path: commit VERSION, BUILD_NUMBER, and docs/CHANGELOG.md first.
-.\scripts\Publish-Stable.ps1
-.\scripts\Verify-StableDeploy.ps1
+**Reset app state** atomically replaces settings while preserving logs and browser data. **Clear browser data** separately clears WebView2 `AllProfile` data and signs the user out (`SettingsService.Reset`, `PrivacyService.ClearBrowserDataAsync`, `SettingsServiceTests`, `PrivacyServiceTests`). Application diagnostics stay in the bounded local log; adding telemetry, credential collection, or uploads is outside the contract (`src/PiPlay/Services/LoggingService.cs:Log`).
 
-# Manual UI Automation/screenshot smoke against the verified Stable copy.
-pwsh -File .\scripts\Test-UiSmoke.ps1 -ExePath E:\Dev_test_implemenations\PiPlay\PiPlay.exe
-```
+## Desk candidate and release
 
-`Publish-Stable.ps1` refuses dirty release evidence, deploys by staged swap while preserving `PiPlayData`, and creates `stable-vX.Y.Z-bN` on the exact source commit. `-AllowVersionBump` and `-AllowDirty` are diagnostic-only escape hatches; their output is not release evidence. Signing is optional through `-SignScript <path>` and must happen before manifest hashes are written.
-
-Other pipeline entry points:
+A manually dispatched CI run attaches `PiPlay-desk-candidate-<commit>` as a non-release artifact. Download and extract it on SND-DESK, open PowerShell 7 in the extracted root, then run:
 
 ```powershell
-.\Build-PiPlay.ps1 -Stage Build -NoVersionBump
-.\Build-PiPlay.ps1 -Stage Release -Version patch
-.\scripts\Test-PublishMetadata.ps1
+pwsh -NoProfile -File .\scripts\Test-UiSmoke.ps1 -Mode DeskCandidate -KeepOpen
 ```
 
-Release output is under `bin\publish\<label>` with `latest`, `archive`, `build-info.json`, `BUILDINFO.json`, and `VERSION_TABLE.json`. `VERSION` is the semantic version; `BUILD_NUMBER` is the monotonic publish counter.
+The packaged exact preflight and automated desktop smoke run first. Child data comes from `PIPLAY_DESK_CANDIDATE_DATA_ROOT` or Local Application Data, is passed as `PIPLAY_DATA_ROOT`, and must be disjoint from the extracted payload, so candidate bytes stay unchanged (`scripts/Test-UiSmoke.ps1:Resolve-DeskCandidateDataRoot`, `scripts/Test-UiSmoke.ps1:New-SmokeProcessStartInfo`). PiPlay then remains open until the tester closes it; the script records no human result (`scripts/Test-UiSmoke.ps1:-KeepOpen`). Use [Unresolved verification](docs/PiPlay_Product_Engineering_Spec.md#unresolved-verification) as the sole live checklist.
 
-## Documentation
+Acceptance is release-decision evidence, not release provenance or tested-byte identity for later Stable output. Only after acceptance, publish from clean committed source to an environment-derived Stable root:
 
-- [Product and engineering requirements](docs/PiPlay_Product_Engineering_Spec.md)
-- [Decisions in force](docs/DECISIONS.md)
-- [Open issues and ownership](docs/SPEC_GAPS_AND_OWNERSHIP.md)
-- [Contributor workflow](docs/Feature_Workflow.md)
-- [Manual release checklist](docs/QA_Checklist.md)
-- [Theme values](docs/Theme_Preset_Differences.md)
-- [Data and privacy](docs/Data_and_Privacy_Map.md)
-- [YouTube compliance](docs/YouTube_Compliance.md)
+```powershell
+$env:PIPLAY_STABLE_ROOT = Join-Path $env:LOCALAPPDATA "PiPlayStable"
+pwsh -NoProfile -File .\scripts\Publish-Stable.ps1
+```
+
+The command requires committed `VERSION` and `BUILD_NUMBER`, runs the shared gate, builds, performs the verified staged deployment, verifies the deployed bytes, and tags `stable-vX.Y.Z-bN` (`scripts/Publish-Stable.ps1`).
+
+## Maintained documents
+
+- [Product and architecture contract](docs/PiPlay_Product_Engineering_Spec.md)
+- [Repository rules](docs/AGENTS.md)
+- [Current unreleased changes](docs/CHANGELOG.md)

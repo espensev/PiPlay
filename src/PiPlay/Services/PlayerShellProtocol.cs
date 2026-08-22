@@ -12,7 +12,7 @@ public enum ShellMessageKind
     Request,
 }
 
-/// <summary>A parsed inbound message from the compact shell (spec 10.3). Nullable/defaulted fields
+/// <summary>A parsed inbound message from the compact shell. Nullable/defaulted fields
 /// carry only what the <see cref="ShellMessageKind"/> defines; the rest stay at safe defaults.</summary>
 public sealed record InboundShellMessage(
     ShellMessageKind Kind,
@@ -24,8 +24,8 @@ public sealed record InboundShellMessage(
     string? VideoId = null);
 
 /// <summary>
-/// The pure, versioned host&lt;-&gt;shell message contract for compact (PiPlay shell) mode
-/// (spec 10.3). The single source of truth both <see cref="PlayerShellBridge"/> (host) and
+/// The pure, versioned host&lt;-&gt;shell message contract for compact (PiPlay shell) mode.
+/// The single source of truth both <see cref="PlayerShellBridge"/> (host) and
 /// <c>player-shell.js</c> (shell) follow. Minimal and local-only: the shell reports ready / state /
 /// error; the host commands play / pause / seek / requestState. No credentials, cookies, or tokens
 /// ever cross this channel. All parsing is best-effort (Q-3/Q-6): malformed input yields
@@ -62,7 +62,7 @@ public static class PlayerShellProtocol
     public const string FieldAction = "action";
     public const string FieldVideoId = "videoId";
 
-    // Allowlisted shell -> host window actions (spec 12.5 / docs/YouTube_Compliance.md): the shell may
+    // Allowlisted shell -> host window actions (PlayerShellProtocol.AllowedRequests): the shell may
     // REQUEST these; the host validates against this closed set and maps each to the existing
     // native handler. Anything else parses to Unknown — never an exception, never a new
     // capability. Both sides allowlist (player-shell.js mirrors this set).

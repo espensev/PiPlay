@@ -2,18 +2,18 @@ using PiPlay.Models;
 
 namespace PiPlay.Services;
 
-/// <summary>Effective playback surface for a Popout Player (spec 10).</summary>
+/// <summary>Effective playback surface for a Popout Player.</summary>
 public enum PlaybackMode
 {
-    /// <summary>Mode A — full YouTube page in the Popout Player (spec 10.1). Default and fallback.</summary>
+    /// <summary>Mode A — full YouTube page in the Popout Player. Default and fallback.</summary>
     Normal,
-    /// <summary>Mode B — embedded YouTube player in the Popout Player (spec 10.2). Opt-in, Phase 3.</summary>
+    /// <summary>Mode B — embedded YouTube player in the Popout Player. Opt-in.</summary>
     Compact,
 }
 
 /// <summary>
-/// Pure resolution of PiPlay's playback mode (spec 10): Normal YouTube page mode (default,
-/// fallback) versus Compact embedded-player mode (Phase 3, opt-in). Owns the durable profile-mode
+/// Pure resolution of PiPlay's playback mode: Normal YouTube page mode (default,
+/// fallback) versus Compact embedded-player mode (opt-in). Owns the durable profile-mode
 /// vocabulary, the global/profile precedence (REQ-PROFILE-01), and the mode-specific minimum
 /// window sizes. No UI, settings I/O, or WebView dependencies, so it is trivially unit-testable.
 /// </summary>
@@ -24,12 +24,12 @@ public static class PlaybackModePolicy
     /// <summary>Durable <see cref="Models.Profile.Mode"/> value that forces Compact embedded mode.</summary>
     public const string ProfileModeCompact = "compact";
 
-    // Normal page mode stays usable at the spec 10.1 / 16.1 minimum.
+    // Normal page mode minimum.
     public const int NormalMinWidth = 320;
     public const int NormalMinHeight = 180;
 
     // Compact embed/IFrame mode needs a larger floor so the embedded player controls stay usable
-    // (spec 10.2: do not reuse the 320x180 normal minimum for embed mode; prefer at least 480x270).
+    // (do not reuse the 320x180 normal minimum for embed mode; prefer at least 480x270).
     public const int CompactMinWidth = 480;
     public const int CompactMinHeight = 270;
 
@@ -67,9 +67,8 @@ public static class PlaybackModePolicy
         };
 
     /// <summary>
-    /// Master switch for the embed Compact player. Per spec 10.2–10.3, the embedded IFrame breaks on
-    /// embed-disabled videos for near-zero visible gain. False = new popouts are
-    /// always Normal. The Compact path (ResolveEffectiveMode, the shell/IFrame, Profile.Mode) is kept
+    /// Master switch for the embedded Compact player. False makes new popouts Normal. The Compact
+    /// path (ResolveEffectiveMode, the shell/IFrame, Profile.Mode) is kept
     /// DORMANT behind this flag rather than deleted, because the shell is the compact timestamp source.
     /// </summary>
     public const bool CompactPlayerEnabled = false;
@@ -82,24 +81,24 @@ public static class PlaybackModePolicy
     public static PlaybackMode ResolveEffectivePopoutMode(string? profileMode, bool globalCompact) =>
         CompactPlayerEnabled ? ResolveEffectiveMode(profileMode, globalCompact) : PlaybackMode.Normal;
 
-    /// <summary>Minimum window width (DIP) for the given mode (spec 10.2 / 16.1).</summary>
+    /// <summary>Minimum window width (DIP) for the given mode.</summary>
     public static int MinWidthFor(PlaybackMode mode) =>
         mode == PlaybackMode.Compact ? CompactMinWidth : NormalMinWidth;
 
-    /// <summary>Minimum window height (DIP) for the given mode (spec 10.2 / 16.1).</summary>
+    /// <summary>Minimum window height (DIP) for the given mode.</summary>
     public static int MinHeightFor(PlaybackMode mode) =>
         mode == PlaybackMode.Compact ? CompactMinHeight : NormalMinHeight;
 
     /// <summary>
     /// Whether the given mode reads the return timestamp by polling the YouTube page DOM
     /// (<see cref="YouTubeDomBridge"/>). True for Normal page mode only; Compact mode reads it from
-    /// the shell bridge (IFrame API) instead, so exactly one source drives the timestamp (spec 10.3).
+    /// the shell bridge (IFrame API) instead, so exactly one source drives the timestamp.
     /// The Popout Player consults this to decide whether to run its DOM sync timer.
     /// </summary>
     public static bool UsesDomSyncTimer(PlaybackMode mode) => mode == PlaybackMode.Normal;
 
     /// <summary>
-    /// Build the popout navigation URL for the resolved mode (spec 10): compact navigates to the
+    /// Build the popout navigation URL for the resolved mode: compact navigates to the
     /// local PiPlay shell (<see cref="YouTubeUrlHelper.BuildShellUrl"/>, which hosts the YouTube
     /// IFrame API player); normal uses the full watch page (<see cref="YouTubeUrlHelper.BuildWatchUrl"/>).
     /// The shell base is injected (the host owns the virtual-host name) so this stays a pure,

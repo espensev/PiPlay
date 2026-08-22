@@ -332,7 +332,7 @@ public class SettingsServiceTests : IDisposable
     [Fact]
     public void Hand_edited_opacity_below_the_ui_floor_is_honored()
     {
-        // Spec 7.3 explicit unlock: the Settings sliders stop at 0.45, but a hand-edited
+        // The Settings sliders stop at 0.45, but a hand-edited
         // settings.json may go down to the 0.10 file floor and Sanitize must NOT repair it.
         File.WriteAllText(_path,
             "{\"player\":{\"idleWindowOpacity\":0.25,\"constantWindowOpacity\":0.10}}");
@@ -449,7 +449,7 @@ public class SettingsServiceTests : IDisposable
     {
         var svc = new SettingsService(_path);
         // Off by default AND for a missing property, so every pre-Phase-4 settings.json keeps
-        // the always-reserved strip row (spec 7.2 / acceptance criterion 1).
+        // the always-reserved strip row.
         Assert.False(svc.Load().Player.StripAutoHide);
 
         var s = new AppSettings();

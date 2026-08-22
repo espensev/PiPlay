@@ -13,7 +13,7 @@
         UseLayoutRounding="False"
         SnapsToDevicePixels="True"
         PreviewKeyDown="MainWindow_PreviewKeyDown">
-  <!-- Custom thin title bar with native resize (spec 5.5). AllowsTransparency stays False:
+  <!-- Custom thin title bar with native resize. AllowsTransparency stays False:
        a transparent WPF window is incompatible with the HwndHost WebView2 (airspace). -->
   <WindowChrome.WindowChrome>
     <WindowChrome CaptionHeight="42"
@@ -111,7 +111,7 @@
                   ToolTip="Saved profiles" AutomationProperties.Name="Saved profiles">
           <ComboBox.ItemTemplate>
             <DataTemplate>
-              <!-- Row wash (docs/Theme_Preset_Differences.md): the row wears its OWN accent at the theme's
+              <!-- Row wash (ThemeCatalog and ThemeColors): the row wears its OWN accent at the theme's
                    subtle alpha, behind the identity rail. Tag carries the theme-published alpha
                    so a live theme change reconverts, same trick as the rail's surface Tag. -->
               <Grid x:Name="ProfileIdentityRow" MinWidth="0"
@@ -212,7 +212,7 @@
     </Grid>
 
     <!-- Content: browser + overlays. The letterbox pixels around the video wear the derived
-         near-black room tint (docs/Theme_Preset_Differences.md), never a hard-coded black. -->
+         near-black room tint (ThemeCatalog and ThemeColors), never a hard-coded black. -->
     <Grid x:Name="SourceLetterbox" Grid.Row="2" Background="{DynamicResource AccentLetterbox}">
       <!-- Resize inset band (REQ-WINDOW-02, overhaul Task 1): the WebView2 child HWND swallows
            WM_NCHITTEST, so the top-level window must own the edge pixels for the resize subclass
@@ -233,7 +233,7 @@
         </wv2:WebView2.Style>
       </wv2:WebView2>
 
-      <!-- Tier-1 Source Placeholder: shown (and the WebView hidden) while popped out (spec 13.3). -->
+      <!-- Tier-1 Source Placeholder: shown (and the WebView hidden) while popped out. -->
       <Border x:Name="SourcePlaceholder" Background="{DynamicResource AccentLetterbox}" Visibility="Collapsed">
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
           <TextBlock Text="&#xE8A7;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="40"
@@ -263,7 +263,7 @@
         </StackPanel>
       </Border>
 
-      <!-- WebView2 runtime-missing / init-failure recovery panel (spec 15.4, Q-6). -->
+      <!-- WebView2 runtime-missing / init-failure recovery panel (Q-6). -->
       <Border x:Name="RuntimeErrorPanel" Background="{DynamicResource AppBackground}" Visibility="Collapsed">
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
           <TextBlock Text="WebView2 Runtime is required" FontSize="20" FontWeight="SemiBold"

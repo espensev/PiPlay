@@ -42,7 +42,7 @@ internal static class Prompt
             SnapsToDevicePixels = true,
         };
 
-        // Same native corner shape as the themed owner windows (docs/Theme_Preset_Differences.md): without this,
+        // Same native corner shape as the themed owner windows (ThemeCatalog and ThemeColors): without this,
         // a round/square theme would leave the prompt as the only differently-shaped dialog. And the
         // same P1 borderless treatment — suppress the Win11 DWM frame hairline so prompts match.
         win.SourceInitialized += (_, _) =>
@@ -97,7 +97,7 @@ internal static class Prompt
     }
 
     /// <summary>
-    /// Build the profile playback-mode picker (spec 10, Phase 3 / spec 17 edit path): a dark combo
+    /// Build the profile playback-mode picker: a dark combo
     /// offering "Use global default", "Normal page", and — only while the Compact player is enabled
     /// (<see cref="PlaybackModePolicy.CompactPlayerEnabled"/>) — "Compact player". Internal and returns
     /// a getter so a WPF test can round-trip the selection without showing the modal editor. The getter
@@ -200,13 +200,13 @@ internal static class Prompt
     }
 
     /// <summary>
-    /// Themed Name + URL profile editor (spec 17, Phase 2 edit path). Both fields are prefilled.
+    /// Themed Name + URL profile editor. Both fields are prefilled.
     /// The URL is validated inline ("proactive validation UI"): an invalid URL or empty name shows
     /// a themed error and keeps the dialog open instead of closing — so a broken edit fails
     /// gracefully and is never saved. Returns the trimmed <c>(Name, Url)</c>, or null on cancel.
     /// Name-collision policy is the caller's (ProfileService.Update + the overwrite prompt); this
     /// dialog only validates the URL format, so it stays settings-agnostic. The playback-mode
-    /// override (spec 10, Phase 3) is carried through as the durable token (null / "normal" /
+    /// override is carried through as the durable token (null / "normal" /
     /// "compact"); normalization/precedence live in <see cref="PlaybackModePolicy"/>. The Popout
     /// presentation override is a separate durable token (null / "standard" / "focused") owned by
     /// <see cref="PopoutPresentationPolicy"/>.

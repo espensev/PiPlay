@@ -6,9 +6,8 @@ using PiPlay.Theme;
 namespace PiPlay.Services;
 
 /// <summary>
-/// Loads/saves <see cref="AppSettings"/> with atomic writes and corruption recovery
-/// (spec 12.6, 26.4). Never loses settings to a partial write; a corrupt file is
-/// quarantined and defaults are used.
+/// Loads and saves <see cref="AppSettings"/> with atomic writes and corruption recovery.
+/// A corrupt file is quarantined and defaults are used.
 /// </summary>
 public sealed class SettingsService
 {
@@ -104,7 +103,7 @@ public sealed class SettingsService
     }
 
     /// <summary>
-    /// Atomic write (spec 26.4): temp file, durable flush, atomic same-volume swap. Shared by
+    /// Atomic write: temp file, durable flush, atomic same-volume swap. Shared by
     /// <see cref="Save"/> and <see cref="Reset"/>. DO NOT use File.Copy or a direct overwrite — a
     /// crash mid-write would leave settings.json half-written. The live file is always either the
     /// previous content or the new content — never absent or partial.
@@ -182,7 +181,7 @@ public sealed class SettingsService
         s.Theme.AccentIntensity = ThemeCatalog.NormalizeAccentIntensity(s.Theme.AccentIntensity);
         s.Theme.ActiveWindowOpacity = NormalizeOptionalOpacity(s.Theme.ActiveWindowOpacity);
         s.Theme.IdleWindowOpacity = NormalizeOptionalOpacity(s.Theme.IdleWindowOpacity);
-        // Schema ≤2 semantic switch (docs/Theme_Preset_Differences.md): those files' null theme behavior
+        // Schema ≤2 semantic switch (ThemeCatalog and ThemeColors): those files' null theme behavior
         // values meant "use the legacy Player fields", so backfill them as explicit overrides
         // once — under schema 3 a null means "use the preset default", and a configured look
         // must never change across the upgrade. Runs after the opacity normalization so an
@@ -199,7 +198,7 @@ public sealed class SettingsService
 
         s.Profiles.RemoveAll(p => p is null || string.IsNullOrWhiteSpace(p.Name));
         // Repair the per-profile playback mode to the durable vocabulary (null/normal/compact),
-        // folding the legacy "embed" alias to "compact" and unknown values to null (Phase 3).
+        // folding the legacy "embed" alias to "compact" and unknown values to null.
         foreach (var p in s.Profiles)
         {
             p.Mode = PlaybackModePolicy.NormalizeProfileMode(p.Mode);

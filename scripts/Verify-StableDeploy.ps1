@@ -4,7 +4,7 @@
   One-command answer to "am I testing the right build?" for the deployed Stable copy.
 
 .DESCRIPTION
-  Verifies the deployed PiPlay Stable copy (default E:\Dev_test_implemenations\PiPlay) against
+  Verifies the deployed PiPlay Stable copy selected by -DeployRoot or PIPLAY_STABLE_ROOT against
   its own shipped manifest AND against this repo:
 
     1. build-info.json is present and the legacy BUILDINFO.json (if any) is identical;
@@ -26,13 +26,13 @@
 .EXAMPLE
   .\scripts\Verify-StableDeploy.ps1
 .EXAMPLE
-  .\scripts\Verify-StableDeploy.ps1 -DeployRoot 'E:\Dev_test_implemenations\PiPlay'
+  .\scripts\Verify-StableDeploy.ps1 -DeployRoot (Join-Path $env:LOCALAPPDATA 'PiPlayStable')
 .EXAMPLE
   .\scripts\Verify-StableDeploy.ps1 -AllowMissingStableTag   # pre-tag release gate
 #>
 [CmdletBinding()]
 param(
-    [string]$DeployRoot = "E:\Dev_test_implemenations\PiPlay",
+    [string]$DeployRoot,
     [switch]$AllowNonReleaseEvidence,
     [switch]$AllowMissingStableTag
 )
@@ -41,6 +41,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 . (Join-Path $PSScriptRoot "NativeCommand.ps1")
+. (Join-Path $PSScriptRoot "StableDeployRoot.ps1")
+
+$DeployRoot = Resolve-StableDeployRoot -DeployRoot $DeployRoot
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $script:failCount = 0
@@ -54,14 +57,33 @@ function Write-ProvenanceIssue([string]$message) {
     else { Write-Fail $message }
 }
 
-function Get-Sha256Hex([string]$Path) {
-    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToUpperInvariant()
+function Invoke-Git([string[]]$GitArgs) {
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git) { return $null }
+    $global:LASTEXITCODE = 0
+    $out = Invoke-NativeCommandQuiet { & $git.Source -C $repoRoot @GitArgs }
+    $gitExitCode = $LASTEXITCODE
+    if ($gitExitCode -ne 0) { return $null }
+    return $out
 }
 
-function Invoke-Git([string[]]$GitArgs) {
-    $out = Invoke-NativeCommandQuiet { & git -C $repoRoot @GitArgs }
-    if ($LASTEXITCODE -ne 0) { return $null }
+function Invoke-GitRequired([string[]]$GitArgs) {
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git) {
+        throw "Git is required to query source dirty state before stable verification."
+    }
+    $global:LASTEXITCODE = 0
+    $out = Invoke-NativeCommandQuiet { & $git.Source -C $repoRoot @GitArgs }
+    $gitExitCode = $LASTEXITCODE
+    if ($gitExitCode -ne 0) {
+        throw "Required git status query failed (exit $gitExitCode); source cleanliness is unknown."
+    }
     return $out
+}
+
+function Get-GitDirtyEntries {
+    $status = @(Invoke-GitRequired @("status", "--porcelain", "--untracked-files=all"))
+    return @($status | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 }
 
 function Get-ObjectPropertyValue {
@@ -135,9 +157,12 @@ if (Test-Path -LiteralPath $markerPath) {
 # 3. Re-hash every artifact against the manifest (post-copy integrity).
 $artifacts = @($buildInfo.artifactHashes)
 if ($artifacts.Count -eq 0) { throw "artifactHashes is empty in $buildInfoPath." }
+$resolvedArtifacts = @(Resolve-ManifestArtifactPaths `
+    -PayloadRoot $DeployRoot -Entries $artifacts)
 $hashFailures = 0
-foreach ($entry in $artifacts) {
-    $artifactPath = Join-Path $DeployRoot $entry.path
+foreach ($resolvedArtifact in $resolvedArtifacts) {
+    $entry = $resolvedArtifact.Entry
+    $artifactPath = $resolvedArtifact.FullPath
     if (-not (Test-Path -LiteralPath $artifactPath)) {
         Write-Fail "Missing artifact: $($entry.path)"; $hashFailures++; continue
     }
@@ -191,7 +216,7 @@ if ($null -ne $manifestReleaseEvidence) {
         Write-ProvenanceIssue "Manifest marks this deploy as NOT release evidence.$reason"
     }
 } else {
-    Write-ProvenanceIssue "Manifest has no releaseEvidence field; republish with the Phase 0 provenance pipeline before release QA."
+    Write-ProvenanceIssue "Manifest has no releaseEvidence field; republish with the current provenance pipeline before release QA."
 }
 
 $manifestSourceDirty = Get-ObjectPropertyValue -Object $buildInfo -Name "sourceDirty"
@@ -243,9 +268,9 @@ if (-not $commit) {
 }
 
 # 6. Repo working-tree context (how the deploy relates to what you would build NOW).
-$dirty = Invoke-Git @("status", "--porcelain")
-if ($dirty) {
-    Write-ProvenanceIssue "Repo working tree is DIRTY ($(@($dirty).Count) path(s)) - a build made now would not match any commit."
+$dirty = @(Get-GitDirtyEntries)
+if ($dirty.Count -gt 0) {
+    Write-ProvenanceIssue "Repo working tree is DIRTY ($($dirty.Count) path(s)) - a build made now would not match any commit."
 } else {
     Write-Ok "Repo working tree is clean."
 }

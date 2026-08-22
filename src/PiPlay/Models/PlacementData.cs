@@ -12,7 +12,7 @@ public sealed class RectData
 /// <summary>
 /// Persisted window placement: normal-position bounds in screen pixels plus the
 /// monitor identity, so PiPlay can restore to the same monitor and clamp to a visible
-/// work area when the monitor layout changes (spec 16.4, REQ-PROFILE-02).
+/// work area when the monitor layout changes (REQ-PROFILE-02).
 /// </summary>
 public sealed class PlacementData
 {

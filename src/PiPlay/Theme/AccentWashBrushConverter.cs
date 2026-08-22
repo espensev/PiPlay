@@ -6,7 +6,7 @@ namespace PiPlay.Theme;
 
 /// <summary>
 /// Converts a persisted RGB string plus the theme-published wash alpha into a frozen low-alpha
-/// identity wash (docs/Theme_Preset_Differences.md: dropdown rows wear their OWN accent
+/// identity wash (ThemeCatalog and ThemeColors: dropdown rows wear their OWN accent
 /// behind the identity rail). Null/invalid accents render no wash — the plain row surface is the
 /// fallback, matching <see cref="ContrastBrushConverter"/>'s contract for the rail.
 /// </summary>

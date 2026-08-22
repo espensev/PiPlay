@@ -18,7 +18,7 @@ public enum DwmCornerMode
 }
 
 /// <summary>
-/// Semantic per-theme corner radii in DIPs (docs/Theme_Preset_Differences.md). Distinct tokens, not one universal
+/// Semantic per-theme corner radii in DIPs (ThemeCatalog and ThemeColors). Distinct tokens, not one universal
 /// radius: a popout frame, a command button, a tooltip, and a scrollbar thumb do not want the
 /// same shape.
 /// </summary>
@@ -37,7 +37,7 @@ public sealed record ThemeRadii(
     double ToolTip);
 
 /// <summary>
-/// Per-theme surface/border/text colors as #RRGGBB hex (docs/Theme_Preset_Differences.md). The accent is NOT part of
+/// Per-theme surface/border/text colors as #RRGGBB hex (ThemeCatalog and ThemeColors). The accent is NOT part of
 /// the palette — it stays a separate, user-selected value layered on top.
 /// </summary>
 public sealed record ThemePalette(
@@ -52,7 +52,7 @@ public sealed record ThemePalette(
     string Danger);
 
 /// <summary>
-/// Per-theme control density in DIPs (docs/Theme_Preset_Differences.md): the heights,
+/// Per-theme control density in DIPs (ThemeCatalog and ThemeColors): the heights,
 /// paddings, and uniform default border weight that make Sharp feel compact and Soft Glass airy.
 /// Heights/sizes are plain doubles; paddings and the default border are WPF <see cref="Thickness"/>
 /// so the applier replaces Padding/BorderThickness DynamicResource entries with the struct type those
@@ -70,7 +70,7 @@ public sealed record ThemeDensity(
     Thickness BorderThicknessDefault);
 
 /// <summary>
-/// Per-theme INNER elevation (docs/Theme_Preset_Differences.md): the drop-shadow on
+/// Per-theme INNER elevation (ThemeCatalog and ThemeColors): the drop-shadow on
 /// popups/menus and raised internal panels. Inner-only — never an outer-window glow (the windows stay
 /// AllowsTransparency=False and host WebView2 by HWND). A preset with a <c>null</c> Elevation has no
 /// inner shadow at all (Sharp Dark): the applier writes a null Effect, not a no-op DropShadowEffect.
@@ -132,7 +132,7 @@ public static class ThemeCatalog
     public static int NormalizeAccentIntensity(int? intensity) =>
         intensity is null ? DefaultAccentIntensity : Math.Clamp(intensity.Value, 0, 100);
 
-    // Corner profiles (docs/Theme_Preset_Differences.md). Sharp is intentionally tight
+    // Corner profiles (ThemeCatalog and ThemeColors). Sharp is intentionally tight
     // (modern without going soft); minimal is visibly softer; soft-glass gets the largest popout
     // radius because it is the floating overlay theme. Ordered sharp ≤ minimal ≤ soft-glass per token.
     private static readonly ThemeRadii SharpRadii = new(
@@ -155,7 +155,7 @@ public static class ThemeCatalog
         Button: 0, IconButton: 0, Input: 0, Panel: 0,
         Popup: 0, Thumbnail: 0, Swatch: 0, ScrollbarThumb: 0, ToolTip: 0);
 
-    // Per-preset control density (docs/Theme_Preset_Differences.md): Sharp compact,
+    // Per-preset control density (ThemeCatalog and ThemeColors): Sharp compact,
     // Minimal normal, Soft Glass airy. ControlHeight/IconButtonSize climb strictly sharp<minimal<soft;
     // ScrollbarThickness thickens off Sharp then ties (8/10/10); BorderThicknessDefault is a uniform 1
     // across all three this pass (border weight is not a v2 differentiation axis yet). The applier
@@ -179,7 +179,7 @@ public static class ThemeCatalog
         MenuItemPadding: new Thickness(14, 9, 14, 9), PresetChipPadding: new Thickness(14, 0, 14, 0),
         ToolTipPadding: new Thickness(10, 7, 10, 7), BorderThicknessDefault: new Thickness(1));
 
-    // Inner elevation (docs/Theme_Preset_Differences.md): Sharp Dark gets a null
+    // Inner elevation (ThemeCatalog and ThemeColors): Sharp Dark gets a null
     // Elevation (flat — no inner shadow); Minimal is subtle, Soft Glass soft. Every axis is at least as
     // strong on Soft Glass as on Minimal, blur strictly stronger.
     private static readonly ThemeElevation MinimalElevation = new(
@@ -201,7 +201,7 @@ public static class ThemeCatalog
             DefaultStripAutoHide: true,
             DefaultActiveWindowOpacity: WindowOpacityPolicy.Default,
             DefaultIdleWindowOpacity: WindowOpacityPolicy.Default,
-            // Near-black and cool (docs/Theme_Preset_Differences.md): the darkest base
+            // Near-black and cool (ThemeCatalog and ThemeColors): the darkest base
             // with cool slate borders. The Colors.xaml seeds mirror these values.
             Palette: new(
                 AppBackground: "#050609", SurfaceBase: "#0B0E12",
@@ -227,7 +227,7 @@ public static class ThemeCatalog
             DefaultStripAutoHide: true,
             DefaultActiveWindowOpacity: 0.94,
             DefaultIdleWindowOpacity: 0.86,
-            // Warm charcoal palette (docs/Theme_Preset_Differences.md).
+            // Warm charcoal palette (ThemeCatalog and ThemeColors).
             Palette: new(
                 AppBackground: "#14120F", SurfaceBase: "#1C1A16",
                 SurfaceRaised: "#26231E", SurfaceHover: "#312D27",
@@ -252,8 +252,7 @@ public static class ThemeCatalog
             DefaultStripAutoHide: true,
             DefaultActiveWindowOpacity: 0.82,
             DefaultIdleWindowOpacity: 0.72,
-            // Blue/cool translucent-overlay palette with quieted borders and secondary text
-            // (docs/Theme_Preset_Differences.md).
+            // Blue/cool translucent-overlay palette with quieted borders and secondary text.
             Palette: new(
                 AppBackground: "#0B1018", SurfaceBase: "#121A26",
                 SurfaceRaised: "#1B2738", SurfaceHover: "#26354B",
@@ -274,7 +273,7 @@ public static class ThemeCatalog
     [
         new("cyan", "Cyan", DefaultAccentColor),
         new("steel-blue", "Steel blue", "#3F84C0"),
-        // The muted steel accent (docs/Theme_Preset_Differences.md): the darker, less-neon tone for the sharp look.
+        // The muted steel accent (ThemeCatalog and ThemeColors): the darker, less-neon tone for the sharp look.
         new("steel", "Steel", "#4A8FAB"),
         new("violet", "Violet", "#9E84F0"),
         new("green", "Green", "#2DB57F"),
@@ -313,8 +312,8 @@ public static class ThemeCatalog
         return CornerStyleOptionsValue.Any(o => o.Key == normalized) ? normalized : DefaultCornerStyle;
     }
 
-    /// <summary>The effective control radii for a preset plus the user's corner-style override
-    /// (docs/Theme_Preset_Differences.md): the override swaps the whole profile, never single values.</summary>
+    /// <summary>The effective control radii for a preset plus the user's corner-style override.
+    /// The override swaps the whole profile, never single values.</summary>
     public static ThemeRadii RadiiFor(ThemePreset preset, string? cornerStyle) =>
         NormalizeCornerStyle(cornerStyle) switch
         {
@@ -325,7 +324,7 @@ public static class ThemeCatalog
         };
 
     /// <summary>The effective native corner preference for a preset plus the user's corner-style
-    /// override. Explicit theme/user data — never derived from opacity (docs/Theme_Preset_Differences.md).</summary>
+    /// override. Explicit theme/user data, never derived from opacity.</summary>
     public static DwmCornerMode DwmCornersFor(ThemePreset preset, string? cornerStyle) =>
         NormalizeCornerStyle(cornerStyle) switch
         {
@@ -345,7 +344,7 @@ public static class ThemeCatalog
     public static bool IsValidHex(string? color) => NormalizeHex6(color) is not null;
 
     /// <summary>
-    /// Global-accent rule for an explicit theme switch (docs/Theme_Preset_Differences.md): adopt the next preset's
+    /// Global-accent rule for an explicit theme switch: adopt the next preset's
     /// default only when the current global IS the previous preset's default — a deliberately chosen
     /// custom global survives theme switches. Profile-owned accents do not use this substitution. The
     /// pure helper keeps the rule testable without the Settings dialog.

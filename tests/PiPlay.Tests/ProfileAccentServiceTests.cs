@@ -61,7 +61,7 @@ public class ProfileAccentServiceTests
         Assert.Equal("#0B0E11", ProfileAccentService.ResolvedAccentColor(settings, "#00D4FF"));
     }
 
-    // Spec decision 7: the accent picker edits WHATEVER IS PAINTING THE APP, so the live preview is
+    // The accent picker edits whatever is painting the app, so the live preview is
     // truthful and Done always sticks. If it always wrote to the global while a colored profile was
     // overriding it, the user would pick a color, see it preview, press Done - and watch the app snap
     // back. That reads as a bug.

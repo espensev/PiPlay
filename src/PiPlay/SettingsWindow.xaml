@@ -204,7 +204,7 @@
                      Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
         </Grid>
 
-        <!-- Corner style (docs/Theme_Preset_Differences.md): an override of the theme's whole corner PROFILE
+        <!-- Corner style (ThemeCatalog and ThemeColors): an override of the theme's whole corner PROFILE
              (control radii + native window corner), never individual per-control radii. "Theme"
              keeps preset-owned corners. Chip names use the CornerStyle prefix — the catalog-drift
              test predicates key on Theme*Preset / CornerStyle* names. -->
@@ -312,7 +312,7 @@
                      Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" />
         </Grid>
 
-        <!-- Strip auto-hide (spec 7.2, Phase 4): selectable appearance behavior, default off.
+        <!-- Strip auto-hide: selectable appearance behavior, default off.
              Only engages while the popout's Fade toggle is on (one idleness definition). -->
         <TextBlock Text="Popout top bar" FontSize="12" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,12,0,6" />

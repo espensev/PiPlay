@@ -12,7 +12,7 @@ public class WindowOpacityPolicyTests
     [InlineData(1.0, 1.0)]     // default / opaque look passes through
     [InlineData(0.45, 0.45)]   // UI slider floor is a legal stored value
     [InlineData(0.62, 0.62)]   // ordinary in-range value passes through
-    [InlineData(0.10, 0.10)]   // hand-edit unlock floor is honored exactly (spec 7.3 explicit unlock)
+    [InlineData(0.10, 0.10)]   // hand-edit unlock floor is honored exactly
     [InlineData(0.25, 0.25)]   // unlock range (0.10-0.45) is honored: the manual edit IS the unlock
     [InlineData(0.0999, 1.0)]  // below the file floor RESETS to opaque (not clamped to the floor)
     [InlineData(0.0, 1.0)]
@@ -32,7 +32,7 @@ public class WindowOpacityPolicyTests
     [InlineData(true, 1.0, 1.0, 1.0)]     // defaults: feature off, opaque while idle
     [InlineData(false, 0.8, 0.45, 0.8)]   // active uses the constant level
     [InlineData(true, 0.8, 0.45, 0.45)]   // idle uses the idle level
-    [InlineData(true, 0.6, 1.0, 0.6)]     // idle never brightens past active (spec 7.3: hover RESTORES)
+    [InlineData(true, 0.6, 1.0, 0.6)]     // idle never brightens past active (hover RESTORES)
     [InlineData(true, 0.6, 0.6, 0.6)]     // equal levels: idle is a no-op
     [InlineData(false, 5.0, 0.45, 1.0)]   // raw persisted junk is normalized before use
     [InlineData(true, 0.8, -3.0, 0.8)]    // junk idle resets to 1.0, then clamps to the active level
@@ -69,7 +69,7 @@ public class WindowOpacityPolicyTests
     [Fact]
     public void Window_fade_shares_the_controls_fade_duration()
     {
-        // One fade rhythm per window (spec 7.1–7.3): the strip fade and the window fade
+        // One fade rhythm per window: the strip fade and the window fade
         // must never drift apart.
         Assert.Equal(FadePolicy.FadeDurationMs, WindowOpacityPolicy.FadeDurationMs);
     }

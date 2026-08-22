@@ -79,7 +79,7 @@ public class ThemeCatalogTests
         Assert.Equal(milliseconds == 777 ? 2500 : milliseconds, ThemeCatalog.FadeDelayMillisecondsForPreset(expected));
     }
 
-    // --- Visual token sets: radii + native corner mode (docs/Theme_Preset_Differences.md) ---
+    // --- Visual token sets: radii + native corner mode (ThemeCatalog and ThemeColors) ---
 
     private static IEnumerable<double> AllRadii(ThemeRadii r) =>
         [r.MainWindowFrame, r.PopoutFrame, r.TitleBar, r.Button, r.IconButton, r.Input,
@@ -99,7 +99,7 @@ public class ThemeCatalogTests
         var softGlass = ThemeCatalog.PresetFor("soft-glass");
         Assert.True(softGlass.Radii.PopoutFrame >= softGlass.Radii.MainWindowFrame);
 
-        // Theme personality ordering (docs/Theme_Preset_Differences.md): sharp <= minimal <= soft-glass per token.
+        // Theme personality ordering (ThemeCatalog and ThemeColors): sharp <= minimal <= soft-glass per token.
         var sharp = AllRadii(ThemeCatalog.PresetFor("sharp-dark").Radii).ToArray();
         var minimal = AllRadii(ThemeCatalog.PresetFor("minimal").Radii).ToArray();
         var soft = AllRadii(softGlass.Radii).ToArray();
@@ -159,7 +159,7 @@ public class ThemeCatalogTests
             ThemeCatalog.DwmCornersFor(ThemeCatalog.PresetFor(ThemeCatalog.DefaultThemeId), ThemeCatalog.DefaultCornerStyle));
     }
 
-    // --- Accent switch rule (docs/Theme_Preset_Differences.md) ---
+    // --- Accent switch rule (ThemeCatalog and ThemeColors) ---
 
     [Theory]
     [InlineData("#2BAED0", "sharp-dark", "soft-glass", "#9E84F0")]   // on previous default → adopt next default
@@ -174,7 +174,7 @@ public class ThemeCatalogTests
             current, ThemeCatalog.PresetFor(fromTheme), ThemeCatalog.PresetFor(toTheme)));
     }
 
-    // --- Per-preset palette readability (docs/Theme_Preset_Differences.md), same Wcag gates as the
+    // --- Per-preset palette readability (ThemeCatalog and ThemeColors), same Wcag gates as the
     // Colors.xaml seed theories in XamlInvariantTests but across EVERY preset palette. ---
 
     public static IEnumerable<object[]> PresetIds() =>
@@ -207,13 +207,13 @@ public class ThemeCatalogTests
         }
     }
 
-    // --- TG-2 / TG-10: exact-value gates (docs/Theme_Preset_Differences.md) ---
-    // These pin the spec's target tables as HARDCODED literals, NOT derived from the catalog. The
+    // --- TG-2 / TG-10: exact-value gates (ThemeCatalog and ThemeColors) ---
+    // These pin shipped values as hardcoded literals, not values derived from the catalog. The
     // existing XamlInvariantTests seed test only proves Colors.xaml ↔ catalog consistency; changing
-    // the catalog and that test together stays green and enforces nothing against the spec. These
-    // gates fail if any shipped catalog value drifts from the agreed v2 target, independently.
+    // the catalog and that test together stays green. These gates independently fail if a shipped
+    // catalog value drifts.
 
-    private static void AssertPresetMatchesSpec(
+    private static void AssertPresetMatchesShippedValues(
         string id, string displayName, string defaultAccent, string fadeDelay, bool stripAutoHide,
         double activeOpacity, double idleOpacity, DwmCornerMode dwm, ThemePalette palette, ThemeRadii radii)
     {
@@ -231,7 +231,7 @@ public class ThemeCatalogTests
     }
 
     [Fact]
-    public void Sharp_dark_matches_the_v2_spec_literals() => AssertPresetMatchesSpec(
+    public void Sharp_dark_matches_the_shipped_literals() => AssertPresetMatchesShippedValues(
         "sharp-dark", "Sharp Dark", "#2BAED0", "normal", stripAutoHide: true,
         activeOpacity: 1.0, idleOpacity: 1.0, DwmCornerMode.Default,
         new ThemePalette(
@@ -243,7 +243,7 @@ public class ThemeCatalogTests
             Panel: 2, Popup: 4, Thumbnail: 2, Swatch: 4, ScrollbarThumb: 3, ToolTip: 4));
 
     [Fact]
-    public void Minimal_matches_the_v2_spec_literals() => AssertPresetMatchesSpec(
+    public void Minimal_matches_the_shipped_literals() => AssertPresetMatchesShippedValues(
         "minimal", "Minimal", "#3F84C0", "long", stripAutoHide: true,
         activeOpacity: 0.94, idleOpacity: 0.86, DwmCornerMode.SmallRound,
         new ThemePalette(
@@ -255,7 +255,7 @@ public class ThemeCatalogTests
             Panel: 10, Popup: 10, Thumbnail: 6, Swatch: 8, ScrollbarThumb: 5, ToolTip: 8));
 
     [Fact]
-    public void Soft_glass_matches_the_v2_spec_literals() => AssertPresetMatchesSpec(
+    public void Soft_glass_matches_the_shipped_literals() => AssertPresetMatchesShippedValues(
         "soft-glass", "Soft Glass", "#9E84F0", "short", stripAutoHide: true,
         activeOpacity: 0.82, idleOpacity: 0.72, DwmCornerMode.Round,
         new ThemePalette(
@@ -269,11 +269,11 @@ public class ThemeCatalogTests
     [Fact]
     public void Theme_palette_and_radii_use_structural_equality()
     {
-        // The *_matches_the_v2_spec_literals gates above pin all nine palette tokens and twelve radii
+        // The *_matches_the_shipped_literals gates above pin all nine palette tokens and twelve radii
         // through Assert.Equal(expectedRecord, preset.Palette/Radii) — which only compares per-field
         // because ThemePalette/ThemeRadii are records. If either were ever refactored to a class,
         // those asserts would silently degrade to reference equality and stop enforcing the literals.
-        // This guard turns that refactor red instead of letting it gut the spec gates unnoticed.
+        // This guard turns that refactor red instead of silently weakening those gates.
         Assert.Equal(
             new ThemePalette("#1", "#2", "#3", "#4", "#5", "#6", "#7", "#8", "#9"),
             new ThemePalette("#1", "#2", "#3", "#4", "#5", "#6", "#7", "#8", "#9"));
@@ -353,14 +353,9 @@ public class ThemeCatalogTests
         Assert.True(soft.DefaultIdleWindowOpacity >= 0.70);
     }
 
-    // --- CON-1 (theme-v2 Phase B): derived accent tokens stay WCAG-safe in their PINNED pairings,
-    // across every offered accent x every theme profile (see docs/Theme_Preset_Differences.md).
-    // The naive derivation reused OnAccent on the darker pressed fill, dropping the dim steel chip to
-    // 3.82:1; OnAccentPressed is re-picked against the pressed fill so it stays readable. Uses the
-    // independent Wcag oracle (not the production ContrastRatio it polices). AccentMuted/Subtle/Glow
-    // are contextual/alpha tokens with no consumer in this pass — gated when a consumer lands, per the
-    // spec's conditional-on-use rule (and AccentMuted has a known light-text gap on bright minimal/
-    // soft-glass chips that needs a design decision before it ships). ---
+    // --- CON-1: derived accent tokens stay WCAG-safe in their pinned pairings,
+    // across every offered accent x every theme profile (see ThemeCatalog and ThemeColors).
+    // using the independent Wcag oracle rather than the production contrast calculation. ---
 
     public static IEnumerable<object[]> AccentByPreset() =>
         from preset in ThemeCatalog.Presets
@@ -396,16 +391,16 @@ public class ThemeCatalogTests
         Assert.True(borderOnRaised >= 3.0, $"{presetId}/{accentKey}: AccentBorder on SurfaceRaised = {borderOnRaised:F2}:1.");
     }
 
-    // --- TG-3: density + elevation exact-value gates (docs/Theme_Preset_Differences.md).
+    // --- TG-3: density + elevation exact-value gates (ThemeCatalog and ThemeColors).
     // Like the palette/radii literals above, these pin the canonical values
     // target tables as HARDCODED literals, independent of the catalog. TG-3: a <= ordering gate is NOT
     // enough — it passes when all three presets collapse to the identical "Safe fallback" column, the
     // exact "Sharp compact / Soft Glass airy" regression the density pass exists to prevent — and
     // strict < is wrong because several axes legitimately tie (ScrollbarThickness 8/10/10,
     // BorderThicknessDefault 1/1/1, several padding components). So: exact literals per preset PLUS a
-    // strict-distinctness check on ONLY the axes the spec actually diverges. ---
+    // strict-distinctness check only on axes where the shipped presets diverge. ---
 
-    private static void AssertDensityMatchesSpec(
+    private static void AssertDensityMatchesShippedValues(
         string id, double controlHeight, double iconButtonSize, double scrollbarThickness,
         Thickness buttonPadding, Thickness inputPadding, Thickness menuItemPadding,
         Thickness presetChipPadding, Thickness toolTipPadding, Thickness borderThicknessDefault)
@@ -423,21 +418,21 @@ public class ThemeCatalogTests
     }
 
     [Fact]
-    public void Sharp_dark_density_matches_the_v2_spec_literals() => AssertDensityMatchesSpec(
+    public void Sharp_dark_density_matches_the_shipped_literals() => AssertDensityMatchesShippedValues(
         "sharp-dark", controlHeight: 30, iconButtonSize: 30, scrollbarThickness: 8,
         buttonPadding: new Thickness(10, 5, 10, 5), inputPadding: new Thickness(8, 0, 8, 0),
         menuItemPadding: new Thickness(8, 5, 8, 5), presetChipPadding: new Thickness(8, 0, 8, 0),
         toolTipPadding: new Thickness(7, 4, 7, 4), borderThicknessDefault: new Thickness(1));
 
     [Fact]
-    public void Minimal_density_matches_the_v2_spec_literals() => AssertDensityMatchesSpec(
+    public void Minimal_density_matches_the_shipped_literals() => AssertDensityMatchesShippedValues(
         "minimal", controlHeight: 34, iconButtonSize: 32, scrollbarThickness: 10,
         buttonPadding: new Thickness(12, 6, 12, 6), inputPadding: new Thickness(10, 0, 10, 0),
         menuItemPadding: new Thickness(10, 6, 10, 6), presetChipPadding: new Thickness(10, 0, 10, 0),
         toolTipPadding: new Thickness(8, 5, 8, 5), borderThicknessDefault: new Thickness(1));
 
     [Fact]
-    public void Soft_glass_density_matches_the_v2_spec_literals() => AssertDensityMatchesSpec(
+    public void Soft_glass_density_matches_the_shipped_literals() => AssertDensityMatchesShippedValues(
         "soft-glass", controlHeight: 38, iconButtonSize: 36, scrollbarThickness: 10,
         buttonPadding: new Thickness(16, 9, 16, 9), inputPadding: new Thickness(14, 2, 14, 2),
         menuItemPadding: new Thickness(14, 9, 14, 9), presetChipPadding: new Thickness(14, 0, 14, 0),
@@ -481,7 +476,7 @@ public class ThemeCatalogTests
     }
 
     [Fact]
-    public void Minimal_elevation_matches_the_v2_spec_literals()
+    public void Minimal_elevation_matches_the_shipped_literals()
     {
         var e = ThemeCatalog.PresetFor("minimal").Elevation;
         Assert.NotNull(e);
@@ -494,7 +489,7 @@ public class ThemeCatalogTests
     }
 
     [Fact]
-    public void Soft_glass_elevation_matches_the_v2_spec_literals()
+    public void Soft_glass_elevation_matches_the_shipped_literals()
     {
         var e = ThemeCatalog.PresetFor("soft-glass").Elevation;
         Assert.NotNull(e);
@@ -523,7 +518,7 @@ public class ThemeCatalogTests
     public void Theme_density_and_elevation_use_structural_equality()
     {
         // The same guard as Theme_palette_and_radii_use_structural_equality: the density/elevation
-        // *_matches_the_v2_spec_literals gates lean on per-field record equality. If ThemeDensity or
+        // *_matches_the_shipped_literals gates lean on per-field record equality. If ThemeDensity or
         // ThemeElevation were refactored to a class, Assert.Equal would silently degrade to reference
         // equality and stop enforcing the literals. Keep that refactor red.
         Assert.Equal(
