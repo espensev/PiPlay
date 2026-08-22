@@ -13,7 +13,7 @@
        own data root (PiPlayData beside the exe), its own single-instance identity, and a
        "PiPlay - Stable vX.Y.Z (bN)" title so it is differentiable from the dev app;
     3. validates the publish metadata (SHA256/size) via scripts\Test-PublishMetadata.ps1;
-    4. deploys to a deploy root (default E:\Dev_test_implemenations\PiPlay) via a STAGED SWAP
+    4. deploys to the explicit -DeployRoot or PIPLAY_STABLE_ROOT via a STAGED SWAP
        (scripts\DeploySwap.ps1): the payload is copied to a sibling .staging directory and re-hashed
        there, the old payload is moved aside to a sibling .backup, and only then is the verified
        payload moved in. A corrupt copy dies before the live copy is touched; a failure mid-swap rolls
@@ -41,17 +41,17 @@
   so signed bytes can pass manifest verification without post-sign hash drift.
 
 .EXAMPLE
-  .\scripts\Publish-Stable.ps1
+  .\scripts\Publish-Stable.ps1 -DeployRoot $env:PIPLAY_STABLE_ROOT
 .EXAMPLE
   .\scripts\Publish-Stable.ps1 -SignScript .\scripts\Sign-PiPlay.ps1
 .EXAMPLE
   .\scripts\Publish-Stable.ps1 -AllowVersionBump -Version minor
 .EXAMPLE
-  .\scripts\Publish-Stable.ps1 -DeployRoot 'E:\Dev_test_implemenations\PiPlay' -SkipTests -AllowDirty
+  .\scripts\Publish-Stable.ps1 -DeployRoot $env:PIPLAY_STABLE_ROOT -SkipTests -AllowDirty
 #>
 [CmdletBinding()]
 param(
-    [string]$DeployRoot = "E:\Dev_test_implemenations\PiPlay",
+    [string]$DeployRoot,
     [string]$Version,
     [switch]$NoVersionBump,
     [int]$BuildNumber = 0,
@@ -67,6 +67,13 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($DeployRoot)) {
+    $DeployRoot = [Environment]::GetEnvironmentVariable("PIPLAY_STABLE_ROOT")
+}
+if ([string]::IsNullOrWhiteSpace($DeployRoot)) {
+    throw "Set PIPLAY_STABLE_ROOT or pass -DeployRoot before publishing Stable."
+}
 
 . (Join-Path $PSScriptRoot "NativeCommand.ps1")
 . (Join-Path $PSScriptRoot "DeploySwap.ps1")

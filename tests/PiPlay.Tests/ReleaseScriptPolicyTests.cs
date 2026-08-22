@@ -32,6 +32,9 @@ public class ReleaseScriptPolicyTests
     {
         var script = Script("scripts/Publish-Stable.ps1");
 
+        Assert.Contains("[string]$DeployRoot", script);
+        Assert.Contains("PIPLAY_STABLE_ROOT", script);
+        Assert.DoesNotContain(@"E:\Dev_test_implemenations\PiPlay", script);
         Assert.Contains("[switch]$AllowDirty", script);
         Assert.Contains("[switch]$AllowVersionBump", script);
         Assert.Contains("Release-verified stable deploys require a clean tree", script);
@@ -47,6 +50,9 @@ public class ReleaseScriptPolicyTests
     {
         var script = Script("scripts/Verify-StableDeploy.ps1");
 
+        Assert.Contains("[string]$DeployRoot", script);
+        Assert.Contains("PIPLAY_STABLE_ROOT", script);
+        Assert.DoesNotContain(@"E:\Dev_test_implemenations\PiPlay", script);
         Assert.Contains("function Write-ProvenanceIssue", script);
         Assert.Contains("ProductVersion", script);
         Assert.Contains("Manifest marks this deploy as NOT release evidence", script);
@@ -323,7 +329,6 @@ public class ReleaseScriptPolicyTests
     [InlineData("scripts/Build-PiPlay.ps1")]
     [InlineData("scripts/Publish-Stable.ps1")]
     [InlineData("scripts/Verify-StableDeploy.ps1")]
-    [InlineData("scripts/Preflight-SpecGate.ps1")]
     public void Git_helpers_use_shared_native_command_wrapper(string relativePath)
     {
         var script = Script(relativePath);

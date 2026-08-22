@@ -2,12 +2,11 @@
 <#
 .SYNOPSIS
   Manual end-to-end UI smoke for PiPlay: launches the built exe, asserts key UI elements via
-  UI Automation, and captures a screenshot for the spec section 22.2 chrome acceptance review.
+  UI Automation, and captures a screenshot for the final deployed smoke.
 .DESCRIPTION
-  Layer 4 of the regression suite (see docs/AGENTS.md and docs/QA_Checklist.md). NOT part of
-  `dotnet test` — it needs an interactive desktop, the WebView2 runtime, and network. Run it as
-  a release gate alongside the Evidence section in docs/QA_Checklist.md. Capture at a fractional DPI (e.g.
-  150%) to expose the rounding/clipping class of bug (see docs/AGENTS.md).
+  Final deployed-window smoke (see docs/QA_Checklist.md). NOT part of `dotnet test` — it needs an
+  interactive desktop, the WebView2 runtime, and network. It checks the five named Source controls
+  and captures the rendered window; real playback/audio acceptance remains an end-user check.
 .EXAMPLE
   pwsh -File scripts/Test-UiSmoke.ps1
 .EXAMPLE

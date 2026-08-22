@@ -4,7 +4,7 @@
   One-command answer to "am I testing the right build?" for the deployed Stable copy.
 
 .DESCRIPTION
-  Verifies the deployed PiPlay Stable copy (default E:\Dev_test_implemenations\PiPlay) against
+  Verifies the deployed PiPlay Stable copy (from -DeployRoot or PIPLAY_STABLE_ROOT) against
   its own shipped manifest AND against this repo:
 
     1. build-info.json is present and the legacy BUILDINFO.json (if any) is identical;
@@ -24,21 +24,28 @@
   check fail-closed.
 
 .EXAMPLE
-  .\scripts\Verify-StableDeploy.ps1
+  .\scripts\Verify-StableDeploy.ps1 -DeployRoot $env:PIPLAY_STABLE_ROOT
 .EXAMPLE
-  .\scripts\Verify-StableDeploy.ps1 -DeployRoot 'E:\Dev_test_implemenations\PiPlay'
+  .\scripts\Verify-StableDeploy.ps1 -DeployRoot $env:PIPLAY_STABLE_ROOT
 .EXAMPLE
   .\scripts\Verify-StableDeploy.ps1 -AllowMissingStableTag   # pre-tag release gate
 #>
 [CmdletBinding()]
 param(
-    [string]$DeployRoot = "E:\Dev_test_implemenations\PiPlay",
+    [string]$DeployRoot,
     [switch]$AllowNonReleaseEvidence,
     [switch]$AllowMissingStableTag
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($DeployRoot)) {
+    $DeployRoot = [Environment]::GetEnvironmentVariable("PIPLAY_STABLE_ROOT")
+}
+if ([string]::IsNullOrWhiteSpace($DeployRoot)) {
+    throw "Set PIPLAY_STABLE_ROOT or pass -DeployRoot before verifying Stable."
+}
 
 . (Join-Path $PSScriptRoot "NativeCommand.ps1")
 

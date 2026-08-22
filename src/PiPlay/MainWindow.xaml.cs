@@ -1517,8 +1517,10 @@ public partial class MainWindow : Window
                 ResolveActiveProfileMode(target.VideoId), _settings.Player.CompactMode);
             var presentation = PopoutPresentationPolicy.ResolveEffectivePresentation(
                 ResolveActiveProfilePresentation(target.VideoId), _settings.Player.FocusedPresentation);
+            var launchSeconds = PopoutTargetResolver.ResolveLaunchSeconds(target, seconds);
+            target.StartSeconds = launchSeconds;
             var popoutUrl = PlaybackModePolicy.BuildPopoutUrl(
-                mode, target, seconds, WebViewEnvironmentService.ShellPlayerUrl);
+                mode, target, launchSeconds, WebViewEnvironmentService.ShellPlayerUrl);
 
             // 3) Pause the source and show the placeholder (Q-1: no duplicate audio). A non-null
             // FallbackReason (mix/radio drop) rides along as the placeholder note (Q-6) — it was
@@ -1559,10 +1561,8 @@ public partial class MainWindow : Window
                       ?? await App.Current.WebViewEnvironment.EnsureCreatedAsync();
 
             // The target doubles as the compact error bar's fallback handle (spec 10.3 / Q-6,
-            // Stage 4): a compact player that can't play rebuilds the normal watch URL from it,
-            // so carry the live timestamp onto it — a shell that errors before ever playing has
-            // no shell-reported seconds, and the fallback must not restart the video at 0:00.
-            target.StartSeconds = seconds ?? target.StartSeconds;
+            // Stage 4). Its StartSeconds was normalized before URL construction: ordinary videos
+            // keep the live/fallback timestamp, while a playlist-only first item starts at zero.
             _player = new PlayerWindow(env, popoutUrl, _settings.Player.Topmost,
                 _settings.Player.Placement, _settings.Player.LastWidth, _settings.Player.LastHeight,
                 _settings.Player.FadeEnabled, ResolvedAccentColor,
@@ -1577,8 +1577,8 @@ public partial class MainWindow : Window
             _player.Show();
 
             if (target.FallbackReason is not null) Log.Info($"Popout fallback: {target.FallbackReason}");
-            Log.Info($"Video Popout started at t={seconds?.ToString() ?? "0"}s, " +
-                     $"wasPlaying={_sourceWasPlayingAtPopout}, mode={mode}, presentation={presentation}.");
+            Log.Info($"Video Popout started at t={launchSeconds?.ToString() ?? "0"}s, " +
+                      $"wasPlaying={_sourceWasPlayingAtPopout}, mode={mode}, presentation={presentation}.");
         }
         catch (Exception ex)
         {
