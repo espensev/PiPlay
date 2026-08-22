@@ -223,7 +223,7 @@ Development and release scripts own build/publish behavior. Exact-source Stable 
 
 ### 22.2 Deployed UI smoke
 
-`scripts/Test-UiSmoke.ps1` checks the five named Source controls and captures the rendered window. It needs an interactive desktop and WebView2; it is a final deployed smoke, not a substitute for code tests.
+`scripts/Test-UiSmoke.ps1` checks the five named Source controls against the deployed executable, uses an isolated data root, foregrounds the real HWND in a per-monitor-DPI-aware capture context, and rejects blank/uniform frames. It needs an interactive desktop and WebView2; it is a final deployed smoke, not a substitute for code tests.
 
 ### 22.3 End-user acceptance
 

@@ -62,6 +62,20 @@ public class ReleaseScriptPolicyTests
     }
 
     [Fact]
+    public void Ui_smoke_is_isolated_dpi_aware_and_rejects_blank_captures()
+    {
+        var script = Script("scripts/Test-UiSmoke.ps1");
+
+        Assert.Contains("PIPLAY_DATA_ROOT", script);
+        Assert.Contains("SetThreadDpiAwarenessContext", script);
+        Assert.Contains("SetForegroundWindow", script);
+        Assert.Contains("GetForegroundWindow", script);
+        Assert.Contains("GetWindowThreadProcessId", script);
+        Assert.Contains("Rendered capture is blank or uniform", script);
+        Assert.Contains("SMOKE PASS", script);
+    }
+
+    [Fact]
     public void Verify_stable_fails_closed_on_missing_source_commit()
     {
         var script = Script("scripts/Verify-StableDeploy.ps1");

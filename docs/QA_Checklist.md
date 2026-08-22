@@ -12,7 +12,7 @@ if ([string]::IsNullOrWhiteSpace($stableRoot)) { throw 'Set PIPLAY_STABLE_ROOT f
 pwsh -NoProfile -File .\scripts\Test-UiSmoke.ps1 -ExePath (Join-Path $stableRoot 'PiPlay.exe')
 ```
 
-Stable publish runs the local gate (restore, tests, isolated test data, Node enforcement, and Release build), then performs the exact-source/staged-swap path. Stable verification re-checks manifest identity, artifact hashes, version/build, tag, source commit, and tree state. UI smoke checks the five named Source controls and captures the rendered window. These commands are the release evidence; repo output is not manual evidence.
+Stable publish runs the local gate (restore, tests, isolated test data, Node enforcement, and Release build), then performs the exact-source/staged-swap path. Stable verification re-checks manifest identity, artifact hashes, version/build, tag, source commit, and tree state. UI smoke uses isolated app data, checks the five named Source controls, foregrounds the deployed window in the correct DPI space, and rejects blank/uniform captures. These commands are the release evidence; repo output is not manual evidence.
 
 ## The user checks the result
 
