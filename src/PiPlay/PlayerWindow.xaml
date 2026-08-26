@@ -37,7 +37,7 @@
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <!-- Chrome strip: drag region + Pin + Close (always visible in MVP; fade is Phase 2). -->
+    <!-- Chrome strip: drag region + Pin + Close (fades on idle by default, spec 11; off keeps it always visible). -->
     <Border x:Name="ChromeStrip" Grid.Row="0" Height="44" Background="{DynamicResource SurfaceBase}"
             MouseLeftButtonDown="ChromeStrip_MouseLeftButtonDown">
       <Grid>

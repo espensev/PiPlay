@@ -198,7 +198,7 @@ if ($null -ne $manifestReleaseEvidence) {
         Write-ProvenanceIssue "Manifest marks this deploy as NOT release evidence.$reason"
     }
 } else {
-    Write-ProvenanceIssue "Manifest has no releaseEvidence field; republish with the Phase 0 provenance pipeline before release QA."
+    Write-ProvenanceIssue "Manifest has no releaseEvidence field; republish with .\scripts\Publish-Stable.ps1 from a clean tree with committed VERSION/BUILD_NUMBER stamps before release QA."
 }
 
 $manifestSourceDirty = Get-ObjectPropertyValue -Object $buildInfo -Name "sourceDirty"
