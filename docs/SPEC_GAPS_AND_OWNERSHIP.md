@@ -5,7 +5,6 @@ This file contains current unresolved items only. Accepted behavior is in [`PiPl
 ## Verified implementation gaps
 
 - **Q-1 live audio proof:** the Source suppression guard reasserts every `1 s` (`MainWindow.xaml.cs`), but automated tests and visual smoke cannot certify the absence of a brief acoustic overlap during ads, autoplay-next, SPA rerenders, or `start_radio=1`. On Stable v0.13.2 b39 a plain-video pop-out and return produced no overlap by ear (`docs/reviews/qa-2026-08-26-stable-v0.13.2-b39-listening.md`); those other paths remain unobserved, per [`QA_Checklist.md`](QA_Checklist.md).
-- **Dispatcher fault policy:** `App.OnDispatcherUnhandledException` marks every UI exception handled and shows a new message box. Recoverable classes and repeated-dialog coalescing are not defined.
 - **Runtime-scheme policy:** `NavigationPolicy.IsAllowed` permits top-level `about:`, `data:`, and `blob:` on both surfaces, and `NavigationPolicyTests` pins that behavior. The product has no recorded need for top-level `data:`; remove it only after a deliberate product decision and test update.
 
 ## Pending acceptance evidence

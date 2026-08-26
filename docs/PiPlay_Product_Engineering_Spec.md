@@ -177,6 +177,8 @@ Failure keeps a safe URL and exposes retry behavior. (`MainWindow.xaml.cs`.)
 
 Missing or failed WebView2 exposes install/retry recovery. (`WebViewEnvironmentService`, `RuntimeFailurePolicyTests`.)
 
+An unhandled dispatcher exception is logged and recovered from behind at most one message box at a time; a repeat of the same fault signature, meaning exception type plus throw site, within `10 s` of the last dialog is logged only. Out-of-memory, stack-overflow, access-violation, and SEH faults are logged, get one dialog, and are then left to terminate the process rather than marked handled. A fault raised once shutdown has started is logged without a dialog and does not block the exit. (`DispatcherFaultPolicy`, `App`, `RuntimeFailurePolicyTests`.)
+
 ## 16. Window behavior
 
 ### 16.1 Size and DPI
