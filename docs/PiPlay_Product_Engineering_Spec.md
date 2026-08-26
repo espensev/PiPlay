@@ -97,7 +97,7 @@ Compact is dormant: `PlaybackModePolicy.CompactPlayerEnabled` is `false`. If rev
 
 ### 10.3 Local Compact shell
 
-The shell is served from `https://piplay.local/player.html`, uses a versioned host protocol, and must remain isolated from Source navigation. Shell failure falls back to Normal without creating another player. (`PlayerShell*`, `WebViewEnvironmentService`, `PlayerShellAssetTests`.)
+The shell is served from `https://piplay.local/player.html`, uses a versioned host protocol, and must remain isolated from Source navigation. Shell failure falls back to Normal without creating another player. (`PlayerShell*`, `WebViewEnvironmentService`, `PlayerShellAssetTests`.) A shell web message is accepted only when its source origin — scheme, host, and port — is exactly the shell origin; any other source is dropped before the payload is parsed and is logged once per bridge with the origin redacted. (`PlayerShellProtocol.IsTrustedShellSource`, `PlayerShellBridge`, `PlayerShellProtocolTests`.)
 
 ### 10.4 Standard and Focused
 
