@@ -105,7 +105,7 @@ Standard is default. Focused is a reversible best-effort overlay on the real top
 
 ## 11. Runtime coordination
 
-One WPF dispatcher owns native/window state. Launch, return, navigation, and page calls are generation- or single-flight-guarded. Normal Popout DOM sync is `250 ms`; Source suppression is `1 s`; timers stop on close/navigation. Logging is local and bounded. (`MainWindow.xaml.cs`, `PlayerWindow.xaml.cs`, `SingleInstancePipePolicy`.)
+One WPF dispatcher owns native/window state. Launch, return, navigation, and page calls are generation- or single-flight-guarded. Normal Popout DOM sync is `250 ms`; Source suppression is `1 s`; normal-page DOM execution has a `5 s` deadline; and a connected single-instance client has `2 s` to finish its pipe payload. Timers stop on close/navigation. Logging is local and bounded. (`MainWindow.xaml.cs`, `PlayerWindow.xaml.cs`, `YouTubeDomBridge`, `SingleInstancePipePolicy`, `RuntimeFailurePolicyTests`.)
 
 ## 12. Component contracts
 

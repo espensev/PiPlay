@@ -1003,6 +1003,32 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public async Task Runtime_deadline_starts_a_contended_single_flight_factory_on_the_ui_thread()
+    {
+        using var gate = new SemaphoreSlim(0, 1);
+        Task<string>? queued = null;
+        var dispatcherThreadId = -1;
+        var factoryThreadId = -1;
+
+        StaTestThread.Invoke(() =>
+        {
+            dispatcherThreadId = Environment.CurrentManagedThreadId;
+            queued = AsyncOperationDeadline.RunSingleFlightAsync(
+                gate,
+                () =>
+                {
+                    factoryThreadId = Environment.CurrentManagedThreadId;
+                    return Task.FromResult("completed");
+                },
+                TimeSpan.FromSeconds(2));
+        });
+
+        gate.Release();
+        Assert.Equal("completed", await queued!.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.Equal(dispatcherThreadId, factoryThreadId);
+    }
+
+    [Fact]
     public void PlayerWindow_close_invalidates_an_in_flight_bridge_initialization() => StaTestThread.Invoke(() =>
     {
         var w = NewPlayer();

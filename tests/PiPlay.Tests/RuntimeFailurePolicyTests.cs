@@ -57,6 +57,69 @@ public class RuntimeFailurePolicyTests
     }
 
     [Fact]
+    public async Task Source_suppression_reports_false_when_the_script_executor_never_completes()
+    {
+        var neverCompletes = new TaskCompletionSource<string>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var acknowledged = await YouTubeDomBridge.SuppressPlaybackAsync(
+                _ => neverCompletes.Task,
+                TimeSpan.FromMilliseconds(25))
+            .WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.False(acknowledged);
+    }
+
+    [Fact]
+    public void Runtime_deadlines_match_the_accepted_coordination_contract()
+    {
+        Assert.Equal(TimeSpan.FromSeconds(5), YouTubeDomBridge.ExecutionTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(2), SingleInstancePipePolicy.ClientReadTimeout);
+    }
+
+    [Fact]
+    public async Task Runtime_deadline_keeps_a_non_cancellable_operation_single_flight()
+    {
+        using var gate = new SemaphoreSlim(1, 1);
+        var firstStarted = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirst = new TaskCompletionSource<string>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var first = AsyncOperationDeadline.RunSingleFlightAsync(
+            gate,
+            () =>
+            {
+                firstStarted.TrySetResult();
+                return releaseFirst.Task;
+            },
+            TimeSpan.FromMilliseconds(25));
+
+        await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await Assert.ThrowsAsync<TimeoutException>(() => first);
+
+        var duplicateStarts = 0;
+        await Assert.ThrowsAsync<TimeoutException>(() =>
+            AsyncOperationDeadline.RunSingleFlightAsync(
+                gate,
+                () =>
+                {
+                    duplicateStarts++;
+                    return Task.FromResult("duplicate");
+                },
+                TimeSpan.FromMilliseconds(25)));
+        Assert.Equal(0, duplicateStarts);
+
+        releaseFirst.SetResult("first");
+        var recovered = await AsyncOperationDeadline.RunSingleFlightAsync(
+            gate,
+            () => Task.FromResult("recovered"),
+            TimeSpan.FromSeconds(2));
+
+        Assert.Equal("recovered", recovered);
+    }
+
+    [Fact]
     public async Task Popout_launch_precondition_stops_code_after_unacknowledged_suppression()
     {
         var launchContinued = false;
@@ -281,6 +344,34 @@ public class RuntimeFailurePolicyTests
         Assert.Equal(TimeSpan.FromSeconds(16), SingleInstancePipePolicy.RetryDelay(7));
         Assert.Equal(TimeSpan.FromSeconds(30), SingleInstancePipePolicy.RetryDelay(8));
         Assert.Equal(TimeSpan.FromSeconds(30), SingleInstancePipePolicy.RetryDelay(100));
+    }
+
+    [Fact]
+    public async Task Pipe_payload_read_times_out_and_cancels_a_silent_client()
+    {
+        var readCancelled = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        async Task<string> ReadAsync(CancellationToken token)
+        {
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                return string.Empty;
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                readCancelled.TrySetResult();
+                throw;
+            }
+        }
+
+        await Assert.ThrowsAsync<TimeoutException>(() =>
+            SingleInstancePipePolicy.ReadClientPayloadAsync(
+                ReadAsync,
+                TimeSpan.FromMilliseconds(25),
+                CancellationToken.None));
+        await readCancelled.Task.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]

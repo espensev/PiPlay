@@ -149,7 +149,9 @@ public partial class App : Application
 
         await server.WaitForConnectionAsync(token);
         using var reader = new StreamReader(server, Encoding.UTF8);
-        var url = await reader.ReadToEndAsync(token);
+        var url = await SingleInstancePipePolicy.ReadClientPayloadAsync(
+            reader.ReadToEndAsync,
+            token);
 
         Dispatcher.Invoke(() => OnSecondInstance(url));
     }
