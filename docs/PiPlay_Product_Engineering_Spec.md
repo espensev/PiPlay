@@ -123,7 +123,7 @@ Owns one environment, data folder, missing-runtime recovery, and virtual-host ma
 
 ### 12.4 YouTubeUrlHelper
 
-Parses supported YouTube video/share/Shorts/embed/watch-playlist URLs and builds normalized watch or shell targets. Valid list IDs are retained; malformed IDs produce a non-blocking fallback reason. (`YouTubeUrlHelperTests`.)
+Parses supported YouTube video/share/Shorts/embed/watch-playlist URLs and builds normalized watch or shell targets. Valid list IDs are retained; malformed IDs produce a non-blocking fallback reason. (`YouTubeUrlHelperTests`.) A command-line launch argument is accepted only when `YouTubeUrlHelper.TryParse` recognises it, and is otherwise ignored. (`App.ExtractUrlArg`, `AppStartupArgumentTests`.)
 
 ### 12.5 YouTubeDomBridge and host protocols
 

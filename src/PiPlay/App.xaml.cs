@@ -109,16 +109,17 @@ public partial class App : Application
             "PiPlay", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
-    private static string? ExtractUrlArg(string[] args)
+    /// <summary>
+    /// The first launch argument that is a supported YouTube target, or null. The boundary IS the
+    /// product's URL parser - a prefix check would be a second, looser definition of "supported"
+    /// that drifts from the one the address bar and the popout resolver use. The argument is
+    /// returned verbatim; the navigation path re-parses it (MainWindow.ResolveNavigationUrl).
+    /// </summary>
+    internal static string? ExtractUrlArg(string[] args)
     {
         foreach (var a in args)
         {
-            if (a.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                a.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
-                a.StartsWith("youtu", StringComparison.OrdinalIgnoreCase))
-            {
-                return a;
-            }
+            if (YouTubeUrlHelper.TryParse(a, out _)) return a;
         }
         return null;
     }
