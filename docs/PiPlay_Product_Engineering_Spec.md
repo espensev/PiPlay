@@ -85,6 +85,9 @@ The app targets `net10.0-windows` with WPF, nullable reference types, implicit u
 
 `PIPLAY_DATA_ROOT` overrides the data root. Otherwise Stable uses `<exeDir>\PiPlayData` and Default uses `%LOCALAPPDATA%\PiPlay`. Source and Popout share one `CoreWebView2Environment`. (`AppPaths`, `AppChannel`, `AppPathsTests`.)
 
+- **REQ-APP-01:** one instance per channel/session. A second launch activates the existing instance and hands off a supported YouTube target where applicable; it never contends for the same WebView2 root.
+- **REQ-APP-02:** exact `--help`, `-h`, and `/?` startup arguments show native executable usage and exit successfully before logging, single-instance election or handoff, settings, WebView2, or window creation. Help wins over every other argument and creates no persistent application state. Outside help, the first argument accepted by `YouTubeUrlHelper.TryParse` is handed to normal startup verbatim; unsupported arguments are ignored.
+
 ## 10. Playback modes and presentation
 
 ### 10.1 Normal page mode
@@ -123,7 +126,7 @@ Owns one environment, data folder, missing-runtime recovery, and virtual-host ma
 
 ### 12.4 YouTubeUrlHelper
 
-Parses supported YouTube video/share/Shorts/embed/watch-playlist URLs and builds normalized watch or shell targets. Valid list IDs are retained; malformed IDs produce a non-blocking fallback reason. (`YouTubeUrlHelperTests`.) A command-line launch argument is accepted only when `YouTubeUrlHelper.TryParse` recognises it, and is otherwise ignored. (`App.ExtractUrlArg`, `AppStartupArgumentTests`.)
+Parses supported YouTube video/share/Shorts/embed/watch-playlist URLs and builds normalized watch or shell targets. Valid list IDs are retained; malformed IDs produce a non-blocking fallback reason. (`YouTubeUrlHelperTests`.) `StartupArgumentPolicy` uses the same parser for command-line launch arguments; it accepts the first supported target verbatim and otherwise starts without one. (`AppStartupArgumentTests`, `StartupArgumentPolicyTests`.)
 
 ### 12.5 YouTubeDomBridge and host protocols
 

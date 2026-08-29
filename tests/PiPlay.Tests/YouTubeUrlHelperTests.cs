@@ -102,6 +102,8 @@ public class YouTubeUrlHelperTests
     [InlineData("")]
     [InlineData("not a url")]
     [InlineData("https://example.com/watch?v=dQw4w9WgXcQ")]
+    [InlineData("https://evil.test@youtube.com/watch?v=dQw4w9WgXcQ")]
+    [InlineData("evil.test@youtube.com/watch?v=dQw4w9WgXcQ")]
     [InlineData("https://www.youtube.com/")]
     public void Rejects_unsupported_input(string url)
     {

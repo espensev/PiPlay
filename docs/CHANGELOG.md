@@ -1,6 +1,10 @@
 # Changelog
 
-Shipped user-visible changes. `VERSION` and `BUILD_NUMBER` are the current release stamp; Git retains older release history.
+User-visible changes. `VERSION` and `BUILD_NUMBER` are the current release stamp; Git retains older release history.
+
+## Unreleased
+
+- `PiPlay.exe --help`, `-h`, and `/?` show native usage and exit before normal startup; command-line launch targets remain limited to values accepted by the shared YouTube parser.
 
 ## 0.13.2 — 2026-08-23 (build 39)
 

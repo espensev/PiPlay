@@ -6,6 +6,14 @@ PiPlay is a Windows WPF desktop app that plays YouTube in one movable, resizable
 
 The app targets `net10.0-windows`, uses WPF, and references Microsoft WebView2 Evergreen (`src/PiPlay/PiPlay.csproj`, `global.json`). Open a YouTube video or playlist, select **Pop out video**, then use **Bring video back** or close the Popout to return playback.
 
+Command-line help is owned by the executable:
+
+```powershell
+& .\PiPlay.exe --help
+```
+
+`-h` and `/?` are equivalent exact aliases. PowerShell `Get-Help` does not inspect native executables, so invoke PiPlay with one of those arguments instead.
+
 For the deterministic, non-interactive gate:
 
 ```powershell

@@ -26,6 +26,7 @@ public static class YouTubeUrlHelper
         if (!text.Contains("://")) text = "https://" + text;
         if (!Uri.TryCreate(text, UriKind.Absolute, out var uri)) return false;
         if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) return false;
+        if (!string.IsNullOrEmpty(uri.UserInfo)) return false;
 
         var host = uri.Host.ToLowerInvariant();
         var query = ParseQuery(uri.Query);
