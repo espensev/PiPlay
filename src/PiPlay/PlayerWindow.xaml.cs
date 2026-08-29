@@ -38,7 +38,7 @@ public partial class PlayerWindow : Window
     // place, so the mode-dependent seams (timestamp source, minimum size) follow the live surface.
     private PlaybackMode _mode;
 
-    // Controls fade (spec 11, Phase 2): idle/hover state machine over the chrome strip only.
+    // Controls fade (spec 7.1): idle/hover state machine over the chrome strip only.
     private readonly DispatcherTimer _idleTimer;
     private bool _fadeEnabled;
     private bool _isDragging;
@@ -921,7 +921,7 @@ public partial class PlayerWindow : Window
     internal string ExpandGlyphForTests => (string)ExpandButton.Content;
     internal string ExpandToolTipForTests => (string)ExpandButton.ToolTip;
 
-    // --- Controls fade (spec 11, Phase 2) ---
+    // --- Controls fade (spec 7.1) ---
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e) =>
         SettingsRequested?.Invoke(this, EventArgs.Empty);

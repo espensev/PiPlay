@@ -5,6 +5,7 @@ internal static class SingleInstancePipePolicy
 {
     private static readonly TimeSpan InitialRetryDelay = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan MaximumRetryDelay = TimeSpan.FromSeconds(30);
+    public static readonly TimeSpan ClientReadTimeout = TimeSpan.FromSeconds(2);
 
     /// <summary>
     /// Match the <c>Local\</c> mutex boundary: each logon session gets its own primary and pipe,
@@ -27,6 +28,17 @@ internal static class SingleInstancePipePolicy
         var milliseconds = InitialRetryDelay.TotalMilliseconds * (1 << exponent);
         return TimeSpan.FromMilliseconds(Math.Min(milliseconds, MaximumRetryDelay.TotalMilliseconds));
     }
+
+    public static Task<string> ReadClientPayloadAsync(
+        Func<CancellationToken, Task<string>> readAsync,
+        CancellationToken cancellationToken) =>
+        ReadClientPayloadAsync(readAsync, ClientReadTimeout, cancellationToken);
+
+    internal static Task<string> ReadClientPayloadAsync(
+        Func<CancellationToken, Task<string>> readAsync,
+        TimeSpan timeout,
+        CancellationToken cancellationToken) =>
+        AsyncOperationDeadline.RunAsync(readAsync, timeout, cancellationToken);
 
     public static async Task RunAsync(
         Func<CancellationToken, Task> attemptAsync,

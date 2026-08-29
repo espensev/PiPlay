@@ -1,7 +1,7 @@
 namespace PiPlay.Services;
 
 /// <summary>
-/// Pure decision logic for the Popout Player controls fade (spec 11, Phase 2). Kept free of
+/// Pure decision logic for the Popout Player controls fade (spec 7.1). Kept free of
 /// WPF types so the idle/hover state machine can be unit tested without a window. The
 /// <see cref="PlayerWindow"/> feeds it live input (pointer-over, dragging, idle-timer state)
 /// and animates the chrome strip based on the result.

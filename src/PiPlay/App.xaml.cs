@@ -34,6 +34,8 @@ public partial class App : Application
 
     private Mutex? _mutex;
     private CancellationTokenSource? _pipeCts;
+    private readonly DispatcherFaultPolicy _dispatcherFaults = new();
+    private bool _shuttingDown;
 
     private static int GetCurrentSessionId()
     {
@@ -91,6 +93,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _shuttingDown = true;
         try { _pipeCts?.Cancel(); } catch { /* ignore */ }
         try { _mutex?.ReleaseMutex(); } catch { /* not owned */ }
         _mutex?.Dispose();
@@ -101,24 +104,51 @@ public partial class App : Application
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        // Recover cleanly (Q-6): log and keep the app alive rather than crashing out.
-        Log.Error("Unhandled UI exception.", e.Exception);
-        e.Handled = true;
-        MessageBox.Show(
-            "PiPlay hit an unexpected problem. The details were written to the log and the app will keep running.",
-            "PiPlay", MessageBoxButton.OK, MessageBoxImage.Warning);
+        // Recover cleanly (Q-6) without stacking modals on a repeating fault, and without claiming
+        // recovery from one the process cannot survive. DispatcherFaultPolicy owns that decision.
+        var decision = _dispatcherFaults.Evaluate(
+            e.Exception, _shuttingDown || Dispatcher.HasShutdownStarted);
+        Log.Error(
+            $"Unhandled UI exception (handled={decision.Handled}, dialog={decision.ShowDialog}, " +
+            $"signature={decision.Signature}).",
+            e.Exception);
+
+        e.Handled = decision.Handled;
+        if (!decision.ShowDialog) return;
+
+        try
+        {
+            // Modal, so the dispatcher keeps pumping: faults raised behind this dialog re-enter
+            // this handler on the same thread and the policy coalesces them.
+            MessageBox.Show(
+                decision.Handled
+                    ? "PiPlay hit an unexpected problem. The details were written to the log and the app will keep running."
+                    : "PiPlay hit a problem it cannot recover from. The details were written to the log and the app will close.",
+                "PiPlay", MessageBoxButton.OK,
+                decision.Handled ? MessageBoxImage.Warning : MessageBoxImage.Error);
+        }
+        catch (Exception dialogFailure)
+        {
+            // An out-of-memory fault can take the dialog down with it; never mask the original.
+            Log.Error("Failed to show the unhandled UI exception dialog.", dialogFailure);
+        }
+        finally
+        {
+            _dispatcherFaults.DialogClosed();
+        }
     }
 
-    private static string? ExtractUrlArg(string[] args)
+    /// <summary>
+    /// The first launch argument that is a supported YouTube target, or null. The boundary IS the
+    /// product's URL parser - a prefix check would be a second, looser definition of "supported"
+    /// that drifts from the one the address bar and the popout resolver use. The argument is
+    /// returned verbatim; the navigation path re-parses it (MainWindow.ResolveNavigationUrl).
+    /// </summary>
+    internal static string? ExtractUrlArg(string[] args)
     {
         foreach (var a in args)
         {
-            if (a.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                a.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
-                a.StartsWith("youtu", StringComparison.OrdinalIgnoreCase))
-            {
-                return a;
-            }
+            if (YouTubeUrlHelper.TryParse(a, out _)) return a;
         }
         return null;
     }
@@ -149,7 +179,9 @@ public partial class App : Application
 
         await server.WaitForConnectionAsync(token);
         using var reader = new StreamReader(server, Encoding.UTF8);
-        var url = await reader.ReadToEndAsync(token);
+        var url = await SingleInstancePipePolicy.ReadClientPayloadAsync(
+            reader.ReadToEndAsync,
+            token);
 
         Dispatcher.Invoke(() => OnSecondInstance(url));
     }

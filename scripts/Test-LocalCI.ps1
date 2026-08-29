@@ -37,13 +37,13 @@ function New-LocalCiPlan {
     $buildScript = Join-Path $repoRoot "Build-PiPlay.ps1"
 
     return [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         repoRoot = $repoRoot
         workingDirectory = $repoRoot
         testDataRoot = $testDataRoot
         cleanupTestDataRoot = -not $KeepTestDataRoot
         requirements = [ordered]@{
-            nodeMajor = 24
+            nodeMinimumMajor = 24
             dotnetGlobalJson = "global.json"
             powerShell = "pwsh"
         }
@@ -158,7 +158,7 @@ function Set-ProcessEnvironment {
 function Invoke-NodeVersionStep {
     param(
         [Parameter(Mandatory = $true)]$Step,
-        [Parameter(Mandatory = $true)][int]$RequiredMajor
+        [Parameter(Mandatory = $true)][int]$MinimumMajor
     )
 
     $filePath = [string]$Step.filePath
@@ -174,8 +174,13 @@ function Invoke-NodeVersionStep {
     if ($exitCode -ne 0) {
         throw "Local CI step '$($Step.name)' failed with exit code $exitCode."
     }
-    if ($nodeVersion -notmatch "^v?$RequiredMajor\.") {
-        throw "PiPlay local CI requires Node $RequiredMajor; found '$nodeVersion'."
+    $versionMatch = [regex]::Match($nodeVersion, '^v?(?<major>\d+)\.')
+    if (-not $versionMatch.Success) {
+        throw "PiPlay local CI could not parse the Node version '$nodeVersion'."
+    }
+    $nodeMajor = [int]$versionMatch.Groups['major'].Value
+    if ($nodeMajor -lt $MinimumMajor) {
+        throw "PiPlay local CI requires Node $MinimumMajor or newer; found '$nodeVersion'."
     }
 }
 
@@ -213,7 +218,7 @@ try {
 
     foreach ($step in $localCiPlan.steps) {
         if ($step.name -eq "node-version") {
-            Invoke-NodeVersionStep -Step $step -RequiredMajor $localCiPlan.requirements.nodeMajor
+            Invoke-NodeVersionStep -Step $step -MinimumMajor $localCiPlan.requirements.nodeMinimumMajor
         } elseif ($step.name -eq "test") {
             try {
                 New-Item -ItemType Directory -Path $testDataRoot -Force | Out-Null

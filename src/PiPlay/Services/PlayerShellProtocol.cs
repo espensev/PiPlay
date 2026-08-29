@@ -70,6 +70,30 @@ public static class PlayerShellProtocol
     public const string ActionPinToggle = "pinToggle";
     public const string ActionFullscreenToggle = "fullscreenToggle";
 
+    /// <summary>
+    /// True when a web message came from the compact shell's own document. The shell is the only
+    /// document served from <paramref name="expectedShellOrigin"/>, so anything else — the nested
+    /// YouTube iframe, a stray frame, a look-alike host — is outside this contract and must never
+    /// reach <see cref="Parse"/>, let alone an allowlisted window action. Exact origin equality:
+    /// scheme, host, and port must all match (scheme and host case-insensitively per RFC 3986;
+    /// userinfo, path, query, and fragment are not part of an origin), never a prefix, suffix, or
+    /// substring of the host. The expected origin is passed in — the caller supplies
+    /// <see cref="WebViewEnvironmentService.ShellOrigin"/> — so the decision stays pure and
+    /// testable without a live WebView2. An unparseable source or expected origin is rejected.
+    /// </summary>
+    public static bool IsTrustedShellSource(string? messageSource, string? expectedShellOrigin)
+    {
+        if (!Uri.TryCreate(messageSource, UriKind.Absolute, out var source)
+            || !Uri.TryCreate(expectedShellOrigin, UriKind.Absolute, out var expected))
+        {
+            return false;
+        }
+
+        return string.Equals(source.Scheme, expected.Scheme, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(source.IdnHost, expected.IdnHost, StringComparison.OrdinalIgnoreCase)
+            && source.Port == expected.Port;
+    }
+
     /// <summary>Parse one inbound JSON string from the shell. Never throws; unrecognized -> Unknown.</summary>
     public static InboundShellMessage Parse(string? json)
     {

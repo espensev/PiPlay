@@ -1,33 +1,23 @@
 # Data and privacy map
 
-PiPlay has no telemetry, analytics, crash upload, or credential collection.
+Primary sources: `AppPaths`, `AppChannel`, `SettingsService`, `LoggingService`, `PrivacyService`, and `DeploySwap.ps1`; regression coverage is in the corresponding `*Tests` files.
 
-## Data roots
+PiPlay has no telemetry, analytics, crash upload, or credential collection in the current implementation. It stores data locally:
 
-```text
-Default: %LOCALAPPDATA%\PiPlay\
-Stable:  <exe folder>\PiPlayData\
-Tests:   PIPLAY_DATA_ROOT overrides either root
-```
+| Root | Resolution |
+|---|---|
+| Default | `%LOCALAPPDATA%\PiPlay` |
+| Stable | `<exeDir>\PiPlayData` |
+| Tests/diagnostics | `PIPLAY_DATA_ROOT` overrides both |
 
-Stable data is isolated from Default and preserved across staged redeploys. See ADR-0007 in `DECISIONS.md`.
+Staged Stable deployment leaves `PiPlayData` in place. `PIPLAY_CHANNEL` is a separate test/diagnostic channel override; it does not replace `PIPLAY_DATA_ROOT`.
 
-## Files
+| Data | Location | Contents / retention |
+|---|---|---|
+| App state | `settings.json` | Schema `4`: URL, playback/appearance settings, profiles, active profile, and placement. Writes are flushed to a temporary file and atomically replaced. Corrupt files are quarantined with a timestamp and old quarantines are removed after 30 days. |
+| Diagnostics | `logs\piplay.log` and one `.1` backup | Local redacted lifecycle/failure logs. Queue `4096` entries, batches `64 KiB`, failed-batch retention `512 KiB`, rotation near `1,000,000` bytes. |
+| Browser profile | `WebView2UserData\` | WebView2 cookies, cache, permissions, and YouTube/Google session data shared by Source and Popout. Treat it as private browser data. |
 
-| Data | Relative location | Contents and lifetime | Clear |
-|---|---|---|---|
-| Settings/profiles | `settings.json` | Schema 4: last URL, Auto, Source/Popout placement and Pin, Fade/opacity, theme/accent/corners, presentation, active profile, profile URL/overrides/bounds. Atomic and persistent; corrupt files are quarantined as `settings.json.corrupt.YYYYMMDD-HHMMSS.json` and pruned after 30 days. | **Reset app state** or delete while closed. |
-| Logs | `logs\piplay.log` | Local redacted lifecycle/failure diagnostics. Queue 4,096; batches 64 KiB; retained failed batch 512 KiB; rotate near 1,000,000 bytes with one backup. | Delete log/folder. Reset keeps logs. |
-| Browser profile | `WebView2UserData\` | WebView2 cookies, YouTube/Google login, cache, permissions. Shared by Source/Popout inside one channel. Sensitive private browser data; never copied to settings/logs. | **Clear browser data** or delete while closed. |
+**Reset app state** replaces app settings with defaults, removes stale settings quarantines, and does not touch browser data or logs; the YouTube session remains. **Clear browser data** is separate and confirmed: it closes the Popout, calls `ClearBrowsingDataAsync(AllProfile)`, and keeps the operation single-flight through its `30 s` UI timeout. The underlying browser clear determines when the session is actually gone. (`PrivacyService`, `MainWindow.xaml.cs`, `PrivacyServiceTests`.)
 
-## Actions
-
-- **Reset app state (REQ-PRIVACY-01):** clears settings, profiles, preferences, and placement. It does not touch `WebView2UserData\`; YouTube remains signed in.
-- **Clear browser data (REQ-PRIVACY-02):** separate confirmed action using `ClearBrowsingDataAsync(AllProfile)`. It closes Popout, keeps the Source WebView alive, clears the shared profile, then reloads YouTube and signs the user out. The UI timeout is `30 seconds`; after a timeout, clear remains single-flight until the underlying task succeeds or fails.
-- **Clean uninstall:** close PiPlay, uninstall binaries, then remove the whole data root. Stable data is contained under its deployed folder; the app remains framework-dependent.
-
-## Restrictions
-
-- Never log cookies, authorization headers, full credential-bearing URLs, command lines containing secrets, or unsanitized search text.
-- PiPlay settings/profiles contain no YouTube credentials. Treat `WebView2UserData\` like any browser profile.
-- Browser and app resets remain separate in UI wording, confirmation, and implementation.
+Never log cookies, authorization headers, credential-bearing URLs, secret-containing command lines, or unsanitized search text. Settings/profiles contain no YouTube credentials by design; browser credentials remain in `WebView2UserData\`.

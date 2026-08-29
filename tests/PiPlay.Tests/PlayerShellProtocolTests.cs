@@ -1,3 +1,4 @@
+using System.IO;
 using PiPlay.Services;
 
 namespace PiPlay.Tests;
@@ -5,6 +6,71 @@ namespace PiPlay.Tests;
 [Trait(TestCategories.Key, TestCategories.Logic)]
 public class PlayerShellProtocolTests
 {
+    // --- Source gate: only the compact shell's own origin may speak this protocol ---
+
+    // The shell's origin, spelled out so these cases read as data. The real value is pinned
+    // against the SSOT by Shell_source_gate_accepts_the_real_shell_page_at_the_real_origin below.
+    private const string ShellOrigin = "https://piplay.local";
+
+    [Theory]
+    [InlineData("https://piplay.local/player.html", true)]              // the shell page itself
+    [InlineData("https://piplay.local/player.html?v=dQw4w9WgXcQ&start=30", true)]   // the real launch URL
+    [InlineData("https://piplay.local", true)]                          // a bare-origin source
+    [InlineData("https://piplay.local:443/player.html", true)]          // the default https port IS the origin
+    [InlineData("HTTPS://PIPLAY.LOCAL/player.html", true)]              // Uri lower-cases scheme/host first
+    [InlineData("http://piplay.local/player.html", false)]              // scheme must match
+    [InlineData("http://piplay.local:443/player.html", false)]          // ...on its own, not via the port
+    [InlineData("https://piplay.local:8443/player.html", false)]        // port must match
+    [InlineData("https://sub.piplay.local/player.html", false)]         // not a suffix match
+    [InlineData("https://piplay.local.evil.test/player.html", false)]   // not a prefix match
+    [InlineData("https://shell.local.evil/player.html", false)]         // not a substring match
+    [InlineData("https://piplay.local@evil.test/player.html", false)]   // userinfo cannot spoof the host
+    [InlineData("https://www.youtube.com/embed/dQw4w9WgXcQ", false)]    // the nested iframe is not the shell
+    [InlineData("https://evil.test/?next=https://piplay.local", false)] // the origin is not the query
+    [InlineData("player.html", false)]                                  // a relative source is not an origin
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void Shell_source_gate_matches_the_origin_exactly(string? source, bool expected)
+    {
+        // A foreign frame must not be able to send close / pinToggle / fullscreenToggle, a state,
+        // or an error, so the gate compares scheme, host, and port and never a prefix or substring.
+        Assert.Equal(expected, PlayerShellProtocol.IsTrustedShellSource(source, ShellOrigin));
+    }
+
+    [Fact]
+    public void Shell_source_gate_accepts_the_real_shell_page_at_the_real_origin()
+    {
+        // Pins the SSOT, not a hand-copied literal: were ShellOrigin to grow a trailing slash or an
+        // explicit port, the gate would fail closed in production and silently kill compact mode.
+        Assert.True(PlayerShellProtocol.IsTrustedShellSource(
+            WebViewEnvironmentService.ShellPlayerUrl, WebViewEnvironmentService.ShellOrigin));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("piplay.local")]   // no scheme, so not an absolute origin
+    public void Shell_source_gate_fails_closed_on_an_unusable_expected_origin(string? expectedOrigin)
+    {
+        Assert.False(PlayerShellProtocol.IsTrustedShellSource(
+            "https://piplay.local/player.html", expectedOrigin));
+    }
+
+    [Fact]
+    public void Shell_bridge_gates_the_source_before_it_reads_the_payload()
+    {
+        // The wiring needs a live WebView2 (CoreWebView2WebMessageReceivedEventArgs is not
+        // constructible), so pin it as source text the way PlayerSurfaceScriptTests pins the drag
+        // bridge. Ordering, not presence: a gate moved below the parse would still "contain" it.
+        var source = File.ReadAllText(Path.Combine(
+            XamlTestFiles.SrcDir, "Services", "PlayerShellBridge.cs"));
+
+        var gate = source.IndexOf("IsTrustedShellSource", StringComparison.Ordinal);
+        var readPayload = source.IndexOf("TryGetWebMessageAsString", StringComparison.Ordinal);
+        Assert.True(gate >= 0 && readPayload > gate,
+            "PlayerShellBridge must reject a foreign message source before it reads the payload.");
+    }
+
     // --- Inbound (shell -> host) parsing ---
 
     [Fact]

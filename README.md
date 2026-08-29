@@ -1,63 +1,39 @@
 # PiPlay
 
-PiPlay is a Windows desktop utility that plays YouTube in a movable, resizable native **Popout Player**. It supports return-to-source playback, Pin, Auto, Fade, profiles, Standard/Focused presentation, playlists and mixes, privacy controls, and live theme/accent changes.
+PiPlay is a Windows WPF desktop app that plays YouTube in one movable, resizable Video Popout. It returns playback to the Source Window and supports Pin, Fade, Auto, profiles, playlists, mixes, privacy actions, and theme/accent changes. The product contract is in [`docs/PiPlay_Product_Engineering_Spec.md`](docs/PiPlay_Product_Engineering_Spec.md); implementation evidence is the source and tests named there.
 
-## Use
+## Run
 
-Requirements: Windows 10/11 x64, Microsoft Edge WebView2 Evergreen Runtime, and the .NET 10 desktop runtime unless the app is published self-contained.
+The app targets `net10.0-windows`, uses WPF, and references Microsoft WebView2 Evergreen (`src/PiPlay/PiPlay.csproj`, `global.json`). Open a YouTube video or playlist, select **Pop out video**, then use **Bring video back** or close the Popout to return playback.
 
-1. Launch PiPlay and open a YouTube video or playlist.
-2. Select **Pop out video**.
-3. Move, resize, Pin, Fade, or change the Popout presentation.
-4. Select **Bring video back** or close the player to return playback to the Source Window. **Show Popout** only restores/focuses the existing player.
-
-PiPlay intentionally supports one Popout Player. It does not download media, bypass YouTube restrictions, remove ads, make WebView2 transparent, or allow click-through.
-
-## Develop
+For the deterministic, non-interactive gate:
 
 ```powershell
-dotnet build PiPlay.sln -c Debug
-dotnet run --project src\PiPlay\PiPlay.csproj
-
-# Inspect or run the same deterministic gate as CI.
-pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1 -Plan
 pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1
 ```
 
-The executable DOM tests require Node 24 but no `npm install`, browser, network, or visible desktop. See [tests/README.md](tests/README.md) for filters and test boundaries.
+That script owns Node/version checks, restore, Debug tests, temporary test data, and the non-mutating Release build. Use `-Plan` to inspect its exact commands.
 
-## Publish and test
+## Stable acceptance
 
-Repo output is for automated development only. All manual/release-candidate testing uses the deployed Stable copy at `E:\Dev_test_implemenations\PiPlay\PiPlay.exe`.
-
-```powershell
-# Exact-source release path: commit VERSION, BUILD_NUMBER, and docs/CHANGELOG.md first.
-.\scripts\Publish-Stable.ps1
-.\scripts\Verify-StableDeploy.ps1
-
-# Manual UI Automation/screenshot smoke against the verified Stable copy.
-pwsh -File .\scripts\Test-UiSmoke.ps1 -ExePath E:\Dev_test_implemenations\PiPlay\PiPlay.exe
-```
-
-`Publish-Stable.ps1` refuses dirty release evidence, deploys by staged swap while preserving `PiPlayData`, and creates `stable-vX.Y.Z-bN` on the exact source commit. `-AllowVersionBump` and `-AllowDirty` are diagnostic-only escape hatches; their output is not release evidence. Signing is optional through `-SignScript <path>` and must happen before manifest hashes are written.
-
-Other pipeline entry points:
+Set `PIPLAY_STABLE_ROOT` to the machine-local Stable deployment directory. The scripts do not choose a user-specific path for you:
 
 ```powershell
-.\Build-PiPlay.ps1 -Stage Build -NoVersionBump
-.\Build-PiPlay.ps1 -Stage Release -Version patch
-.\scripts\Test-PublishMetadata.ps1
+$stableRoot = $env:PIPLAY_STABLE_ROOT
+if ([string]::IsNullOrWhiteSpace($stableRoot)) { throw 'Set PIPLAY_STABLE_ROOT first.' }
+.\scripts\Publish-Stable.ps1 -DeployRoot $stableRoot
+.\scripts\Verify-StableDeploy.ps1 -DeployRoot $stableRoot
+pwsh -NoProfile -File .\scripts\Test-UiSmoke.ps1 -ExePath (Join-Path $stableRoot 'PiPlay.exe')
 ```
 
-Release output is under `bin\publish\<label>` with `latest`, `archive`, `build-info.json`, `BUILDINFO.json`, and `VERSION_TABLE.json`. `VERSION` is the semantic version; `BUILD_NUMBER` is the monotonic publish counter.
+`Publish-Stable.ps1` runs the deterministic gate and staged deployment; `Verify-StableDeploy.ps1` checks the deployed manifest, hashes, version, tag, source commit, and tree state. The remaining real-user check is the final playback/audio acceptance in [`docs/QA_Checklist.md`](docs/QA_Checklist.md).
 
-## Documentation
+## Canonical docs
 
-- [Product and engineering requirements](docs/PiPlay_Product_Engineering_Spec.md)
-- [Decisions in force](docs/DECISIONS.md)
-- [Open issues and ownership](docs/SPEC_GAPS_AND_OWNERSHIP.md)
-- [Contributor workflow](docs/Feature_Workflow.md)
-- [Manual release checklist](docs/QA_Checklist.md)
-- [Theme values](docs/Theme_Preset_Differences.md)
-- [Data and privacy](docs/Data_and_Privacy_Map.md)
-- [YouTube compliance](docs/YouTube_Compliance.md)
+- [`docs/AGENTS.md`](docs/AGENTS.md): repository rules and terminology.
+- [`docs/DECISIONS.md`](docs/DECISIONS.md): accepted architecture.
+- [`docs/Theme_Preset_Differences.md`](docs/Theme_Preset_Differences.md): current theme values.
+- [`docs/Data_and_Privacy_Map.md`](docs/Data_and_Privacy_Map.md): local data boundaries.
+- [`docs/YouTube_Compliance.md`](docs/YouTube_Compliance.md): page-script and platform-safety policy.
+- [`docs/SPEC_GAPS_AND_OWNERSHIP.md`](docs/SPEC_GAPS_AND_OWNERSHIP.md): verified open work only.
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md): shipped user-visible changes.

@@ -1,20 +1,17 @@
 # PiPlay repository rules
 
-Read `docs/AGENTS.md`, `docs/PiPlay_Product_Engineering_Spec.md`, and `docs/DECISIONS.md` before changing code.
+Read [`docs/AGENTS.md`](docs/AGENTS.md), [`docs/PiPlay_Product_Engineering_Spec.md`](docs/PiPlay_Product_Engineering_Spec.md), and [`docs/DECISIONS.md`](docs/DECISIONS.md) before changing code. Keep behavior claims tied to source/tests; do not add status prose or approval steps.
 
-## Manual tests use Stable only
+## Verification
 
-- Manual/human testing must use `E:\Dev_test_implemenations\PiPlay\PiPlay.exe`.
-- Deploy only with `.\scripts\Publish-Stable.ps1`; verify first with `.\scripts\Verify-StableDeploy.ps1`.
-- Never present `src\...\bin\...` or `bin\publish\...` as manual QA or release evidence. Repo output is for `dotnet run` and the automated gate:
+Run the automated gate from the repository root:
 
-  ```powershell
-  pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1
-  ```
+```powershell
+pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1
+```
+
+For a deployed Stable check, set `PIPLAY_STABLE_ROOT` and pass it to `Publish-Stable.ps1`, `Verify-StableDeploy.ps1`, and `Test-UiSmoke.ps1`. Never use source or `bin` output as manual/release evidence. The user checks the final deployed result; scripts own intermediate verification.
 
 ## Release stamps
 
-- `VERSION` is semantic version; `BUILD_NUMBER` is monotonic and advances on every publish.
-- For a release candidate, choose the version move, update `VERSION`, `BUILD_NUMBER`, and `docs/CHANGELOG.md`, then commit them.
-- Run `.\scripts\Publish-Stable.ps1` from a clean tree. It uses the committed stamps and creates `stable-vX.Y.Z-bN` on that exact commit. Push the commit and tag only after verification.
-- `-AllowVersionBump` and `-AllowDirty` are diagnostic only and never release evidence.
+`VERSION` is semantic version; `BUILD_NUMBER` is the publish counter. Exact-source Stable publishing requires committed stamps and a clean tree, creates `stable-vX.Y.Z-bN`, and verifies the deployed manifest before manual acceptance. `-AllowVersionBump` and `-AllowDirty` are diagnostic-only and never release evidence. Optional signing runs through `-SignScript` before manifest hashes.

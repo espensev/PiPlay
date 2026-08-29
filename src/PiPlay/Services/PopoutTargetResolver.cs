@@ -41,11 +41,21 @@ public static class PopoutTargetResolver
         {
             VideoId = item.VideoId,
             PlaylistId = target.PlaylistId,
-            StartSeconds = target.StartSeconds,
+            // The playlist page did not show this video. Its own URL timestamp (if any) belongs to
+            // neither the adopted first item nor a miniplayer/preview that happened to be present.
+            StartSeconds = null,
             IsPlaylistOnly = true,
             FallbackReason = target.FallbackReason,
         };
     }
+
+    /// <summary>
+    /// Chooses the initial Popout timestamp. A playlist-only page may expose an unrelated video
+    /// element through a miniplayer or preview, so neither that DOM timestamp nor a timestamp on the
+    /// playlist URL may be applied to the first item adopted for launch.
+    /// </summary>
+    public static int? ResolveLaunchSeconds(YouTubeTarget target, int? sourceSeconds) =>
+        target.IsPlaylistOnly ? null : sourceSeconds ?? target.StartSeconds;
 
     /// <summary>
     /// A DOM read yields back to the dispatcher, so the YouTube SPA can advance the Source underneath

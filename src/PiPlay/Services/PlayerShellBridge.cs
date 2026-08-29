@@ -14,6 +14,7 @@ namespace PiPlay.Services;
 public sealed class PlayerShellBridge : IDisposable
 {
     private readonly CoreWebView2 _core;
+    private bool _foreignSourceLogged;
     private bool _disposed;
 
     /// <summary>Raised when the shell's player has loaded and is ready (spec 10.3 ready message).</summary>
@@ -49,6 +50,14 @@ public sealed class PlayerShellBridge : IDisposable
 
     private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
+        // Source before payload: only the shell's own document may speak this protocol, so a
+        // foreign frame never reaches the parser or an allowlisted window action.
+        if (!PlayerShellProtocol.IsTrustedShellSource(e.Source, WebViewEnvironmentService.ShellOrigin))
+        {
+            LogForeignSourceOnce(e.Source);
+            return;
+        }
+
         string? json;
         try { json = e.TryGetWebMessageAsString(); }
         catch { return; } // a non-string payload is not part of our protocol
@@ -71,6 +80,18 @@ public sealed class PlayerShellBridge : IDisposable
                 RequestReceived?.Invoke(this, message);
                 break;
         }
+    }
+
+    /// <summary>
+    /// Note a dropped message once per bridge (spec 18): a foreign frame can post in a loop, so the
+    /// rejection is recorded the first time and stays silent after. Redacted origin only — never
+    /// the payload, and never the query string.
+    /// </summary>
+    private void LogForeignSourceOnce(string? source)
+    {
+        if (_foreignSourceLogged) return;
+        _foreignSourceLogged = true;
+        Log.Warn($"Ignored a compact shell message from an unexpected source: {Log.RedactUrl(source)}.");
     }
 
     private void Post(string json)

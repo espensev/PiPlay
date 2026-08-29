@@ -53,6 +53,31 @@ public class PopoutTargetResolverTests
         Assert.True(target.IsPlaylistOnly);
     }
 
+    [Fact]
+    public void An_adopted_first_item_never_inherits_a_playlist_or_miniplayer_timestamp()
+    {
+        var target = PopoutTargetResolver.WithFirstPlaylistItem(
+            Target("https://www.youtube.com/playlist?list=PLabc&t=91s"),
+            "https://www.youtube.com/watch?v=AAAAAAAAAAA&list=PLabc&index=1&t=17s");
+
+        var launchSeconds = PopoutTargetResolver.ResolveLaunchSeconds(target, sourceSeconds: 42);
+
+        Assert.Null(target.StartSeconds);
+        Assert.Null(launchSeconds);
+        Assert.Equal(
+            "https://www.youtube.com/watch?v=AAAAAAAAAAA&list=PLabc",
+            YouTubeUrlHelper.BuildWatchUrl(target, launchSeconds));
+    }
+
+    [Fact]
+    public void An_ordinary_video_prefers_the_live_source_timestamp_then_its_url_timestamp()
+    {
+        var target = Target("https://www.youtube.com/watch?v=AAAAAAAAAAA&t=17s");
+
+        Assert.Equal(42, PopoutTargetResolver.ResolveLaunchSeconds(target, sourceSeconds: 42));
+        Assert.Equal(17, PopoutTargetResolver.ResolveLaunchSeconds(target, sourceSeconds: null));
+    }
+
     /// <summary>
     /// The link is page-provided (DOM read), so only the charset-validated video id may be adopted.
     /// A link into ANOTHER list must not swap the playlist the user chose to launch.

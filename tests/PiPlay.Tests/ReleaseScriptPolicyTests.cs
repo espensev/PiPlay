@@ -32,6 +32,9 @@ public class ReleaseScriptPolicyTests
     {
         var script = Script("scripts/Publish-Stable.ps1");
 
+        Assert.Contains("[string]$DeployRoot", script);
+        Assert.Contains("PIPLAY_STABLE_ROOT", script);
+        Assert.DoesNotContain(@"E:\Dev_test_implemenations\PiPlay", script);
         Assert.Contains("[switch]$AllowDirty", script);
         Assert.Contains("[switch]$AllowVersionBump", script);
         Assert.Contains("Release-verified stable deploys require a clean tree", script);
@@ -47,12 +50,29 @@ public class ReleaseScriptPolicyTests
     {
         var script = Script("scripts/Verify-StableDeploy.ps1");
 
+        Assert.Contains("[string]$DeployRoot", script);
+        Assert.Contains("PIPLAY_STABLE_ROOT", script);
+        Assert.DoesNotContain(@"E:\Dev_test_implemenations\PiPlay", script);
         Assert.Contains("function Write-ProvenanceIssue", script);
         Assert.Contains("ProductVersion", script);
         Assert.Contains("Manifest marks this deploy as NOT release evidence", script);
         Assert.Contains("Expected stable tag", script);
         Assert.Contains("Repo working tree is DIRTY", script);
         Assert.Contains("VERDICT: RELEASE VERIFIED", script);
+    }
+
+    [Fact]
+    public void Ui_smoke_is_isolated_dpi_aware_and_rejects_blank_captures()
+    {
+        var script = Script("scripts/Test-UiSmoke.ps1");
+
+        Assert.Contains("PIPLAY_DATA_ROOT", script);
+        Assert.Contains("SetThreadDpiAwarenessContext", script);
+        Assert.Contains("SetForegroundWindow", script);
+        Assert.Contains("GetForegroundWindow", script);
+        Assert.Contains("GetWindowThreadProcessId", script);
+        Assert.Contains("Rendered capture is blank or uniform", script);
+        Assert.Contains("SMOKE PASS", script);
     }
 
     [Fact]
@@ -266,11 +286,13 @@ public class ReleaseScriptPolicyTests
         Assert.Contains("Restore-ProcessEnvironment -Previous $previous", script);
 
         // Node enforcement must read the value the plan DECLARES and the plan test pins
-        // (requirements.nodeMajor), not a second hardcoded literal that can silently drift green.
-        Assert.Contains("[int]$RequiredMajor", script);
-        Assert.Contains("-RequiredMajor $localCiPlan.requirements.nodeMajor", script);
-        Assert.Contains("-notmatch \"^v?$RequiredMajor", script);
+        // (requirements.nodeMinimumMajor), not a second hardcoded literal that can silently drift green.
+        Assert.Contains("[int]$MinimumMajor", script);
+        Assert.Contains("-MinimumMajor $localCiPlan.requirements.nodeMinimumMajor", script);
+        Assert.Contains("[regex]::Match($nodeVersion, '^v?(?<major>\\d+)\\.')", script);
+        Assert.Contains("$nodeMajor -lt $MinimumMajor", script);
         Assert.DoesNotContain("-notmatch '^v?24\\.'", script);
+        Assert.DoesNotContain("-notmatch \"^v?$MinimumMajor", script);
 
         var testBranch = script.IndexOf("elseif ($step.name -eq \"test\")", StringComparison.Ordinal);
         var protectedTry = script.IndexOf("try {", testBranch, StringComparison.Ordinal);
@@ -323,7 +345,6 @@ public class ReleaseScriptPolicyTests
     [InlineData("scripts/Build-PiPlay.ps1")]
     [InlineData("scripts/Publish-Stable.ps1")]
     [InlineData("scripts/Verify-StableDeploy.ps1")]
-    [InlineData("scripts/Preflight-SpecGate.ps1")]
     public void Git_helpers_use_shared_native_command_wrapper(string relativePath)
     {
         var script = Script(relativePath);

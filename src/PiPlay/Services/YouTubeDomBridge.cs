@@ -21,6 +21,8 @@ public sealed record PlayerState(
 /// </summary>
 public static class YouTubeDomBridge
 {
+    internal static readonly TimeSpan ExecutionTimeout = TimeSpan.FromSeconds(5);
+
     // Resilient video selector (spec 26.3).
     private const string VideoSelector =
         "(document.querySelector('#movie_player video.html5-main-video')" +
@@ -129,10 +131,18 @@ public static class YouTubeDomBridge
     }
 
     /// <summary>Injected executor seam for the suppression acknowledgement contract.</summary>
-    internal static async Task<bool> SuppressPlaybackAsync(Func<string, Task<string>> executeScriptAsync)
+    internal static async Task<bool> SuppressPlaybackAsync(
+        Func<string, Task<string>> executeScriptAsync,
+        TimeSpan? executionTimeout = null)
     {
         ArgumentNullException.ThrowIfNull(executeScriptAsync);
-        try { return IsTrue(await executeScriptAsync(SuppressPlaybackScript)); }
+        try
+        {
+            var value = await AsyncOperationDeadline.RunAsync(
+                _ => executeScriptAsync(SuppressPlaybackScript),
+                executionTimeout ?? ExecutionTimeout);
+            return IsTrue(value);
+        }
         catch { return false; }
     }
 
@@ -988,17 +998,21 @@ public static class YouTubeDomBridge
         string script,
         string operation)
     {
+        var failureState = FailureStates.GetOrCreateValue(webView);
         try
         {
-            var value = await webView.ExecuteScriptAsync(script);
-            var suppressed = FailureStates.GetOrCreateValue(webView).GateFor(operation).RecordSuccess();
+            var value = await AsyncOperationDeadline.RunSingleFlightAsync(
+                failureState.ExecutionGate,
+                () => webView.ExecuteScriptAsync(script),
+                ExecutionTimeout);
+            var suppressed = failureState.GateFor(operation).RecordSuccess();
             if (suppressed is int repeatCount)
                 Log.Info($"YouTube DOM {operation} recovered; {repeatCount} repeated failure(s) were suppressed.");
             return new DomExecutionResult(true, value);
         }
         catch (Exception ex)
         {
-            if (FailureStates.GetOrCreateValue(webView).GateFor(operation).RecordFailure())
+            if (failureState.GateFor(operation).RecordFailure())
                 Log.Error($"YouTube DOM {operation} failed; repeated failures are suppressed until recovery.", ex);
             return new DomExecutionResult(false, null);
         }
@@ -1014,6 +1028,8 @@ public static class YouTubeDomBridge
         private readonly object _sync = new();
         private readonly Dictionary<string, ConsecutiveFailureGate> _gates =
             new(StringComparer.Ordinal);
+
+        public SemaphoreSlim ExecutionGate { get; } = new(1, 1);
 
         public ConsecutiveFailureGate GateFor(string operation)
         {
