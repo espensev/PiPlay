@@ -286,11 +286,13 @@ public class ReleaseScriptPolicyTests
         Assert.Contains("Restore-ProcessEnvironment -Previous $previous", script);
 
         // Node enforcement must read the value the plan DECLARES and the plan test pins
-        // (requirements.nodeMajor), not a second hardcoded literal that can silently drift green.
-        Assert.Contains("[int]$RequiredMajor", script);
-        Assert.Contains("-RequiredMajor $localCiPlan.requirements.nodeMajor", script);
-        Assert.Contains("-notmatch \"^v?$RequiredMajor", script);
+        // (requirements.nodeMinimumMajor), not a second hardcoded literal that can silently drift green.
+        Assert.Contains("[int]$MinimumMajor", script);
+        Assert.Contains("-MinimumMajor $localCiPlan.requirements.nodeMinimumMajor", script);
+        Assert.Contains("[regex]::Match($nodeVersion, '^v?(?<major>\\d+)\\.')", script);
+        Assert.Contains("$nodeMajor -lt $MinimumMajor", script);
         Assert.DoesNotContain("-notmatch '^v?24\\.'", script);
+        Assert.DoesNotContain("-notmatch \"^v?$MinimumMajor", script);
 
         var testBranch = script.IndexOf("elseif ($step.name -eq \"test\")", StringComparison.Ordinal);
         var protectedTry = script.IndexOf("try {", testBranch, StringComparison.Ordinal);
