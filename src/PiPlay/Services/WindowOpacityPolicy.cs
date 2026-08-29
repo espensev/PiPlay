@@ -25,7 +25,7 @@ public static class WindowOpacityPolicy
     public const double FileFloor = 0.10;
 
     /// <summary>
-    /// Lowest value the Settings UI sliders offer (QA checklist §3: the 45% floor without an
+    /// Lowest value the Settings UI sliders offer (spec 7.3: the 45% floor without an
     /// explicit unlock). Hand-edited values in [<see cref="FileFloor"/>, <see cref="UiFloor"/>)
     /// are honored but not reachable from the UI.
     /// </summary>

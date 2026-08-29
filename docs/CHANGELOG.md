@@ -1,7 +1,5 @@
 # Changelog
 
-User-visible changes. `VERSION` and `BUILD_NUMBER` are the current release stamp; Git retains older release history.
-
 ## Unreleased
 
 - `PiPlay.exe --help`, `-h`, and `/?` show native usage and exit before normal startup; command-line launch targets remain limited to values accepted by the shared YouTube parser.
@@ -21,5 +19,3 @@ User-visible changes. `VERSION` and `BUILD_NUMBER` are the current release stamp
 - Normal Popouts retain `RD...` mix/radio queues. Compact builders omit auto-generated lists; malformed list IDs fall back to one video with a non-blocking reason.
 - Profile accents reach the Source/Popout letterbox, Source background wash, profile-row wash, and 1 px Popout identity edge. Intensity `0` removes shared background/edge reach while retaining primary-action identity.
 - Source title wash extends through the washed background.
-
-Release stamp: [`VERSION`](../VERSION) and [`BUILD_NUMBER`](../BUILD_NUMBER). Implementation/test anchors are in the product spec and current source.

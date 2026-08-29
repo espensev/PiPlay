@@ -1,10 +1,6 @@
 # PiPlay
 
-PiPlay is a Windows WPF desktop app that plays YouTube in one movable, resizable Video Popout. It returns playback to the Source Window and supports Pin, Fade, Auto, profiles, playlists, mixes, privacy actions, and theme/accent changes. The product contract is in [`docs/PiPlay_Product_Engineering_Spec.md`](docs/PiPlay_Product_Engineering_Spec.md); implementation evidence is the source and tests named there.
-
-## Run
-
-The app targets `net10.0-windows`, uses WPF, and references Microsoft WebView2 Evergreen (`src/PiPlay/PiPlay.csproj`, `global.json`). Open a YouTube video or playlist, select **Pop out video**, then use **Bring video back** or close the Popout to return playback.
+Windows WPF app (`net10.0-windows`, WebView2 Evergreen: `src/PiPlay/PiPlay.csproj`, `global.json`) that plays YouTube in one Video Popout. Product contract: [`docs/PiPlay_Product_Engineering_Spec.md`](docs/PiPlay_Product_Engineering_Spec.md).
 
 Command-line help is owned by the executable:
 
@@ -14,17 +10,13 @@ Command-line help is owned by the executable:
 
 `-h` and `/?` are equivalent exact aliases. PowerShell `Get-Help` does not inspect native executables, so invoke PiPlay with one of those arguments instead.
 
-For the deterministic, non-interactive gate:
-
 ```powershell
 pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1
 ```
 
-That script owns Node/version checks, restore, Debug tests, temporary test data, and the non-mutating Release build. Use `-Plan` to inspect its exact commands.
+`-Plan` prints the gate commands. The script owns Node/version checks, restore, Debug tests, temporary test data, and the non-mutating Release build.
 
-## Stable acceptance
-
-Set `PIPLAY_STABLE_ROOT` to the machine-local Stable deployment directory. The scripts do not choose a user-specific path for you:
+Set `PIPLAY_STABLE_ROOT` to the machine-local Stable directory:
 
 ```powershell
 $stableRoot = $env:PIPLAY_STABLE_ROOT
@@ -34,14 +26,4 @@ if ([string]::IsNullOrWhiteSpace($stableRoot)) { throw 'Set PIPLAY_STABLE_ROOT f
 pwsh -NoProfile -File .\scripts\Test-UiSmoke.ps1 -ExePath (Join-Path $stableRoot 'PiPlay.exe')
 ```
 
-`Publish-Stable.ps1` runs the deterministic gate and staged deployment; `Verify-StableDeploy.ps1` checks the deployed manifest, hashes, version, tag, source commit, and tree state. The remaining real-user check is the final playback/audio acceptance in [`docs/QA_Checklist.md`](docs/QA_Checklist.md).
-
-## Canonical docs
-
-- [`docs/AGENTS.md`](docs/AGENTS.md): repository rules and terminology.
-- [`docs/DECISIONS.md`](docs/DECISIONS.md): accepted architecture.
-- [`docs/Theme_Preset_Differences.md`](docs/Theme_Preset_Differences.md): current theme values.
-- [`docs/Data_and_Privacy_Map.md`](docs/Data_and_Privacy_Map.md): local data boundaries.
-- [`docs/YouTube_Compliance.md`](docs/YouTube_Compliance.md): page-script and platform-safety policy.
-- [`docs/SPEC_GAPS_AND_OWNERSHIP.md`](docs/SPEC_GAPS_AND_OWNERSHIP.md): verified open work only.
-- [`docs/CHANGELOG.md`](docs/CHANGELOG.md): shipped user-visible changes.
+Do not use source or `bin` output as release evidence. On that verified copy: pop out a playing video and listen through launch and return/close (Q-1); repeat once with a playlist or mix when available; record unavailable ads/account/profile states as not run.

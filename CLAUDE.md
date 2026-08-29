@@ -4,8 +4,6 @@ Read [`docs/AGENTS.md`](docs/AGENTS.md), [`docs/PiPlay_Product_Engineering_Spec.
 
 ## Verification
 
-Run the automated gate from the repository root:
-
 ```powershell
 pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1
 ```
