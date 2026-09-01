@@ -4,7 +4,7 @@
   Manual end-to-end UI smoke for PiPlay: launches the built exe, asserts key UI elements via
   UI Automation, and captures a screenshot for the final deployed smoke.
 .DESCRIPTION
-  Final deployed-window smoke (see docs/QA_Checklist.md). NOT part of `dotnet test` — it needs an
+  Final deployed-window smoke (spec 22.2). NOT part of `dotnet test` — it needs an
   interactive desktop, the WebView2 runtime, and network. It checks the five named Source controls
   and captures the rendered window from an isolated data root; real playback/audio acceptance
   remains an end-user check. The capture is per-monitor-DPI aware, foregrounds the actual PiPlay

@@ -1,6 +1,6 @@
 # Current theme values
 
-This is a code-derived reference, not a second design spec. Primary sources are `ThemeCatalog.cs`, `ThemeColors.cs`, `ThemeResourceApplier.cs`, `Colors.xaml`, `ThemePreferenceResolver.cs`, and `WindowOpacityPolicy.cs`. Exact-value/contrast coverage is in `ThemeCatalogTests`, `ThemeColorsTests`, `ContrastReportTests`, and `Ui/XamlInvariantTests`.
+Source: `ThemeCatalog.cs`, `ThemeColors.cs`, `ThemeResourceApplier.cs`. Tests: `ThemeCatalogTests`, `ThemeColorsTests`, `ContrastReportTests`, `Ui/XamlInvariantTests`.
 
 ## Presets
 
@@ -42,7 +42,7 @@ Radii are `(main, popout, title; button, icon, input; panel, popup, thumbnail; s
 | Tooltip padding H,V | `7,4` | `8,5` | `10,7` |
 | Default border | `1` | `1` | `1` |
 
-Inner elevation is Sharp `none`; Minimal popup/panel `8 / 1 / 0.22` and `6 / 1 / 0.16`; Soft Glass `16 / 2 / 0.34` and `12 / 2 / 0.26` (blur / depth / opacity). `ElevationPopup` is consumed by the ComboBox popup; `ElevationPanel` has no current safe HWND-airspace consumer.
+Inner elevation is Sharp `none`; Minimal popup/panel `8 / 1 / 0.22` and `6 / 1 / 0.16`; Soft Glass `16 / 2 / 0.34` and `12 / 2 / 0.26` (blur / depth / opacity). `ElevationPopup` is consumed by the ComboBox popup (`Theme/ControlStyles.xaml`); `ElevationPanel` has no current HWND-airspace consumer.
 
 Corner override `theme` follows the preset; `square` is zero radii plus `Square`; `small` uses Sharp radii plus `SmallRound`; `round` uses Soft Glass radii plus `Round`; legacy `soft` normalizes to `round`. Only a floating effective-`Round` Popout receives the `22 DIP` native region; maximize/snap clears it.
 
@@ -50,8 +50,6 @@ Corner override `theme` follows the preset; `square` is zero radii plus `Square`
 
 Offered accents are cyan `#2BAED0`, steel-blue `#3F84C0`, steel `#4A8FAB`, violet `#9E84F0`, green `#2DB57F`, and amber `#D69A2E`. Any valid `#RRGGBB` may be stored exactly; presentation tokens are contrast-corrected.
 
-`theme.accentIntensity` is integer `0–100`, default `50`. At `0`, shared background/title reach and the Popout edge are off; primary controls remain accented and profile-row identity keeps preset `SubtleAlpha`. Toolbar glyphs reach full accent at `50`; the wash continues to `100`. The derivation ceilings are `0.06` for `AccentLetterbox` toward black and `0.04` for `AppBackgroundWash` toward the preset background. `PopoutAccentEdge` is a 1 px inset edge with alpha proportional to intensity; Settings keeps the plain background. (`ThemeColors.DeriveAccentSet`, `Colors.xaml`.)
-
-Profile rows use each row's accent at the preset `SubtleAlpha`. A colorless profile inherits the global accent. A custom global accent survives preset switches; an untouched prior-preset default advances to the next preset default. `AccentMuted`, `AccentSubtle`, and `AccentGlow` have no current UI consumer; do not add one without a consumer-specific contrast test.
+`theme.accentIntensity` is integer `0–100`, default `50`. At `0`, shared background/title reach and the Popout edge are off; primary controls remain accented and profile-row identity keeps preset `SubtleAlpha` via `ProfileRowWashAlpha`. Toolbar glyphs reach full accent at `50`; the wash continues to `100`. Derivation ceilings are `0.06` for `AccentLetterbox` toward black and `0.04` for `AppBackgroundWash` toward the preset background. `PopoutAccentEdge` is a 1 px inset edge with alpha proportional to intensity; Settings uses `{DynamicResource AppBackground}` (`SettingsWindow.xaml`). `ThemeResourceApplier` does not publish `Muted` or `Glow` as resource keys.
 
 Schema `4` persists theme ID, accent, intensity, fade/corner/opacity overrides, active profile, profile accents, and presentation. Null overrides mean “use the preset.” Preset preview applies to open surfaces; **Done** commits, and any other dismissal restores the prior state. (`AppSettings`, `ThemeSettingsWriter`, `ThemePreferenceResolver`, `SettingsWindow`.)

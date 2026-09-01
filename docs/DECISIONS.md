@@ -1,6 +1,6 @@
 # PiPlay decisions in force
 
-Change or supersede an ADR here; do not silently contradict it. New decisions use the next unused `ADR-NNNN` ID. Code and tests are the evidence for actual behavior.
+Supersede an ADR here; do not silently contradict it. New decisions use the next unused `ADR-NNNN` ID.
 
 ## ADR-0001 — WPF shell (accepted)
 
