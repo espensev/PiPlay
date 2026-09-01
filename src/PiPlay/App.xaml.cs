@@ -12,10 +12,11 @@ using PiPlay.Theme;
 namespace PiPlay;
 
 /// <summary>
-/// Application entry point. Enforces single-instance (REQ-APP-01) BEFORE any UI: a second
-/// launch hands its URL to the running instance and exits rather than contending for the
-/// shared WebView2 user-data folder. Owns the app-scoped shared WebView2 environment so
-/// the Source Window and Popout Player share one session.
+/// Application entry point. Handles native help before normal startup (REQ-APP-02). Normal
+/// launches enforce single-instance ownership (REQ-APP-01) before application UI: a second
+/// launch hands its URL to the running instance and exits rather than contending for the shared
+/// WebView2 user-data folder. Owns the app-scoped shared WebView2 environment so the Source Window
+/// and Popout Player share one session.
 /// </summary>
 public partial class App : Application
 {
@@ -50,10 +51,27 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        var request = StartupArgumentPolicy.Parse(e.Args);
+        StartupDispatcher.Dispatch(
+            request,
+            ShowNativeHelp,
+            Shutdown,
+            launchUrl => StartNormal(e, launchUrl));
+    }
+
+    private static void ShowNativeHelp(string helpText)
+    {
+        MessageBox.Show(
+            helpText,
+            "PiPlay Help",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+    }
+
+    private void StartNormal(StartupEventArgs e, string? launchUrl)
+    {
         Log.Init();
         Log.Info("PiPlay starting.");
-
-        var launchUrl = ExtractUrlArg(e.Args);
 
         _mutex = new Mutex(initiallyOwned: true, MutexName, out var createdNew);
         if (!createdNew)
@@ -139,19 +157,11 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// The first launch argument that is a supported YouTube target, or null. The boundary IS the
-    /// product's URL parser - a prefix check would be a second, looser definition of "supported"
-    /// that drifts from the one the address bar and the popout resolver use. The argument is
-    /// returned verbatim; the navigation path re-parses it (MainWindow.ResolveNavigationUrl).
+    /// Compatibility seam for command-line parsing tests. StartupArgumentPolicy owns help
+    /// precedence and the shared supported-YouTube-target boundary.
     /// </summary>
-    internal static string? ExtractUrlArg(string[] args)
-    {
-        foreach (var a in args)
-        {
-            if (YouTubeUrlHelper.TryParse(a, out _)) return a;
-        }
-        return null;
-    }
+    internal static string? ExtractUrlArg(string[] args) =>
+        StartupArgumentPolicy.Parse(args).LaunchUrl;
 
     // --- Single-instance hand-off over a named pipe ---
 
