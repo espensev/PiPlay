@@ -168,7 +168,7 @@ Native `12 DIP` resize band and `96 DIP` diagonal reach; not a `96 x 96` content
 
 ### 16.4 Multi-monitor behavior
 
-`PerMonitorV2` is required; restore the prior monitor when available, otherwise clamp to visible work area. (`WindowPlacementService`, `PlacementMathTests`, WPF tests.)
+`PerMonitorV2` is required; restore the prior monitor when available, otherwise clamp to visible work area. A restore that lands on a monitor with another DPI re-applies the placement once, so WPF's DPI rescale does not change the saved pixel size. (`WindowPlacementService`, `PlacementMathTests`, `WindowPlacementServiceTests`, WPF tests.)
 
 ### 16.5 Expand
 
