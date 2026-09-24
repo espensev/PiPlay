@@ -51,6 +51,9 @@ public partial class MainWindow : Window
     // The video the source was on when the popout launched (overhaul Task 3): compared against the
     // popout's returned video id to decide navigate-vs-seek on close (REQ-RETURN-01).
     private string? _popoutSourceVideoId;
+    // The list the source was in at launch (null = none). A same-video return into a different list
+    // (e.g. a Mix started in the popout) must navigate, not seek (spec 14).
+    private string? _popoutSourcePlaylistId;
     // True when the popout launched from a playlist PAGE (spec 22.1): even when the launch
     // resolved the page's first item to start, that id is the popout's, not the Source's — any
     // video the popout then reports is somewhere the source is not, so return must navigate.
@@ -1508,6 +1511,7 @@ public partial class MainWindow : Window
             // the popout's launch plan, not the Source's video — never same-video-seek the Source
             // with it, and treat any video the popout returns as new context to navigate to.
             _popoutSourceVideoId = target.IsPlaylistOnly ? null : target.VideoId;
+            _popoutSourcePlaylistId = target.PlaylistId;
             _popoutLaunchedWithoutVideo = target.IsPlaylistOnly || string.IsNullOrEmpty(target.VideoId);
 
             // 2b) Resolve the effective playback mode (spec 10). Profile/global compact settings
@@ -1915,7 +1919,8 @@ public partial class MainWindow : Window
         // fall back to the older source-was-playing snapshot. 0 is a valid timestamp distinct from
         // unknown. Decision lives in ReturnPolicy.
         var action = ReturnPolicy.Decide(state.LastKnownSeconds, _sourceWasPlayingAtPopout,
-            state.Paused, state.VideoId, _popoutSourceVideoId, _popoutLaunchedWithoutVideo);
+            state.Paused, state.VideoId, _popoutSourceVideoId, _popoutLaunchedWithoutVideo,
+            state.PlaylistId, _popoutSourcePlaylistId);
 
         // Arm before any WebView script await: the Auto timer can run as soon as Player_OnClosed
         // clears _player. A seek/play return leaves the original Source video visible; a Navigate
@@ -1940,10 +1945,10 @@ public partial class MainWindow : Window
         switch (action)
         {
             case ReturnAction.Navigate:
-                // The popout ended on a DIFFERENT video (recommendation click, playlist
-                // auto-advance, SPA navigation): bring the source to where the user
-                // actually is. The timestamp rides the watch URL; Auto's de-dup key
-                // updates FIRST so the returned video is not instantly re-popped.
+                // The popout ended on a DIFFERENT video or list (recommendation click, playlist
+                // auto-advance, a Mix started on this video, SPA navigation): bring the source
+                // to where the user actually is. The timestamp rides the watch URL; Auto's
+                // de-dup key updates FIRST so the returned video is not instantly re-popped.
                 _pendingReturnReplay = CloneForReturnReplay(
                     state, _sourceWasPlayingAtPopout,
                     _sourceVolumeAtPopout, _sourceMutedAtPopout, _sourcePlaybackRateAtPopout);
@@ -1971,9 +1976,11 @@ public partial class MainWindow : Window
         double? sourceVolumeAtPopout = null,
         bool? sourceMutedAtPopout = null,
         double? sourcePlaybackRateAtPopout = null,
-        bool popoutLaunchedWithoutVideo = false)
+        bool popoutLaunchedWithoutVideo = false,
+        string? sourcePlaylistId = null)
     {
         _popoutSourceVideoId = sourceVideoId;
+        _popoutSourcePlaylistId = sourcePlaylistId;
         _popoutLaunchedWithoutVideo = popoutLaunchedWithoutVideo;
         _sourceWasPlayingAtPopout = sourceWasPlayingAtPopout;
         _sourceVolumeAtPopout = sourceVolumeAtPopout;

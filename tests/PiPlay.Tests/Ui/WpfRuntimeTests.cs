@@ -2470,6 +2470,48 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
+    public void Return_on_the_same_video_into_a_new_list_navigates_with_that_list() => StaTestThread.Invoke(() =>
+    {
+        // Source on a bare video; in the popout the user started a Mix that begins with it. Spec 14:
+        // a different list navigates — a seek would keep the Source on the video without the Mix.
+        var w = new MainWindow();
+        w.SeedPopoutReturnForTests(sourceVideoId: "AAAAAAAAAAA", sourcePlaylistId: null);
+
+        w.ApplyReturnActionAsync(new PlayerReturnState
+            {
+                VideoId = "AAAAAAAAAAA",
+                PlaylistId = "RDAAAAAAAAAAA",
+                LastKnownSeconds = 42,
+                Paused = false,
+            })
+            .GetAwaiter().GetResult();
+
+        Assert.Equal("https://www.youtube.com/watch?v=AAAAAAAAAAA&list=RDAAAAAAAAAAA&t=42s", w.PendingUrlForTests);
+        Assert.Equal("AAAAAAAAAAA", w.AutoLastHandledVideoIdForTests);
+        Assert.NotNull(w.PendingReturnReplayForTests);
+        Assert.Equal("RDAAAAAAAAAAA", w.PendingReturnReplayForTests!.PlaylistId);
+        Assert.False(w.PendingReturnReplayForTests.Paused);
+    });
+
+    [Fact]
+    public void Return_on_the_same_video_and_list_still_seeks() => StaTestThread.Invoke(() =>
+    {
+        var w = new MainWindow();
+        w.SeedPopoutReturnForTests(sourceVideoId: "AAAAAAAAAAA", sourcePlaylistId: "PL0123456789");
+
+        w.ApplyReturnActionAsync(new PlayerReturnState
+            {
+                VideoId = "AAAAAAAAAAA",
+                PlaylistId = "PL0123456789",
+                LastKnownSeconds = 42,
+            })
+            .GetAwaiter().GetResult();
+
+        Assert.Null(w.PendingUrlForTests);
+        Assert.Null(w.PendingReturnReplayForTests);
+    });
+
+    [Fact]
     public void Playlist_only_launch_returns_by_navigating_to_the_reported_video() => StaTestThread.Invoke(() =>
     {
         // Popped out from a playlist PAGE (no source video id, spec 22.1): the popout started the
