@@ -1,7 +1,4 @@
 using System.Diagnostics;
-using System.IO;
-using System.IO.Pipes;
-using System.Text;
 using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
@@ -35,6 +32,7 @@ public partial class App : Application
 
     private Mutex? _mutex;
     private CancellationTokenSource? _pipeCts;
+    private readonly HandoffRequestLedger _handoffLedger = new();
     private readonly DispatcherFaultPolicy _dispatcherFaults = new();
     private bool _shuttingDown;
 
@@ -77,7 +75,8 @@ public partial class App : Application
         if (!createdNew)
         {
             Log.Info("Another instance is already running; handing off and exiting.");
-            TrySendToExistingInstance(launchUrl);
+            if (!TrySendToExistingInstance(launchUrl))
+                ShowHandoffNotAcknowledged();
             // Skip base.OnStartup so no window is created; just leave.
             Shutdown(0);
             return;
@@ -183,33 +182,53 @@ public partial class App : Application
 
     private async Task ServeOnePipeConnectionAsync(CancellationToken token)
     {
-        using var server = new NamedPipeServerStream(
-            PipeName, PipeDirection.In, 1,
-            PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
-
-        await server.WaitForConnectionAsync(token);
-        using var reader = new StreamReader(server, Encoding.UTF8);
-        var url = await SingleInstancePipePolicy.ReadClientPayloadAsync(
-            reader.ReadToEndAsync,
+        var outcome = await SingleInstancePipeTransport.ServeOneAsync(
+            PipeName,
+            (request, ct) => SingleInstanceHandoffPolicy.DispatchAsync(
+                request,
+                _handoffLedger,
+                OnSecondInstance,
+                callback => DispatcherHandoffDispatch.Post(Dispatcher, callback),
+                ct),
             token);
 
-        Dispatcher.Invoke(() => OnSecondInstance(url));
+        if (outcome is null)
+            Log.Info("Ignored a malformed single-instance hand-off request.");
+        else if (outcome == HandoffOutcome.NotApplied)
+            Log.Info("Withdrew a single-instance hand-off the UI thread did not start in time; the sender may retry.");
     }
 
-    private static void TrySendToExistingInstance(string? url)
+    /// <summary>True when the running instance acknowledged the hand-off (REQ-APP-01, ADR-0009).</summary>
+    private static bool TrySendToExistingInstance(string? url)
     {
         try
         {
-            using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out);
-            client.Connect(2000);
-            using var writer = new StreamWriter(client, new UTF8Encoding(false));
-            writer.Write(url ?? string.Empty);
-            writer.Flush();
+            var request = HandoffRequest.Create(url);
+            // Off the startup thread: the attempts are async pipe I/O with their own deadlines.
+            var outcome = Task.Run(() => SingleInstanceHandoffPolicy.SendAsync(
+                request,
+                (sameRequest, ct) => SingleInstancePipeTransport.SendOnceAsync(PipeName, sameRequest, ct),
+                (attempt, failure) => Log.Info(
+                    $"Single-instance hand-off attempt {attempt} of {SingleInstanceHandoffPolicy.MaxAttempts} " +
+                    $"was not applied ({failure})."),
+                CancellationToken.None)).GetAwaiter().GetResult();
+            return outcome == HandoffOutcome.Applied;
         }
         catch (Exception ex)
         {
             Log.Error("Failed to hand off to the existing instance.", ex);
+            return false;
         }
+    }
+
+    private static void ShowHandoffNotAcknowledged()
+    {
+        Log.Error("The running instance did not acknowledge the hand-off.");
+        MessageBox.Show(
+            "PiPlay is already running but did not respond. Try again in a moment.",
+            "PiPlay",
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning);
     }
 
     private void OnSecondInstance(string? url)

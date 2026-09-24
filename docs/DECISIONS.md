@@ -33,3 +33,7 @@ Fade and opacity are visual only. Do not set `WS_EX_TRANSPARENT`, pass through m
 ## ADR-0008 — Rounded Popout region (accepted)
 
 Only a floating Popout with effective `Round` corners receives the DPI-scaled native region: `22 DIP` for Soft Glass/explicit Round. Resize/DPI refreshes it; maximize/snap clears it and floating restore reapplies it. Keep standard WebView2, `AllowsTransparency=False`, native opacity, and the resize subclass. The region does not promise a curve-following DWM border/shadow; composition hosting remains deferred. (`RoundedWindowRegionPolicy`, `RoundedWindowRegionApplier`, WPF tests.)
+
+## ADR-0009 — Acknowledged single-instance hand-off (accepted)
+
+A second launch sends one `v1` request line (random request ID, escaped URL) over the per-session pipe and waits for `applied` or `not-applied`, retrying once with the same ID. The running instance posts the request to the UI dispatcher and decides within the dispatch bound: a dispatch the UI thread has not started is aborted and answered `not-applied`; a started one is answered `applied`. The dispatch bound plus a margin stays below the sender's acknowledgement wait, and each request ID applies at most once, so a retry never applies a link twice. A sender still unacknowledged after its retry reports that PiPlay did not respond, and a withdrawn hand-off never applies afterwards. (`SingleInstanceHandoffPolicy`, `SingleInstancePipeTransport`, `DispatcherHandoffDispatch`, `App.xaml.cs`, `SingleInstanceHandoffTests`.)

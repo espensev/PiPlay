@@ -59,7 +59,7 @@ No media download/re-hosting, ad blocking, restriction bypass, multiple Popouts,
 
 `net10.0-windows` WPF, nullable, implicit usings; `PublishTrimmed=false`, `PublishSingleFile=false`, `SelfContained=false`. WebView2 package in `src/PiPlay/PiPlay.csproj`; SDK in `global.json`; `PerMonitorV2` in `src/PiPlay/app.manifest`. (ADR-0001–0003, ADR-0007.)
 
-- **REQ-APP-01:** one instance per channel/session. A second launch activates the existing instance and hands off a supported YouTube target where applicable; it never contends for the same WebView2 root.
+- **REQ-APP-01:** one instance per channel/session. A second launch activates the existing instance and hands off a supported YouTube target where applicable; it never contends for the same WebView2 root. The running instance applies each hand-off at most once and acknowledges it. A hand-off its UI thread has not started within the dispatch bound is withdrawn and never applied later; a sender still unacknowledged after one same-request retry reports that PiPlay did not respond. (ADR-0009, `SingleInstanceHandoffPolicy`, `SingleInstanceHandoffTests`.)
 - **REQ-APP-02:** exact `--help`, `-h`, and `/?` startup arguments show native executable usage and exit successfully before logging, single-instance election or handoff, settings, WebView2, or window creation. Help wins over every other argument and creates no persistent application state. Outside help, the first argument accepted by `YouTubeUrlHelper.TryParse` is handed to normal startup verbatim; unsupported arguments are ignored.
 
 ## 10. Playback modes and presentation
@@ -82,7 +82,7 @@ Standard is default. Focused overlay: [`YouTube_Compliance.md`](YouTube_Complian
 
 ## 11. Runtime coordination
 
-One WPF dispatcher owns native/window state. Launch, return, navigation, and page calls are generation- or single-flight-guarded. Normal Popout DOM sync `250 ms`; Source suppression `1 s`; normal-page DOM execution `5 s`; connected single-instance client pipe payload `2 s`. Timers stop on close/navigation. (`MainWindow.xaml.cs`, `PlayerWindow.xaml.cs`, `YouTubeDomBridge`, `SingleInstancePipePolicy`, `RuntimeFailurePolicyTests`.)
+One WPF dispatcher owns native/window state. Launch, return, navigation, and page calls are generation- or single-flight-guarded. Normal Popout DOM sync `250 ms`; Source suppression `1 s`; normal-page DOM execution `5 s`; connected single-instance client pipe payload `2 s`; single-instance hand-off UI dispatch `2.5 s`, sender acknowledgement wait `3.5 s` (dispatch plus a `0.5 s` minimum margin stays below it), pipe connect `2 s`, one same-request retry. Timers stop on close/navigation. (`MainWindow.xaml.cs`, `PlayerWindow.xaml.cs`, `YouTubeDomBridge`, `SingleInstancePipePolicy`, `SingleInstanceHandoffPolicy`, `RuntimeFailurePolicyTests`, `SingleInstanceHandoffTests`.)
 
 ## 12. Component contracts
 
