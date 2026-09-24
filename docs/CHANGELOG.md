@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Clear browser data waits for a Popout that is still opening or returning, and a Popout launch overtaken by Clear browser data or closing PiPlay rolls back instead of opening.
 - `PiPlay.exe --help`, `-h`, and `/?` show native usage and exit before normal startup; command-line launch targets remain limited to values accepted by the shared YouTube parser.
 
 ## 0.13.2 — 2026-08-23 (build 39)

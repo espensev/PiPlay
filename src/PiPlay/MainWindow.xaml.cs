@@ -875,11 +875,36 @@ public partial class MainWindow : Window
 
     // --- Privacy actions: Settings window (spec 19, Phase 2, REQ-PRIVACY-01/02) ---
 
-    /// <summary>Whether Clear browser data can run right now (live core + no prior clear in flight).</summary>
-    internal bool CanClearBrowserData =>
-        _browserReady && Browser.CoreWebView2 is not null && !_browserDataClearCoordinator.IsRunning;
+    /// <summary>
+    /// Whether Clear browser data can run right now (live core, no prior clear in flight, and no
+    /// Popout launch or return in flight).
+    /// </summary>
+    internal bool CanClearBrowserData => ClearBrowserDataRefusal(TryGetSourceCore()) is null;
 
     internal bool BrowserDataClearInProgressForTests => _browserDataClearCoordinator.IsRunning;
+    internal string? ClearBrowserDataRefusalForTests => ClearBrowserDataRefusal(TryGetSourceCore());
+    internal string? ClearBrowserDataUnavailableHintForTests => ClearBrowserDataUnavailableHint;
+    internal void AttachSettingsDialogForTests(SettingsWindow? dialog) => _settingsDialog = dialog;
+
+    /// <summary>
+    /// Why Clear browser data cannot start now, or null when it can. Evaluated again at execution
+    /// time because the Settings dialog's enabled state can be stale by the time it returns. Settings
+    /// stays usable while a launch awaits page reads, and a launch or return still in flight would
+    /// create or close the Popout after the clear started (spec 19: the Popout leaves first).
+    /// </summary>
+    private string? ClearBrowserDataRefusal(CoreWebView2? core)
+    {
+        if (_browserDataClearCoordinator.IsRunning) return PrivacyService.ClearAlreadyRunning;
+        if (_popoutInProgress) return PrivacyService.ClearPopoutBusy;
+        if (!_browserReady || core is null) return PrivacyService.ClearBrowserNotReady;
+        return null;
+    }
+
+    /// <summary>Tooltip reason for a disabled Clear button beyond browser readiness, or null.</summary>
+    private string? ClearBrowserDataUnavailableHint =>
+        _browserDataClearCoordinator.IsRunning ? PrivacyService.ClearAlreadyRunningHint
+        : _popoutInProgress ? PrivacyService.ClearPopoutBusyHint
+        : null;
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e) => OpenSettings(this);
 
@@ -898,12 +923,9 @@ public partial class MainWindow : Window
         }
 
         var browserReadyForClear = _browserReady && Browser.CoreWebView2 is not null;
-        var clearUnavailableHint = _browserDataClearCoordinator.IsRunning
-            ? PrivacyService.ClearAlreadyRunningHint
-            : null;
         var dialog = new SettingsWindow(
             isBrowserReady: browserReadyForClear,
-            clearBrowserDataUnavailableHint: clearUnavailableHint,
+            clearBrowserDataUnavailableHint: ClearBrowserDataUnavailableHint,
             themeId: _settings.Theme.ThemeId,
             accentColor: ResolvedAccentColor,
             fadeIdleDelayMs: EffectiveFadeIdleDelayMs,
@@ -1308,16 +1330,10 @@ public partial class MainWindow : Window
             // Re-check readiness at execution time (the cached enabled state can be stale). This
             // lives INSIDE the try so a throw here (e.g. CoreWebView2 access during a WebView2
             // teardown) can never escape this fire-and-forget task unobserved.
-            if (_browserDataClearCoordinator.IsRunning)
-            {
-                Prompt.ShowInfo(this, PrivacyService.ClearResultTitle, PrivacyService.ClearAlreadyRunning);
-                return;
-            }
-
             var core = Browser.CoreWebView2;
-            if (!_browserReady || core is null)
+            if (ClearBrowserDataRefusal(core) is { } refusal)
             {
-                Prompt.ShowInfo(this, PrivacyService.ClearResultTitle, PrivacyService.ClearBrowserNotReady);
+                Prompt.ShowInfo(this, PrivacyService.ClearResultTitle, refusal);
                 return;
             }
 
@@ -1328,13 +1344,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            _privacyActionInProgress = true;
-            _clearingBrowserData = true;
-            _pendingReturnReplay = null;
-            if (_returnInProgress) CompleteReturnTransition();
-            SettingsButton.IsEnabled = false;   // no second Settings window mid-await
-            UpdatePopoutActionState();
-            UpdateSourceCommandAvailability();
+            BeginBrowserDataClearGates();
 
             // Single shared profile: closing the popout avoids it showing a logged-out surface.
             // _clearingBrowserData makes the popout's return handler skip driving source playback.
@@ -1376,13 +1386,38 @@ public partial class MainWindow : Window
         }
         finally
         {
-            _privacyActionInProgress = false;
-            _clearingBrowserData = false;
-            SettingsButton.IsEnabled = true;
-            UpdatePopoutActionState();
-            UpdateSourceCommandAvailability();
+            EndBrowserDataClearGates();
         }
     }
+
+    /// <summary>
+    /// Close the gates a running clear owns: Settings, Pop out, Source navigation/profile commands,
+    /// Auto, return replay, and any in-flight launch's next checkpoint (spec 13.4 / 19).
+    /// </summary>
+    private void BeginBrowserDataClearGates()
+    {
+        _privacyActionInProgress = true;
+        _clearingBrowserData = true;
+        _pendingReturnReplay = null;
+        if (_returnInProgress) CompleteReturnTransition();
+        SettingsButton.IsEnabled = false;   // no second Settings window mid-await
+        UpdatePopoutActionState();
+        UpdateSourceCommandAvailability();
+    }
+
+    private void EndBrowserDataClearGates()
+    {
+        _privacyActionInProgress = false;
+        _clearingBrowserData = false;
+        SettingsButton.IsEnabled = true;
+        UpdatePopoutActionState();
+        UpdateSourceCommandAvailability();
+    }
+
+    internal void BeginBrowserDataClearGatesForTests() => BeginBrowserDataClearGates();
+    internal void EndBrowserDataClearGatesForTests() => EndBrowserDataClearGates();
+    internal bool TryStartBrowserDataClearForTests(Func<Task> operation) =>
+        _browserDataClearCoordinator.TryStart(operation, out _);
 
     private async Task ObserveTimedOutBrowserDataClearAsync(Task clearTask, Stopwatch? stopwatch)
     {
@@ -1412,13 +1447,18 @@ public partial class MainWindow : Window
     {
         if (_settingsDialog is null) return;
 
-        bool browserReady;
-        try { browserReady = _browserReady && Browser.CoreWebView2 is not null; }
-        catch { browserReady = false; }
-        var unavailableHint = _browserDataClearCoordinator.IsRunning
-            ? PrivacyService.ClearAlreadyRunningHint
-            : null;
-        _settingsDialog.SetClearBrowserDataAvailability(browserReady, unavailableHint);
+        var browserReady = _browserReady && TryGetSourceCore() is not null;
+        _settingsDialog.SetClearBrowserDataAvailability(browserReady, ClearBrowserDataUnavailableHint);
+    }
+
+    /// <summary>
+    /// The live Source core, or null when there is none. The WebView2 control throws from this
+    /// getter after a browser-process crash, and callers here only need to know it is gone.
+    /// </summary>
+    private CoreWebView2? TryGetSourceCore()
+    {
+        try { return Browser.CoreWebView2; }
+        catch { return null; }
     }
 
     /// <summary>Test-only: the navigation queued while the browser was not ready (null = none).</summary>
@@ -1448,9 +1488,7 @@ public partial class MainWindow : Window
         // Guards (spec 13.4): browser ready, no popout in flight, single player (ADR-0005).
         if (!CanStartVideoPopout) return;
 
-        _popoutInProgress = true;
-        UpdatePopoutActionState();
-        UpdateSourceCommandAvailability();
+        SetPopoutInProgress(true);
         var core = Browser.CoreWebView2;
         PlayerState? launchState = null;
 
@@ -1460,6 +1498,7 @@ public partial class MainWindow : Window
             // suppressing (REQ-RETURN-01). The settings are the return fallback if the popout never
             // reports live state, so suppression's mute is always undone on return (Q-1).
             launchState = await YouTubeDomBridge.ReadPlayerStateAsync(core);
+            ThrowIfPopoutLaunchOvertaken(core);
             _sourceWasPlayingAtPopout = launchState is { Paused: false };
             _sourceVolumeAtPopout = launchState?.Volume;
             _sourceMutedAtPopout = launchState?.Muted;
@@ -1481,6 +1520,7 @@ public partial class MainWindow : Window
             }
 
             var target = resolvedTarget ?? await ResolvePopoutTargetAsync(core);
+            ThrowIfPopoutLaunchOvertaken(core);
             if (target is null || !PopoutLaunchPolicy.IsLaunchableTarget(target))
             {
                 Prompt.ShowInfo(this, "Pop out video", "Open a YouTube video or playlist first, then press Pop out video.");
@@ -1495,6 +1535,7 @@ public partial class MainWindow : Window
             if (target.IsPlaylistOnly && string.IsNullOrEmpty(target.VideoId))
             {
                 var firstItemUrl = await YouTubeDomBridge.ReadFirstPlaylistItemUrlAsync(core);
+                ThrowIfPopoutLaunchOvertaken(core);
                 if (!PopoutTargetResolver.CapturedTargetStillMatchesSource(target, core.Source))
                 {
                     Log.Info("Video Popout: the Source moved away from the captured playlist while resolving its first item; abandoning this launch.");
@@ -1549,6 +1590,7 @@ public partial class MainWindow : Window
                 _autoSuppressionFailedVideoId = target.VideoId;
                 throw;
             }
+            ThrowIfPopoutLaunchOvertaken(core);
 
             // Auto de-dup is committed only after playback ownership really transferred.
             _autoSuppressionFailedVideoId = null;
@@ -1559,6 +1601,9 @@ public partial class MainWindow : Window
             // 4) Create the single Popout Player on the shared environment, in the resolved mode.
             var env = App.Current.WebViewEnvironment.Environment
                       ?? await App.Current.WebViewEnvironment.EnsureCreatedAsync();
+            // Last checkpoint: nothing awaits from here through Show(), so a clear or shutdown
+            // cannot land between creating the Popout and registering it as _player.
+            ThrowIfPopoutLaunchOvertaken(core);
 
             // The target doubles as the compact error bar's fallback handle (spec 10.3 / Q-6,
             // Stage 4). Its StartSeconds was normalized before URL construction: ordinary videos
@@ -1582,33 +1627,93 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            // Failure after pause (spec 13.5): restore the source and resume if it had been playing.
-            Log.Error("Video Popout failed; restoring source.", ex);
-            StopSourceSuppressionGuard();
-            ShowSourcePlaceholder(false);
-            if (_player is not null)
-            {
-                var failedPlayer = _player;
-                _player = null;
-                failedPlayer.PlayerClosed -= Player_OnClosed;
-                failedPlayer.SettingsRequested -= Player_SettingsRequested;
-                try { failedPlayer.Close(); } catch { /* ignore */ }
-            }
-            RestoreSourcePinAfterPopout();
-            RestoreSourceAfterReturn();
-            if (core is not null)
-                await YouTubeDomBridge.ApplyPlaybackSettingsAsync(
-                    core, launchState?.Volume, launchState?.Muted, launchState?.PlaybackRate);
-            if (_sourceWasPlayingAtPopout && core is not null) await YouTubeDomBridge.PlayAsync(core);
-            Prompt.ShowInfo(this, "Pop out video", "PiPlay couldn't pop out this video. It stayed in the main window.");
+            if (await RollBackPopoutLaunchAsync(core, launchState, ex))
+                Prompt.ShowInfo(this, "Pop out video", "PiPlay couldn't pop out this video. It stayed in the main window.");
         }
         finally
         {
-            _popoutInProgress = false;
-            UpdatePopoutActionState();   // covers both outcomes: player created or rolled back
-            UpdateSourceCommandAvailability();
+            SetPopoutInProgress(false);   // covers both outcomes: player created or rolled back
         }
     }
+
+    /// <summary>
+    /// Enter/leave a launch or return transfer. An open Settings dialog follows it, because Clear
+    /// browser data is refused while a transfer is in flight.
+    /// </summary>
+    private void SetPopoutInProgress(bool inProgress)
+    {
+        _popoutInProgress = inProgress;
+        UpdatePopoutActionState();
+        UpdateSourceCommandAvailability();
+        RefreshClearBrowserDataAvailability();
+    }
+
+    /// <summary>
+    /// Whether a launch that captured <paramref name="launchCore"/> still owns the Source (spec
+    /// 13.4). The entry gate runs once, but each page read can take the full DOM execution bound
+    /// while Settings, Close, and the dispatcher stay live; Clear browser data, shutdown, or a
+    /// replaced/crashed Source core during that window must end the launch.
+    /// </summary>
+    private bool IsPopoutLaunchCurrent(CoreWebView2? launchCore) =>
+        !_clearingBrowserData && !_mainWindowClosing && ReferenceEquals(TryGetSourceCore(), launchCore);
+
+    /// <summary>Route an overtaken launch into the rollback path (spec 13.5).</summary>
+    private void ThrowIfPopoutLaunchOvertaken(CoreWebView2? launchCore)
+    {
+        if (!IsPopoutLaunchCurrent(launchCore))
+            throw new OperationCanceledException("The Video Popout launch no longer owns the Source.");
+    }
+
+    /// <summary>
+    /// Failure after pause (spec 13.5): restore the Source and resume it if it had been playing.
+    /// Returns whether the failure should be reported. A launch overtaken by Clear browser data,
+    /// shutdown, or a replaced Source core rolls back silently and leaves that page alone: it is
+    /// being wiped, torn down, or is no longer the Source.
+    /// </summary>
+    private async Task<bool> RollBackPopoutLaunchAsync(CoreWebView2? core, PlayerState? launchState, Exception ex)
+    {
+        var overtaken = !IsPopoutLaunchCurrent(core);
+        if (overtaken)
+            Log.Info("Video Popout launch abandoned: Clear browser data, shutdown, or a Source browser change overtook it.");
+        else
+            Log.Error("Video Popout failed; restoring source.", ex);
+
+        StopSourceSuppressionGuard();
+        ShowSourcePlaceholder(false);
+        if (_player is not null)
+        {
+            var failedPlayer = _player;
+            _player = null;
+            failedPlayer.PlayerClosed -= Player_OnClosed;
+            failedPlayer.SettingsRequested -= Player_SettingsRequested;
+            try { failedPlayer.Close(); } catch { /* ignore */ }
+        }
+        RestoreSourcePinAfterPopout();
+        RestoreSourceAfterReturn();
+        if (overtaken) return false;
+
+        if (core is not null)
+        {
+            await YouTubeDomBridge.ApplyPlaybackSettingsAsync(
+                core, launchState?.Volume, launchState?.Muted, launchState?.PlaybackRate);
+            if (_sourceWasPlayingAtPopout) await YouTubeDomBridge.PlayAsync(core);
+        }
+        return true;
+    }
+
+    // Launch seams (WPF lane): hold a launch "mid-await" without WebView2 so a clear or shutdown can
+    // land on it, then drive the same checkpoint and rollback StartVideoPopoutAsync uses.
+    internal CoreWebView2? BeginPopoutLaunchForTests()
+    {
+        SetPopoutInProgress(true);
+        return TryGetSourceCore();
+    }
+
+    internal void CompletePopoutLaunchForTests() => SetPopoutInProgress(false);
+    internal bool IsPopoutLaunchCurrentForTests(CoreWebView2? launchCore) => IsPopoutLaunchCurrent(launchCore);
+    internal Task<bool> RollBackPopoutLaunchForTests(CoreWebView2? launchCore) =>
+        RollBackPopoutLaunchAsync(launchCore, launchState: null, new InvalidOperationException("Test launch failure."));
+    internal bool HasPlayerForTests => _player is not null;
 
     /// <summary>
     /// Show/focus the existing popout (ADR-0005 activate-existing rule). RestoreWindow first:
@@ -1627,9 +1732,7 @@ public partial class MainWindow : Window
     {
         if (_player is null || _popoutInProgress) return;
 
-        _popoutInProgress = true;
-        UpdatePopoutActionState();
-        UpdateSourceCommandAvailability();
+        SetPopoutInProgress(true);
         try
         {
             var player = _player;
@@ -1643,9 +1746,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            _popoutInProgress = false;
-            UpdatePopoutActionState();
-            UpdateSourceCommandAvailability();
+            SetPopoutInProgress(false);
         }
     }
 
