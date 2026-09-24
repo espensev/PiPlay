@@ -170,6 +170,10 @@ Native `12 DIP` resize band and `96 DIP` diagonal reach; not a `96 x 96` content
 
 `PerMonitorV2` is required; restore the prior monitor when available, otherwise clamp to visible work area. (`WindowPlacementService`, `PlacementMathTests`, WPF tests.)
 
+### 16.5 Expand
+
+Popout Expand (maximize) covers exactly its monitor, taskbar included, with no window region: no frame overhang and no WindowChrome work-area clip, in every corner mode. `WM_GETMINMAXINFO` values are pre-compensated for the window manager's primary-monitor translation. ADR-0008's rounded region remains floating-only. (`BorderlessWindowHelper.EnableFullMonitorMaximize`, `PlacementMath.FullMonitorMaximize`; `PlacementMathTests`, WPF tests.)
+
 ## 17. Profiles and appearance ownership
 
 Profiles contain a name, URL, optional mode/presentation/accent/Pin/Fade values, and placement. Non-null profile fields override global values; unset fields inherit. Duplicate names prompt overwrite/rename, URLs validate, and broken values fail gracefully. (`ProfileService`, `ProfileServiceTests`.)

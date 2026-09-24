@@ -3,6 +3,7 @@
 ## Unreleased
 
 - `PiPlay.exe --help`, `-h`, and `/?` show native usage and exit before normal startup; command-line launch targets remain limited to values accepted by the shared YouTube parser.
+- Expanding the Popout covers the whole monitor, taskbar included, in every corner style; the chrome strip, video edges, and YouTube's control bar are no longer cropped.
 
 ## 0.13.2 — 2026-08-23 (build 39)
 

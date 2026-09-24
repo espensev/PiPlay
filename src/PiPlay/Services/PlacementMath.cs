@@ -33,6 +33,23 @@ public static class PlacementMath
     }
 
     /// <summary>
+    /// WM_GETMINMAXINFO maximized position and size that make a maximized window cover exactly
+    /// <paramref name="monitor"/> (the Popout's full-monitor Expand). Windows reads both values in
+    /// primary-monitor terms: the position is relative to the monitor origin, and a size that covers
+    /// the primary monitor on both axes is grown by (actual monitor - primary monitor) before use,
+    /// while a smaller size is used as-is (MINMAXINFO remarks). Writing the target monitor's own size
+    /// would therefore overshoot on a secondary monitor larger than the primary; writing the primary
+    /// size there lands exactly on the monitor.
+    /// </summary>
+    public static (int X, int Y, int Width, int Height) FullMonitorMaximize(RectI monitor, RectI primary)
+    {
+        var coversPrimary = monitor.Width >= primary.Width && monitor.Height >= primary.Height;
+        return coversPrimary
+            ? (0, 0, primary.Width, primary.Height)
+            : (0, 0, monitor.Width, monitor.Height);
+    }
+
+    /// <summary>
     /// Raise a saved placement's size up to a minimum expressed in device-independent pixels (DIP),
     /// using the placement's own DPI scale to convert — placement bounds are physical pixels, the
     /// minimums are DIP (spec 10.2 / 16.1). Position, monitor identity, and maximized state are

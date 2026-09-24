@@ -713,6 +713,7 @@ public class WpfRuntimeTests : IDisposable
             UseAeroCaptionButtons = false,
         });
         BorderlessWindowHelper.EnableExpandedResizeZones(w);
+        BorderlessWindowHelper.EnableFullMonitorMaximize(w);
         return w;
     }
 
@@ -725,14 +726,42 @@ public class WpfRuntimeTests : IDisposable
             w.Show();
             try
             {
+                Assert.True(GetWindowRect(hwnd, out var floating));
+
                 w.WindowState = WindowState.Maximized;
                 AssertCoversMonitorExactly(hwnd, "after Expand");
+
+                // WindowChrome re-clips to rcWork on any size-changing WM_WINDOWPOSCHANGED while
+                // maximized (DPI/monitor/work-area changes), not only on the maximize transition.
+                Assert.True(GetWindowRect(hwnd, out var expanded));
+                Assert.True(SetWindowPos(hwnd, IntPtr.Zero, expanded.Left, expanded.Top,
+                    expanded.Right - expanded.Left, expanded.Bottom - expanded.Top,
+                    SWP_NOZORDER | SWP_NOACTIVATE));
+                AssertCoversMonitorExactly(hwnd, "after a size-changing WM_WINDOWPOSCHANGED");
+
+                w.WindowState = WindowState.Normal;
+                Assert.True(GetWindowRect(hwnd, out var restored));
+                Assert.Equal(floating, restored);
+
+                w.WindowState = WindowState.Maximized;
+                AssertCoversMonitorExactly(hwnd, "after a second Expand");
             }
             finally
             {
                 w.Close();
             }
         });
+
+    [Fact]
+    public void PlayerWindow_installs_the_full_monitor_expand_on_its_hwnd() => StaTestThread.Invoke(() =>
+    {
+        var w = NewPlayer();
+        var hwnd = new WindowInteropHelper(w).EnsureHandle();
+
+        Assert.True(BorderlessWindowHelper.HasFullMonitorMaximizeSubclassForTests(hwnd));
+        Assert.True(BorderlessWindowHelper.HasExpandedResizeSubclassForTests(hwnd));
+        w.Close();
+    });
 
     // One assertion carrying every measurement, so a red run on a real desktop is itself the evidence.
     private static void AssertCoversMonitorExactly(IntPtr hwnd, string when)
@@ -764,6 +793,8 @@ public class WpfRuntimeTests : IDisposable
     }
 
     private const uint MONITOR_DEFAULTTONEAREST = 2;
+    private const uint SWP_NOZORDER = 0x0004;
+    private const uint SWP_NOACTIVATE = 0x0010;
 
     [StructLayout(LayoutKind.Sequential)]
     private record struct Win32Rect(int Left, int Top, int Right, int Bottom)
@@ -785,6 +816,9 @@ public class WpfRuntimeTests : IDisposable
 
     [DllImport("user32.dll")]
     private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int cx, int cy, uint flags);
 
     [DllImport("user32.dll")]
     private static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO info);
