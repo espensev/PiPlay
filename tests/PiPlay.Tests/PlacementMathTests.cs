@@ -156,4 +156,60 @@ public class PlacementMathTests
         // No capture (e.g. the window never got an HWND) stays no capture.
         Assert.Null(PlacementMath.ForNextLaunch(null));
     }
+
+    // --- FullMonitorMaximize: Popout Expand covers exactly its monitor on any monitor layout ---
+
+    private static readonly RectI Primary = new(0, 0, 1920, 1080);
+
+    // The window manager's documented MINMAXINFO translation (MINMAXINFO remarks): the position is
+    // moved onto the actual monitor; a size covering the primary on both axes grows by the
+    // actual-minus-primary difference, any other size is used as-is.
+    private static RectI MaximizedRect((int X, int Y, int Width, int Height) info, RectI monitor, RectI primary)
+    {
+        var width = info.Width;
+        var height = info.Height;
+        if (width >= primary.Width && height >= primary.Height)
+        {
+            width += monitor.Width - primary.Width;
+            height += monitor.Height - primary.Height;
+        }
+        var left = monitor.Left + info.X;
+        var top = monitor.Top + info.Y;
+        return new RectI(left, top, left + width, top + height);
+    }
+
+    [Theory]
+    [InlineData(0, 0, 1920, 1080)]          // the primary itself
+    [InlineData(1920, 0, 3200, 800)]        // smaller secondary
+    [InlineData(1920, -200, 4480, 1240)]    // larger secondary (1440p beside a 1080p primary)
+    [InlineData(-3440, 0, 0, 1440)]         // wider and taller, left of the primary
+    [InlineData(0, -1080, 2560, 0)]         // ultrawide at the primary's height (still covers it)
+    [InlineData(0, -900, 2560, 0)]          // wider but shorter, above the primary
+    [InlineData(-1080, -500, 0, 1420)]      // portrait: narrower but taller
+    public void FullMonitorMaximize_lands_exactly_on_the_monitor(int left, int top, int right, int bottom)
+    {
+        var monitor = new RectI(left, top, right, bottom);
+
+        var info = PlacementMath.FullMonitorMaximize(monitor, Primary);
+
+        Assert.Equal(monitor, MaximizedRect(info, monitor, Primary));
+    }
+
+    [Fact]
+    public void FullMonitorMaximize_writes_the_primary_size_for_a_monitor_that_covers_it()
+    {
+        // Writing 2560x1440 here would come back as 3200x1800: the manager adds the 640x360 difference.
+        var info = PlacementMath.FullMonitorMaximize(new RectI(1920, 0, 4480, 1440), Primary);
+
+        Assert.Equal((0, 0, 1920, 1080), info);
+    }
+
+    [Fact]
+    public void FullMonitorMaximize_is_the_monitor_not_the_work_area()
+    {
+        // The work area never enters the calculation: Expand covers the taskbar by decision.
+        var info = PlacementMath.FullMonitorMaximize(Primary, Primary);
+
+        Assert.Equal((0, 0, 1920, 1080), info);
+    }
 }
