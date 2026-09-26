@@ -11,8 +11,8 @@ public enum ReturnAction
     Seek,
     /// <summary>Seek to the last-known timestamp and resume.</summary>
     SeekAndPlay,
-    /// <summary>The popout ended on a DIFFERENT video: navigate the source to it (timestamp rides
-    /// the watch URL; YouTube's own watch-page playback behavior applies).</summary>
+    /// <summary>The popout ended on a DIFFERENT video or list: navigate the source to it (timestamp
+    /// rides the watch URL; YouTube's own watch-page playback behavior applies).</summary>
     Navigate,
 }
 
@@ -45,10 +45,17 @@ public static class ReturnPolicy
         int? lastKnownSeconds, bool sourceWasPlaying, string? returnedVideoId, string? sourceVideoIdAtPopout)
         => Decide(lastKnownSeconds, sourceWasPlaying, returnedPaused: null, returnedVideoId, sourceVideoIdAtPopout);
 
+    /// <remarks>
+    /// Spec 14: a different video OR list navigates. On the same video, a returned list that
+    /// differs from <paramref name="sourcePlaylistIdAtPopout"/> (null = the Source had no list)
+    /// also navigates — e.g. a Mix started on the popped-out video. A returned list that is
+    /// absent is not a change worth a reload: the Source keeps its own list and seeks.
+    /// </remarks>
     public static ReturnAction Decide(
         int? lastKnownSeconds, bool sourceWasPlaying, bool? returnedPaused,
         string? returnedVideoId, string? sourceVideoIdAtPopout,
-        bool popoutLaunchedWithoutVideo = false)
+        bool popoutLaunchedWithoutVideo = false,
+        string? returnedPlaylistId = null, string? sourcePlaylistIdAtPopout = null)
     {
         // Playlist-page launch (spec 13.1 / 22.1): there was no source video id to compare against,
         // so ANY video the popout reports is somewhere the source's playlist page is not. Without
@@ -57,10 +64,17 @@ public static class ReturnPolicy
         if (popoutLaunchedWithoutVideo && !string.IsNullOrEmpty(returnedVideoId))
             return ReturnAction.Navigate;
 
-        if (!string.IsNullOrEmpty(returnedVideoId) && !string.IsNullOrEmpty(sourceVideoIdAtPopout) &&
-            !string.Equals(returnedVideoId, sourceVideoIdAtPopout, StringComparison.Ordinal))
+        if (!string.IsNullOrEmpty(returnedVideoId) && !string.IsNullOrEmpty(sourceVideoIdAtPopout))
         {
-            return ReturnAction.Navigate;
+            if (!string.Equals(returnedVideoId, sourceVideoIdAtPopout, StringComparison.Ordinal))
+                return ReturnAction.Navigate;
+
+            // Same video, new queue: seeking would leave the Source on the bare video without it.
+            if (!string.IsNullOrEmpty(returnedPlaylistId) &&
+                !string.Equals(returnedPlaylistId, sourcePlaylistIdAtPopout, StringComparison.Ordinal))
+            {
+                return ReturnAction.Navigate;
+            }
         }
         return Decide(lastKnownSeconds, sourceWasPlaying, returnedPaused);
     }
