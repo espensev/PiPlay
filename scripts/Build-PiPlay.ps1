@@ -391,7 +391,10 @@ function Copy-PublishExtras {
 
     foreach ($extra in $Extras) {
         $source = Join-Path $RepositoryRoot $extra
-        if (-not (Test-Path -LiteralPath $source)) { continue }
+        # Fail closed: a missing extra would ship an archive whose spec and README links dangle.
+        if (-not (Test-Path -LiteralPath $source)) {
+            throw "Publish extra '$extra' is missing at '$source'; refusing to package without it."
+        }
 
         $destination = Join-Path $VersionRoot $extra
         $destinationDirectory = Split-Path -Parent $destination

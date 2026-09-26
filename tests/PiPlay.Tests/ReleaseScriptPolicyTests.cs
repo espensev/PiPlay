@@ -115,7 +115,10 @@ public class ReleaseScriptPolicyTests
         // so a recipient is not left with the README's spec link pointing at nothing.
         var extras = Regex.Match(script, @"\$PublishExtras\s*=\s*@\((?<body>[^)]*)\)", RegexOptions.Singleline);
         Assert.True(extras.Success, "Build script should define a $PublishExtras array.");
-        var body = extras.Groups["body"].Value;
+        // Only live entries count: a commented-out line must not satisfy the check.
+        var entries = Regex.Matches(extras.Groups["body"].Value, @"^\s*""(?<path>[^""]+)""", RegexOptions.Multiline)
+            .Select(m => m.Groups["path"].Value)
+            .ToArray();
 
         string[] required =
         {
@@ -131,13 +134,16 @@ public class ReleaseScriptPolicyTests
 
         foreach (var entry in required)
         {
-            Assert.Contains(entry, body);
+            Assert.Contains(entry, entries);
 
-            // Copy-PublishExtras silently skips a missing source, so a stale path would ship nothing.
+            // Copy-PublishExtras refuses a missing source, so a stale path fails the publish; catch
+            // it here first.
             Assert.True(
                 File.Exists(Path.Combine(RepoRoot, entry)),
                 $"Packaged documentation '{entry}' must exist in the repository.");
         }
+
+        Assert.Contains("refusing to package without it", script);
     }
 
     [Fact]
