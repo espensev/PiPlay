@@ -1490,9 +1490,11 @@ public partial class MainWindow : Window
     {
         // Guards (spec 13.4): browser ready, no popout in flight, single player (ADR-0005).
         if (!CanStartVideoPopout) return;
+        // Read the core before entering the launch: a crashed browser throws from the getter, and
+        // outside the try that left the in-flight flag set, refusing Pop out and Clear for good.
+        if (TryGetSourceCore() is not { } core) return;
 
         SetPopoutInProgress(true);
-        var core = Browser.CoreWebView2;
         PlayerState? launchState = null;
 
         try
@@ -1631,7 +1633,9 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            if (await RollBackPopoutLaunchAsync(core, launchState, ex))
+            // Re-check after the rollback's page calls: a close that lands during them must not
+            // get an owned prompt on a closing window.
+            if (await RollBackPopoutLaunchAsync(core, launchState, ex) && IsPopoutLaunchCurrent(core))
                 Prompt.ShowInfo(this, "Pop out video", "PiPlay couldn't pop out this video. It stayed in the main window.");
         }
         finally
@@ -1714,6 +1718,7 @@ public partial class MainWindow : Window
     }
 
     internal void CompletePopoutLaunchForTests() => SetPopoutInProgress(false);
+    internal Task StartVideoPopoutForTests() => StartVideoPopoutAsync();
     internal bool IsPopoutLaunchCurrentForTests(CoreWebView2? launchCore) => IsPopoutLaunchCurrent(launchCore);
     internal Task<bool> RollBackPopoutLaunchForTests(CoreWebView2? launchCore) =>
         RollBackPopoutLaunchAsync(launchCore, launchState: null, new InvalidOperationException("Test launch failure."));

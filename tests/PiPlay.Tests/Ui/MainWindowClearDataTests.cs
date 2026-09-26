@@ -41,6 +41,25 @@ public class MainWindowClearDataTests : IDisposable
     }
 
     [Fact]
+    public void Pop_out_without_a_live_Source_core_never_enters_the_launch()
+    {
+        StaTestThread.Invoke(() =>
+        {
+            var window = new MainWindow(new AppSettings());
+            window.SetBrowserReadyForTests(true);
+            Assert.True(window.CanStartVideoPopoutForTests);
+
+            // This lane has no core, as after a browser-process crash, where the getter throws.
+            var launch = window.StartVideoPopoutForTests();
+
+            Assert.True(launch.IsCompletedSuccessfully);
+            Assert.True(window.CanStartVideoPopoutForTests);
+            Assert.False(window.HasPlayerForTests);
+            Assert.Equal(PrivacyService.ClearBrowserNotReady, window.ClearBrowserDataRefusalForTests);
+        });
+    }
+
+    [Fact]
     public void An_open_Settings_dialog_follows_a_launch_that_starts_and_ends_behind_it()
     {
         StaTestThread.Invoke(() =>
