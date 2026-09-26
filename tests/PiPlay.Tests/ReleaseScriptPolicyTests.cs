@@ -124,6 +124,9 @@ public class ReleaseScriptPolicyTests
             @"docs\YouTube_Compliance.md",
             @"docs\PiPlay_Product_Engineering_Spec.md",
             @"docs\DECISIONS.md",
+            // Linked from the spec; without them those links dangle inside the archive.
+            @"docs\Theme_Preset_Differences.md",
+            @"docs\AGENTS.md",
         };
 
         foreach (var entry in required)
