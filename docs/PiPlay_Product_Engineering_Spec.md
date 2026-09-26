@@ -82,7 +82,7 @@ Standard is default. Focused overlay: [`YouTube_Compliance.md`](YouTube_Complian
 
 ## 11. Runtime coordination
 
-One WPF dispatcher owns native/window state. Launch, return, navigation, and page calls are generation- or single-flight-guarded. Normal Popout DOM sync `250 ms`; Source suppression `1 s`; normal-page DOM execution `5 s`; connected single-instance client pipe payload `2 s`; single-instance hand-off UI dispatch `2.5 s`, sender acknowledgement wait `3.5 s` (dispatch plus a `0.5 s` minimum margin stays below it), pipe connect `2 s`, one same-request retry. Timers stop on close/navigation. (`MainWindow.xaml.cs`, `PlayerWindow.xaml.cs`, `YouTubeDomBridge`, `SingleInstancePipePolicy`, `SingleInstanceHandoffPolicy`, `RuntimeFailurePolicyTests`, `SingleInstanceHandoffTests`.)
+One WPF dispatcher owns native/window state. Launch, return, navigation, and page calls are generation- or single-flight-guarded. Normal Popout DOM sync `250 ms`; Source suppression `1 s`; normal-page DOM execution `5 s`; connected single-instance client pipe payload `2 s`; single-instance hand-off UI dispatch `2.5 s`, sender acknowledgement wait `3.5 s` (dispatch plus a `0.5 s` minimum margin stays below it), pipe connect `2 s`, request hand-over `1 s`, reply hand-back until the sender closes `1 s`, one same-request retry. Timers stop on close/navigation. (`MainWindow.xaml.cs`, `PlayerWindow.xaml.cs`, `YouTubeDomBridge`, `SingleInstancePipePolicy`, `SingleInstanceHandoffPolicy`, `RuntimeFailurePolicyTests`, `SingleInstanceHandoffTests`.)
 
 ## 12. Component contracts
 

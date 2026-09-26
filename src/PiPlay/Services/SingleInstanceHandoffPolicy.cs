@@ -87,6 +87,19 @@ internal static class SingleInstanceHandoffPolicy
     /// <summary>How long the sender waits for a free pipe instance on each attempt.</summary>
     public static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(2);
 
+    /// <summary>
+    /// How long the sender waits for the running instance to take its request. A pipe write
+    /// completes only once the other end reads it, so a frozen running instance cannot hold the
+    /// sender; the acknowledgement wait starts after this, as the dispatch bound does.
+    /// </summary>
+    public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// How long the running instance waits for the sender to take its reply and close its end,
+    /// so a sender that never reads cannot hold the pipe server.
+    /// </summary>
+    public static readonly TimeSpan ReplyTimeout = TimeSpan.FromSeconds(1);
+
     /// <summary>The first attempt plus one retry that reuses the same request ID.</summary>
     public const int MaxAttempts = 2;
 
@@ -131,32 +144,47 @@ internal static class SingleInstanceHandoffPolicy
         HandoffRequest request,
         HandoffRequestLedger ledger,
         Action<string> apply,
+        Action<Exception> onApplyFailed,
         Func<Action, IHandoffDispatch> post,
         CancellationToken cancellationToken) =>
-        DispatchAsync(request, ledger, apply, post, DispatchTimeout, cancellationToken);
+        DispatchAsync(request, ledger, apply, onApplyFailed, post, DispatchTimeout, cancellationToken);
 
     /// <summary>
     /// Posts <paramref name="apply"/> to the UI thread and decides the reply within
     /// <paramref name="dispatchTimeout"/>: a dispatch the UI thread has not started by then is
     /// withdrawn (<see cref="HandoffOutcome.NotApplied"/>); one it has started is acknowledged
-    /// (<see cref="HandoffOutcome.Applied"/>) without waiting for it to finish.
+    /// (<see cref="HandoffOutcome.Applied"/>) without waiting for it to finish. An
+    /// <paramref name="apply"/> that throws goes to <paramref name="onApplyFailed"/> on the UI
+    /// thread: a posted dispatcher operation keeps its exception in its task, so nothing else
+    /// would see it once the reply is decided.
     /// </summary>
     internal static async Task<HandoffOutcome> DispatchAsync(
         HandoffRequest request,
         HandoffRequestLedger ledger,
         Action<string> apply,
+        Action<Exception> onApplyFailed,
         Func<Action, IHandoffDispatch> post,
         TimeSpan dispatchTimeout,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(ledger);
         ArgumentNullException.ThrowIfNull(apply);
+        ArgumentNullException.ThrowIfNull(onApplyFailed);
         ArgumentNullException.ThrowIfNull(post);
 
         var dispatch = post(() =>
         {
-            if (ledger.TryBegin(request.Id))
+            if (!ledger.TryBegin(request.Id)) return;
+            try
+            {
                 apply(request.Url);
+            }
+            catch (Exception ex)
+            {
+                // The hand-off started, so it stays applied: a retry would repeat whatever part of
+                // it already ran.
+                onApplyFailed(ex);
+            }
         });
 
         try
@@ -183,8 +211,7 @@ internal static class SingleInstanceHandoffPolicy
         }
         catch (Exception)
         {
-            // The callback started and threw; the app's fault handler owns the exception, and a
-            // retry would repeat whatever part of the hand-off already ran.
+            // Only a throwing onApplyFailed faults a started dispatch; the hand-off still ran.
             return HandoffOutcome.Applied;
         }
     }

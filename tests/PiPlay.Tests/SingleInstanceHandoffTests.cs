@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.IO;
 using System.IO.Pipes;
 using System.Text;
 using System.Windows.Threading;
@@ -37,6 +38,8 @@ public class SingleInstanceHandoffTests
         Assert.Equal(TimeSpan.FromMilliseconds(3500), SingleInstanceHandoffPolicy.AckTimeout);
         Assert.Equal(TimeSpan.FromMilliseconds(500), SingleInstanceHandoffPolicy.AckMargin);
         Assert.Equal(TimeSpan.FromSeconds(2), SingleInstanceHandoffPolicy.ConnectTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(1), SingleInstanceHandoffPolicy.RequestTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(1), SingleInstanceHandoffPolicy.ReplyTimeout);
         Assert.Equal(2, SingleInstanceHandoffPolicy.MaxAttempts);
     }
 
@@ -88,7 +91,7 @@ public class SingleInstanceHandoffTests
         ManualDispatch? posted = null;
 
         var outcome = await SingleInstanceHandoffPolicy.DispatchAsync(
-            HandoffRequest.Create(Link), new HandoffRequestLedger(), applied.Add,
+            HandoffRequest.Create(Link), new HandoffRequestLedger(), applied.Add, UnexpectedFailure,
             callback => posted = new ManualDispatch(callback), ShortDispatch, CancellationToken.None);
 
         Assert.Equal(HandoffOutcome.NotApplied, outcome);
@@ -102,7 +105,7 @@ public class SingleInstanceHandoffTests
         var applied = new List<string>();
 
         var outcome = await SingleInstanceHandoffPolicy.DispatchAsync(
-            HandoffRequest.Create(Link), new HandoffRequestLedger(), applied.Add,
+            HandoffRequest.Create(Link), new HandoffRequestLedger(), applied.Add, UnexpectedFailure,
             callback =>
             {
                 var dispatch = new ManualDispatch(callback);
@@ -123,9 +126,9 @@ public class SingleInstanceHandoffTests
         var request = HandoffRequest.Create(Link);
 
         var first = await SingleInstanceHandoffPolicy.DispatchAsync(
-            request, ledger, applied.Add, RunNow, ShortDispatch, CancellationToken.None);
+            request, ledger, applied.Add, UnexpectedFailure, RunNow, ShortDispatch, CancellationToken.None);
         var retry = await SingleInstanceHandoffPolicy.DispatchAsync(
-            request, ledger, applied.Add, RunNow, ShortDispatch, CancellationToken.None);
+            request, ledger, applied.Add, UnexpectedFailure, RunNow, ShortDispatch, CancellationToken.None);
 
         Assert.Equal(HandoffOutcome.Applied, first);
         Assert.Equal(HandoffOutcome.Applied, retry);
@@ -140,10 +143,10 @@ public class SingleInstanceHandoffTests
         var request = HandoffRequest.Create(Link);
 
         var first = await SingleInstanceHandoffPolicy.DispatchAsync(
-            request, ledger, applied.Add, callback => new ManualDispatch(callback),
+            request, ledger, applied.Add, UnexpectedFailure, callback => new ManualDispatch(callback),
             ShortDispatch, CancellationToken.None);
         var retry = await SingleInstanceHandoffPolicy.DispatchAsync(
-            request, ledger, applied.Add, RunNow, ShortDispatch, CancellationToken.None);
+            request, ledger, applied.Add, UnexpectedFailure, RunNow, ShortDispatch, CancellationToken.None);
 
         Assert.Equal(HandoffOutcome.NotApplied, first);
         Assert.Equal(HandoffOutcome.Applied, retry);
@@ -159,22 +162,52 @@ public class SingleInstanceHandoffTests
         foreach (var request in new[] { HandoffRequest.Create(Link), HandoffRequest.Create(Link) })
         {
             Assert.Equal(HandoffOutcome.Applied, await SingleInstanceHandoffPolicy.DispatchAsync(
-                request, ledger, applied.Add, RunNow, ShortDispatch, CancellationToken.None));
+                request, ledger, applied.Add, UnexpectedFailure, RunNow, ShortDispatch, CancellationToken.None));
         }
 
         Assert.Equal([Link, Link], applied);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Handoff_that_throws_on_the_ui_thread_is_reported_and_acknowledged_so_it_is_not_retried(
+        bool cancelledInside)
+    {
+        var ledger = new HandoffRequestLedger();
+        var request = HandoffRequest.Create(Link);
+        var failures = new List<Exception>();
+        Exception thrown = cancelledInside
+            ? new OperationCanceledException("navigation cancelled")
+            : new InvalidOperationException("navigation failed");
+        var attempts = 0;
+        void Apply(string _)
+        {
+            attempts++;
+            throw thrown;
+        }
+
+        var first = await SingleInstanceHandoffPolicy.DispatchAsync(
+            request, ledger, Apply, failures.Add, RunNow, ShortDispatch, CancellationToken.None);
+        var retry = await SingleInstanceHandoffPolicy.DispatchAsync(
+            request, ledger, Apply, failures.Add, RunNow, ShortDispatch, CancellationToken.None);
+
+        Assert.Equal(HandoffOutcome.Applied, first);
+        Assert.Equal(HandoffOutcome.Applied, retry);
+        Assert.Equal(1, attempts);
+        Assert.Same(thrown, Assert.Single(failures));
+    }
+
     [Fact]
-    public async Task Handoff_that_threw_on_the_ui_thread_is_acknowledged_so_it_is_not_retried()
+    public async Task Started_dispatch_that_faults_is_still_acknowledged()
     {
         var outcome = await SingleInstanceHandoffPolicy.DispatchAsync(
-            HandoffRequest.Create(Link), new HandoffRequestLedger(), _ => { },
+            HandoffRequest.Create(Link), new HandoffRequestLedger(), _ => { }, UnexpectedFailure,
             callback =>
             {
                 var dispatch = new ManualDispatch(callback);
                 dispatch.Start();
-                dispatch.Fault(new InvalidOperationException("navigation failed"));
+                dispatch.Fault(new InvalidOperationException("failure callback threw"));
                 return dispatch;
             },
             ShortDispatch, CancellationToken.None);
@@ -183,12 +216,29 @@ public class SingleInstanceHandoffTests
     }
 
     [Fact]
+    public async Task Exit_while_a_dispatch_waits_withdraws_it()
+    {
+        var applied = new List<string>();
+        ManualDispatch? posted = null;
+        using var exiting = new CancellationTokenSource();
+
+        var dispatching = SingleInstanceHandoffPolicy.DispatchAsync(
+            HandoffRequest.Create(Link), new HandoffRequestLedger(), applied.Add, UnexpectedFailure,
+            callback => posted = new ManualDispatch(callback), TestWait, exiting.Token);
+        exiting.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => dispatching);
+        Assert.False(posted!.Start(), "A hand-off withdrawn at exit must not run.");
+        Assert.Empty(applied);
+    }
+
+    [Fact]
     public async Task Handoff_withdrawn_by_dispatcher_shutdown_reports_not_applied()
     {
         var applied = new List<string>();
 
         var outcome = await SingleInstanceHandoffPolicy.DispatchAsync(
-            HandoffRequest.Create(Link), new HandoffRequestLedger(), applied.Add,
+            HandoffRequest.Create(Link), new HandoffRequestLedger(), applied.Add, UnexpectedFailure,
             callback =>
             {
                 var dispatch = new ManualDispatch(callback);
@@ -272,10 +322,10 @@ public class SingleInstanceHandoffTests
         var server = SingleInstancePipeTransport.ServeOneAsync(
             pipe,
             (received, ct) => SingleInstanceHandoffPolicy.DispatchAsync(
-                received, ledger, applied.Enqueue, RunNow, TestWait, ct),
+                received, ledger, applied.Enqueue, UnexpectedFailure, RunNow, TestWait, ct),
             CancellationToken.None);
         var outcome = await SingleInstancePipeTransport.SendOnceAsync(
-            pipe, request, TestWait, TestWait, CancellationToken.None);
+            pipe, request, TestWait, TestWait, TestWait, CancellationToken.None);
 
         Assert.Equal(HandoffOutcome.Applied, outcome);
         Assert.Equal(HandoffOutcome.Applied, await server.WaitAsync(TestWait));
@@ -299,7 +349,7 @@ public class SingleInstanceHandoffTests
             if (Interlocked.Increment(ref connections) == 1)
                 await senderGaveUp.Task.WaitAsync(TestWait, ct);
             return await SingleInstanceHandoffPolicy.DispatchAsync(
-                received, ledger, applied.Enqueue, RunNow, TestWait, ct);
+                received, ledger, applied.Enqueue, UnexpectedFailure, RunNow, TestWait, ct);
         }
 
         var server = ServeTwoAsync(pipe, HandleAsync, firstServed);
@@ -312,7 +362,7 @@ public class SingleInstanceHandoffTests
                 if (senderGaveUp.Task.IsCompleted)
                     await firstServed.Task.WaitAsync(TestWait, ct);
                 return await SingleInstancePipeTransport.SendOnceAsync(
-                    pipe, attempt, TestWait, TimeSpan.FromMilliseconds(200), ct);
+                    pipe, attempt, TestWait, TestWait, TimeSpan.FromMilliseconds(200), ct);
             },
             (_, _) => senderGaveUp.TrySetResult(),
             CancellationToken.None);
@@ -338,7 +388,7 @@ public class SingleInstanceHandoffTests
 
         Task<HandoffOutcome> HandleAsync(HandoffRequest received, CancellationToken ct) =>
             SingleInstanceHandoffPolicy.DispatchAsync(
-                received, ledger, applied.Enqueue,
+                received, ledger, applied.Enqueue, UnexpectedFailure,
                 callback =>
                 {
                     var dispatch = new ManualDispatch(callback);
@@ -355,7 +405,7 @@ public class SingleInstanceHandoffTests
             {
                 if (attempts++ > 0)
                     await firstServed.Task.WaitAsync(TestWait, ct);
-                return await SingleInstancePipeTransport.SendOnceAsync(pipe, attempt, TestWait, TestWait, ct);
+                return await SingleInstancePipeTransport.SendOnceAsync(pipe, attempt, TestWait, TestWait, TestWait, ct);
             },
             (_, _) => { },
             CancellationToken.None);
@@ -394,7 +444,89 @@ public class SingleInstanceHandoffTests
         Assert.False(handled);
     }
 
+    [Fact]
+    public async Task Server_closes_its_end_only_after_the_sender_took_the_reply_and_closed()
+    {
+        // A pipe instance lives until its last handle closes. Closing after the sender keeps the
+        // next one-instance server from finding the pipe "busy".
+        var pipe = NewPipeName();
+        var server = SingleInstancePipeTransport.ServeOneAsync(
+            pipe, (_, _) => Task.FromResult(HandoffOutcome.Applied), TestWait, CancellationToken.None);
+
+        var client = new NamedPipeClientStream(".", pipe, PipeDirection.InOut, PipeOptions.Asynchronous);
+        try
+        {
+            await client.ConnectAsync(TestWait, CancellationToken.None);
+            await client.WriteAsync(RequestLine(HandoffRequest.Create(Link)));
+            using var reader = new StreamReader(client, Encoding.UTF8, false, 64, leaveOpen: true);
+            Assert.Equal(
+                SingleInstanceHandoffPolicy.AppliedReply,
+                await reader.ReadLineAsync().WaitAsync(TestWait));
+
+            await Task.Delay(200);
+            Assert.False(server.IsCompleted, "The server must not close its end before the sender.");
+        }
+        finally
+        {
+            client.Dispose();
+        }
+
+        Assert.Equal(HandoffOutcome.Applied, await server.WaitAsync(TestWait));
+        using var next = new NamedPipeServerStream(
+            pipe, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+    }
+
+    [Fact]
+    public async Task Sender_that_never_takes_its_reply_cannot_hold_the_server()
+    {
+        var pipe = NewPipeName();
+        var server = SingleInstancePipeTransport.ServeOneAsync(
+            pipe, (_, _) => Task.FromResult(HandoffOutcome.Applied),
+            TimeSpan.FromMilliseconds(200), CancellationToken.None);
+
+        using var client = new NamedPipeClientStream(".", pipe, PipeDirection.InOut, PipeOptions.Asynchronous);
+        await client.ConnectAsync(TestWait, CancellationToken.None);
+        await client.WriteAsync(RequestLine(HandoffRequest.Create(Link)));
+
+        // The client neither reads the reply nor closes; the server still moves on.
+        Assert.Equal(HandoffOutcome.Applied, await server.WaitAsync(TestWait));
+    }
+
+    [Fact]
+    public async Task Running_instance_that_never_takes_the_request_cannot_hold_the_sender()
+    {
+        var pipe = NewPipeName();
+        using var server = new NamedPipeServerStream(
+            pipe, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        var connected = server.WaitForConnectionAsync();
+
+        var outcome = await SingleInstancePipeTransport.SendOnceAsync(
+            pipe, HandoffRequest.Create(Link), TestWait,
+            TimeSpan.FromMilliseconds(200), TimeSpan.FromMilliseconds(200),
+            CancellationToken.None).WaitAsync(TestWait);
+
+        Assert.Equal(HandoffOutcome.NoAcknowledgement, outcome);
+        await connected.WaitAsync(TestWait);
+    }
+
+    [Fact]
+    public async Task Sender_that_finds_no_running_instance_reports_it_unreachable()
+    {
+        var outcome = await SingleInstancePipeTransport.SendOnceAsync(
+            NewPipeName(), HandoffRequest.Create(Link),
+            TimeSpan.FromMilliseconds(100), TestWait, TestWait,
+            CancellationToken.None).WaitAsync(TestWait);
+
+        Assert.Equal(HandoffOutcome.Unreachable, outcome);
+    }
+
     private static string NewPipeName() => $"PiPlay.Tests.Handoff.{Guid.NewGuid():N}";
+
+    private static byte[] RequestLine(HandoffRequest request) =>
+        Encoding.UTF8.GetBytes(SingleInstanceHandoffPolicy.FormatRequest(request) + "\n");
+
+    private static void UnexpectedFailure(Exception ex) =>
+        Assert.Fail($"The hand-off was not expected to fail: {ex}");
 
     private static Task<(HandoffOutcome? First, HandoffOutcome? Second)> ServeTwoAsync(
         string pipe,
@@ -462,6 +594,32 @@ public class SingleInstanceHandoffDispatcherTests
 {
     private const string Link = "https://youtu.be/dQw4w9WgXcQ";
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Handoff_that_throws_on_the_ui_thread_reaches_the_failure_callback_there(bool cancelledInside)
+    {
+        // A posted dispatcher operation keeps its exception in its task: nothing but the
+        // failure callback would see it, and WPF would report a cancellation as an abort.
+        using var ui = new DedicatedDispatcher();
+        var failures = new ConcurrentQueue<(Exception Error, bool OnUiThread)>();
+        Exception thrown = cancelledInside
+            ? new OperationCanceledException("navigation cancelled")
+            : new InvalidOperationException("navigation failed");
+
+        var outcome = await SingleInstanceHandoffPolicy.DispatchAsync(
+            HandoffRequest.Create(Link), new HandoffRequestLedger(),
+            _ => throw thrown,
+            ex => failures.Enqueue((ex, ui.Dispatcher.CheckAccess())),
+            callback => DispatcherHandoffDispatch.Post(ui.Dispatcher, callback),
+            TimeSpan.FromSeconds(10), CancellationToken.None);
+
+        Assert.Equal(HandoffOutcome.Applied, outcome);
+        var (error, onUiThread) = Assert.Single(failures);
+        Assert.Same(thrown, error);
+        Assert.True(onUiThread);
+    }
+
     [Fact]
     public async Task Stalled_ui_thread_withdraws_the_handoff_and_its_same_id_retries_apply_it_once()
     {
@@ -481,7 +639,7 @@ public class SingleInstanceHandoffDispatcherTests
         Assert.True(stallEntered.Wait(TimeSpan.FromSeconds(10)));
 
         var first = await SingleInstanceHandoffPolicy.DispatchAsync(
-            request, ledger, applied.Add, Post, TimeSpan.FromMilliseconds(100), CancellationToken.None);
+            request, ledger, applied.Add, UnexpectedFailure, Post, TimeSpan.FromMilliseconds(100), CancellationToken.None);
 
         releaseStall.Set();
         await stall.Task;
@@ -489,9 +647,9 @@ public class SingleInstanceHandoffDispatcherTests
         var appliedAfterStall = await ui.Dispatcher.InvokeAsync(() => applied.Count, DispatcherPriority.Normal).Task;
 
         var retry = await SingleInstanceHandoffPolicy.DispatchAsync(
-            request, ledger, applied.Add, Post, TimeSpan.FromSeconds(10), CancellationToken.None);
+            request, ledger, applied.Add, UnexpectedFailure, Post, TimeSpan.FromSeconds(10), CancellationToken.None);
         var lateRetry = await SingleInstanceHandoffPolicy.DispatchAsync(
-            request, ledger, applied.Add, Post, TimeSpan.FromSeconds(10), CancellationToken.None);
+            request, ledger, applied.Add, UnexpectedFailure, Post, TimeSpan.FromSeconds(10), CancellationToken.None);
         var finalApplied = await ui.Dispatcher.InvokeAsync(() => applied.ToArray()).Task;
 
         Assert.Equal(HandoffOutcome.NotApplied, first);
@@ -500,6 +658,9 @@ public class SingleInstanceHandoffDispatcherTests
         Assert.Equal(HandoffOutcome.Applied, lateRetry);
         Assert.Equal([Link], finalApplied);
     }
+
+    private static void UnexpectedFailure(Exception ex) =>
+        Assert.Fail($"The hand-off was not expected to fail: {ex}");
 
     /// <summary>A private UI thread the test may block without stalling the shared WPF test thread.</summary>
     private sealed class DedicatedDispatcher : IDisposable

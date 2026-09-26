@@ -17,9 +17,16 @@ internal static class SingleInstancePipeTransport
     /// Serves one connection. Returns the decision sent back, or <see langword="null"/> for a
     /// malformed request, which is dropped without a reply.
     /// </summary>
-    public static async Task<HandoffOutcome?> ServeOneAsync(
+    public static Task<HandoffOutcome?> ServeOneAsync(
         string pipeName,
         Func<HandoffRequest, CancellationToken, Task<HandoffOutcome>> handleAsync,
+        CancellationToken cancellationToken) =>
+        ServeOneAsync(pipeName, handleAsync, SingleInstanceHandoffPolicy.ReplyTimeout, cancellationToken);
+
+    internal static async Task<HandoffOutcome?> ServeOneAsync(
+        string pipeName,
+        Func<HandoffRequest, CancellationToken, Task<HandoffOutcome>> handleAsync,
+        TimeSpan replyTimeout,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(handleAsync);
@@ -39,18 +46,25 @@ internal static class SingleInstancePipeTransport
             return null;
 
         var outcome = await handleAsync(request, cancellationToken).ConfigureAwait(false);
+        var reply = Utf8.GetBytes(SingleInstanceHandoffPolicy.FormatReply(outcome) + "\n");
         try
         {
-            await using var writer = new StreamWriter(server, Utf8, bufferSize: 64, leaveOpen: true)
-            {
-                NewLine = "\n",
-            };
-            await writer.WriteLineAsync(SingleInstanceHandoffPolicy.FormatReply(outcome)).ConfigureAwait(false);
-            await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+            await AsyncOperationDeadline.RunAsync(
+                async token =>
+                {
+                    await server.WriteAsync(reply, token).ConfigureAwait(false);
+                    // Close after the sender does: a pipe instance lives until its last handle
+                    // closes, so closing first can leave the next server "all instances busy".
+                    var drain = new byte[64];
+                    while (await server.ReadAsync(drain, token).ConfigureAwait(false) > 0) { }
+                    return true;
+                },
+                replyTimeout,
+                cancellationToken).ConfigureAwait(false);
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is TimeoutException or IOException)
         {
-            // The sender already gave up and closed its end. Its same-ID retry, or its
+            // The sender already gave up, or never read or closed. Its same-ID retry, or its
             // "did not respond" message, owns the outcome.
         }
         return outcome;
@@ -63,6 +77,7 @@ internal static class SingleInstancePipeTransport
         SendOnceAsync(
             pipeName, request,
             SingleInstanceHandoffPolicy.ConnectTimeout,
+            SingleInstanceHandoffPolicy.RequestTimeout,
             SingleInstanceHandoffPolicy.AckTimeout,
             cancellationToken);
 
@@ -71,6 +86,7 @@ internal static class SingleInstancePipeTransport
         string pipeName,
         HandoffRequest request,
         TimeSpan connectTimeout,
+        TimeSpan requestTimeout,
         TimeSpan ackTimeout,
         CancellationToken cancellationToken)
     {
@@ -87,14 +103,15 @@ internal static class SingleInstancePipeTransport
 
         try
         {
-            await using (var writer = new StreamWriter(client, Utf8, bufferSize: 1024, leaveOpen: true)
-            {
-                NewLine = "\n",
-            })
-            {
-                await writer.WriteLineAsync(SingleInstanceHandoffPolicy.FormatRequest(request)).ConfigureAwait(false);
-                await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
-            }
+            var line = Utf8.GetBytes(SingleInstanceHandoffPolicy.FormatRequest(request) + "\n");
+            await AsyncOperationDeadline.RunAsync(
+                async token =>
+                {
+                    await client.WriteAsync(line, token).ConfigureAwait(false);
+                    return true;
+                },
+                requestTimeout,
+                cancellationToken).ConfigureAwait(false);
 
             // The wait starts only after the request is written, so the running instance's
             // dispatch bound (plus the margin) always ends inside it.

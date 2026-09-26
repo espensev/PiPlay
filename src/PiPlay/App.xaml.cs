@@ -75,6 +75,11 @@ public partial class App : Application
         if (!createdNew)
         {
             Log.Info("Another instance is already running; handing off and exiting.");
+            // Close the handle first: held through the hand-off and its "did not respond" message,
+            // it keeps the mutex alive, so a relaunch after the running PiPlay exits would hand off
+            // to nobody instead of starting.
+            _mutex.Dispose();
+            _mutex = null;
             if (!TrySendToExistingInstance(launchUrl))
                 ShowHandoffNotAcknowledged();
             // Skip base.OnStartup so no window is created; just leave.
@@ -188,6 +193,7 @@ public partial class App : Application
                 request,
                 _handoffLedger,
                 OnSecondInstance,
+                ex => Log.Error("Applying a single-instance hand-off failed on the UI thread.", ex),
                 callback => DispatcherHandoffDispatch.Post(Dispatcher, callback),
                 ct),
             token);
