@@ -106,6 +106,41 @@ public class ReleaseScriptPolicyTests
     }
 
     [Fact]
+    public void Publish_extras_package_the_consolidated_privacy_guidance()
+    {
+        var script = Script("scripts/Build-PiPlay.ps1");
+
+        // PR #42 folded the standalone privacy map into the consolidated product spec. The release
+        // archive must still ship that guidance plus the ADR-0007 data-root reference it depends on,
+        // so a recipient is not left with the README's spec link pointing at nothing.
+        var extras = Regex.Match(script, @"\$PublishExtras\s*=\s*@\((?<body>[^)]*)\)", RegexOptions.Singleline);
+        Assert.True(extras.Success, "Build script should define a $PublishExtras array.");
+        var body = extras.Groups["body"].Value;
+
+        string[] required =
+        {
+            "README.md",
+            @"docs\CHANGELOG.md",
+            @"docs\YouTube_Compliance.md",
+            @"docs\PiPlay_Product_Engineering_Spec.md",
+            @"docs\DECISIONS.md",
+            // Linked from the spec; without them those links dangle inside the archive.
+            @"docs\Theme_Preset_Differences.md",
+            @"docs\AGENTS.md",
+        };
+
+        foreach (var entry in required)
+        {
+            Assert.Contains(entry, body);
+
+            // Copy-PublishExtras silently skips a missing source, so a stale path would ship nothing.
+            Assert.True(
+                File.Exists(Path.Combine(RepoRoot, entry)),
+                $"Packaged documentation '{entry}' must exist in the repository.");
+        }
+    }
+
+    [Fact]
     public void Diagnostic_publishes_are_recorded_as_non_release_evidence()
     {
         var build = Script("scripts/Build-PiPlay.ps1");
