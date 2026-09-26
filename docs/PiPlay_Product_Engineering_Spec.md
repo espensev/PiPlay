@@ -168,7 +168,11 @@ Native `12 DIP` resize band and `96 DIP` diagonal reach; not a `96 x 96` content
 
 ### 16.4 Multi-monitor behavior
 
-`PerMonitorV2` is required; restore the prior monitor when available, otherwise clamp to visible work area. (`WindowPlacementService`, `PlacementMathTests`, WPF tests.)
+`PerMonitorV2` is required; restore the prior monitor when available, otherwise clamp to visible work area. A restore that lands on a monitor with another DPI re-applies the placement once, so WPF's DPI rescale does not change the saved pixel size. (`WindowPlacementService`, `PlacementMathTests`, `WindowPlacementServiceTests`, WPF tests.)
+
+### 16.5 Expand
+
+Popout Expand (maximize) covers exactly its monitor, taskbar included, with no window region: no frame overhang and no WindowChrome work-area clip, in every corner mode. `WM_GETMINMAXINFO` values are pre-compensated for the window manager's primary-monitor translation. ADR-0008's rounded region remains floating-only. (`BorderlessWindowHelper.EnableFullMonitorMaximize`, `PlacementMath.FullMonitorMaximize`; `PlacementMathTests`, WPF tests.)
 
 ## 17. Profiles and appearance ownership
 

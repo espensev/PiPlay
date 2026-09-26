@@ -5,6 +5,8 @@
 - **Bring video back** after starting a Mix or playlist on the same video in the Popout now opens the Source in that Mix or playlist instead of seeking the bare video and dropping the queue.
 - A second launch waits for the running PiPlay to acknowledge its link. The link is applied once even while the running window is briefly busy, and a launch that gets no answer says PiPlay did not respond instead of dropping the link silently.
 - `PiPlay.exe --help`, `-h`, and `/?` show native usage and exit before normal startup; command-line launch targets remain limited to values accepted by the shared YouTube parser.
+- Expanding the Popout covers the whole monitor, taskbar included, in every corner style; the chrome strip, video edges, and YouTube's control bar are no longer cropped.
+- A window restored onto a monitor with a different display scale keeps its saved size instead of being rescaled.
 
 ## 0.13.2 — 2026-08-23 (build 39)
 
