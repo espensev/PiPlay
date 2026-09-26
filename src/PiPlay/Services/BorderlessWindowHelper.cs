@@ -7,11 +7,13 @@ namespace PiPlay.Services;
 
 /// <summary>
 /// Native-window helpers for borderless (WindowStyle=None) PiPlay windows: work-area maximize
-/// via WM_GETMINMAXINFO and larger resize hit zones via WM_NCHITTEST (Q-7 / REQ-WINDOW-02).
+/// (Source) or full-monitor maximize (Popout Expand) via WM_GETMINMAXINFO, and larger resize hit
+/// zones via WM_NCHITTEST (Q-7 / REQ-WINDOW-02).
 /// </summary>
 public static class BorderlessWindowHelper
 {
     private const int WM_GETMINMAXINFO = 0x0024;
+    private const int WM_WINDOWPOSCHANGED = 0x0047;
     private const int WM_NCHITTEST = 0x0084;
     private const int WM_NCDESTROY = 0x0082;
     private const int WM_SYSCOMMAND = 0x0112;
@@ -21,9 +23,12 @@ public static class BorderlessWindowHelper
     private const int HTCAPTION = 2;
     private const int VK_LBUTTON = 0x01;
     private const uint DefaultDpi = 96;
+    private const uint MONITOR_DEFAULTTOPRIMARY = 1;
     private const uint MONITOR_DEFAULTTONEAREST = 2;
     private static readonly UIntPtr ResizeSubclassId = new(0x5049504C); // "PIPL"
+    private static readonly UIntPtr FullMonitorSubclassId = new(0x5049504D); // "PIPM"
     private static readonly Dictionary<IntPtr, ResizeSubclassState> ResizeSubclassStates = new();
+    private static readonly Dictionary<IntPtr, FullMonitorSubclassState> FullMonitorSubclassStates = new();
 
     public static void EnableProperMaximize(Window window)
     {
@@ -60,6 +65,105 @@ public static class BorderlessWindowHelper
             Hook();
         else
             window.SourceInitialized += (_, _) => Hook();
+    }
+
+    /// <summary>
+    /// Maximize covers exactly the window's monitor, taskbar included, with no window region: the
+    /// Popout's decided full-monitor Expand. Without it a WS_THICKFRAME maximize overhangs the
+    /// monitor by the frame width (WindowChrome makes the overhang client area, so content edges are
+    /// cropped), and WindowChrome with GlassFrameThickness=0 clips a maximized window to rcWork on
+    /// every size-changing WM_WINDOWPOSCHANGED. The subclass wraps HwndSource, so both messages are
+    /// post-processed after WPF: only the maximized position/size are rewritten (WPF keeps its
+    /// MinWidth/MinHeight track sizes), and any region is removed while the window is zoomed.
+    /// </summary>
+    public static void EnableFullMonitorMaximize(Window window)
+    {
+        void Hook()
+        {
+            var hwnd = new WindowInteropHelper(window).Handle;
+            if (hwnd == IntPtr.Zero && PresentationSource.FromVisual(window) is HwndSource src)
+                hwnd = src.Handle;
+            InstallFullMonitorSubclass(hwnd);
+        }
+
+        if (PresentationSource.FromVisual(window) is not null)
+            Hook();
+        else
+            window.SourceInitialized += (_, _) => Hook();
+    }
+
+    internal static bool HasFullMonitorMaximizeSubclassForTests(IntPtr hwnd) =>
+        FullMonitorSubclassStates.ContainsKey(hwnd);
+
+    private static void InstallFullMonitorSubclass(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero) return;
+        if (FullMonitorSubclassStates.ContainsKey(hwnd)) return;
+
+        SubclassProc proc = FullMonitorSubclassProc;
+        var state = new FullMonitorSubclassState(proc);
+        if (SetWindowSubclass(hwnd, proc, FullMonitorSubclassId, UIntPtr.Zero))
+            FullMonitorSubclassStates[hwnd] = state;
+    }
+
+    private static IntPtr FullMonitorSubclassProc(
+        IntPtr hwnd,
+        int msg,
+        IntPtr wParam,
+        IntPtr lParam,
+        UIntPtr subclassId,
+        UIntPtr refData)
+    {
+        if (!FullMonitorSubclassStates.TryGetValue(hwnd, out var state))
+            return DefSubclassProc(hwnd, msg, wParam, lParam);
+
+        if (msg == WM_NCDESTROY)
+        {
+            RemoveWindowSubclass(hwnd, state.Proc, FullMonitorSubclassId);
+            FullMonitorSubclassStates.Remove(hwnd);
+            return DefSubclassProc(hwnd, msg, wParam, lParam);
+        }
+
+        var result = DefSubclassProc(hwnd, msg, wParam, lParam);
+        if (msg == WM_GETMINMAXINFO)
+            ApplyFullMonitorMaxInfo(hwnd, lParam);
+        else if (msg == WM_WINDOWPOSCHANGED && IsZoomed(hwnd))
+            ClearMaximizedRegion(hwnd, state);
+        return result;
+    }
+
+    private static void ApplyFullMonitorMaxInfo(IntPtr hwnd, IntPtr lParam)
+    {
+        var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        var primary = MonitorFromPoint(default, MONITOR_DEFAULTTOPRIMARY);
+        if (!TryGetMonitorRect(monitor, out var monitorRect) ||
+            !TryGetMonitorRect(primary, out var primaryRect)) return;
+
+        var max = PlacementMath.FullMonitorMaximize(monitorRect, primaryRect);
+        var mmi = Marshal.PtrToStructure<MINMAXINFO>(lParam);
+        mmi.ptMaxPosition = new POINT { X = max.X, Y = max.Y };
+        mmi.ptMaxSize = new POINT { X = max.Width, Y = max.Height };
+        Marshal.StructureToPtr(mmi, lParam, fDeleteOld: false);
+    }
+
+    private static bool TryGetMonitorRect(IntPtr monitor, out RectI rect)
+    {
+        rect = default;
+        if (monitor == IntPtr.Zero) return false;
+        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        if (!GetMonitorInfo(monitor, ref info)) return false;
+        var r = info.rcMonitor;
+        rect = new RectI(r.Left, r.Top, r.Right, r.Bottom);
+        return true;
+    }
+
+    private static void ClearMaximizedRegion(IntPtr hwnd, FullMonitorSubclassState state)
+    {
+        // SetWindowRgn re-enters WM_WINDOWPOSCHANGED (SWP_NOSIZE, which WindowChrome ignores).
+        if (state.ClearingRegion || !RoundedWindowRegionApplier.HasRegion(hwnd)) return;
+        state.ClearingRegion = true;
+        try { _ = RoundedWindowRegionApplier.Clear(hwnd); }
+        finally { state.ClearingRegion = false; }
     }
 
     /// <summary>
@@ -366,6 +470,12 @@ public static class BorderlessWindowHelper
     private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
 
     [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsZoomed(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
     private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
 
     [DllImport("user32.dll")]
@@ -397,6 +507,12 @@ public static class BorderlessWindowHelper
         public SubclassProc Proc { get; } = proc;
         public Action<bool>? MoveSizeStateChanged { get; } = moveSizeStateChanged;
         public bool InMoveSizeLoop { get; set; }
+    }
+
+    private sealed class FullMonitorSubclassState(SubclassProc proc)
+    {
+        public SubclassProc Proc { get; } = proc;
+        public bool ClearingRegion { get; set; }
     }
 
     [DllImport("comctl32.dll", SetLastError = true)]

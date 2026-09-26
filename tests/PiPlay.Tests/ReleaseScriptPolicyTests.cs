@@ -106,6 +106,47 @@ public class ReleaseScriptPolicyTests
     }
 
     [Fact]
+    public void Publish_extras_package_the_consolidated_privacy_guidance()
+    {
+        var script = Script("scripts/Build-PiPlay.ps1");
+
+        // PR #42 folded the standalone privacy map into the consolidated product spec. The release
+        // archive must still ship that guidance plus the ADR-0007 data-root reference it depends on,
+        // so a recipient is not left with the README's spec link pointing at nothing.
+        var extras = Regex.Match(script, @"\$PublishExtras\s*=\s*@\((?<body>[^)]*)\)", RegexOptions.Singleline);
+        Assert.True(extras.Success, "Build script should define a $PublishExtras array.");
+        // Only live entries count: a commented-out line must not satisfy the check.
+        var entries = Regex.Matches(extras.Groups["body"].Value, @"^\s*""(?<path>[^""]+)""", RegexOptions.Multiline)
+            .Select(m => m.Groups["path"].Value)
+            .ToArray();
+
+        string[] required =
+        {
+            "README.md",
+            @"docs\CHANGELOG.md",
+            @"docs\YouTube_Compliance.md",
+            @"docs\PiPlay_Product_Engineering_Spec.md",
+            @"docs\DECISIONS.md",
+            // Linked from the spec; without them those links dangle inside the archive.
+            @"docs\Theme_Preset_Differences.md",
+            @"docs\AGENTS.md",
+        };
+
+        foreach (var entry in required)
+        {
+            Assert.Contains(entry, entries);
+
+            // Copy-PublishExtras refuses a missing source, so a stale path fails the publish; catch
+            // it here first.
+            Assert.True(
+                File.Exists(Path.Combine(RepoRoot, entry)),
+                $"Packaged documentation '{entry}' must exist in the repository.");
+        }
+
+        Assert.Contains("refusing to package without it", script);
+    }
+
+    [Fact]
     public void Diagnostic_publishes_are_recorded_as_non_release_evidence()
     {
         var build = Script("scripts/Build-PiPlay.ps1");

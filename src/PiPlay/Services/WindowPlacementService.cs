@@ -75,13 +75,34 @@ public static class WindowPlacementService
             wp.rcNormalPosition = clamped;
             wp.showCmd = data.Maximized ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL;
             wp.flags = 0;
-            SetWindowPlacement(hwnd, ref wp);
+            SetPlacementAtTargetDpi(() => GetDpiForWindow(hwnd), () => SetWindowPlacement(hwnd, ref wp));
         }
         catch (Exception ex)
         {
             Log.Error("Failed to restore window placement.", ex);
         }
     }
+
+    /// <summary>
+    /// Saved bounds are physical pixels, but the HWND is created at the primary monitor's DPI. When
+    /// the placement lands on a monitor with another DPI, Windows sends WM_DPICHANGED and WPF applies
+    /// the suggested rect scaled by the DPI ratio (HwndTarget.OnDpiChanged), so a saved 1280x720 on a
+    /// 150% monitor would come back near 1920x1080. The window is at the target DPI after the first
+    /// call, so one repeat lands the saved rect unscaled.
+    /// </summary>
+    private static bool SetPlacementAtTargetDpi(Func<uint> getDpi, Func<bool> setPlacement)
+    {
+        var dpiBefore = getDpi();
+        var placed = setPlacement();
+        if (!placed) return false;
+
+        var dpiAfter = getDpi();
+        if (dpiBefore == 0 || dpiAfter == 0 || dpiAfter == dpiBefore) return true;
+        return setPlacement();
+    }
+
+    internal static bool SetPlacementAtTargetDpiForTests(Func<uint> getDpi, Func<bool> setPlacement) =>
+        SetPlacementAtTargetDpi(getDpi, setPlacement);
 
     private static RECT ResolveWorkArea(PlacementData data)
     {
@@ -194,6 +215,9 @@ public static class WindowPlacementService
 
     [DllImport("user32.dll")]
     private static extern bool SetWindowPlacement(IntPtr hWnd, ref WINDOWPLACEMENT lpwndpl);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hwnd);
 
     [DllImport("user32.dll")]
     private static extern IntPtr MonitorFromRect(ref RECT lprc, uint dwFlags);
