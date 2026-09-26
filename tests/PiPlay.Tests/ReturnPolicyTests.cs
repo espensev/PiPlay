@@ -94,6 +94,60 @@ public class ReturnPolicyTests
                 popoutLaunchedWithoutVideo: true));
     }
 
+    // Spec 14: a different video OR list navigates. The Source was on a bare video (or in one list);
+    // in the popout the user started a Mix/playlist that begins with that same video. Seeking would
+    // leave the Source on the bare video and drop the queue the user just chose.
+    [Theory]
+    [InlineData("RDsameVideo001", null, 42, true)]            // Mix started on the popped-out video
+    [InlineData("PL0123456789", null, 42, false)]             // playlist that begins with it
+    [InlineData("PLnewList0001", "PLoldList0001", null, true)] // same video, other list
+    [InlineData("PLnewList0001", "PLoldList0001", 0, false)]
+    public void Same_video_in_a_different_list_navigates(
+        string returnedList, string? sourceList, int? lastKnownSeconds, bool wasPlaying)
+    {
+        Assert.Equal(ReturnAction.Navigate,
+            ReturnPolicy.Decide(lastKnownSeconds, wasPlaying, returnedPaused: null,
+                returnedVideoId: "sameVideo001", sourceVideoIdAtPopout: "sameVideo001",
+                returnedPlaylistId: returnedList, sourcePlaylistIdAtPopout: sourceList));
+    }
+
+    [Theory]
+    [InlineData("PL0123456789", "PL0123456789", 120, true, ReturnAction.SeekAndPlay)] // list unchanged
+    [InlineData(null, "PL0123456789", 120, false, ReturnAction.Seek)]                 // no returned list: keep the Source's
+    [InlineData("", "PL0123456789", null, true, ReturnAction.Play)]                   // empty = none
+    [InlineData(null, null, 0, false, ReturnAction.Seek)]                             // neither side in a list
+    public void Same_video_without_a_new_list_keeps_the_timestamp_decision(
+        string? returnedList, string? sourceList, int? lastKnownSeconds, bool wasPlaying, ReturnAction expected)
+    {
+        Assert.Equal(expected,
+            ReturnPolicy.Decide(lastKnownSeconds, wasPlaying, returnedPaused: null,
+                returnedVideoId: "sameVideo001", sourceVideoIdAtPopout: "sameVideo001",
+                returnedPlaylistId: returnedList, sourcePlaylistIdAtPopout: sourceList));
+    }
+
+    [Fact]
+    public void Playlist_ids_compare_case_sensitively()
+    {
+        Assert.Equal(ReturnAction.Navigate,
+            ReturnPolicy.Decide(120, sourceWasPlaying: true, returnedPaused: null,
+                returnedVideoId: "sameVideo001", sourceVideoIdAtPopout: "sameVideo001",
+                returnedPlaylistId: "PLabcdef0001", sourcePlaylistIdAtPopout: "PLABCDEF0001"));
+    }
+
+    // A list only counts as context for a KNOWN video on both sides; an unknown video id keeps the
+    // pre-existing timestamp fallback rather than guessing where to navigate.
+    [Theory]
+    [InlineData(null, "sameVideo001")]
+    [InlineData("sameVideo001", null)]
+    public void Returned_list_without_both_video_ids_falls_back_to_the_timestamp_decision(
+        string? returnedId, string? sourceId)
+    {
+        Assert.Equal(ReturnAction.SeekAndPlay,
+            ReturnPolicy.Decide(120, sourceWasPlaying: true, returnedPaused: null,
+                returnedVideoId: returnedId, sourceVideoIdAtPopout: sourceId,
+                returnedPlaylistId: "RDsameVideo001", sourcePlaylistIdAtPopout: null));
+    }
+
     // Q-1 suppression mutes the source at popout launch; return must always undo that. The popout's
     // reported value wins; otherwise the pre-suppression launch value; otherwise mute is forced false
     // so a return with no captured popout state can never leave the source silent.
