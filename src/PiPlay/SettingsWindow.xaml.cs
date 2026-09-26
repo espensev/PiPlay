@@ -85,6 +85,9 @@ public partial class SettingsWindow : Window
     private bool _seedingAccentPicker = true;
     private bool _seedingAccentIntensity = true;
     private readonly bool _accentFollowsThemePreset;
+    // Latest owner-reported Clear availability. A cancelled confirmation restores this rather than
+    // re-enabling: the owner can report a transfer or clear that started behind the prompt.
+    private bool _clearBrowserDataAvailable;
 
     public SettingsWindow(
         bool isBrowserReady,
@@ -162,6 +165,7 @@ public partial class SettingsWindow : Window
         // Only the Clear action needs a live browser; Reset never does. When it is disabled,
         // explain why (and let the tooltip show on the disabled control).
         var canClearBrowserData = isBrowserReady && string.IsNullOrEmpty(clearBrowserDataUnavailableHint);
+        _clearBrowserDataAvailable = canClearBrowserData;
         ClearBrowserDataButton.IsEnabled = canClearBrowserData;
         if (canClearBrowserData)
         {
@@ -364,7 +368,7 @@ public partial class SettingsWindow : Window
         }
         else
         {
-            ClearBrowserDataButton.IsEnabled = true;
+            ClearBrowserDataButton.IsEnabled = _clearBrowserDataAvailable;
         }
     }
 

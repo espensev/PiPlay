@@ -126,7 +126,7 @@ While active, disable Source navigation, URL, profile, and profile-action comman
 
 ### 13.4 Race gate
 
-Returns when the browser is not ready, launch/return/clear/shutdown is active, or a Popout already exists. (`MainWindow.xaml.cs`, `MainWindowLifecycleTests`.)
+Returns when the browser is not ready, launch/return/clear/shutdown is active, or a Popout already exists. A launch re-checks clear, shutdown, and Source-core identity after every await and before creating the Popout; if any changed, it rolls back through 13.5 without a failure prompt and without driving the Source page. (`MainWindow.xaml.cs`, `MainWindowLifecycleTests`, `MainWindowClearDataTests`.)
 
 ### 13.5 Failure
 
@@ -192,7 +192,7 @@ No telemetry, analytics, crash upload, or credential collection (`PrivacyService
 | Diagnostics | `logs\piplay.log` | plus one `.1` backup |
 | Browser profile | `WebView2UserData\` | cookies, cache, permissions, YouTube/Google session; shared by Source and Popout |
 
-**Reset app state** replaces app settings with defaults, removes stale settings quarantines, and does not touch browser data or logs. **Clear browser data** is separate and confirmed: closes the Popout, `ClearBrowsingDataAsync(AllProfile)`, single-flight through a `30 s` UI timeout. The underlying browser clear determines when the session is actually gone. (`PrivacyService`, `MainWindow.xaml.cs`, `PrivacyServiceTests`.)
+**Reset app state** replaces app settings with defaults, removes stale settings quarantines, and does not touch browser data or logs. **Clear browser data** is separate and confirmed: closes the Popout, `ClearBrowsingDataAsync(AllProfile)`, single-flight through a `30 s` UI timeout. It is refused, and disabled in an open Settings dialog, while a Popout launch or return is in flight. The underlying browser clear determines when the session is actually gone; until it ends only Clear itself stays unavailable, and Pop out, Auto, Source commands, and Settings reopen after the UI timeout. (`PrivacyService`, `MainWindow.xaml.cs`, `PrivacyServiceTests`, `MainWindowClearDataTests`.)
 
 ## 20. Accessibility and usability
 
