@@ -190,26 +190,16 @@ public class PlacementMathTests
     {
         var monitor = new RectI(left, top, right, bottom);
 
-        var info = PlacementMath.FullMonitorMaximize(monitor, Primary);
+        var info = PlacementMath.FullMonitorMaximize(Primary);
 
         Assert.Equal(monitor, MaximizedRect(info, monitor, Primary));
     }
 
     [Fact]
-    public void FullMonitorMaximize_writes_the_primary_size_for_a_monitor_that_covers_it()
+    public void FullMonitorMaximize_writes_the_primary_size()
     {
-        // Writing 2560x1440 here would come back as 3200x1800: the manager adds the 640x360 difference.
-        var info = PlacementMath.FullMonitorMaximize(new RectI(1920, 0, 4480, 1440), Primary);
-
-        Assert.Equal((0, 0, 1920, 1080), info);
-    }
-
-    [Fact]
-    public void FullMonitorMaximize_is_the_monitor_not_the_work_area()
-    {
-        // The work area never enters the calculation: Expand covers the taskbar by decision.
-        var info = PlacementMath.FullMonitorMaximize(Primary, Primary);
-
-        Assert.Equal((0, 0, 1920, 1080), info);
+        // Writing 2560x1440 for a 1440p secondary would come back as 3200x1800: the manager adds
+        // the 640x360 difference.
+        Assert.Equal((0, 0, 1920, 1080), PlacementMath.FullMonitorMaximize(Primary));
     }
 }

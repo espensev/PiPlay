@@ -126,20 +126,19 @@ public static class BorderlessWindowHelper
 
         var result = DefSubclassProc(hwnd, msg, wParam, lParam);
         if (msg == WM_GETMINMAXINFO)
-            ApplyFullMonitorMaxInfo(hwnd, lParam);
+            ApplyFullMonitorMaxInfo(lParam);
         else if (msg == WM_WINDOWPOSCHANGED && IsZoomed(hwnd))
             ClearMaximizedRegion(hwnd, state);
         return result;
     }
 
-    private static void ApplyFullMonitorMaxInfo(IntPtr hwnd, IntPtr lParam)
+    private static void ApplyFullMonitorMaxInfo(IntPtr lParam)
     {
-        var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        // Primary-monitor terms only: Windows maps the values onto the monitor it maximizes onto.
         var primary = MonitorFromPoint(default, MONITOR_DEFAULTTOPRIMARY);
-        if (!TryGetMonitorRect(monitor, out var monitorRect) ||
-            !TryGetMonitorRect(primary, out var primaryRect)) return;
+        if (!TryGetMonitorRect(primary, out var primaryRect)) return;
 
-        var max = PlacementMath.FullMonitorMaximize(monitorRect, primaryRect);
+        var max = PlacementMath.FullMonitorMaximize(primaryRect);
         var mmi = Marshal.PtrToStructure<MINMAXINFO>(lParam);
         mmi.ptMaxPosition = new POINT { X = max.X, Y = max.Y };
         mmi.ptMaxSize = new POINT { X = max.Width, Y = max.Height };

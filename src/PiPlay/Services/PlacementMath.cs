@@ -33,21 +33,17 @@ public static class PlacementMath
     }
 
     /// <summary>
-    /// WM_GETMINMAXINFO maximized position and size that make a maximized window cover exactly
-    /// <paramref name="monitor"/> (the Popout's full-monitor Expand). Windows reads both values in
+    /// WM_GETMINMAXINFO maximized position and size that make a maximized window cover exactly the
+    /// monitor it maximizes onto (the Popout's full-monitor Expand). Windows reads both values in
     /// primary-monitor terms: the position is relative to the monitor origin, and a size that covers
-    /// the primary monitor on both axes is grown by (actual monitor - primary monitor) before use,
-    /// while a smaller size is used as-is (MINMAXINFO remarks). Writing the target monitor's own size
-    /// would therefore overshoot on a secondary monitor larger than the primary; writing the primary
-    /// size there lands exactly on the monitor.
+    /// the primary monitor on both axes is adjusted by (actual monitor - primary monitor) before use,
+    /// while a smaller size is used as-is (MINMAXINFO remarks). Writing the primary size therefore
+    /// lands exactly on whichever monitor Windows picks. A monitor's own size would overshoot on a
+    /// secondary larger than the primary, and on a smaller one it would be used as-is even when
+    /// Windows maximizes onto a different monitor than the one looked up.
     /// </summary>
-    public static (int X, int Y, int Width, int Height) FullMonitorMaximize(RectI monitor, RectI primary)
-    {
-        var coversPrimary = monitor.Width >= primary.Width && monitor.Height >= primary.Height;
-        return coversPrimary
-            ? (0, 0, primary.Width, primary.Height)
-            : (0, 0, monitor.Width, monitor.Height);
-    }
+    public static (int X, int Y, int Width, int Height) FullMonitorMaximize(RectI primary) =>
+        (0, 0, primary.Width, primary.Height);
 
     /// <summary>
     /// Raise a saved placement's size up to a minimum expressed in device-independent pixels (DIP),
