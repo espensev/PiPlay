@@ -31,9 +31,10 @@ internal static class SingleInstancePipeTransport
     {
         ArgumentNullException.ThrowIfNull(handleAsync);
 
+        // CurrentUserOnly: another user can neither hold the one instance nor write a request.
         using var server = new NamedPipeServerStream(
             pipeName, PipeDirection.InOut, 1,
-            PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+            PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
 
         await server.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
         using var reader = new StreamReader(server, Utf8, detectEncodingFromByteOrderMarks: false,
@@ -90,8 +91,10 @@ internal static class SingleInstancePipeTransport
         TimeSpan ackTimeout,
         CancellationToken cancellationToken)
     {
+        // CurrentUserOnly: a pipe another user created under this name fails the connect with
+        // UnauthorizedAccessException instead of receiving the links and answering "applied".
         using var client = new NamedPipeClientStream(
-            ".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+            ".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
         try
         {
             await client.ConnectAsync(connectTimeout, cancellationToken).ConfigureAwait(false);
