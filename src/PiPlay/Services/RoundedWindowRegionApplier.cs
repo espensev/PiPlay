@@ -76,13 +76,17 @@ internal static class RoundedWindowRegionApplier
             info.Work.Bottom);
     }
 
-    internal static bool HasCustomRegionForTests(IntPtr hwnd)
+    /// <summary>True when the HWND carries any window region, ours or another owner's (WindowChrome).</summary>
+    public static bool HasRegion(IntPtr hwnd)
     {
+        if (hwnd == IntPtr.Zero) return false;
         var probe = CreateRectRgn(0, 0, 0, 0);
         if (probe == IntPtr.Zero) return false;
         try { return GetWindowRgn(hwnd, probe) != RegionError; }
         finally { _ = DeleteObject(probe); }
     }
+
+    internal static bool HasCustomRegionForTests(IntPtr hwnd) => HasRegion(hwnd);
 
     internal static bool IsPointVisibleForTests(IntPtr hwnd, int x, int y)
     {

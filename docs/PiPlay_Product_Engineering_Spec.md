@@ -59,7 +59,7 @@ No media download/re-hosting, ad blocking, restriction bypass, multiple Popouts,
 
 `net10.0-windows` WPF, nullable, implicit usings; `PublishTrimmed=false`, `PublishSingleFile=false`, `SelfContained=false`. WebView2 package in `src/PiPlay/PiPlay.csproj`; SDK in `global.json`; `PerMonitorV2` in `src/PiPlay/app.manifest`. (ADR-0001–0003, ADR-0007.)
 
-- **REQ-APP-01:** one instance per channel/session. A second launch activates the existing instance and hands off a supported YouTube target where applicable; it never contends for the same WebView2 root.
+- **REQ-APP-01:** one instance per channel/session. A second launch activates the existing instance and hands off a supported YouTube target where applicable; it never contends for the same WebView2 root. The running instance applies each hand-off at most once and acknowledges it. A hand-off its UI thread has not started within the dispatch bound is withdrawn and never applied later; a sender still unacknowledged after one same-request retry reports that PiPlay did not respond. (ADR-0009, `SingleInstanceHandoffPolicy`, `SingleInstanceHandoffTests`.)
 - **REQ-APP-02:** exact `--help`, `-h`, and `/?` startup arguments show native executable usage and exit successfully before logging, single-instance election or handoff, settings, WebView2, or window creation. Help wins over every other argument and creates no persistent application state. Outside help, the first argument accepted by `YouTubeUrlHelper.TryParse` is handed to normal startup verbatim; unsupported arguments are ignored.
 
 ## 10. Playback modes and presentation
@@ -82,7 +82,7 @@ Standard is default. Focused overlay: [`YouTube_Compliance.md`](YouTube_Complian
 
 ## 11. Runtime coordination
 
-One WPF dispatcher owns native/window state. Launch, return, navigation, and page calls are generation- or single-flight-guarded. Normal Popout DOM sync `250 ms`; Source suppression `1 s`; normal-page DOM execution `5 s`; connected single-instance client pipe payload `2 s`. Timers stop on close/navigation. (`MainWindow.xaml.cs`, `PlayerWindow.xaml.cs`, `YouTubeDomBridge`, `SingleInstancePipePolicy`, `RuntimeFailurePolicyTests`.)
+One WPF dispatcher owns native/window state. Launch, return, navigation, and page calls are generation- or single-flight-guarded. Normal Popout DOM sync `250 ms`; Source suppression `1 s`; normal-page DOM execution `5 s`; connected single-instance client pipe payload `2 s`; single-instance hand-off UI dispatch `2.5 s`, sender acknowledgement wait `3.5 s` (dispatch plus a `0.5 s` minimum margin stays below it), pipe connect `2 s`, request hand-over `1 s`, reply hand-back until the sender closes `1 s`, one same-request retry. Timers stop on close/navigation. (`MainWindow.xaml.cs`, `PlayerWindow.xaml.cs`, `YouTubeDomBridge`, `SingleInstancePipePolicy`, `SingleInstanceHandoffPolicy`, `RuntimeFailurePolicyTests`, `SingleInstanceHandoffTests`.)
 
 ## 12. Component contracts
 
@@ -126,7 +126,7 @@ While active, disable Source navigation, URL, profile, and profile-action comman
 
 ### 13.4 Race gate
 
-Returns when the browser is not ready, launch/return/clear/shutdown is active, or a Popout already exists. (`MainWindow.xaml.cs`, `MainWindowLifecycleTests`.)
+Returns when the browser is not ready, launch/return/clear/shutdown is active, or a Popout already exists. A launch re-checks clear, shutdown, and Source-core identity after every await and before creating the Popout; if any changed, it rolls back through 13.5 without a failure prompt and without driving the Source page. (`MainWindow.xaml.cs`, `MainWindowLifecycleTests`, `MainWindowClearDataTests`.)
 
 ### 13.5 Failure
 
@@ -168,7 +168,11 @@ Native `12 DIP` resize band and `96 DIP` diagonal reach; not a `96 x 96` content
 
 ### 16.4 Multi-monitor behavior
 
-`PerMonitorV2` is required; restore the prior monitor when available, otherwise clamp to visible work area. (`WindowPlacementService`, `PlacementMathTests`, WPF tests.)
+`PerMonitorV2` is required; restore the prior monitor when available, otherwise clamp to visible work area. A restore that lands on a monitor with another DPI re-applies the placement once, so WPF's DPI rescale does not change the saved pixel size. (`WindowPlacementService`, `PlacementMathTests`, `WindowPlacementServiceTests`, WPF tests.)
+
+### 16.5 Expand
+
+Popout Expand (maximize) covers exactly its monitor, taskbar included, with no window region: no frame overhang and no WindowChrome work-area clip, in every corner mode. `WM_GETMINMAXINFO` values are pre-compensated for the window manager's primary-monitor translation. ADR-0008's rounded region remains floating-only. (`BorderlessWindowHelper.EnableFullMonitorMaximize`, `PlacementMath.FullMonitorMaximize`; `PlacementMathTests`, WPF tests.)
 
 ## 17. Profiles and appearance ownership
 
@@ -188,7 +192,7 @@ No telemetry, analytics, crash upload, or credential collection (`PrivacyService
 | Diagnostics | `logs\piplay.log` | plus one `.1` backup |
 | Browser profile | `WebView2UserData\` | cookies, cache, permissions, YouTube/Google session; shared by Source and Popout |
 
-**Reset app state** replaces app settings with defaults, removes stale settings quarantines, and does not touch browser data or logs. **Clear browser data** is separate and confirmed: closes the Popout, `ClearBrowsingDataAsync(AllProfile)`, single-flight through a `30 s` UI timeout. The underlying browser clear determines when the session is actually gone. (`PrivacyService`, `MainWindow.xaml.cs`, `PrivacyServiceTests`.)
+**Reset app state** replaces app settings with defaults, removes stale settings quarantines, and does not touch browser data or logs. **Clear browser data** is separate and confirmed: closes the Popout, `ClearBrowsingDataAsync(AllProfile)`, single-flight through a `30 s` UI timeout. It is refused, and disabled in an open Settings dialog, while a Popout launch or return is in flight. The underlying browser clear determines when the session is actually gone; until it ends only Clear itself stays unavailable, and Pop out, Auto, Source commands, and Settings reopen after the UI timeout. (`PrivacyService`, `MainWindow.xaml.cs`, `PrivacyServiceTests`, `MainWindowClearDataTests`.)
 
 ## 20. Accessibility and usability
 

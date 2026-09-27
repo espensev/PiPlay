@@ -131,6 +131,7 @@ public partial class PlayerWindow : Window
     {
         InitializeComponent();
         BorderlessWindowHelper.EnableExpandedResizeZones(this, HandleNativeMoveSizeStateChanged);
+        BorderlessWindowHelper.EnableFullMonitorMaximize(this);
 
         _environment = environment;
         _currentUrl = url;
@@ -829,9 +830,10 @@ public partial class PlayerWindow : Window
 
     /// <summary>
     /// The ONE expand path (Q-2): the native strip button and the shell's fullscreenToggle request
-    /// land here. Maximize semantics are the decided full-monitor cover (owner decision 2026-06-10,
-    /// no work-area hook). A user toggle clears the fullscreen-element latch: from here on the
-    /// expansion is theirs, and an element exit must not undo it.
+    /// land here. Maximize semantics are the decided full-monitor cover (owner decision 2026-06-10):
+    /// BorderlessWindowHelper.EnableFullMonitorMaximize pins the maximized rect to the monitor, never
+    /// the work area, and keeps it free of a window region. A user toggle clears the fullscreen-element
+    /// latch: from here on the expansion is theirs, and an element exit must not undo it.
     /// </summary>
     private void ToggleExpandedState()
     {

@@ -64,10 +64,18 @@ $ErrorActionPreference = "Stop"
 
 $ProjectName = "PiPlay"
 $ProjectRelativePath = "src\PiPlay\PiPlay.csproj"
+# Release-archive documentation. The consolidated product spec carries the security and privacy
+# guidance (spec section 19) that used to ship as a standalone privacy map, and DECISIONS.md holds
+# the ADR-0007 data-root reference that guidance depends on. Theme_Preset_Differences.md and
+# AGENTS.md are packaged so every relative link from the spec and README resolves inside the archive.
 $PublishExtras = @(
     "README.md",
     "docs\CHANGELOG.md",
-    "docs\YouTube_Compliance.md"
+    "docs\YouTube_Compliance.md",
+    "docs\PiPlay_Product_Engineering_Spec.md",
+    "docs\DECISIONS.md",
+    "docs\Theme_Preset_Differences.md",
+    "docs\AGENTS.md"
 )
 
 $script:Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
@@ -383,7 +391,10 @@ function Copy-PublishExtras {
 
     foreach ($extra in $Extras) {
         $source = Join-Path $RepositoryRoot $extra
-        if (-not (Test-Path -LiteralPath $source)) { continue }
+        # Fail closed: a missing extra would ship an archive whose spec and README links dangle.
+        if (-not (Test-Path -LiteralPath $source)) {
+            throw "Publish extra '$extra' is missing at '$source'; refusing to package without it."
+        }
 
         $destination = Join-Path $VersionRoot $extra
         $destinationDirectory = Split-Path -Parent $destination

@@ -685,6 +685,159 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal(BorderlessResizeHitTestPolicy.HTTOPLEFT, result.ToInt32());
     });
 
+    // --- Popout Expand geometry (Q-7): Expand is the decided full-monitor cover (ToggleExpandedState) ---
+
+    // PlayerWindow cannot be shown here (Loaded starts WebView2), so this is the PlayerWindow.xaml
+    // window recipe on a real, shown HWND with the same native helpers PlayerWindow installs.
+    private static Window NewPopoutShapedWindow()
+    {
+        var w = new Window
+        {
+            Width = 480,
+            Height = 270,
+            Left = 100,
+            Top = 100,
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.CanResize,
+            AllowsTransparency = false,
+            Opacity = 0,
+            ShowActivated = false,
+            ShowInTaskbar = false,
+        };
+        WindowChrome.SetWindowChrome(w, new WindowChrome
+        {
+            CaptionHeight = 0,
+            ResizeBorderThickness = new Thickness(BorderlessResizeHitTestPolicy.ResizeBorderDip),
+            CornerRadius = new CornerRadius(0),
+            GlassFrameThickness = new Thickness(0),
+            UseAeroCaptionButtons = false,
+        });
+        BorderlessWindowHelper.EnableExpandedResizeZones(w);
+        BorderlessWindowHelper.EnableFullMonitorMaximize(w);
+        return w;
+    }
+
+    [Fact]
+    public void Popout_shaped_window_expands_to_exactly_its_monitor_without_a_work_area_clip() =>
+        StaTestThread.Invoke(() =>
+        {
+            var w = NewPopoutShapedWindow();
+            var hwnd = new WindowInteropHelper(w).EnsureHandle();
+            w.Show();
+            try
+            {
+                Assert.True(GetWindowRect(hwnd, out var floating));
+
+                w.WindowState = WindowState.Maximized;
+                AssertCoversMonitorExactly(hwnd, "after Expand");
+
+                // WindowChrome re-clips to rcWork on any size-changing WM_WINDOWPOSCHANGED while
+                // maximized (DPI/monitor/work-area changes), not only on the maximize transition.
+                Assert.True(GetWindowRect(hwnd, out var expanded));
+                Assert.True(SetWindowPos(hwnd, IntPtr.Zero, expanded.Left, expanded.Top,
+                    expanded.Right - expanded.Left, expanded.Bottom - expanded.Top,
+                    SWP_NOZORDER | SWP_NOACTIVATE));
+                AssertCoversMonitorExactly(hwnd, "after a size-changing WM_WINDOWPOSCHANGED");
+
+                w.WindowState = WindowState.Normal;
+                Assert.True(GetWindowRect(hwnd, out var restored));
+                Assert.Equal(floating, restored);
+
+                w.WindowState = WindowState.Maximized;
+                AssertCoversMonitorExactly(hwnd, "after a second Expand");
+            }
+            finally
+            {
+                w.Close();
+            }
+        });
+
+    [Fact]
+    public void PlayerWindow_installs_the_full_monitor_expand_on_its_hwnd() => StaTestThread.Invoke(() =>
+    {
+        var w = NewPlayer();
+        var hwnd = new WindowInteropHelper(w).EnsureHandle();
+
+        Assert.True(BorderlessWindowHelper.HasFullMonitorMaximizeSubclassForTests(hwnd));
+        Assert.True(BorderlessWindowHelper.HasExpandedResizeSubclassForTests(hwnd));
+        w.Close();
+    });
+
+    // One assertion carrying every measurement, so a red run on a real desktop is itself the evidence.
+    private static void AssertCoversMonitorExactly(IntPtr hwnd, string when)
+    {
+        Assert.True(GetWindowRect(hwnd, out var window));
+        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        Assert.True(GetMonitorInfo(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), ref info));
+        var region = DescribeWindowRegion(hwnd);
+        var measured =
+            $"{when}: window={window} monitor={info.rcMonitor} work={info.rcWork} " +
+            $"region={region} dpi={GetDpiForWindow(hwnd)} style=0x{GetWindowLongPtrW(hwnd, -16).ToInt64():X}";
+        Assert.True(window.Equals(info.rcMonitor) && region == "none", measured);
+    }
+
+    private static string DescribeWindowRegion(IntPtr hwnd)
+    {
+        var probe = CreateRectRgn(0, 0, 0, 0);
+        try
+        {
+            var kind = GetWindowRgn(hwnd, probe);
+            if (kind == 0) return "none"; // ERROR: the window has no region
+            _ = GetRgnBox(probe, out var box);
+            return $"{(kind == 1 ? "empty" : kind == 2 ? "rect" : "complex")} box={box}";
+        }
+        finally
+        {
+            _ = DeleteObject(probe);
+        }
+    }
+
+    private const uint MONITOR_DEFAULTTONEAREST = 2;
+    private const uint SWP_NOZORDER = 0x0004;
+    private const uint SWP_NOACTIVATE = 0x0010;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private record struct Win32Rect(int Left, int Top, int Right, int Bottom)
+    {
+        public override string ToString() => $"({Left},{Top})-({Right},{Bottom}) {Right - Left}x{Bottom - Top}";
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public int cbSize;
+        public Win32Rect rcMonitor;
+        public Win32Rect rcWork;
+        public uint dwFlags;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hwnd, out Win32Rect rect);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int cx, int cy, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO info);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern int GetWindowRgn(IntPtr hwnd, IntPtr region);
+
+    [DllImport("gdi32.dll")]
+    private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
+
+    [DllImport("gdi32.dll")]
+    private static extern int GetRgnBox(IntPtr region, out Win32Rect box);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool DeleteObject(IntPtr handle);
+
     [Fact]
     public void MainWindow_exposes_settings_button() => StaTestThread.Invoke(() =>
     {
