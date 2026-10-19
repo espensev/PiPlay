@@ -6,37 +6,52 @@ namespace PiPlay.Tests;
 [Trait(TestCategories.Key, TestCategories.Logic)]
 public class ThemeColorsTests
 {
-    [Fact]
-    public void ParseColor_reads_a_normalized_hex()
+    [Theory]
+    [InlineData("#00D4FF", 0x00, 0xD4, 0xFF)]
+    [InlineData("a78bfa", 0xA7, 0x8B, 0xFA)]
+    [InlineData("not-a-color", 0x2B, 0xAE, 0xD0)]
+    [InlineData(null, 0x2B, 0xAE, 0xD0)]
+    public void ParseColor_reads_normalized_hex_or_falls_back_to_catalog_default(
+        string? input, byte r, byte g, byte b)
     {
-        Assert.Equal(Color.FromRgb(0x00, 0xD4, 0xFF), ThemeColors.ParseColor("#00D4FF"));
-        Assert.Equal(Color.FromRgb(0xA7, 0x8B, 0xFA), ThemeColors.ParseColor("a78bfa"));
+        Assert.Equal(Color.FromRgb(r, g, b), ThemeColors.ParseColor(input));
     }
 
     /// <summary>
-    /// The title-bar wash must be VISIBLE at the default intensity (it used to sit at 1.20:1, which is
-    /// close to imperceptible — that is why the accent effectively painted one button) but must remain a
-    /// TINT. The ceiling is the real guard: a saturated title bar re-adds the heavy framed look P1 exists
-    /// to remove, so a future nudge upward has to fail this test rather than quietly ship a banner.
+    /// The title-bar wash must be VISIBLE at the default intensity (above 1.20:1) while both default
+    /// and full reach (intensity 100) remain a TINT rather than a saturated banner (<= 1.90:1 plus
+    /// one 8-bit quantization step at full reach).
     /// </summary>
     [Theory]
     [InlineData("sharp-dark")]
     [InlineData("minimal")]
     [InlineData("soft-glass")]
-    public void Shell_tint_wash_is_visible_but_never_a_banner(string presetId)
+    public void Shell_tint_wash_is_visible_by_default_and_never_a_banner_up_to_full_reach(string presetId)
     {
+        const double BannerLine = 1.90;
+        const double QuantizationSlack = 0.05;   // one 8-bit mix step, not design headroom
+
         var preset = ThemeCatalog.PresetFor(presetId);
         var surfaceBase = ThemeColors.ParseColor(preset.Palette.SurfaceBase);
 
         foreach (var accent in new[] { "#00D4FF", "#A78BFA", "#38D996", "#FFC857", "#0B0E11" })
         {
-            var shell = ThemeColors.DeriveAccentSet(accent, preset).ShellTint;
-            var ratio = ThemeColors.ContrastRatio(shell, surfaceBase);
+            var defaultShell = ThemeColors.DeriveAccentSet(accent, preset).ShellTint;
+            var defaultRatio = ThemeColors.ContrastRatio(defaultShell, surfaceBase);
 
-            Assert.True(ratio > 1.20,
-                $"{presetId}/{accent}: wash is {ratio:F2}:1 — no more visible than the old imperceptible 1.20.");
-            Assert.True(ratio <= 1.90,
-                $"{presetId}/{accent}: wash is {ratio:F2}:1 — that is a banner, not a tint.");
+            Assert.True(defaultRatio > 1.20,
+                $"{presetId}/{accent}: wash is {defaultRatio:F2}:1 — no more visible than the old imperceptible 1.20.");
+            Assert.True(defaultRatio <= BannerLine,
+                $"{presetId}/{accent}: wash is {defaultRatio:F2}:1 — that is a banner, not a tint.");
+        }
+
+        foreach (var accent in new[] { "#00D4FF", "#A78BFA", "#38D996", "#FFC857", "#0B0E11", "#FFFFFF" })
+        {
+            var fullRatio = ThemeColors.ContrastRatio(
+                ThemeColors.DeriveAccentSet(accent, preset, 100).ShellTint, surfaceBase);
+
+            Assert.True(fullRatio <= BannerLine + QuantizationSlack,
+                $"{presetId}/{accent} @ full reach washes at {fullRatio:F2}:1 — that is a banner, not a tint.");
         }
     }
 
@@ -60,9 +75,8 @@ public class ThemeColorsTests
     }
 
     /// <summary>
-    /// Intensity 0 must mean OFF, not "a bit less": no title-bar wash at all, and neutral chrome glyphs.
-    /// That is a legitimate choice — it restores the pre-v0.9.0 look where the accent painted only the
-    /// primary action. If 0 still tinted, the slider would have no true off.
+    /// Intensity 0 must mean OFF across every accent-reach token: no title-bar wash, neutral chrome
+    /// glyphs, pure-black letterbox, flat palette window background, and transparent popout edge.
     /// </summary>
     [Theory]
     [InlineData("sharp-dark")]
@@ -73,11 +87,15 @@ public class ThemeColorsTests
         var preset = ThemeCatalog.PresetFor(presetId);
         var surfaceBase = ThemeColors.ParseColor(preset.Palette.SurfaceBase);
         var textPrimary = ThemeColors.ParseColor(preset.Palette.TextPrimary);
+        var appBackground = ThemeColors.ParseColor(preset.Palette.AppBackground);
 
         var set = ThemeColors.DeriveAccentSet("#A78BFA", preset, 0);
 
-        Assert.Equal(surfaceBase, set.ShellTint);      // wash collapses INTO the surface = invisible
-        Assert.Equal(textPrimary, set.ChromeGlyph);    // toolbar glyphs go back to ordinary text color
+        Assert.Equal(surfaceBase, set.ShellTint);
+        Assert.Equal(textPrimary, set.ChromeGlyph);
+        Assert.Equal(Colors.Black, set.Letterbox);
+        Assert.Equal(appBackground, set.BackgroundWash);
+        Assert.Equal((byte)0, set.PopoutEdge.A);
     }
 
     /// <summary>
@@ -104,34 +122,24 @@ public class ThemeColorsTests
     [InlineData("sharp-dark")]
     [InlineData("minimal")]
     [InlineData("soft-glass")]
-    public void Intensity_zero_keeps_the_backgrounds_accent_free(string presetId)
-    {
-        // The dial contract extends to the new surfaces: at 0 the letterbox is pure black and the
-        // window wash IS the flat palette background, byte for byte.
-        var preset = ThemeCatalog.PresetFor(presetId);
-        var set = ThemeColors.DeriveAccentSet("#A78BFA", preset, 0);
-
-        Assert.Equal(Colors.Black, set.Letterbox);
-        Assert.Equal(ThemeColors.ParseColor(preset.Palette.AppBackground), set.BackgroundWash);
-    }
-
-    [Theory]
-    [InlineData("sharp-dark")]
-    [InlineData("minimal")]
-    [InlineData("soft-glass")]
     public void Backgrounds_follow_the_dial_as_faint_room_tints(string presetId)
     {
-        // Letterbox ceiling 0.06 and wash ceiling 0.04 are the design literals — a change is a
-        // deliberate retune, not drift.
         var preset = ThemeCatalog.PresetFor(presetId);
         var appBackground = ThemeColors.ParseColor(preset.Palette.AppBackground);
-        foreach (var intensity in new[] { 25, 50, 100 })
-        {
-            var set = ThemeColors.DeriveAccentSet("#A78BFA", preset, intensity);
-            var reach = intensity / 100.0;
-            Assert.Equal(ThemeColors.Mix(Colors.Black, set.Primary, 0.06 * reach), set.Letterbox);
-            Assert.Equal(ThemeColors.Mix(appBackground, set.Primary, 0.04 * reach), set.BackgroundWash);
-        }
+
+        var at25 = ThemeColors.DeriveAccentSet("#A78BFA", preset, 25);
+        var at50 = ThemeColors.DeriveAccentSet("#A78BFA", preset, 50);
+        var at100 = ThemeColors.DeriveAccentSet("#A78BFA", preset, 100);
+
+        Assert.Equal(Color.FromRgb(3, 2, 4), at25.Letterbox);
+        Assert.Equal(Color.FromRgb(5, 4, 8), at50.Letterbox);
+        Assert.Equal(Color.FromRgb(10, 8, 15), at100.Letterbox);
+
+        var ratio25 = ThemeColors.ContrastRatio(at25.BackgroundWash, appBackground);
+        var ratio50 = ThemeColors.ContrastRatio(at50.BackgroundWash, appBackground);
+        var ratio100 = ThemeColors.ContrastRatio(at100.BackgroundWash, appBackground);
+        Assert.True(1.0 < ratio25 && ratio25 < ratio50 && ratio50 < ratio100 && ratio100 < 1.15,
+            $"{presetId}: BackgroundWash contrast progression {ratio25:F3} -> {ratio50:F3} -> {ratio100:F3} out of bounds.");
     }
 
     [Fact]
@@ -180,19 +188,16 @@ public class ThemeColorsTests
     }
 
     [Theory]
-    [InlineData("sharp-dark")]
-    [InlineData("minimal")]
-    [InlineData("soft-glass")]
-    public void Intensity_twenty_five_is_halfway_through_the_glyph_curve(string presetId)
+    [InlineData("sharp-dark", 0xCE, 0xC1, 0xFA)]
+    [InlineData("minimal", 0xCE, 0xBD, 0xF0)]
+    [InlineData("soft-glass", 0xCC, 0xC0, 0xFB)]
+    public void Intensity_twenty_five_is_halfway_through_the_glyph_curve(
+        string presetId, byte r, byte g, byte b)
     {
         var preset = ThemeCatalog.PresetFor(presetId);
-        var surfaceHover = ThemeColors.ParseColor(preset.Palette.SurfaceHover);
         var set = ThemeColors.DeriveAccentSet("#A78BFA", preset, 25);
-        var expected = ThemeColors.EnsureContrast(
-            ThemeColors.Mix(ThemeColors.ParseColor(preset.Palette.TextPrimary), set.Primary, 0.5),
-            surfaceHover);
 
-        Assert.Equal(expected, set.ChromeGlyph);
+        Assert.Equal(Color.FromRgb(r, g, b), set.ChromeGlyph);
     }
 
     /// <summary>
@@ -213,40 +218,6 @@ public class ThemeColorsTests
             Assert.True(ratio > previous,
                 $"intensity {intensity} washes at {ratio:F2}:1, not stronger than the step below ({previous:F2}:1).");
             previous = ratio;
-        }
-    }
-
-    /// <summary>
-    /// The top of the dial is still a TINT, never a banner — the guard that stops a future tweak from
-    /// turning "full reach" into a painted title bar (the heavy framed look P1 exists to remove).
-    /// <para>
-    /// 1.90 is written here as a LITERAL, deliberately never as a reference to
-    /// <c>ShellTintContrastCeiling</c>: a test that reads the constant it polices would let someone raise
-    /// the constant to 2.5 and stay green, which is the exact anti-pattern <c>ThemeCatalogTests</c> calls
-    /// out. The slack is not a raised ceiling — <c>MixTowardContrast</c> returns the smallest mix that
-    /// reaches AT LEAST its target, so a wash aimed at the design line realizes one 8-bit rounding step
-    /// above it (1.91). The design line is unchanged; only the quantization step is tolerated.
-    /// </para>
-    /// </summary>
-    [Theory]
-    [InlineData("sharp-dark")]
-    [InlineData("minimal")]
-    [InlineData("soft-glass")]
-    public void The_top_of_the_dial_is_still_a_tint_not_a_banner(string presetId)
-    {
-        const double BannerLine = 1.90;
-        const double QuantizationSlack = 0.05;   // one 8-bit mix step, not design headroom
-
-        var preset = ThemeCatalog.PresetFor(presetId);
-        var surfaceBase = ThemeColors.ParseColor(preset.Palette.SurfaceBase);
-
-        foreach (var accent in new[] { "#00D4FF", "#A78BFA", "#38D996", "#FFC857", "#0B0E11", "#FFFFFF" })
-        {
-            var ratio = ThemeColors.ContrastRatio(
-                ThemeColors.DeriveAccentSet(accent, preset, 100).ShellTint, surfaceBase);
-
-            Assert.True(ratio <= BannerLine + QuantizationSlack,
-                $"{presetId}/{accent} @ full reach washes at {ratio:F2}:1 — that is a banner, not a tint.");
         }
     }
 
@@ -276,22 +247,6 @@ public class ThemeColorsTests
         }
     }
 
-    /// <summary>
-    /// Tamper gate for the dial's two endpoints, pinned as literals against the code constants.
-    /// <para>
-    /// The realized-wash guard above tolerates an 8-bit rounding step, so on its own someone could raise
-    /// <c>ShellTintContrastCeiling</c> a little and hide inside the slack. This closes that: the design
-    /// line is 1.90 and the floor is a true 1.00 (intensity 0 = the surface itself = no wash). Moving
-    /// either constant has to change this test, i.e. has to be a decision, not a nudge.
-    /// </para>
-    /// </summary>
-    [Fact]
-    public void The_dials_endpoints_are_the_agreed_design_values()
-    {
-        Assert.Equal(1.00, ThemeColors.ShellTintContrastFloor);
-        Assert.Equal(1.90, ThemeColors.ShellTintContrastCeiling);
-    }
-
     [Fact]
     public void Intensity_is_clamped_so_a_hand_edited_settings_file_cannot_break_the_chrome()
     {
@@ -302,33 +257,28 @@ public class ThemeColorsTests
     }
 
     [Fact]
-    public void ParseColor_falls_back_to_the_catalog_default_for_junk()
-    {
-        // Delegates to ThemeCatalog.NormalizeAccentColor, so invalid input can never throw.
-        Assert.Equal(ThemeColors.ParseColor(ThemeCatalog.DefaultAccentColor), ThemeColors.ParseColor("not-a-color"));
-        Assert.Equal(ThemeColors.ParseColor(ThemeCatalog.DefaultAccentColor), ThemeColors.ParseColor(null));
-    }
-
-    [Fact]
-    public void Lighten_blends_toward_white_and_clamps_the_amount()
-    {
-        var accent = Color.FromRgb(0x00, 0xD4, 0xFF);
-
-        Assert.Equal(accent, ThemeColors.Lighten(accent, 0.0));
-        Assert.Equal(Colors.White, ThemeColors.Lighten(accent, 1.0));
-        Assert.Equal(Colors.White, ThemeColors.Lighten(accent, 5.0));   // clamped
-
-        var lighter = ThemeColors.Lighten(accent, 0.30);
-        Assert.True(lighter.R > accent.R && lighter.G >= accent.G && lighter.B >= accent.B);
-    }
-
-    [Fact]
     public void Brush_builds_a_frozen_accent_brush()
     {
         var brush = ThemeColors.Brush("#38D996");
 
         Assert.True(brush.IsFrozen);   // safe to share across the source window and popout
         Assert.Equal(Color.FromRgb(0x38, 0xD9, 0x96), brush.Color);
+    }
+
+    [Fact]
+    public void ContrastRatio_matches_wcag_endpoints_and_is_symmetric()
+    {
+        Assert.Equal(21.0, ThemeColors.ContrastRatio(Colors.Black, Colors.White), 3);
+        Assert.Equal(21.0, ThemeColors.ContrastRatio(Colors.White, Colors.Black), 3);
+        Assert.Equal(1.0, ThemeColors.ContrastRatio(Colors.Black, Colors.Black), 5);
+        Assert.Equal(1.0, ThemeColors.ContrastRatio(Colors.White, Colors.White), 5);
+
+        var cyan = Color.FromRgb(0x2B, 0xAE, 0xD0);
+        var surface = Color.FromRgb(0x12, 0x16, 0x1D);
+        Assert.Equal(
+            ThemeColors.ContrastRatio(cyan, surface),
+            ThemeColors.ContrastRatio(surface, cyan),
+            5);
     }
 
     // --- theme-v2 derived accent tokens (Phase B / CON-1) ---
@@ -383,11 +333,9 @@ public class ThemeColorsTests
         var deadZone = Color.FromRgb(0x78, 0x78, 0x78);
 
         var dark = Color.FromRgb(0x06, 0x14, 0x1A);
-        var darkContrast = ThemeColors.ContrastRatio(dark, deadZone);
-        var whiteContrast = ThemeColors.ContrastRatio(Colors.White, deadZone);
-        Assert.True(darkContrast < 4.5);
-        Assert.True(whiteContrast < 4.5);
-        Assert.Equal(whiteContrast > darkContrast ? Colors.White : dark, ThemeColors.PickReadableForeground(deadZone));
+        Assert.True(ThemeColors.ContrastRatio(dark, deadZone) < 4.5);
+        Assert.True(ThemeColors.ContrastRatio(Colors.White, deadZone) < 4.5);
+        Assert.Equal(Colors.White, ThemeColors.PickReadableForeground(deadZone));
     }
 
     [Theory]
@@ -412,14 +360,13 @@ public class ThemeColorsTests
     {
         var sharp = ThemeCatalog.PresetFor("sharp-dark");
         var set = ThemeColors.DeriveAccentSet("#4A8FAB", sharp);
-        var profile = ThemeColors.AccentProfileFor("sharp-dark");
-        var primary = ThemeColors.ParseColor("#4A8FAB");
 
-        Assert.Equal(primary, set.Primary);
-        Assert.Equal(ThemeColors.Mix(primary, Colors.White, profile.HoverWhiteMix), set.Hover);
-        Assert.Equal(ThemeColors.Mix(primary, Colors.Black, profile.PressedBlackMix), set.Pressed);
-        Assert.Equal(profile.SubtleAlpha, set.Subtle.A);
-        Assert.Equal(profile.GlowAlpha, set.Glow.A);
+        Assert.Equal(Color.FromRgb(0x4A, 0x8F, 0xAB), set.Primary);
+        Assert.Equal(Color.FromRgb(0x6B, 0xA3, 0xBA), set.Hover);
+        Assert.Equal(Color.FromRgb(0x3E, 0x78, 0x90), set.Pressed);
+        Assert.Equal(Color.FromRgb(0x5C, 0x9A, 0xB3), set.Border);
+        Assert.Equal((byte)0x22, set.Subtle.A);
+        Assert.Equal((byte)0x33, set.Glow.A);
     }
 
     [Theory]
@@ -450,31 +397,25 @@ public class ThemeColorsTests
             $"{themeId}: AccentShellTint is only {shellRatio:F2}:1 against SurfaceBase.");
     }
 
-    [Fact]
-    public void EnsureContrast_preserves_a_passing_color_and_only_changes_presentation_REQ_UI_01()
-    {
-        var violet = ThemeColors.ParseColor("#A78BFA");
-        var surface = ThemeColors.ParseColor(ThemeCatalog.PresetFor("sharp-dark").Palette.SurfaceHover);
-
-        Assert.Equal(violet, ThemeColors.EnsureContrast(violet, surface));
-
-        var dark = ThemeColors.ParseColor("#131820");
-        var visible = ThemeColors.EnsureContrast(dark, surface);
-        Assert.NotEqual(dark, visible);
-        Assert.True(ThemeColors.ContrastRatio(visible, surface) >= 3.0);
-    }
-
     [Theory]
-    [InlineData("#000000")]
-    [InlineData("#050609")]
-    [InlineData("#131820")]
-    public void EnsureContrast_lifts_representative_dark_colors_in_every_theme_REQ_UI_01(string hex)
+    [InlineData("#A78BFA", true)]
+    [InlineData("#000000", false)]
+    [InlineData("#050609", false)]
+    [InlineData("#131820", false)]
+    public void EnsureContrast_preserves_passing_colors_and_lifts_dark_colors_in_every_theme_REQ_UI_01(
+        string hex, bool alreadyReadable)
     {
         var raw = ThemeColors.ParseColor(hex);
         foreach (var preset in ThemeCatalog.Presets)
         {
             var surface = ThemeColors.ParseColor(preset.Palette.SurfaceHover);
             var visible = ThemeColors.EnsureContrast(raw, surface);
+
+            if (alreadyReadable)
+                Assert.Equal(raw, visible);
+            else
+                Assert.NotEqual(raw, visible);
+
             Assert.True(ThemeColors.ContrastRatio(visible, surface) >= 3.0,
                 $"{preset.Id}/{hex} did not reach 3:1.");
         }

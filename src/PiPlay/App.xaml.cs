@@ -156,13 +156,6 @@ public partial class App : Application
         }
     }
 
-    /// <summary>
-    /// Compatibility seam for command-line parsing tests. StartupArgumentPolicy owns help
-    /// precedence and the shared supported-YouTube-target boundary.
-    /// </summary>
-    internal static string? ExtractUrlArg(string[] args) =>
-        StartupArgumentPolicy.Parse(args).LaunchUrl;
-
     // --- Single-instance hand-off over a named pipe ---
 
     private void StartPipeServer()
@@ -185,7 +178,7 @@ public partial class App : Application
     {
         using var server = new NamedPipeServerStream(
             PipeName, PipeDirection.In, 1,
-            PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+            PipeTransmissionMode.Byte, SingleInstancePipePolicy.ServerPipeOptions);
 
         await server.WaitForConnectionAsync(token);
         using var reader = new StreamReader(server, Encoding.UTF8);
@@ -200,7 +193,8 @@ public partial class App : Application
     {
         try
         {
-            using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out);
+            using var client = new NamedPipeClientStream(
+                ".", PipeName, PipeDirection.Out, SingleInstancePipePolicy.ClientPipeOptions);
             client.Connect(2000);
             using var writer = new StreamWriter(client, new UTF8Encoding(false));
             writer.Write(url ?? string.Empty);

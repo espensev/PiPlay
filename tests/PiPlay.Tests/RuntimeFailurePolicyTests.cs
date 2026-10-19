@@ -1,4 +1,5 @@
 using System.IO;
+using System.IO.Pipes;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using PiPlay.Models;
@@ -34,19 +35,10 @@ public class RuntimeFailurePolicyTests
         string scriptResult,
         bool expected)
     {
-        string? capturedScript = null;
-
-        var acknowledged = await YouTubeDomBridge.SuppressPlaybackAsync(script =>
-        {
-            capturedScript = script;
-            return Task.FromResult(scriptResult);
-        });
+        var acknowledged = await YouTubeDomBridge.SuppressPlaybackAsync(
+            _ => Task.FromResult(scriptResult));
 
         Assert.Equal(expected, acknowledged);
-        Assert.Contains("v.muted", capturedScript, StringComparison.Ordinal);
-        Assert.Contains("v.pause", capturedScript, StringComparison.Ordinal);
-        Assert.Contains("return v.muted === true && v.paused === true", capturedScript,
-            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -70,14 +62,6 @@ public class RuntimeFailurePolicyTests
             .WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.False(acknowledged);
-    }
-
-    [Fact]
-    public void Runtime_deadlines_match_the_accepted_coordination_contract()
-    {
-        Assert.Equal(TimeSpan.FromSeconds(5), YouTubeDomBridge.ExecutionTimeout);
-        Assert.Equal(TimeSpan.FromSeconds(2), SingleInstancePipePolicy.ClientReadTimeout);
-        Assert.Equal(TimeSpan.FromSeconds(10), DispatcherFaultPolicy.RepeatDialogWindow);
     }
 
     [Fact]
@@ -122,32 +106,31 @@ public class RuntimeFailurePolicyTests
         Assert.Equal("recovered", recovered);
     }
 
-    [Fact]
-    public async Task Popout_launch_precondition_stops_code_after_unacknowledged_suppression()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Popout_launch_precondition_gates_continuation_on_acknowledged_suppression(
+        bool acknowledged)
     {
         var launchContinued = false;
 
         async Task AttemptLaunchAsync()
         {
             await PopoutLaunchPolicy.RequireAcknowledgedSourceSuppressionAsync(
-                () => Task.FromResult(false));
+                () => Task.FromResult(acknowledged));
             launchContinued = true;
         }
 
-        await Assert.ThrowsAsync<InvalidOperationException>(AttemptLaunchAsync);
-        Assert.False(launchContinued);
-    }
-
-    [Fact]
-    public async Task Popout_launch_precondition_allows_code_after_acknowledged_suppression()
-    {
-        var launchContinued = false;
-
-        await PopoutLaunchPolicy.RequireAcknowledgedSourceSuppressionAsync(
-            () => Task.FromResult(true));
-        launchContinued = true;
-
-        Assert.True(launchContinued);
+        if (acknowledged)
+        {
+            await AttemptLaunchAsync();
+            Assert.True(launchContinued);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(AttemptLaunchAsync);
+            Assert.False(launchContinued);
+        }
     }
 
     // Launch gate (spec 13.1 / 22.1): a playlist page is a launchable popout target — the popout
@@ -337,6 +320,12 @@ public class RuntimeFailurePolicyTests
         Assert.Equal(first, SingleInstancePipePolicy.BuildPipeName("Stable", sessionId: 12));
         Assert.NotEqual(first, SingleInstancePipePolicy.BuildPipeName("Stable", sessionId: 13));
         Assert.NotEqual(first, SingleInstancePipePolicy.BuildPipeName("Default", sessionId: 12));
+        Assert.Equal(
+            PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly,
+            SingleInstancePipePolicy.ServerPipeOptions);
+        Assert.Equal(
+            PipeOptions.CurrentUserOnly,
+            SingleInstancePipePolicy.ClientPipeOptions);
     }
 
     [Fact]

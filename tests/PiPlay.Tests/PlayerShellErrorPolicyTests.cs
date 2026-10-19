@@ -8,41 +8,20 @@ public class PlayerShellErrorPolicyTests
     // --- Code -> user-facing message (spec 10.3 / Q-6) ---
 
     [Theory]
-    [InlineData("101")]
-    [InlineData("150")]   // documented as identical to 101
-    public void Embed_disabled_codes_describe_embedding_restriction(string code)
-    {
-        Assert.Contains("embedded", PlayerShellErrorPolicy.Describe(code));
-    }
-
-    [Fact]
-    public void Not_found_describes_unavailable_video()
-    {
-        Assert.Contains("unavailable", PlayerShellErrorPolicy.Describe("100"));
-    }
-
-    [Fact]
-    public void Invalid_param_describes_invalid_reference()
-    {
-        Assert.Contains("isn't valid", PlayerShellErrorPolicy.Describe("2"));
-    }
-
-    [Fact]
-    public void Html5_error_describes_playback_problem()
-    {
-        Assert.Contains("can't play", PlayerShellErrorPolicy.Describe("5"));
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("unknown")]
-    [InlineData("9999")]
-    [InlineData("")]
-    public void Unknown_codes_get_a_generic_but_meaningful_message(string? code)
+    [InlineData("101", "embedded")]
+    [InlineData("150", "embedded")]   // documented as identical to 101
+    [InlineData("100", "unavailable")]
+    [InlineData("2", "isn't valid")]
+    [InlineData("5", "can't play")]
+    [InlineData(null, "error")]
+    [InlineData("unknown", "error")]
+    [InlineData("9999", "error")]
+    [InlineData("", "error")]
+    public void Describe_maps_documented_and_unknown_iframe_api_error_codes(string? code, string expectedPhrase)
     {
         var message = PlayerShellErrorPolicy.Describe(code);
         Assert.False(string.IsNullOrWhiteSpace(message));
-        Assert.Contains("error", message);
+        Assert.Contains(expectedPhrase, message);
     }
 
     [Fact]

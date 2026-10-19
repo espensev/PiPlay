@@ -100,7 +100,7 @@ Owns one environment, data folder, missing-runtime recovery, and virtual-host ma
 
 ### 12.4 YouTubeUrlHelper
 
-Parses supported YouTube video/share/Shorts/embed/watch-playlist URLs and builds normalized watch or shell targets. Valid list IDs are retained; malformed IDs produce a non-blocking fallback reason. (`YouTubeUrlHelperTests`.) `StartupArgumentPolicy` uses the same parser for command-line launch arguments; it accepts the first supported target verbatim and otherwise starts without one. (`AppStartupArgumentTests`, `StartupArgumentPolicyTests`.)
+Parses supported YouTube video/share/Shorts/embed/watch-playlist URLs and builds normalized watch or shell targets. Valid list IDs are retained; malformed IDs produce a non-blocking fallback reason. (`YouTubeUrlHelperTests`.) `StartupArgumentPolicy` uses the same parser for command-line launch arguments; it accepts the first supported target verbatim and otherwise starts without one. (`StartupArgumentPolicyTests`.)
 
 ### 12.5 YouTubeDomBridge and host protocols
 
@@ -160,11 +160,11 @@ Keep `UseLayoutRounding=False` and `AllowsTransparency=False` on top-level windo
 
 ### 16.2 Dragging
 
-Popout chrome strip is `44 DIP` (`PlayerWindow.xaml`). Trusted primary mouse/pen drag on passive surface pixels begins only after `SystemParameters.MinimumHorizontalDragDistance` / `MinimumVerticalDragDistance`; below it the event remains a click. Interactive controls, ads, menus, captions, timelines, links, and overlays are excluded. Drag messages contain no coordinates. (`PlayerSurfaceDragProtocol`, `PlayerSurfaceScriptTests`, `PlayerWindow.xaml.cs`.)
+Popout chrome strip is `44 DIP` (`PlayerWindow.xaml`). Trusted primary mouse/pen drag on passive surface pixels begins only after `SystemParameters.MinimumHorizontalDragDistance` / `MinimumVerticalDragDistance`; below it the event remains a click. Interactive controls, ads, menus, captions, timelines, links, and overlays are excluded. Drag messages contain no coordinates. (`PlayerSurfaceDragProtocol`, `YouTubeDomBehaviorTests`, `PlayerWindow.xaml.cs`.)
 
-### 16.3 Resizing
+### 16.3 Resizing and borderless framing
 
-Native `12 DIP` resize band and `96 DIP` diagonal reach; not a `96 x 96` content-stealing square. (`BorderlessResizeHitTestPolicy`, tests.)
+Native `12 DIP` resize band and `96 DIP` diagonal reach; not a `96 x 96` content-stealing square. When the Popout chrome strip collapses (`Focused` presentation or `Standard` auto-hide), `PlayerWindow` reserves a `6 DIP` resize inset on all four sides and switches its background to pure `#000000`; `PopoutEdgeBorder` is shown only when `RoundedWindowRegionPolicy.ShouldShowPopoutEdgeBorder` is true. `PlayerWindow` maximizes across the full monitor (`useWorkArea: false`) while `MainWindow` maximizes to the monitor work area (`useWorkArea: true`). (`BorderlessResizeHitTestPolicy`, `RoundedWindowRegionPolicy`, `BorderlessWindowHelper`, tests.)
 
 ### 16.4 Multi-monitor behavior
 
@@ -172,7 +172,7 @@ Native `12 DIP` resize band and `96 DIP` diagonal reach; not a `96 x 96` content
 
 ## 17. Profiles and appearance ownership
 
-Profiles contain a name, URL, optional mode/presentation/accent/Pin/Fade values, and placement. Non-null profile fields override global values; unset fields inherit. Duplicate names prompt overwrite/rename, URLs validate, and broken values fail gracefully. (`ProfileService`, `ProfileServiceTests`.)
+Profiles contain a name, URL, optional mode/presentation/accent/Pin/Fade values, and placement. Non-null profile fields override global values; unset fields inherit. Quick-saving a new profile auto-seeds a distinct curated accent (`ProfileAccentService.PickDistinctProfileAccent`), active profiles can be cleared to return to global settings, and Popout launches apply matching profile `Topmost`, `FadeEnabled`, and `Bounds` overrides (`ProfileService.ResolveLaunchOverrides`). Duplicate names prompt overwrite/rename, URLs validate, and broken values fail gracefully. (`ProfileService`, `ProfileAccentService`, `ProfileServiceTests`, `ProfileAccentServiceTests`.)
 
 ## 18. Logging
 
@@ -192,7 +192,7 @@ No telemetry, analytics, crash upload, or credential collection (`PrivacyService
 
 ## 20. Accessibility and usability
 
-Every icon-only control has an accessible name and keyboard focus. Pin/transfer names state the next action. `Ctrl+L` and `F6` focus the Source URL while Source commands are available. (`MainWindow.xaml`, `PlayerWindow.xaml`, `MainWindow.xaml.cs`, UI tests.)
+Every icon-only control has an accessible name and keyboard focus. Pin/transfer names state the next action. `Ctrl+L` (`ModifierKeys.Control` only, never `AltGr+L`) and `F6` (`ModifierKeys.None`) focus the Source URL while Source commands are available; `Escape` inside `UrlBox` reverts unsubmitted edits and returns focus to the browser. (`MainWindow.xaml`, `PlayerWindow.xaml`, `MainWindow.xaml.cs`, UI tests.)
 
 ## 21. Packaging and release
 
@@ -202,7 +202,7 @@ Exact-source Stable publishing requires committed `VERSION`, `BUILD_NUMBER`, a c
 
 ### 22.1 Automated contract coverage
 
-Automated gate: `scripts/Test-LocalCI.ps1`.
+Automated gate: `scripts/Test-LocalCI.ps1` (including `ReleaseScriptPolicyTests` behavioral execution of `scripts/Test-PublishLock.ps1`, `scripts/Test-DeploySwap.ps1`, and `scripts/Test-PublishMetadata.ps1`).
 
 ### 22.2 Deployed UI smoke
 

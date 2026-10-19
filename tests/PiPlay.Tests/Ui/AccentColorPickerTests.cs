@@ -1,4 +1,6 @@
+using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using PiPlay;
 using PiPlay.Controls;
 using PiPlay.Theme;
@@ -67,6 +69,7 @@ public class AccentColorPickerTests
         var r = (TextBox)picker.FindName("RInput")!;
         r.Text = "05";
         Assert.Equal("05", r.Text);
+        Assert.Equal("#05D4FF", picker.SelectedColor);
     });
 
     [Fact]
@@ -108,4 +111,29 @@ public class AccentColorPickerTests
         Assert.NotSame(first, differentDpi);
         Assert.True(differentDpi.IsFrozen);
     });
+
+    [Fact]
+    public void AccentColorPicker_hue_wheel_releases_mouse_capture_on_mouse_up_and_unloaded() =>
+        StaTestThread.Invoke(() =>
+        {
+            var picker = new AccentColorPicker();
+            var disc = (Image)picker.FindName("HueSatDisc")!;
+
+            disc.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+            {
+                RoutedEvent = UIElement.MouseLeftButtonDownEvent,
+            });
+            disc.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+            {
+                RoutedEvent = UIElement.MouseLeftButtonUpEvent,
+            });
+            Assert.False(disc.IsMouseCaptured);
+
+            disc.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+            {
+                RoutedEvent = UIElement.MouseLeftButtonDownEvent,
+            });
+            picker.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent, picker));
+            Assert.False(disc.IsMouseCaptured);
+        });
 }

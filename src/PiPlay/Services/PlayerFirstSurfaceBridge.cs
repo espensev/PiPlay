@@ -6,7 +6,8 @@ internal readonly record struct PlayerFirstSurfaceAppearance(
     string AccentColor,
     bool FadeEnabled,
     int FadeDelayMs,
-    bool Topmost);
+    bool Topmost,
+    bool Maximized = false);
 
 /// <summary>
 /// Serializes Focused-surface configuration IPC. While one WebView call is in flight, subsequent
@@ -204,15 +205,17 @@ internal sealed class PlayerFirstSurfaceBridge : IDisposable
         string accentColor,
         bool fadeEnabled,
         int fadeDelayMs,
-        bool topmost)
+        bool topmost,
+        bool maximized = false)
     {
         var appearance = new PlayerFirstSurfaceAppearance(
-            accentColor, fadeEnabled, fadeDelayMs, topmost);
+            accentColor, fadeEnabled, fadeDelayMs, topmost, maximized);
         var bridge = new PlayerFirstSurfaceBridge(core, appearance);
         try
         {
             var script = YouTubeDomBridge.BuildPlayerFirstSurfaceScript(
-                bridge._nonce, accentColor, fadeEnabled, fadeDelayMs, topmost);
+                bridge._nonce, appearance.AccentColor, appearance.FadeEnabled,
+                appearance.FadeDelayMs, appearance.Topmost, appearance.Maximized);
             // Registration must finish before navigation so Focused layout is present for the
             // first watch document, not merely later SPA transitions.
             bridge._scriptId = await core.AddScriptToExecuteOnDocumentCreatedAsync(script);
@@ -229,18 +232,19 @@ internal sealed class PlayerFirstSurfaceBridge : IDisposable
         string accentColor,
         bool fadeEnabled,
         int fadeDelayMs,
-        bool topmost)
+        bool topmost,
+        bool maximized = false)
     {
         if (_disposed) return;
         _appearancePump.Enqueue(new PlayerFirstSurfaceAppearance(
-            accentColor, fadeEnabled, fadeDelayMs, topmost));
+            accentColor, fadeEnabled, fadeDelayMs, topmost, maximized));
     }
 
     private Task ApplyAppearanceAsync(PlayerFirstSurfaceAppearance appearance)
     {
         var script = YouTubeDomBridge.BuildPlayerFirstConfigurationScript(
             appearance.AccentColor, appearance.FadeEnabled,
-            appearance.FadeDelayMs, appearance.Topmost);
+            appearance.FadeDelayMs, appearance.Topmost, appearance.Maximized);
         return _core.ExecuteScriptAsync(script);
     }
 

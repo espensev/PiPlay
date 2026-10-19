@@ -17,12 +17,15 @@ public class ThemePreferenceResolverTests
         // A hand-edited "themeId": "soft-glass" with no overrides IS the translucent preset —
         // the legacy player values must not leak through once a theme block exists.
         var theme = new ThemeSettings { ThemeId = "soft-glass" };
-        var player = new PlayerSettings { ConstantWindowOpacity = 0.9, IdleWindowOpacity = 0.7, StripAutoHide = true };
+        var player = new PlayerSettings { ConstantWindowOpacity = 0.9, IdleWindowOpacity = 0.7, StripAutoHide = false };
 
         var preset = ThemeCatalog.PresetFor("soft-glass");
         Assert.Equal(preset.DefaultActiveWindowOpacity, ThemePreferenceResolver.ActiveWindowOpacity(theme, player));
         Assert.Equal(preset.DefaultIdleWindowOpacity, ThemePreferenceResolver.IdleWindowOpacity(theme, player));
         Assert.Equal(preset.DefaultStripAutoHide, ThemePreferenceResolver.StripAutoHide(theme, player));
+        Assert.Equal("theme", ThemePreferenceResolver.CornerStyle(theme));
+        Assert.Equal(preset.DwmCorners, ThemePreferenceResolver.DwmCorners(theme));
+        Assert.Equal(preset.Radii, ThemePreferenceResolver.Radii(theme));
     }
 
     [Fact]
@@ -33,12 +36,16 @@ public class ThemePreferenceResolverTests
             ThemeId = "soft-glass",
             ActiveWindowOpacity = 0.6,
             IdleWindowOpacity = 0.5,
-            StripAutoHide = true,
+            StripAutoHide = false,
+            CornerStyle = "square",
         };
 
         Assert.Equal(0.6, ThemePreferenceResolver.ActiveWindowOpacity(theme, new PlayerSettings()));
         Assert.Equal(0.5, ThemePreferenceResolver.IdleWindowOpacity(theme, new PlayerSettings()));
-        Assert.True(ThemePreferenceResolver.StripAutoHide(theme, new PlayerSettings()));
+        Assert.False(ThemePreferenceResolver.StripAutoHide(theme, new PlayerSettings { StripAutoHide = true }));
+        Assert.Equal("square", ThemePreferenceResolver.CornerStyle(theme));
+        Assert.Equal(DwmCornerMode.Square, ThemePreferenceResolver.DwmCorners(theme));
+        Assert.Equal(ThemeCatalog.RadiiFor(ThemeCatalog.PresetFor("soft-glass"), "square"), ThemePreferenceResolver.Radii(theme));
     }
 
     [Fact]
@@ -57,11 +64,21 @@ public class ThemePreferenceResolverTests
     {
         // Defensive null-theme path only (real flows sanitize Theme to non-null and FromLegacy
         // seeds explicit overrides): raw legacy behavior still resolves.
-        var player = new PlayerSettings { ConstantWindowOpacity = 0.8, IdleWindowOpacity = 0.6, StripAutoHide = true };
+        var player = new PlayerSettings
+        {
+            PinAccent = "violet",
+            FadeIdleDelayMs = 4000,
+            ConstantWindowOpacity = 0.8,
+            IdleWindowOpacity = 0.6,
+            StripAutoHide = true,
+        };
 
+        Assert.Equal("#9E84F0", ThemePreferenceResolver.AccentColor(null, player));
+        Assert.Equal(4000, ThemePreferenceResolver.FadeIdleDelayMs(null, player));
         Assert.Equal(0.8, ThemePreferenceResolver.ActiveWindowOpacity(null, player));
         Assert.Equal(0.6, ThemePreferenceResolver.IdleWindowOpacity(null, player));
         Assert.True(ThemePreferenceResolver.StripAutoHide(null, player));
+        Assert.False(ThemePreferenceResolver.StripAutoHide(null, new PlayerSettings { StripAutoHide = false }));
     }
 
     [Fact]
@@ -73,15 +90,17 @@ public class ThemePreferenceResolverTests
             FadeIdleDelayMs = 4000,
             ConstantWindowOpacity = 0.82,
             IdleWindowOpacity = 0.44,
-            StripAutoHide = true,
+            StripAutoHide = false,
         };
 
         var seeded = ThemeSettings.FromLegacy(player);
 
         Assert.Equal(0.82, seeded.ActiveWindowOpacity);
         Assert.Equal(0.44, seeded.IdleWindowOpacity);
-        Assert.True(seeded.StripAutoHide);
+        Assert.False(seeded.StripAutoHide);
         // Seeded overrides shield the migrated look from every preset's defaults.
         Assert.Equal(0.82, ThemePreferenceResolver.ActiveWindowOpacity(seeded, new PlayerSettings()));
+        Assert.Equal(0.44, ThemePreferenceResolver.IdleWindowOpacity(seeded, new PlayerSettings()));
+        Assert.False(ThemePreferenceResolver.StripAutoHide(seeded, new PlayerSettings()));
     }
 }

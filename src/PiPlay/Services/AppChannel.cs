@@ -56,7 +56,7 @@ public static class AppChannel
 
     private static string? ReadBakedChannel()
     {
-        var asm = Assembly.GetEntryAssembly() ?? typeof(AppChannel).Assembly;
+        var asm = typeof(AppChannel).Assembly;
         foreach (var meta in asm.GetCustomAttributes<AssemblyMetadataAttribute>())
         {
             if (string.Equals(meta.Key, MetadataKey, StringComparison.OrdinalIgnoreCase))

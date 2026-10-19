@@ -1,4 +1,3 @@
-using Microsoft.Web.WebView2.Core;
 using PiPlay.Services;
 
 namespace PiPlay.Tests;
@@ -10,7 +9,7 @@ public class PrivacyServiceTests
         s.Contains(sub, StringComparison.OrdinalIgnoreCase);
 
     [Fact]
-    public void Reset_wording_says_the_user_stays_signed_in()
+    public void Reset_and_clear_wording_distinguish_login_impact_and_title_intent()
     {
         foreach (var s in new[]
                  {
@@ -23,11 +22,7 @@ public class PrivacyServiceTests
             Assert.False(Has(s, "sign out") || Has(s, "signed out"),
                 $"Reset wording must NOT imply logout: '{s}'");
         }
-    }
 
-    [Fact]
-    public void Clear_wording_says_the_user_is_signed_out()
-    {
         foreach (var s in new[]
                  {
                      PrivacyService.ClearDescription,
@@ -40,27 +35,7 @@ public class PrivacyServiceTests
             Assert.True(Has(s, "signed out") || Has(s, "signs you out") || Has(s, "sign you out"),
                 $"Clear wording should state the user is signed out (as a phrase): '{s}'");
         }
-    }
 
-    [Fact]
-    public void Reset_and_clear_are_worded_distinctly()
-    {
-        // REQ-PRIVACY-02: the two actions must be worded separately.
-        Assert.NotEqual(PrivacyService.ResetActionLabel, PrivacyService.ClearActionLabel);
-        Assert.NotEqual(PrivacyService.ResetDescription, PrivacyService.ClearDescription);
-        Assert.NotEqual(PrivacyService.ResetConfirmBody, PrivacyService.ClearConfirmBody);
-    }
-
-    [Fact]
-    public void Clear_uses_the_all_profile_browsing_data_kind()
-    {
-        // AllProfile clears cookies + cache + site storage, which logs the user out.
-        Assert.Equal(CoreWebView2BrowsingDataKinds.AllProfile, PrivacyService.ClearKinds);
-    }
-
-    [Fact]
-    public void Clear_result_titles_are_statements_not_questions()
-    {
         // Result/status notices must read as outcomes, not the confirmation question, so a user
         // on a privacy action is never left unsure whether their data was actually cleared.
         foreach (var title in new[] { PrivacyService.ClearResultTitle, PrivacyService.ClearDoneTitle })

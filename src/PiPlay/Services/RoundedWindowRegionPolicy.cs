@@ -22,12 +22,25 @@ internal static class RoundedWindowRegionPolicy
         radiusDip > 0 &&
         isNormalWindowState;
 
-    public static bool ShouldApply(
-        DwmCornerMode cornerMode,
-        double radiusDip,
+    public static bool ShouldShowPopoutEdgeBorder(
         bool isNormalWindowState,
-        bool isSnapLike) =>
-        CanApply(cornerMode, radiusDip, isNormalWindowState) && !isSnapLike;
+        bool isSnapLike,
+        bool focusedSurfaceActive,
+        bool stripCollapsed,
+        bool customWindowRegionApplied,
+        DwmCornerMode cornerMode,
+        byte edgeAlpha)
+    {
+        if (!isNormalWindowState || isSnapLike)
+            return false;
+        if (focusedSurfaceActive || stripCollapsed)
+            return false;
+        if (customWindowRegionApplied)
+            return false;
+        if (cornerMode is not (DwmCornerMode.Default or DwmCornerMode.Square))
+            return false;
+        return edgeAlpha > 0;
+    }
 
     public static Geometry? CreateGeometry(int widthPx, int heightPx, double radiusDip, uint dpi)
     {

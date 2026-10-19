@@ -130,7 +130,11 @@ public partial class MainWindow : Window
         Loaded += MainWindow_Loaded;
         Closing += MainWindow_Closing;
         StateChanged += (_, _) =>
-            MaximizeButton.Content = WindowState == WindowState.Maximized ? GlyphRestore : GlyphMaximize;
+        {
+            var maximized = WindowState == WindowState.Maximized;
+            MaximizeButton.Content = maximized ? GlyphRestore : GlyphMaximize;
+            MaximizeButton.ToolTip = maximized ? "Restore" : "Maximize";
+        };
         SourceInitialized += (_, _) =>
         {
             // Theme-driven native corner shape (docs/Theme_Preset_Differences.md): explicit theme/override data,
@@ -189,6 +193,7 @@ public partial class MainWindow : Window
         try
         {
             RuntimeErrorPanel.Visibility = Visibility.Collapsed;
+            UpdateSourceCommandAvailability();
 
             var env = await App.Current.WebViewEnvironment.EnsureCreatedAsync();
             if (_mainWindowClosing) return;
@@ -211,9 +216,11 @@ public partial class MainWindow : Window
             core.NavigationCompleted += Core_NavigationCompleted;
             core.NewWindowRequested += Core_NewWindowRequested;
             core.SourceChanged += Core_SourceChanged;
+            core.HistoryChanged += (_, _) => UpdateSourceCommandAvailability();
 
             _browserReady = true;
             UpdatePopoutActionState();
+            UpdateSourceCommandAvailability();
 
             var startUrl = _pendingUrl ?? _settings.LastUrl;
             _pendingUrl = null;
@@ -227,17 +234,20 @@ public partial class MainWindow : Window
             Log.Error("WebView2 runtime not found.", ex);
             ShowRuntimeError(
                 "PiPlay needs the Microsoft Edge WebView2 Evergreen Runtime to display YouTube. " +
-                "Install it, then click Retry.");
+                "Install it, then click Retry.",
+                isMissingRuntime: true);
         }
         catch (Exception ex)
         {
             if (_mainWindowClosing) return;
             Log.Error("Failed to initialize the Source browser.", ex);
-            ShowRuntimeError("PiPlay couldn't start the browser component.\n\n" + ex.Message);
+            ShowRuntimeError(
+                "PiPlay couldn't start the browser component.\n\n" + ex.Message,
+                isMissingRuntime: false);
         }
     }
 
-    private void ShowRuntimeError(string message)
+    private void ShowRuntimeError(string message, bool isMissingRuntime = true)
     {
         _browserReady = false;
         UpdateAutoDetector();
@@ -246,9 +256,12 @@ public partial class MainWindow : Window
             _pendingReturnReplay = null;
             CompleteReturnTransition();
         }
+        RuntimeErrorTitle.Text = isMissingRuntime ? "WebView2 Runtime is required" : "Browser initialization failed";
+        DownloadRuntimeButton.Visibility = isMissingRuntime ? Visibility.Visible : Visibility.Collapsed;
         RuntimeErrorText.Text = message;
         RuntimeErrorPanel.Visibility = Visibility.Visible;
         UpdatePopoutActionState();
+        UpdateSourceCommandAvailability();
     }
 
     private void DownloadRuntime_Click(object sender, RoutedEventArgs e) =>
@@ -464,6 +477,13 @@ public partial class MainWindow : Window
 
     private void UrlBox_KeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape)
+        {
+            UrlBox.Text = Browser.CoreWebView2?.Source ?? _settings.LastUrl ?? string.Empty;
+            Keyboard.ClearFocus();
+            e.Handled = true;
+            return;
+        }
         if (e.Key != Key.Enter) return;
         NavigateInternal(UrlBox.Text);
         e.Handled = true;
@@ -480,8 +500,9 @@ public partial class MainWindow : Window
 
     private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        var focusAddress = e.Key == Key.F6 ||
-                           (e.Key == Key.L && (Keyboard.Modifiers & ModifierKeys.Control) != 0);
+        var focusAddress = (e.Key == Key.L && Keyboard.Modifiers == ModifierKeys.Control) ||
+                           (e.Key == Key.F6 && Keyboard.Modifiers == ModifierKeys.None) ||
+                           (e.SystemKey == Key.D && Keyboard.Modifiers == ModifierKeys.Alt);
         if (!focusAddress || !SourceCommandsAvailable) return;
 
         UrlBox.Focus();
@@ -497,6 +518,14 @@ public partial class MainWindow : Window
         var compact = width > 0 && width < CompactToolbarThreshold;
         PopOutButtonText.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         PopOutButtonIcon.Margin = compact ? new Thickness(0) : new Thickness(0, 0, 8, 0);
+        if (compact)
+        {
+            PopOutButton.Padding = new Thickness(8, 0, 8, 0);
+        }
+        else
+        {
+            PopOutButton.ClearValue(Control.PaddingProperty);
+        }
     }
 
     private void ProfileActionsButton_Click(object sender, RoutedEventArgs e)
@@ -612,6 +641,7 @@ public partial class MainWindow : Window
             ? ThemeColors.Brush(accentColor)
             : ThemeColors.ContrastBrush(accentColor, surface.Color);
         ToggleAccent.SetCheckedBrush(PinToggle, pinBrush);
+        ToggleAccent.SetCheckedBrush(AutoToggle, pinBrush);
         PinnedHint.Foreground = pinBrush;
     }
 
@@ -619,13 +649,26 @@ public partial class MainWindow : Window
 
     private void AutoToggle_Click(object sender, RoutedEventArgs e)
     {
-        _settings.AutoPopout = AutoToggle.IsChecked == true;
+        var on = AutoToggle.IsChecked == true;
+        _settings.AutoPopout = on;
+        UpdateSourceAutoAffordance(on);
         _settingsService.Save(_settings);
         UpdateAutoDetector();
     }
 
     /// <summary>Reflect the Auto setting on the toolbar toggle (no side effects on the detector).</summary>
-    private void ApplyAuto(bool on) => AutoToggle.IsChecked = on;
+    private void ApplyAuto(bool on)
+    {
+        AutoToggle.IsChecked = on;
+        UpdateSourceAutoAffordance(on);
+    }
+
+    private void UpdateSourceAutoAffordance(bool on)
+    {
+        var state = on ? "On" : "Off";
+        AutoToggle.ToolTip = $"Automatically pop out videos when playback starts ({state})";
+        System.Windows.Automation.AutomationProperties.SetName(AutoToggle, $"Auto popout ({state})");
+    }
 
     /// <summary>Start/stop the playback detector to match the Auto setting and browser readiness.</summary>
     private void UpdateAutoDetector()
@@ -729,13 +772,23 @@ public partial class MainWindow : Window
             ? null
             : profiles.FirstOrDefault(p => string.Equals(p.Name, _settings.ActiveProfileName, StringComparison.OrdinalIgnoreCase));
         _loadingProfiles = false;
+        ApplyTopmost((ProfilesCombo.SelectedItem as Profile)?.Topmost ?? _settings.MainWindow.Topmost);
         UpdateProfileCommandState();
         ApplyResolvedAccent();
     }
 
+    private bool? _canGoBackForTests;
+
+    internal void SetCanGoBackForTests(bool? canGoBack)
+    {
+        _canGoBackForTests = canGoBack;
+        UpdateSourceCommandAvailability();
+    }
+
     private bool SourceCommandsAvailable =>
         !_sourceNavigationSuspended && !_returnInProgress && !_popoutInProgress &&
-        !_clearingBrowserData && !_mainWindowClosing;
+        !_clearingBrowserData && !_mainWindowClosing &&
+        RuntimeErrorPanel.Visibility != Visibility.Visible;
 
     /// <summary>Hidden Source content cannot keep accepting navigation or profile commands.</summary>
     private void UpdateSourceCommandAvailability()
@@ -743,16 +796,18 @@ public partial class MainWindow : Window
         var enabled = SourceCommandsAvailable;
         SourceNavigationGroup.IsEnabled = enabled;
         SourceProfileGroup.IsEnabled = enabled;
-        BackButton.IsEnabled = enabled;
+        BackButton.IsEnabled = enabled && (_canGoBackForTests ?? (Browser.CoreWebView2?.CanGoBack ?? false));
         ReloadButton.IsEnabled = enabled;
         HomeButton.IsEnabled = enabled;
         UrlBox.IsEnabled = enabled;
         ProfilesCombo.IsEnabled = enabled;
         ProfileActionsButton.IsEnabled = enabled;
         SaveProfileMenuItem.IsEnabled = enabled;
+        AutoToggle.IsEnabled = enabled;
 
         var hasProfile = enabled && ProfilesCombo.SelectedItem is Profile;
         EditProfileMenuItem.IsEnabled = hasProfile;
+        ClearProfileMenuItem.IsEnabled = hasProfile;
         DeleteProfileMenuItem.IsEnabled = hasProfile;
         if (!enabled) ProfileActionsMenu.IsOpen = false;
         SettingsButton.IsEnabled = !_returnInProgress && !_privacyActionInProgress && !_mainWindowClosing;
@@ -769,6 +824,7 @@ public partial class MainWindow : Window
         {
             ProfileAccentService.ClearActiveProfile(_settings);
             ApplyResolvedAccent();
+            ApplyTopmost(_settings.MainWindow.Topmost);
             _settingsService.Save(_settings);
             return;
         }
@@ -776,9 +832,11 @@ public partial class MainWindow : Window
         ProfileAccentService.SetActiveProfile(_settings, profile);
         ApplyResolvedAccent();
         _settingsService.Save(_settings);
-        if (profile.Topmost is bool tm) ApplyTopmost(tm);
+        ApplyTopmost(profile.Topmost ?? _settings.MainWindow.Topmost);
         NavigateInternal(profile.Url);
     }
+
+    private void ClearProfileButton_Click(object sender, RoutedEventArgs e) => ProfilesCombo.SelectedItem = null;
 
     private void SaveProfileButton_Click(object sender, RoutedEventArgs e)
     {
@@ -804,7 +862,10 @@ public partial class MainWindow : Window
             }
         }
 
-        ProfileService.Save(_settings, ProfileService.CreateQuickSaveProfile(existing, name, currentUrl, Topmost));
+        var defaultAccent = ProfileAccentService.PickDistinctProfileAccent(_settings, EffectiveAccentColor);
+        var saved = ProfileService.CreateQuickSaveProfile(existing, name, currentUrl, Topmost, defaultAccent);
+        ProfileService.Save(_settings, saved);
+        ProfileAccentService.SetActiveProfile(_settings, saved);
         _settingsService.Save(_settings);
         LoadProfilesIntoCombo();
         Log.Info("Profile saved.");
@@ -815,7 +876,8 @@ public partial class MainWindow : Window
         if (ProfilesCombo.SelectedItem is not Profile original) return;
 
         var edited = Prompt.EditProfile(this, original.Name, original.Url, original.Mode, original.AccentColor,
-            EffectiveAccentColor, presentation: original.Presentation);
+            EffectiveAccentColor, accentPreview: QueueAccentPreview, presentation: original.Presentation);
+        CancelQueuedAccentPreview();
         if (edited is null)
         {
             ApplyResolvedAccent();
@@ -842,12 +904,17 @@ public partial class MainWindow : Window
             if (!Prompt.AskConfirm(this, "Overwrite profile?",
                     $"A profile named \"{updated.Name}\" already exists. Overwrite it?", "Overwrite"))
             {
+                ApplyResolvedAccent();
                 return;
             }
             outcome = ProfileService.Update(_settings, original.Name, updated, overwrite: true);
         }
 
-        if (outcome != ProfileUpdateOutcome.Updated) return;   // NotFound is not reachable from a live selection
+        if (outcome != ProfileUpdateOutcome.Updated)
+        {
+            ApplyResolvedAccent();
+            return;   // NotFound is not reachable from a live selection
+        }
 
         ProfileAccentService.RenameActiveProfileIfMatches(_settings, original.Name, updated.Name);
 
@@ -874,12 +941,6 @@ public partial class MainWindow : Window
     }
 
     // --- Privacy actions: Settings window (spec 19, Phase 2, REQ-PRIVACY-01/02) ---
-
-    /// <summary>Whether Clear browser data can run right now (live core + no prior clear in flight).</summary>
-    internal bool CanClearBrowserData =>
-        _browserReady && Browser.CoreWebView2 is not null && !_browserDataClearCoordinator.IsRunning;
-
-    internal bool BrowserDataClearInProgressForTests => _browserDataClearCoordinator.IsRunning;
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e) => OpenSettings(this);
 
@@ -1021,7 +1082,7 @@ public partial class MainWindow : Window
         LoadProfilesIntoCombo();
     }
 
-    private void ApplyPlayerPreferences(string themeId, string accentColor, int fadeIdleDelayMs, bool compactMode,
+    internal void ApplyPlayerPreferences(string themeId, string accentColor, int fadeIdleDelayMs, bool compactMode,
         bool focusedPresentation,
         double? activeOpacityOverride, double? idleOpacityOverride, bool? stripAutoHideOverride,
         string cornerStyle = ThemeCatalog.DefaultCornerStyle,
@@ -1563,9 +1624,11 @@ public partial class MainWindow : Window
             // The target doubles as the compact error bar's fallback handle (spec 10.3 / Q-6,
             // Stage 4). Its StartSeconds was normalized before URL construction: ordinary videos
             // keep the live/fallback timestamp, while a playlist-only first item starts at zero.
-            _player = new PlayerWindow(env, popoutUrl, _settings.Player.Topmost,
-                _settings.Player.Placement, _settings.Player.LastWidth, _settings.Player.LastHeight,
-                _settings.Player.FadeEnabled, ResolvedAccentColor,
+            var (popoutTopmost, popoutFadeEnabled, popoutPlacement) = ProfileService.ResolveLaunchOverrides(
+                ProfilesCombo.SelectedItem as Profile, target.VideoId, _settings.Player, target.PlaylistId);
+            _player = new PlayerWindow(env, popoutUrl, popoutTopmost,
+                popoutPlacement, _settings.Player.LastWidth, _settings.Player.LastHeight,
+                popoutFadeEnabled, ResolvedAccentColor,
                 EffectiveFadeIdleDelayMs, mode, target,
                 EffectiveActiveWindowOpacity, EffectiveIdleWindowOpacity,
                 EffectiveStripAutoHide, EffectiveDwmCornerMode, EffectivePopoutCornerRadiusDip,
@@ -1853,8 +1916,9 @@ public partial class MainWindow : Window
             if (state.Placement is not null)
             {
                 _settings.Player.Placement = state.Placement;
-                if (state.Placement.Width >= 320) _settings.Player.LastWidth = state.Placement.Width;
-                if (state.Placement.Height >= 180) _settings.Player.LastHeight = state.Placement.Height;
+                var (widthDip, heightDip) = PlacementMath.ToDipSize(state.Placement);
+                if (widthDip >= PlaybackModePolicy.NormalMinWidth) _settings.Player.LastWidth = widthDip;
+                if (heightDip >= PlaybackModePolicy.NormalMinHeight) _settings.Player.LastHeight = heightDip;
             }
 
             // Placement/settings must survive even if source scripting fails.
@@ -1916,6 +1980,8 @@ public partial class MainWindow : Window
         // unknown. Decision lives in ReturnPolicy.
         var action = ReturnPolicy.Decide(state.LastKnownSeconds, _sourceWasPlayingAtPopout,
             state.Paused, state.VideoId, _popoutSourceVideoId, _popoutLaunchedWithoutVideo);
+        LastReturnActionForTests = action;
+        LastSeekScriptForTests = null;
 
         // Arm before any WebView script await: the Auto timer can run as soon as Player_OnClosed
         // clears _player. A seek/play return leaves the original Source video visible; a Navigate
@@ -1951,11 +2017,15 @@ public partial class MainWindow : Window
                     new YouTubeTarget { VideoId = state.VideoId, PlaylistId = state.PlaylistId },
                     state.LastKnownSeconds));
                 break;
-            case ReturnAction.SeekAndPlay when core is not null:
-                await YouTubeDomBridge.SeekAndPlayAsync(core, state.LastKnownSeconds!.Value);
+            case ReturnAction.SeekAndPlay:
+                LastSeekScriptForTests = YouTubeDomBridge.BuildSeekAndPlayScript(state.LastKnownSeconds!.Value);
+                if (core is not null)
+                    await YouTubeDomBridge.SeekAndPlayAsync(core, state.LastKnownSeconds!.Value);
                 break;
-            case ReturnAction.Seek when core is not null:
-                await YouTubeDomBridge.SeekAndPauseAsync(core, state.LastKnownSeconds!.Value);
+            case ReturnAction.Seek:
+                LastSeekScriptForTests = YouTubeDomBridge.BuildSeekAndPauseScript(state.LastKnownSeconds!.Value);
+                if (core is not null)
+                    await YouTubeDomBridge.SeekAndPauseAsync(core, state.LastKnownSeconds!.Value);
                 break;
             case ReturnAction.Play when core is not null:
                 await YouTubeDomBridge.PlayAsync(core);
@@ -1979,8 +2049,12 @@ public partial class MainWindow : Window
         _sourceVolumeAtPopout = sourceVolumeAtPopout;
         _sourceMutedAtPopout = sourceMutedAtPopout;
         _sourcePlaybackRateAtPopout = sourcePlaybackRateAtPopout;
+        LastReturnActionForTests = null;
+        LastSeekScriptForTests = null;
     }
 
+    internal ReturnAction? LastReturnActionForTests { get; private set; }
+    internal string? LastSeekScriptForTests { get; private set; }
     internal string? AutoLastHandledVideoIdForTests => _autoLastHandledVideoId;
     internal PlayerReturnState? PendingReturnReplayForTests => _pendingReturnReplay;
 

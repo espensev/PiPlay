@@ -42,7 +42,7 @@ public static class PlacementMath
     /// </summary>
     public static PlacementData EnsureMinSize(PlacementData data, int minWidthDip, int minHeightDip)
     {
-        var scale = data.DpiScale > 0 ? data.DpiScale : 1.0;
+        var scale = data.DpiScale > 0 && double.IsFinite(data.DpiScale) ? data.DpiScale : 1.0;
         var minWidthPx = (int)Math.Ceiling(minWidthDip * scale);
         var minHeightPx = (int)Math.Ceiling(minHeightDip * scale);
 
@@ -90,5 +90,46 @@ public static class PlacementMath
                 },
             DpiScale = data.DpiScale,
         };
+    }
+
+    /// <summary>
+    /// Convert Win32 workspace coordinates (<c>WINDOWPLACEMENT.rcNormalPosition</c>) to virtual-screen
+    /// coordinates. Workspace coordinates have origin at the monitor's work-area top-left, so a top- or
+    /// left-docked taskbar offsets them from virtual-screen coordinates by <c>(work - monitor)</c>.
+    /// </summary>
+    public static RectI WorkspaceToScreen(RectI workspace, RectI monitor, RectI work)
+    {
+        var dx = work.Left - monitor.Left;
+        var dy = work.Top - monitor.Top;
+        return new RectI(
+            workspace.Left + dx,
+            workspace.Top + dy,
+            workspace.Right + dx,
+            workspace.Bottom + dy);
+    }
+
+    /// <summary>
+    /// Convert virtual-screen coordinates back to Win32 workspace coordinates for
+    /// <c>SetWindowPlacement</c>'s <c>rcNormalPosition</c>.
+    /// </summary>
+    public static RectI ScreenToWorkspace(RectI screen, RectI monitor, RectI work)
+    {
+        var dx = monitor.Left - work.Left;
+        var dy = monitor.Top - work.Top;
+        return new RectI(
+            screen.Left + dx,
+            screen.Top + dy,
+            screen.Right + dx,
+            screen.Bottom + dy);
+    }
+
+    /// <summary>
+    /// Convert physical-pixel placement dimensions to device-independent pixels (DIP) using the
+    /// placement's saved DPI scale. Non-positive or non-finite scales fall back to 1.0.
+    /// </summary>
+    public static (int Width, int Height) ToDipSize(PlacementData data)
+    {
+        var scale = data.DpiScale > 0 && double.IsFinite(data.DpiScale) ? data.DpiScale : 1.0;
+        return ((int)Math.Round(data.Width / scale), (int)Math.Round(data.Height / scale));
     }
 }

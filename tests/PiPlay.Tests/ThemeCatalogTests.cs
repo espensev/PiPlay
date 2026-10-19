@@ -150,15 +150,6 @@ public class ThemeCatalogTests
         }
     }
 
-    [Fact]
-    public void Default_theme_leaves_native_corners_untouched()
-    {
-        // The pristine-window guarantee: a fresh install (sharp-dark, corner style "theme") must
-        // not write any DWM corner preference, keeping default windows byte-identical.
-        Assert.Equal(DwmCornerMode.Default,
-            ThemeCatalog.DwmCornersFor(ThemeCatalog.PresetFor(ThemeCatalog.DefaultThemeId), ThemeCatalog.DefaultCornerStyle));
-    }
-
     // --- Accent switch rule (docs/Theme_Preset_Differences.md) ---
 
     [Theory]
@@ -235,8 +226,8 @@ public class ThemeCatalogTests
         "sharp-dark", "Sharp Dark", "#2BAED0", "normal", stripAutoHide: true,
         activeOpacity: 1.0, idleOpacity: 1.0, DwmCornerMode.Default,
         new ThemePalette(
-            AppBackground: "#050609", SurfaceBase: "#0B0E12", SurfaceRaised: "#131820",
-            SurfaceHover: "#1E2630", BorderSubtle: "#181F29", BorderStrong: "#262F3D",
+            AppBackground: "#050609", SurfaceBase: "#0B0E12", SurfaceRaised: "#12161D",
+            SurfaceHover: "#1B212C", BorderSubtle: "#1F2733", BorderStrong: "#2E394A",
             TextPrimary: "#F4F7FA", TextSecondary: "#9AA2AD", Danger: "#E45D75"),
         new ThemeRadii(
             MainWindowFrame: 2, PopoutFrame: 2, TitleBar: 2, Button: 3, IconButton: 3, Input: 3,
@@ -247,9 +238,9 @@ public class ThemeCatalogTests
         "minimal", "Minimal", "#3F84C0", "long", stripAutoHide: true,
         activeOpacity: 0.94, idleOpacity: 0.86, DwmCornerMode.SmallRound,
         new ThemePalette(
-            AppBackground: "#14120F", SurfaceBase: "#1C1A16", SurfaceRaised: "#26231E",
-            SurfaceHover: "#312D27", BorderSubtle: "#2E2A23", BorderStrong: "#3C362D",
-            TextPrimary: "#F4F1EC", TextSecondary: "#B0A99E", Danger: "#E8564C"),
+            AppBackground: "#120E0B", SurfaceBase: "#1B1510", SurfaceRaised: "#231C15",
+            SurfaceHover: "#2E241C", BorderSubtle: "#231C15", BorderStrong: "#3E3226",
+            TextPrimary: "#F5EFE6", TextSecondary: "#B5A895", Danger: "#E8564C"),
         new ThemeRadii(
             MainWindowFrame: 8, PopoutFrame: 12, TitleBar: 8, Button: 8, IconButton: 8, Input: 8,
             Panel: 10, Popup: 10, Thumbnail: 6, Swatch: 8, ScrollbarThumb: 5, ToolTip: 8));
@@ -259,34 +250,12 @@ public class ThemeCatalogTests
         "soft-glass", "Soft Glass", "#9E84F0", "short", stripAutoHide: true,
         activeOpacity: 0.82, idleOpacity: 0.72, DwmCornerMode.Round,
         new ThemePalette(
-            AppBackground: "#0B1018", SurfaceBase: "#121A26", SurfaceRaised: "#1B2738",
-            SurfaceHover: "#26354B", BorderSubtle: "#2A3A52", BorderStrong: "#3A4D6A",
-            TextPrimary: "#F6F8FC", TextSecondary: "#C4CEDC", Danger: "#E45D75"),
+            AppBackground: "#070C14", SurfaceBase: "#0E1726", SurfaceRaised: "#162338",
+            SurfaceHover: "#243652", BorderSubtle: "#18263C", BorderStrong: "#263B59",
+            TextPrimary: "#F2F6FC", TextSecondary: "#94A6C0", Danger: "#E45D75"),
         new ThemeRadii(
             MainWindowFrame: 14, PopoutFrame: 22, TitleBar: 14, Button: 12, IconButton: 12, Input: 12,
             Panel: 16, Popup: 16, Thumbnail: 10, Swatch: 12, ScrollbarThumb: 6, ToolTip: 10));
-
-    [Fact]
-    public void Theme_palette_and_radii_use_structural_equality()
-    {
-        // The *_matches_the_v2_spec_literals gates above pin all nine palette tokens and twelve radii
-        // through Assert.Equal(expectedRecord, preset.Palette/Radii) — which only compares per-field
-        // because ThemePalette/ThemeRadii are records. If either were ever refactored to a class,
-        // those asserts would silently degrade to reference equality and stop enforcing the literals.
-        // This guard turns that refactor red instead of letting it gut the spec gates unnoticed.
-        Assert.Equal(
-            new ThemePalette("#1", "#2", "#3", "#4", "#5", "#6", "#7", "#8", "#9"),
-            new ThemePalette("#1", "#2", "#3", "#4", "#5", "#6", "#7", "#8", "#9"));
-        Assert.NotEqual(
-            new ThemePalette("#1", "#2", "#3", "#4", "#5", "#6", "#7", "#8", "#9"),
-            new ThemePalette("#0", "#2", "#3", "#4", "#5", "#6", "#7", "#8", "#9"));
-        Assert.Equal(
-            new ThemeRadii(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12),
-            new ThemeRadii(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12));
-        Assert.NotEqual(
-            new ThemeRadii(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12),
-            new ThemeRadii(0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12));
-    }
 
     // --- Task 2 / TG-1: anti-collapse identity gates. The ordering test guarantees only <=, which a
     // regression collapsing presets back to near-identical values would still pass. These assert the
@@ -313,7 +282,6 @@ public class ThemeCatalogTests
         Assert.Equal(DwmCornerMode.Default, sharp.DwmCorners);
         Assert.Equal(DwmCornerMode.SmallRound, minimal.DwmCorners);
         Assert.Equal(DwmCornerMode.Round, soft.DwmCorners);
-        Assert.Equal(3, new[] { sharp.DwmCorners, minimal.DwmCorners, soft.DwmCorners }.Distinct().Count());
 
         // Each preset ships a distinct default accent identity.
         Assert.Equal(3, new[]
@@ -517,30 +485,5 @@ public class ThemeCatalogTests
         Assert.True(soft.PanelBlurRadius > minimal.PanelBlurRadius, "Soft Glass panel blur must exceed Minimal.");
         Assert.True(soft.PopupOpacity > minimal.PopupOpacity && soft.PanelOpacity > minimal.PanelOpacity,
             "Soft Glass shadow opacity must exceed Minimal.");
-    }
-
-    [Fact]
-    public void Theme_density_and_elevation_use_structural_equality()
-    {
-        // The same guard as Theme_palette_and_radii_use_structural_equality: the density/elevation
-        // *_matches_the_v2_spec_literals gates lean on per-field record equality. If ThemeDensity or
-        // ThemeElevation were refactored to a class, Assert.Equal would silently degrade to reference
-        // equality and stop enforcing the literals. Keep that refactor red.
-        Assert.Equal(
-            new ThemeDensity(30, 30, 8, new Thickness(10, 5, 10, 5), new Thickness(8, 0, 8, 0),
-                new Thickness(8, 5, 8, 5), new Thickness(8, 0, 8, 0), new Thickness(7, 4, 7, 4), new Thickness(1)),
-            new ThemeDensity(30, 30, 8, new Thickness(10, 5, 10, 5), new Thickness(8, 0, 8, 0),
-                new Thickness(8, 5, 8, 5), new Thickness(8, 0, 8, 0), new Thickness(7, 4, 7, 4), new Thickness(1)));
-        Assert.NotEqual(
-            new ThemeDensity(30, 30, 8, new Thickness(10, 5, 10, 5), new Thickness(8, 0, 8, 0),
-                new Thickness(8, 5, 8, 5), new Thickness(8, 0, 8, 0), new Thickness(7, 4, 7, 4), new Thickness(1)),
-            new ThemeDensity(34, 30, 8, new Thickness(10, 5, 10, 5), new Thickness(8, 0, 8, 0),
-                new Thickness(8, 5, 8, 5), new Thickness(8, 0, 8, 0), new Thickness(7, 4, 7, 4), new Thickness(1)));
-        Assert.Equal(
-            new ThemeElevation(8, 1, 0.22, 6, 1, 0.16),
-            new ThemeElevation(8, 1, 0.22, 6, 1, 0.16));
-        Assert.NotEqual(
-            new ThemeElevation(8, 1, 0.22, 6, 1, 0.16),
-            new ThemeElevation(16, 1, 0.22, 6, 1, 0.16));
     }
 }

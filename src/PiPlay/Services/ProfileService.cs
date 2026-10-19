@@ -26,23 +26,58 @@ public static class ProfileService
     public static Profile? Find(AppSettings settings, string name) =>
         settings.Profiles.FirstOrDefault(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
 
-    public static bool Exists(AppSettings settings, string name) => Find(settings, name) is not null;
-
     /// <summary>
     /// Build the profile saved by the toolbar quick-save action: refresh the URL and current source
     /// pin state while preserving profile-specific options that quick-save does not expose.
     /// </summary>
-    public static Profile CreateQuickSaveProfile(Profile? existing, string name, string url, bool topmost) => new()
+    public static Profile CreateQuickSaveProfile(
+        Profile? existing, string name, string url, bool topmost, string? defaultAccentColor = null) => new()
     {
         Name = name,
         Url = url,
         Mode = existing?.Mode,
         Presentation = existing?.Presentation,
-        AccentColor = existing?.AccentColor,
+        AccentColor = existing is not null
+            ? existing.AccentColor
+            : NormalizeAccentForStorage(defaultAccentColor),
         Topmost = topmost,
         FadeEnabled = existing?.FadeEnabled,
         Bounds = existing?.Bounds,
     };
+
+    /// <summary>
+    /// Resolve per-profile Popout launch overrides (<see cref="Profile.Topmost"/>,
+    /// <see cref="Profile.FadeEnabled"/>, and <see cref="Profile.Bounds"/>) when the active profile's
+    /// target video or playlist matches the popout launch target, falling back per field to the
+    /// global <paramref name="player"/> defaults (REQ-PROFILE-01).
+    /// </summary>
+    public static (bool Topmost, bool FadeEnabled, PlacementData? Placement) ResolveLaunchOverrides(
+        Profile? activeProfile,
+        string? targetVideoId,
+        PlayerSettings player,
+        string? targetPlaylistId = null)
+    {
+        ArgumentNullException.ThrowIfNull(player);
+        if (activeProfile is not null && YouTubeUrlHelper.TryParse(activeProfile.Url, out var profileTarget))
+        {
+            var matches = !string.IsNullOrEmpty(profileTarget.VideoId)
+                ? !string.IsNullOrEmpty(targetVideoId) &&
+                  string.Equals(profileTarget.VideoId, targetVideoId, StringComparison.Ordinal)
+                : !string.IsNullOrEmpty(profileTarget.PlaylistId) &&
+                  !string.IsNullOrEmpty(targetPlaylistId) &&
+                  string.Equals(profileTarget.PlaylistId, targetPlaylistId, StringComparison.Ordinal);
+
+            if (matches)
+            {
+                return (
+                    activeProfile.Topmost ?? player.Topmost,
+                    activeProfile.FadeEnabled ?? player.FadeEnabled,
+                    activeProfile.Bounds ?? player.Placement);
+            }
+        }
+
+        return (player.Topmost, player.FadeEnabled, player.Placement);
+    }
 
     /// <summary>Insert or overwrite a profile by name (case-insensitive). Returns true if an existing one was replaced.</summary>
     public static bool Save(AppSettings settings, Profile profile)

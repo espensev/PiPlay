@@ -14,7 +14,8 @@ public class ReturnPolicyTests
     [InlineData(null, false, ReturnAction.None)]      // unknown + paused: do nothing
     public void Decide_matches_REQ_RETURN_01(int? lastKnownSeconds, bool wasPlaying, ReturnAction expected)
     {
-        Assert.Equal(expected, ReturnPolicy.Decide(lastKnownSeconds, wasPlaying));
+        Assert.Equal(expected, ReturnPolicy.Decide(
+            lastKnownSeconds, wasPlaying, returnedPaused: null, returnedVideoId: null, sourceVideoIdAtPopout: null));
     }
 
     [Theory]
@@ -27,7 +28,8 @@ public class ReturnPolicyTests
     public void Popout_paused_state_overrides_source_launch_state_when_known(
         int? lastKnownSeconds, bool sourceWasPlaying, bool? returnedPaused, ReturnAction expected)
     {
-        Assert.Equal(expected, ReturnPolicy.Decide(lastKnownSeconds, sourceWasPlaying, returnedPaused));
+        Assert.Equal(expected, ReturnPolicy.Decide(
+            lastKnownSeconds, sourceWasPlaying, returnedPaused, "sameVideo001", "sameVideo001"));
     }
 
     // Video-aware overload (overhaul Task 3): a popout that ended on a DIFFERENT video must make
@@ -53,16 +55,8 @@ public class ReturnPolicyTests
     public void Unknown_or_unchanged_ids_fall_back_to_the_timestamp_decision(
         string? returnedId, string? sourceId, int? lastKnownSeconds, bool wasPlaying, ReturnAction expected)
     {
-        Assert.Equal(expected, ReturnPolicy.Decide(lastKnownSeconds, wasPlaying, returnedId, sourceId));
-    }
-
-    [Fact]
-    public void Same_video_with_returned_paused_state_uses_the_popout_state()
-    {
-        Assert.Equal(ReturnAction.Seek,
-            ReturnPolicy.Decide(120, sourceWasPlaying: true, returnedPaused: true, "sameVideo001", "sameVideo001"));
-        Assert.Equal(ReturnAction.SeekAndPlay,
-            ReturnPolicy.Decide(120, sourceWasPlaying: false, returnedPaused: false, "sameVideo001", "sameVideo001"));
+        Assert.Equal(expected, ReturnPolicy.Decide(
+            lastKnownSeconds, wasPlaying, returnedPaused: null, returnedId, sourceId));
     }
 
     // Playlist-page launch (spec 13.1 / 22.1): the popout can start with NO source video id at all.

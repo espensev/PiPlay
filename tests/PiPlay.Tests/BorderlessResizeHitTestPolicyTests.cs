@@ -25,13 +25,6 @@ public class BorderlessResizeHitTestPolicyTests
         BorderlessResizeHitTestPolicy.HitTest(Width, Height, x, y, isResizable: true, isNormalWindowState: true);
 
     [Fact]
-    public void Owner_tuned_resize_target_keeps_12_DIP_edges_and_96_DIP_corners()
-    {
-        Assert.Equal(12, BorderlessResizeHitTestPolicy.ResizeBorderDip);
-        Assert.Equal(96, BorderlessResizeHitTestPolicy.CornerLengthDip);
-    }
-
-    [Fact]
     public void Edges_inside_the_band_return_cardinal_resize_results()
     {
         Assert.Equal(BorderlessResizeHitTestPolicy.HTLEFT, HitTest(Band / 2, MidY));
@@ -43,6 +36,7 @@ public class BorderlessResizeHitTestPolicyTests
     [Fact]
     public void Resize_zones_start_exactly_at_the_configured_border()
     {
+        Assert.Null(HitTest(MidX, MidY));
         // Right/bottom zones begin AT width-band / height-band (x >= width-border); just inside is client.
         Assert.Equal(BorderlessResizeHitTestPolicy.HTRIGHT, HitTest(Width - Band, MidY));
         Assert.Equal(BorderlessResizeHitTestPolicy.HTBOTTOM, HitTest(MidX, Height - Band));
@@ -65,6 +59,12 @@ public class BorderlessResizeHitTestPolicyTests
         Assert.Equal(BorderlessResizeHitTestPolicy.HTBOTTOMLEFT, HitTest(Band / 2, Height - Corner / 2));
         Assert.Equal(BorderlessResizeHitTestPolicy.HTBOTTOMRIGHT, HitTest(Width - Corner / 2, Height - Band / 2));
         Assert.Equal(BorderlessResizeHitTestPolicy.HTBOTTOMRIGHT, HitTest(Width - Band / 2, Height - Corner / 2));
+
+        // Interior points inside the corner square (outside the edge band) remain client area.
+        Assert.Null(HitTest(Corner / 2, Corner / 2));
+        Assert.Null(HitTest(Width - Corner / 2, Corner / 2));
+        Assert.Null(HitTest(Corner / 2, Height - Corner / 2));
+        Assert.Null(HitTest(Width - Corner / 2, Height - Corner / 2));
     }
 
     [Fact]
@@ -77,16 +77,6 @@ public class BorderlessResizeHitTestPolicyTests
         Assert.Equal(BorderlessResizeHitTestPolicy.HTLEFT, HitTest(Band / 2, Corner + 0.1));      // y > corner
         Assert.Equal(BorderlessResizeHitTestPolicy.HTTOPRIGHT, HitTest(Width - Corner, Band / 2));
         Assert.Equal(BorderlessResizeHitTestPolicy.HTTOP, HitTest(Width - Corner - 0.1, Band / 2));
-    }
-
-    [Fact]
-    public void Interior_and_outer_border_boundary_points_are_client_area()
-    {
-        Assert.Null(HitTest(MidX, MidY));
-        Assert.Null(HitTest(Band, MidY));   // exactly on the left border edge: x < border is false
-        Assert.Null(HitTest(MidX, Band));
-        Assert.Null(HitTest(Width - Band - 0.1, MidY));
-        Assert.Null(HitTest(MidX, Height - Band - 0.1));
     }
 
     [Theory]

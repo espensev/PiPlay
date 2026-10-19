@@ -37,7 +37,7 @@ public static class AppInfo
 
     private static string ReadInformationalVersion()
     {
-        var asm = Assembly.GetEntryAssembly() ?? typeof(AppInfo).Assembly;
+        var asm = typeof(AppInfo).Assembly;
         var info = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         if (string.IsNullOrWhiteSpace(info))
         {
@@ -52,7 +52,7 @@ public static class AppInfo
 
     private static int ReadBuildNumber()
     {
-        var asm = Assembly.GetEntryAssembly() ?? typeof(AppInfo).Assembly;
+        var asm = typeof(AppInfo).Assembly;
         var fileVersion = asm.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version;
         // Fully qualified: the bare name "Version" would bind to this class's own string Version property.
         if (System.Version.TryParse(fileVersion, out var fv) && fv.Revision > 0) return fv.Revision;

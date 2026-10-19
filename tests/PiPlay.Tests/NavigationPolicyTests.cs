@@ -42,6 +42,7 @@ public class NavigationPolicyTests
     [InlineData("https://maps.google.com/")]
     [InlineData("https://evil.youtube.com.attacker.test/")]
     [InlineData("ftp://youtube.com/")]
+    [InlineData("file:///C:/test.html")]
     public void Other_sites_blocked_everywhere(string url)
     {
         Assert.False(NavigationPolicy.IsAllowed(U(url), NavigationSurface.Source));

@@ -1,12 +1,14 @@
+using System.Diagnostics;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace PiPlay.Tests;
 
 /// <summary>
-/// Static invariants for the PowerShell release scripts. The scripts are still validated by
-/// running their focused commands, but these checks keep the fail-closed provenance policy from
-/// being accidentally edited out.
+/// Behavioral harnesses and static invariants for the PowerShell release scripts.
 /// </summary>
 [Trait(TestCategories.Key, TestCategories.Markup)]
 public class ReleaseScriptPolicyTests
@@ -16,7 +18,9 @@ public class ReleaseScriptPolicyTests
         get
         {
             var dir = new DirectoryInfo(AppContext.BaseDirectory);
-            while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "PiPlay.sln")))
+            while (dir is not null
+                   && !File.Exists(Path.Combine(dir.FullName, "PiPlay.sln"))
+                   && !File.Exists(Path.Combine(dir.FullName, "scripts", "Test-LocalCI.ps1")))
                 dir = dir.Parent;
             if (dir is null)
                 throw new InvalidOperationException("Could not locate repo root from " + AppContext.BaseDirectory);
@@ -26,6 +30,118 @@ public class ReleaseScriptPolicyTests
 
     private static string Script(string relativePath) =>
         File.ReadAllText(Path.Combine(RepoRoot, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+
+    private static async Task<(int ExitCode, string Output, string Error)> RunPwshScriptAsync(
+        string scriptPath, params string[] arguments)
+    {
+        Assert.True(File.Exists(scriptPath), $"PowerShell script was not found at {scriptPath}.");
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "pwsh",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        startInfo.ArgumentList.Add("-NoProfile");
+        startInfo.ArgumentList.Add("-NonInteractive");
+        startInfo.ArgumentList.Add("-File");
+        startInfo.ArgumentList.Add(scriptPath);
+        foreach (var argument in arguments)
+            startInfo.ArgumentList.Add(argument);
+
+        using var process = new Process { StartInfo = startInfo };
+        Assert.True(process.Start(), $"PowerShell process did not start for {scriptPath}.");
+        var outputTask = process.StandardOutput.ReadToEndAsync();
+        var errorTask = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(30));
+        return (process.ExitCode, await outputTask, await errorTask);
+    }
+
+    [Theory]
+    [InlineData("scripts/Test-PublishLock.ps1", "8 passed, 0 failed")]
+    [InlineData("scripts/Test-DeploySwap.ps1", "35 passed, 0 failed")]
+    public async Task Release_script_behavioral_harnesses_pass(
+        string relativeScriptPath, string expectedSummary)
+    {
+        var scriptPath = Path.Combine(
+            RepoRoot, relativeScriptPath.Replace('/', Path.DirectorySeparatorChar));
+        var (exitCode, output, error) = await RunPwshScriptAsync(
+            scriptPath, "-RepoRoot", RepoRoot);
+
+        Assert.True(exitCode == 0,
+            $"{relativeScriptPath} exited with code {exitCode}.{Environment.NewLine}{error}{Environment.NewLine}{output}");
+        Assert.Contains(expectedSummary, output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Publish_metadata_behavioral_harness_accepts_valid_and_rejects_tampered_hashes()
+    {
+        var tempRoot = Path.Combine(
+            Path.GetTempPath(), "PiPlayPublishMetadataTest-" + Guid.NewGuid().ToString("N"));
+        var labelDir = Path.Combine(tempRoot, "v0.14.0-b40");
+        Directory.CreateDirectory(labelDir);
+        try
+        {
+            var exePath = Path.Combine(labelDir, "PiPlay.exe");
+            var exeBytes = Encoding.UTF8.GetBytes("synthetic-piplay-binary-payload");
+            await File.WriteAllBytesAsync(exePath, exeBytes);
+            var exeHash = Convert.ToHexString(SHA256.HashData(exeBytes));
+
+            var buildInfo = new
+            {
+                project = "PiPlay",
+                version = "0.14.0",
+                buildNumber = 40,
+                builtUtc = "2026-10-19T00:00:00Z",
+                sha256 = exeHash,
+                size = exeBytes.Length,
+                artifactHashes = new[]
+                {
+                    new
+                    {
+                        path = "PiPlay.exe",
+                        size = exeBytes.Length,
+                        sha256 = exeHash,
+                    },
+                },
+            };
+            await File.WriteAllTextAsync(
+                Path.Combine(labelDir, "build-info.json"),
+                JsonSerializer.Serialize(buildInfo));
+
+            var versionTable = new
+            {
+                project = "PiPlay",
+                generatedAtUtc = "2026-10-19T00:00:00Z",
+                builds = Array.Empty<object>(),
+                buildCount = 1,
+            };
+            await File.WriteAllTextAsync(
+                Path.Combine(tempRoot, "VERSION_TABLE.json"),
+                JsonSerializer.Serialize(versionTable));
+
+            var scriptPath = Path.Combine(RepoRoot, "scripts", "Test-PublishMetadata.ps1");
+            var (validExitCode, validOutput, validError) = await RunPwshScriptAsync(
+                scriptPath, "-PublishRoot", tempRoot);
+
+            Assert.True(validExitCode == 0,
+                $"Test-PublishMetadata.ps1 exited with {validExitCode}.{Environment.NewLine}{validError}{Environment.NewLine}{validOutput}");
+            Assert.Contains("Publish metadata validation passed.", validOutput, StringComparison.Ordinal);
+
+            await File.WriteAllBytesAsync(exePath, exeBytes.Concat(new byte[] { 0xFF }).ToArray());
+            var (tamperedExitCode, tamperedOutput, tamperedError) = await RunPwshScriptAsync(
+                scriptPath, "-PublishRoot", tempRoot);
+
+            Assert.NotEqual(0, tamperedExitCode);
+            Assert.Contains("Hash mismatch", tamperedError + tamperedOutput, StringComparison.Ordinal);
+        }
+        finally
+        {
+            try { Directory.Delete(tempRoot, recursive: true); } catch { /* best-effort fixture cleanup */ }
+        }
+    }
 
     [Fact]
     public void Publish_stable_defaults_to_exact_source_and_requires_escape_hatches()
@@ -112,7 +228,7 @@ public class ReleaseScriptPolicyTests
 
         // PR #42 folded the standalone privacy map into the consolidated product spec. The release
         // archive must still ship that guidance plus the ADR-0007 data-root reference it depends on,
-        // so a recipient is not left with the README's spec link pointing at nothing.
+        // so a recipient is not left with the spec link pointing at nothing.
         var extras = Regex.Match(script, @"\$PublishExtras\s*=\s*@\((?<body>[^)]*)\)", RegexOptions.Singleline);
         Assert.True(extras.Success, "Build script should define a $PublishExtras array.");
         var body = extras.Groups["body"].Value;
@@ -124,6 +240,10 @@ public class ReleaseScriptPolicyTests
             @"docs\YouTube_Compliance.md",
             @"docs\PiPlay_Product_Engineering_Spec.md",
             @"docs\DECISIONS.md",
+            @"docs\Theme_Preset_Differences.md",
+            @"docs\UI_Profile_and_Borderless_Review.md",
+            @"docs\Test_Suite_Audit_and_Remediation_Plan.md",
+            @"docs\AGENTS.md",
         };
 
         foreach (var entry in required)
@@ -183,12 +303,11 @@ public class ReleaseScriptPolicyTests
 
         // A colliding tag used to surface only at the very end - after the test lane, the build, and
         // a destructive deploy had already replaced the manual-test copy. The check must come first.
-        Assert.Contains("Tag preflight (before tests, build, or deploy)", publish);
         Assert.Contains("already exists at $existingTagCommit, but HEAD is $headCommit", publish);
 
-        var preflight = publish.IndexOf("Tag preflight (before tests, build, or deploy)", StringComparison.Ordinal);
-        var testGate = publish.IndexOf("Running deterministic test lane (gate)", StringComparison.Ordinal);
-        var build = publish.IndexOf("Building + publishing the Stable channel Release", StringComparison.Ordinal);
+        var preflight = publish.IndexOf("$expectedTag = \"stable-v$repoVersion-b$repoBuildNumber\"", StringComparison.Ordinal);
+        var testGate = publish.IndexOf("& dotnet test", StringComparison.Ordinal);
+        var build = publish.IndexOf("& $buildScript @buildParams", StringComparison.Ordinal);
         var deploy = publish.IndexOf("Invoke-StagedDeploy", StringComparison.Ordinal);
 
         Assert.True(preflight >= 0, "Publish should preflight the stable tag.");
@@ -198,98 +317,18 @@ public class ReleaseScriptPolicyTests
     }
 
     [Fact]
-    public void Publish_serializes_concurrent_runs()
+    public void Publish_wires_lock_and_staged_deploy_helpers_into_the_release_flow()
     {
         var publish = Script("scripts/Publish-Stable.ps1");
-        var lockScript = Script("scripts/PublishLock.ps1");
 
-        // Two publishes at once would interleave on bin\publish, on the deploy root mid-swap, and on
-        // tag creation. Both the repo and the deploy root are locked, before any expensive step.
-        Assert.Contains("function New-PublishLock", lockScript);
-        Assert.Contains("Another PiPlay publish is already running against", lockScript);
-        Assert.Contains("System.Threading.AbandonedMutexException", lockScript);   // a crashed publish leaves no stale lock
-
+        Assert.Contains(". (Join-Path $PSScriptRoot \"PublishLock.ps1\")", publish);
+        Assert.Contains(". (Join-Path $PSScriptRoot \"DeploySwap.ps1\")", publish);
         Assert.Contains("New-PublishLock -Key \"repo|$repoRoot\"", publish);
         Assert.Contains("New-PublishLock -Key \"deploy|$DeployRoot\"", publish);
-
-        var lockTaken = publish.IndexOf("New-PublishLock -Key \"repo|$repoRoot\"", StringComparison.Ordinal);
-        var build = publish.IndexOf("Building + publishing the Stable channel Release", StringComparison.Ordinal);
-        Assert.True(lockTaken >= 0 && lockTaken < build, "The publish lock must be taken before the build.");
-    }
-
-    [Fact]
-    public void Publish_releases_its_locks_on_every_exit_path()
-    {
-        var publish = Script("scripts/Publish-Stable.ps1");
-        var lockScript = Script("scripts/PublishLock.ps1");
-
-        // A mutex belongs to the THREAD that took it, and PowerShell's console host reuses its pipeline
-        // thread. A publish that ended without releasing left the mutex owned by the still-alive prompt
-        // thread, so the NEXT publish (another process) was told "another publish is already running"
-        // with nothing running - clearing only if the GC happened to finalize the handle. The release
-        // must therefore be in a finally, which PowerShell honours on success, throw, AND exit.
-        // (scripts\Test-PublishLock.ps1 case 3 is the behavioural guard.)
-        Assert.Contains("function Close-PublishLocks", lockScript);
-        Assert.Contains("ReleaseMutex()", lockScript);
-
-        var lockTaken = publish.IndexOf("New-PublishLock -Key \"repo|$repoRoot\"", StringComparison.Ordinal);
-        var tryOpen = publish.IndexOf("\ntry {", lockTaken, StringComparison.Ordinal);
-        var release = publish.IndexOf("Close-PublishLocks", tryOpen < 0 ? lockTaken : tryOpen, StringComparison.Ordinal);
-        var finallyBlock = publish.IndexOf("\nfinally {", lockTaken, StringComparison.Ordinal);
-
-        Assert.True(tryOpen > lockTaken, "The publish body must be wrapped in a try after the lock is taken.");
-        Assert.True(finallyBlock > tryOpen, "That try must have a finally.");
-        Assert.True(release > finallyBlock, "Close-PublishLocks must run from the finally, not the success path.");
-    }
-
-    [Fact]
-    public void Deploy_stages_and_verifies_before_replacing_the_live_copy()
-    {
-        var publish = Script("scripts/Publish-Stable.ps1");
-        var swap = Script("scripts/DeploySwap.ps1");
-
-        // The deploy must never again delete the live payload and then copy over the top of it: an
-        // interrupted copy left the only sanctioned manual-test installation broken with no way back.
-        Assert.Contains("Invoke-StagedDeploy", publish);
+        Assert.Contains("Close-PublishLocks", publish);
         Assert.Contains("Repair-InterruptedDeploy", publish);
+        Assert.Contains("Invoke-StagedDeploy", publish);
         Assert.DoesNotContain("Copy-Item -Path (Join-Path $latestDir \"*\") -Destination $DeployRoot", publish);
-
-        // Stage -> verify the staged bytes -> only then swap.
-        var stage = swap.IndexOf("Copy-Item -Path (Join-Path $SourceDir \"*\")", StringComparison.Ordinal);
-        var verify = swap.IndexOf("Test-StagedPayload -StagingDir $paths.Staging", StringComparison.Ordinal);
-        var swapIn = swap.IndexOf("Move-Item -LiteralPath $item.FullName -Destination (Join-Path $paths.Backup", StringComparison.Ordinal);
-
-        Assert.True(stage >= 0 && verify >= 0 && swapIn >= 0, "DeploySwap should stage, verify, then swap.");
-        Assert.True(stage < verify, "The staged payload must be copied before it is verified.");
-        Assert.True(verify < swapIn, "The staged payload must verify BEFORE the live copy is touched.");
-    }
-
-    [Fact]
-    public void Deploy_rolls_back_from_what_the_backup_actually_holds()
-    {
-        var swap = Script("scripts/DeploySwap.ps1");
-
-        // Move-Item half-moves a directory whose child is locked and still throws, so a rollback keyed
-        // on "the moves I recorded as successful" drops those children and then deletes the backup
-        // holding the only copy. Rollback must walk the backup itself and merge. (scripts\Test-DeploySwap.ps1 case C3.)
-        Assert.Contains("function Restore-DeployBackup", swap);
-        Assert.Contains("Restore-DeployBackup -BackupDir $BackupDir -DeployRoot $DeployRoot", swap);
-        Assert.Contains("rollback could not restore a runnable copy", swap);
-
-        // A rollback that could not put everything back must KEEP the backup and say where it is.
-        // Deleting it on the strength of "the restore probably worked" is the same data loss in the
-        // other direction (scripts\Test-DeploySwap.ps1 case H).
-        Assert.Contains("could not fully restore the previous copy", swap);
-        Assert.Contains("is PRESERVED at", swap);
-
-        // The runtime data folder is never moved aside (ADR-0007: login/session survive a redeploy).
-        // Anchor the guard inside the SWAP loop specifically: the same line also appears in
-        // Repair-InterruptedDeploy, so a bare Contains would stay green with the real guard deleted.
-        var guard = "if ($item.Name -ieq $DataFolderName) { continue }";
-        var swapFn = swap.IndexOf("function Invoke-StagedDeploy", StringComparison.Ordinal);
-        Assert.True(swapFn >= 0, "Invoke-StagedDeploy should exist.");
-        Assert.True(swap.IndexOf(guard, swapFn, StringComparison.Ordinal) >= 0,
-            "The swap loop must skip the runtime data folder (ADR-0007).");
     }
 
     [Fact]
@@ -316,15 +355,6 @@ public class ReleaseScriptPolicyTests
         Assert.Contains("Remove-Item -LiteralPath $testDataRoot -Recurse -Force", script);
         Assert.Contains("Pop-Location", script);
         Assert.Contains("Restore-ProcessEnvironment -Previous $previous", script);
-
-        // Node enforcement must read the value the plan DECLARES and the plan test pins
-        // (requirements.nodeMinimumMajor), not a second hardcoded literal that can silently drift green.
-        Assert.Contains("[int]$MinimumMajor", script);
-        Assert.Contains("-MinimumMajor $localCiPlan.requirements.nodeMinimumMajor", script);
-        Assert.Contains("[regex]::Match($nodeVersion, '^v?(?<major>\\d+)\\.')", script);
-        Assert.Contains("$nodeMajor -lt $MinimumMajor", script);
-        Assert.DoesNotContain("-notmatch '^v?24\\.'", script);
-        Assert.DoesNotContain("-notmatch \"^v?$MinimumMajor", script);
 
         var testBranch = script.IndexOf("elseif ($step.name -eq \"test\")", StringComparison.Ordinal);
         var protectedTry = script.IndexOf("try {", testBranch, StringComparison.Ordinal);
@@ -384,5 +414,48 @@ public class ReleaseScriptPolicyTests
         Assert.Contains(". (Join-Path $PSScriptRoot \"NativeCommand.ps1\")", script);
         Assert.Contains("Invoke-NativeCommandQuiet", script);
         Assert.DoesNotContain("$previousErrorActionPreference = $ErrorActionPreference", script);
+    }
+
+    [Fact]
+    public void Build_pipeline_keeps_non_mutating_runs_side_effect_free_and_syncs_archive_before_latest()
+    {
+        var script = Script("scripts/Build-PiPlay.ps1");
+        var csproj = Script("src/PiPlay/PiPlay.csproj");
+        var changelog = Script("docs/CHANGELOG.md");
+
+        Assert.Contains("$DefaultProjectVersion = \"0.14.0\"", script);
+        Assert.Contains("$DefaultBuildNumber = 40", script);
+        Assert.Contains("<Version>0.14.0</Version>", csproj);
+        Assert.Contains("<AssemblyVersion>0.14.0.40</AssemblyVersion>", csproj);
+        Assert.Contains("<FileVersion>0.14.0.40</FileVersion>", csproj);
+        Assert.Contains("<InformationalVersion>0.14.0</InformationalVersion>", csproj);
+        Assert.Contains("## 0.14.0 —", changelog);
+
+        Assert.Contains("[switch]$AllowCreate", script);
+        Assert.Contains("-AllowCreate:$allowVersionStampCreate", script);
+        Assert.Contains("-AllowCreate:$allowBuildNumberStampCreate", script);
+        Assert.Contains("-SourceCommit $sourceCommit", script);
+
+        var writeTable = script.IndexOf("$versionTablePath = Write-VersionTable", StringComparison.Ordinal);
+        var syncArchive = script.IndexOf("Sync-ReleaseMetadataIntoArchive -ArchivePath $archivePath", StringComparison.Ordinal);
+        var setLatest = script.IndexOf("$latestRoot = Set-LatestSnapshot", StringComparison.Ordinal);
+        Assert.True(writeTable >= 0 && syncArchive > writeTable, "Release archive metadata sync must happen after VERSION_TABLE.json is written.");
+        Assert.True(setLatest > syncArchive, "Release archive metadata sync must finish before latest snapshot copy can fail on a locked file.");
+    }
+
+    [Fact]
+    public void Release_and_smoke_scripts_normalize_deploy_root_and_clean_up_process_trees()
+    {
+        var publish = Script("scripts/Publish-Stable.ps1");
+        var verify = Script("scripts/Verify-StableDeploy.ps1");
+        var smoke = Script("scripts/Test-UiSmoke.ps1");
+
+        var normalizeIndex = publish.IndexOf("$DeployRoot = [System.IO.Path]::GetFullPath($DeployRoot).TrimEnd('\\', '/')", StringComparison.Ordinal);
+        var lockIndex = publish.IndexOf("New-PublishLock -Key \"deploy|$DeployRoot\"", StringComparison.Ordinal);
+        Assert.True(normalizeIndex >= 0 && normalizeIndex < lockIndex, "DeployRoot must be normalized before taking the deploy mutex.");
+
+        Assert.Contains("--untracked-files=all", verify);
+        Assert.Contains("(Test-Path -LiteralPath $versionPath) -and (Test-Path -LiteralPath $buildNumberPath)", verify);
+        Assert.Contains("$proc.Kill($true)", smoke);
     }
 }

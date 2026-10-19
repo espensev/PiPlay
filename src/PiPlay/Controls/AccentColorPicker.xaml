@@ -4,23 +4,16 @@
              xmlns:theme="clr-namespace:PiPlay.Theme"
              MinWidth="320"
              SnapsToDevicePixels="True">
+  <UserControl.Style>
+    <Style TargetType="UserControl">
+      <Style.Triggers>
+        <Trigger Property="IsEnabled" Value="False">
+          <Setter Property="Opacity" Value="0.4" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+  </UserControl.Style>
   <StackPanel>
-    <Grid x:Name="ReadabilityRow" Margin="0,0,0,10" Visibility="Collapsed">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="*" />
-        <ColumnDefinition Width="Auto" />
-      </Grid.ColumnDefinitions>
-      <TextBlock x:Name="ReadabilityWarning"
-                 Text="Enter a valid 6-digit hex color."
-                 Foreground="{DynamicResource DangerPin}" TextWrapping="Wrap"
-                 VerticalAlignment="Center" Visibility="Collapsed" />
-      <Button x:Name="UseNearestReadableButton" Grid.Column="1"
-              Style="{StaticResource DarkButton}" Content="Use default"
-              Click="UseNearestReadableButton_Click" Visibility="Collapsed"
-              ToolTip="Use the default accent color"
-              AutomationProperties.Name="Use default accent" />
-    </Grid>
-
     <Grid Margin="0,0,0,10">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="152" />
@@ -35,7 +28,11 @@
         <Canvas IsHitTestVisible="False">
           <Ellipse x:Name="HueSatThumb" Width="12" Height="12"
                    Stroke="{DynamicResource TextPrimary}" StrokeThickness="2"
-                   Fill="Transparent" />
+                   Fill="Transparent">
+            <Ellipse.Effect>
+              <DropShadowEffect BlurRadius="3" ShadowDepth="0" Opacity="0.85" Color="#000000" />
+            </Ellipse.Effect>
+          </Ellipse>
         </Canvas>
       </Grid>
 
@@ -93,12 +90,27 @@
                   ToolTip="{Binding DisplayName}"
                   AutomationProperties.Name="{Binding DisplayName}">
             <Border Width="22" Height="22" CornerRadius="{DynamicResource RadiusSwatch}"
-                    BorderBrush="{DynamicResource BorderStrong}" BorderThickness="1"
                     Background="{Binding HexColor}" />
           </Button>
         </DataTemplate>
       </ItemsControl.ItemTemplate>
     </ItemsControl>
+
+    <Grid x:Name="ReadabilityRow" MinHeight="28" Visibility="Hidden">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <TextBlock x:Name="ReadabilityWarning"
+                 Text="Enter a valid 6-digit hex color (#RRGGBB)."
+                 Foreground="{DynamicResource DangerPin}" TextWrapping="Wrap"
+                 VerticalAlignment="Center" Visibility="Collapsed" />
+      <Button x:Name="UseNearestReadableButton" Grid.Column="1"
+              Style="{StaticResource DarkButton}" Content="Use default"
+              Click="UseNearestReadableButton_Click" Visibility="Collapsed"
+              ToolTip="Use the default accent color"
+              AutomationProperties.Name="Use default accent" />
+    </Grid>
 
   </StackPanel>
 </UserControl>

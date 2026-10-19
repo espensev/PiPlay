@@ -34,9 +34,16 @@ public class SettingsServiceTests : IDisposable
         Assert.NotNull(settings.MainWindow);
         Assert.NotNull(settings.Player);
         Assert.Equal("https://www.youtube.com/", settings.LastUrl);
+        Assert.False(settings.AutoPopout);
+        Assert.Null(settings.ActiveProfileName);
         Assert.Equal("cyan", settings.Player.PinAccent);
         Assert.Equal("cyan", settings.Player.FadeAccent);
         Assert.Equal(2500, settings.Player.FadeIdleDelayMs);
+        Assert.Equal(1.0, settings.Player.IdleWindowOpacity);
+        Assert.Equal(1.0, settings.Player.ConstantWindowOpacity);
+        Assert.False(settings.Player.CompactMode);
+        Assert.False(settings.Player.FocusedPresentation);
+        Assert.False(settings.Player.StripAutoHide);
         Assert.Equal(ThemeCatalog.DefaultThemeId, settings.Theme.ThemeId);
         Assert.Equal(ThemeCatalog.DefaultAccentColor, settings.Theme.AccentColor);
         Assert.Equal(ThemeCatalog.DefaultFadeDelayPreset, settings.Theme.FadeDelayPreset);
@@ -44,30 +51,52 @@ public class SettingsServiceTests : IDisposable
         Assert.Null(settings.Theme.ActiveWindowOpacity);
         Assert.Null(settings.Theme.IdleWindowOpacity);
         Assert.Equal(ThemeCatalog.DefaultCornerStyle, settings.Theme.CornerStyle);
-        Assert.False(settings.Player.FocusedPresentation);
     }
 
     [Fact]
     public void Save_then_load_roundtrips()
     {
         var svc = new SettingsService(_path);
-        var settings = new AppSettings { LastUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" };
+        var settings = new AppSettings
+        {
+            LastUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            AutoPopout = true,
+            ActiveProfileName = "Lo-fi",
+        };
         settings.Player.Topmost = true;
         settings.Player.PinAccent = "green";
         settings.Player.FadeAccent = "amber";
         settings.Player.FadeIdleDelayMs = 4000;
-        settings.Profiles.Add(new Profile { Name = "Lo-fi", Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" });
+        settings.Player.IdleWindowOpacity = 0.62;
+        settings.Player.ConstantWindowOpacity = 0.85;
+        settings.Player.CompactMode = true;
+        settings.Player.FocusedPresentation = true;
+        settings.Player.StripAutoHide = true;
+        settings.Profiles.Add(new Profile
+        {
+            Name = "Lo-fi",
+            Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            AccentColor = "#A78BFA",
+        });
         svc.Save(settings);
 
         Assert.True(File.Exists(_path));
         var loaded = svc.Load();
         Assert.Equal(settings.LastUrl, loaded.LastUrl);
+        Assert.True(loaded.AutoPopout);
+        Assert.Equal("Lo-fi", loaded.ActiveProfileName);
         Assert.True(loaded.Player.Topmost);
         Assert.Equal("green", loaded.Player.PinAccent);
         Assert.Equal("amber", loaded.Player.FadeAccent);
         Assert.Equal(4000, loaded.Player.FadeIdleDelayMs);
+        Assert.Equal(0.62, loaded.Player.IdleWindowOpacity);
+        Assert.Equal(0.85, loaded.Player.ConstantWindowOpacity);
+        Assert.True(loaded.Player.CompactMode);
+        Assert.True(loaded.Player.FocusedPresentation);
+        Assert.True(loaded.Player.StripAutoHide);
         Assert.Single(loaded.Profiles);
         Assert.Equal("Lo-fi", loaded.Profiles[0].Name);
+        Assert.Equal("#A78BFA", loaded.Profiles[0].AccentColor);
     }
 
     [Fact]
@@ -174,6 +203,21 @@ public class SettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public void PascalCase_Theme_block_is_preserved_without_seeding_from_legacy_player()
+    {
+        File.WriteAllText(_path,
+            "{\"schemaVersion\":3,\"Player\":{\"PinAccent\":\"amber\",\"FadeIdleDelayMs\":4000}," +
+            "\"Theme\":{\"ThemeId\":\"soft-glass\",\"AccentColor\":\"#A78BFA\",\"FadeDelayPreset\":\"short\"}}");
+        var svc = new SettingsService(_path);
+
+        var loaded = svc.Load();
+
+        Assert.Equal("soft-glass", loaded.Theme.ThemeId);
+        Assert.Equal("#A78BFA", loaded.Theme.AccentColor);
+        Assert.Equal("short", loaded.Theme.FadeDelayPreset);
+    }
+
+    [Fact]
     public void Invalid_theme_values_fall_back_to_safe_defaults()
     {
         File.WriteAllText(_path,
@@ -203,15 +247,16 @@ public class SettingsServiceTests : IDisposable
         // explicit overrides — never let preset defaults change a configured window.
         File.WriteAllText(_path,
             "{\"schemaVersion\":2,\"player\":{\"constantWindowOpacity\":0.8,\"idleWindowOpacity\":0.7," +
-            "\"stripAutoHide\":true},\"theme\":{\"themeId\":\"soft-glass\",\"accentColor\":\"#A78BFA\"}}");
+            "\"stripAutoHide\":false},\"theme\":{\"themeId\":\"soft-glass\",\"accentColor\":\"#A78BFA\"}}");
         var svc = new SettingsService(_path);
 
         var loaded = svc.Load();
 
         Assert.Equal(0.8, loaded.Theme.ActiveWindowOpacity);
         Assert.Equal(0.7, loaded.Theme.IdleWindowOpacity);
-        Assert.True(loaded.Theme.StripAutoHide);
+        Assert.False(loaded.Theme.StripAutoHide);
         Assert.Equal(0.8, ThemePreferenceResolver.ActiveWindowOpacity(loaded.Theme, loaded.Player));
+        Assert.False(ThemePreferenceResolver.StripAutoHide(loaded.Theme, loaded.Player));
         Assert.Equal(AppSettings.CurrentSchemaVersion, loaded.SchemaVersion);
     }
 
@@ -221,17 +266,19 @@ public class SettingsServiceTests : IDisposable
         // Same content at schema 3: nulls are deliberate "follow the preset" values — a
         // hand-edited soft-glass file is translucent without manual slider work (review F2).
         File.WriteAllText(_path,
-            "{\"schemaVersion\":3,\"player\":{\"constantWindowOpacity\":0.8,\"idleWindowOpacity\":0.7}," +
-            "\"theme\":{\"themeId\":\"soft-glass\",\"accentColor\":\"#A78BFA\"}}");
+            "{\"schemaVersion\":3,\"player\":{\"constantWindowOpacity\":0.8,\"idleWindowOpacity\":0.7," +
+            "\"stripAutoHide\":false},\"theme\":{\"themeId\":\"soft-glass\",\"accentColor\":\"#A78BFA\"}}");
         var svc = new SettingsService(_path);
 
         var loaded = svc.Load();
 
         Assert.Null(loaded.Theme.ActiveWindowOpacity);
         Assert.Null(loaded.Theme.IdleWindowOpacity);
+        Assert.Null(loaded.Theme.StripAutoHide);
         var preset = ThemeCatalog.PresetFor("soft-glass");
         Assert.Equal(preset.DefaultActiveWindowOpacity, ThemePreferenceResolver.ActiveWindowOpacity(loaded.Theme, loaded.Player));
         Assert.Equal(preset.DefaultIdleWindowOpacity, ThemePreferenceResolver.IdleWindowOpacity(loaded.Theme, loaded.Player));
+        Assert.True(ThemePreferenceResolver.StripAutoHide(loaded.Theme, loaded.Player));
     }
 
     [Fact]
@@ -250,16 +297,6 @@ public class SettingsServiceTests : IDisposable
         Assert.True(root.GetProperty("enabled").GetBoolean());
         Assert.Equal(42, doc.RootElement.GetProperty("player").GetProperty("futurePlayer").GetInt32());
         Assert.Equal("kept", doc.RootElement.GetProperty("theme").GetProperty("futureTheme").GetString());
-    }
-
-    [Fact]
-    public void AutoPopout_defaults_off_and_roundtrips()
-    {
-        var svc = new SettingsService(_path);
-        Assert.False(svc.Load().AutoPopout);   // off by default (and for a missing property)
-
-        svc.Save(new AppSettings { AutoPopout = true });
-        Assert.True(svc.Load().AutoPopout);     // survives the atomic round trip
     }
 
     [Fact]
@@ -297,39 +334,6 @@ public class SettingsServiceTests : IDisposable
     }
 
     [Fact]
-    public void Window_opacity_defaults_are_opaque_and_roundtrip()
-    {
-        var svc = new SettingsService(_path);
-        var defaults = svc.Load();
-        // Missing properties deserialize to 1.0, so every existing settings.json keeps today's look.
-        Assert.Equal(1.0, defaults.Player.IdleWindowOpacity);
-        Assert.Equal(1.0, defaults.Player.ConstantWindowOpacity);
-
-        var s = new AppSettings();
-        s.Player.IdleWindowOpacity = 0.62;
-        s.Player.ConstantWindowOpacity = 0.85;
-        svc.Save(s);
-        var loaded = svc.Load();
-        Assert.Equal(0.62, loaded.Player.IdleWindowOpacity);
-        Assert.Equal(0.85, loaded.Player.ConstantWindowOpacity);
-    }
-
-    [Fact]
-    public void Settings_file_without_opacity_keys_loads_as_opaque()
-    {
-        // The migration wire shape: every pre-Phase-4 settings.json has a player object but no
-        // opacity keys. Deserialization (not just the C# initializer) must yield 1.0 for both.
-        File.WriteAllText(_path, "{\"schemaVersion\":2,\"player\":{\"pinAccent\":\"cyan\",\"compactMode\":true}}");
-        var svc = new SettingsService(_path);
-
-        var loaded = svc.Load();
-
-        Assert.Equal(1.0, loaded.Player.IdleWindowOpacity);
-        Assert.Equal(1.0, loaded.Player.ConstantWindowOpacity);
-        Assert.True(loaded.Player.CompactMode);   // proves the player object actually deserialized
-    }
-
-    [Fact]
     public void Hand_edited_opacity_below_the_ui_floor_is_honored()
     {
         // Spec 7.3 explicit unlock: the Settings sliders stop at 0.45, but a hand-edited
@@ -345,127 +349,64 @@ public class SettingsServiceTests : IDisposable
     }
 
     [Fact]
-    public void Profile_mode_is_normalized_on_load()
-    {
-        // Legacy "embed" -> durable "compact"; unknown -> null (use global); "compact"/"normal" kept;
-        // an empty string is treated as unset (null). Proves SettingsService.Sanitize repairs modes.
-        File.WriteAllText(_path,
-            "{\"profiles\":[" +
-            "{\"name\":\"Legacy\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"mode\":\"embed\"}," +
-            "{\"name\":\"Bogus\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"mode\":\"hologram\"}," +
-            "{\"name\":\"Keep\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"mode\":\"compact\"}," +
-            "{\"name\":\"Blank\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"mode\":\"\"}]}");
-        var svc = new SettingsService(_path);
-
-        var loaded = svc.Load();
-
-        Assert.Equal("compact", loaded.Profiles.Single(p => p.Name == "Legacy").Mode);
-        Assert.Null(loaded.Profiles.Single(p => p.Name == "Bogus").Mode);
-        Assert.Equal("compact", loaded.Profiles.Single(p => p.Name == "Keep").Mode);
-        Assert.Null(loaded.Profiles.Single(p => p.Name == "Blank").Mode);
-    }
-
-    [Fact]
-    public void Profile_presentation_is_normalized_on_load_REQ_PROFILE_01()
-    {
-        File.WriteAllText(_path,
-            "{\"profiles\":[" +
-            "{\"name\":\"Standard\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"presentation\":\" STANDARD \"}," +
-            "{\"name\":\"Focused\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"presentation\":\"Focused\"}," +
-            "{\"name\":\"Bogus\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"presentation\":\"compact\"}," +
-            "{\"name\":\"Blank\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"presentation\":\"\"}]} ");
-        var svc = new SettingsService(_path);
-
-        var loaded = svc.Load();
-
-        Assert.Equal("standard", loaded.Profiles.Single(p => p.Name == "Standard").Presentation);
-        Assert.Equal("focused", loaded.Profiles.Single(p => p.Name == "Focused").Presentation);
-        Assert.Null(loaded.Profiles.Single(p => p.Name == "Bogus").Presentation);
-        Assert.Null(loaded.Profiles.Single(p => p.Name == "Blank").Presentation);
-    }
-
-    [Fact]
-    public void Profile_accent_and_active_profile_roundtrip()
-    {
-        var svc = new SettingsService(_path);
-        var settings = new AppSettings { ActiveProfileName = "Violet" };
-        settings.Profiles.Add(new Profile
-        {
-            Name = "Violet",
-            Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-            AccentColor = "#A78BFA",
-        });
-
-        svc.Save(settings);
-        var loaded = svc.Load();
-
-        Assert.Equal("Violet", loaded.ActiveProfileName);
-        Assert.Equal("#A78BFA", loaded.Profiles.Single().AccentColor);
-    }
-
-    [Fact]
-    public void Profile_accent_and_active_profile_are_sanitized_on_load()
+    public void Profiles_and_active_profile_are_sanitized_on_load()
     {
         File.WriteAllText(_path,
             "{\"activeProfileName\":\"Ghost\",\"profiles\":[" +
-            "{\"name\":\"Bad\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"accentColor\":\"not-a-color\"}," +
-            "{\"name\":\"Mid\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"accentColor\":\"#787878\"}]}");
+            "{\"name\":\"   \",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\"}," +
+            "{\"name\":\"Legacy\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"mode\":\"embed\",\"presentation\":\" STANDARD \",\"accentColor\":\"not-a-color\"}," +
+            "{\"name\":\"Bogus\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"mode\":\"hologram\",\"presentation\":\"compact\"}," +
+            "{\"name\":\"Keep\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"mode\":\"compact\",\"presentation\":\"Focused\",\"accentColor\":\"#787878\"}," +
+            "{\"name\":\"Blank\",\"url\":\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\"mode\":\"\",\"presentation\":\"\"}]}");
         var svc = new SettingsService(_path);
 
         var loaded = svc.Load();
 
         Assert.Null(loaded.ActiveProfileName);
-        Assert.Null(loaded.Profiles.Single(p => p.Name == "Bad").AccentColor);
-        Assert.Equal("#787878", loaded.Profiles.Single(p => p.Name == "Mid").AccentColor);
+        Assert.Equal(4, loaded.Profiles.Count);
+        Assert.DoesNotContain(loaded.Profiles, p => string.IsNullOrWhiteSpace(p.Name));
+
+        var legacy = loaded.Profiles.Single(p => p.Name == "Legacy");
+        Assert.Equal("compact", legacy.Mode);
+        Assert.Equal("standard", legacy.Presentation);
+        Assert.Null(legacy.AccentColor);
+
+        var bogus = loaded.Profiles.Single(p => p.Name == "Bogus");
+        Assert.Null(bogus.Mode);
+        Assert.Null(bogus.Presentation);
+
+        var keep = loaded.Profiles.Single(p => p.Name == "Keep");
+        Assert.Equal("compact", keep.Mode);
+        Assert.Equal("focused", keep.Presentation);
+        Assert.Equal("#787878", keep.AccentColor);
+
+        var blank = loaded.Profiles.Single(p => p.Name == "Blank");
+        Assert.Null(blank.Mode);
+        Assert.Null(blank.Presentation);
     }
 
     [Fact]
-    public void Compact_mode_global_default_is_off_and_roundtrips()
-    {
-        var svc = new SettingsService(_path);
-        Assert.False(svc.Load().Player.CompactMode);   // off by default (and for a missing property)
-
-        var s = new AppSettings();
-        s.Player.CompactMode = true;
-        svc.Save(s);
-        Assert.True(svc.Load().Player.CompactMode);
-    }
-
-    [Fact]
-    public void Focused_presentation_global_default_is_off_and_roundtrips()
-    {
-        var svc = new SettingsService(_path);
-        Assert.False(svc.Load().Player.FocusedPresentation);
-
-        var settings = new AppSettings();
-        settings.Player.FocusedPresentation = true;
-        svc.Save(settings);
-
-        Assert.True(svc.Load().Player.FocusedPresentation);
-    }
-
-    [Fact]
-    public void Strip_auto_hide_default_is_off_and_roundtrips()
-    {
-        var svc = new SettingsService(_path);
-        // Off by default AND for a missing property, so every pre-Phase-4 settings.json keeps
-        // the always-reserved strip row (spec 7.2 / acceptance criterion 1).
-        Assert.False(svc.Load().Player.StripAutoHide);
-
-        var s = new AppSettings();
-        s.Player.StripAutoHide = true;
-        svc.Save(s);
-        Assert.True(svc.Load().Player.StripAutoHide);
-    }
-
-    [Fact]
-    public void Reset_recreates_the_file_with_defaults()
+    public void Reset_recreates_defaults_removes_quarantines_and_preserves_logs_and_webview_data()
     {
         var svc = new SettingsService(_path);
         var populated = new AppSettings { LastUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" };
         populated.MainWindow.Topmost = true;
         populated.Profiles.Add(new Profile { Name = "Lo-fi", Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" });
         svc.Save(populated);
+
+        // Stale corrupt quarantine file to be cleaned up.
+        var corrupt = Path.Combine(_dir, "settings.json.corrupt.20200101-000000.json");
+        File.WriteAllText(corrupt, "{}");
+
+        // The sacred invariant: reset never touches the browser session (login) or logs.
+        var logsDir = Path.Combine(_dir, "logs");
+        var webViewDir = Path.Combine(_dir, "WebView2UserData");
+        Directory.CreateDirectory(logsDir);
+        Directory.CreateDirectory(webViewDir);
+        var logFile = Path.Combine(logsDir, "piplay.log");
+        var sessionFile = Path.Combine(webViewDir, "session-cookie");
+        File.WriteAllText(logFile, "log line");
+        File.WriteAllText(sessionFile, "logged-in");
 
         var fresh = svc.Reset();
 
@@ -479,47 +420,11 @@ public class SettingsServiceTests : IDisposable
         var reloaded = svc.Load();
         Assert.Empty(reloaded.Profiles);
         Assert.Equal("https://www.youtube.com/", reloaded.LastUrl);
-    }
 
-    [Fact]
-    public void Reset_preserves_sibling_logs_and_webview_user_data()
-    {
-        // The sacred invariant: reset never touches the browser session (login) or logs.
-        var logsDir = Path.Combine(_dir, "logs");
-        var webViewDir = Path.Combine(_dir, "WebView2UserData");
-        Directory.CreateDirectory(logsDir);
-        Directory.CreateDirectory(webViewDir);
-        var logFile = Path.Combine(logsDir, "piplay.log");
-        var sessionFile = Path.Combine(webViewDir, "session-cookie");
-        File.WriteAllText(logFile, "log line");
-        File.WriteAllText(sessionFile, "logged-in");
-
-        new SettingsService(_path).Reset();
-
+        // Quarantine cleaned up, sibling logs and WebView2 session preserved.
+        Assert.False(File.Exists(corrupt), "Reset should clean up stale quarantines for a clean slate.");
         Assert.True(File.Exists(logFile), "Reset must not delete logs.");
         Assert.True(File.Exists(sessionFile), "Reset must not delete the WebView2 session (login).");
         Assert.Equal("logged-in", File.ReadAllText(sessionFile));
-    }
-
-    [Fact]
-    public void Reset_does_not_create_a_webview_user_data_dir()
-    {
-        var webViewDir = Path.Combine(_dir, "WebView2UserData");
-        Assert.False(Directory.Exists(webViewDir));
-
-        new SettingsService(_path).Reset();
-
-        Assert.False(Directory.Exists(webViewDir), "Reset must never create/recreate the WebView2 folder.");
-    }
-
-    [Fact]
-    public void Reset_removes_stale_corrupt_quarantine_files()
-    {
-        var corrupt = Path.Combine(_dir, "settings.json.corrupt.20200101-000000.json");
-        File.WriteAllText(corrupt, "{}");
-
-        new SettingsService(_path).Reset();
-
-        Assert.False(File.Exists(corrupt), "Reset should clean up stale quarantines for a clean slate.");
     }
 }

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -63,6 +64,7 @@ public partial class PlayerWindow : Window
     private DwmCornerMode _dwmCornerMode;            // theme/override native corner shape (docs/Theme_Preset_Differences.md)
     private double _popoutCornerRadiusDip;           // large Round silhouette; resolved ThemeRadii.PopoutFrame
     private bool _customWindowRegionApplied;
+    private bool _isSnapLike;
     private int _probeCursorX, _probeCursorY;        // last cursor position the activity probe saw
     private long _lastInWindowCursorMoveMs = -1;     // Environment.TickCount64 of the last in-window move
     private readonly DispatcherTimer _opacityHoverPoll;
@@ -131,6 +133,7 @@ public partial class PlayerWindow : Window
     {
         InitializeComponent();
         BorderlessWindowHelper.EnableExpandedResizeZones(this, HandleNativeMoveSizeStateChanged);
+        BorderlessWindowHelper.EnableProperMaximize(this, useWorkArea: false);
 
         _environment = environment;
         _currentUrl = url;
@@ -201,7 +204,6 @@ public partial class PlayerWindow : Window
         StateChanged += (_, _) =>
         {
             HandleWindowStateChanged();
-            ApplyFocusedResizeInset();
             ApplyCornerModeToHwnd(forceRegionRefresh: true, applyDwmAttributes: false);
         };
         SizeChanged += (_, _) => ApplyCornerModeToHwnd(
@@ -299,7 +301,7 @@ public partial class PlayerWindow : Window
                 {
                     var playerFirstSurfaceBridge = await PlayerFirstSurfaceBridge.CreateAsync(
                         core, _accentColor, _fadeEnabled, (int)_idleTimer.Interval.TotalMilliseconds,
-                        Topmost);
+                        Topmost, WindowState == WindowState.Maximized);
                     if (!IsPlayerInitializationCurrent(initializationGeneration))
                     {
                         playerFirstSurfaceBridge.Dispose();
@@ -579,7 +581,9 @@ public partial class PlayerWindow : Window
             _controlsVisible = true;
             ApplyFadeState();
         }
-        ApplyFocusedResizeInset();
+        UpdatePlayerResizeInset();
+        UpdatePlayerCanvasBackground();
+        UpdatePopoutEdgeBorder();
     }
 
     /// <summary>Second host-side gate shared by both closed page protocols.</summary>
@@ -690,10 +694,6 @@ public partial class PlayerWindow : Window
     internal string? ReturnVideoIdForTests => _returnState.VideoId;
     internal string? ReturnPlaylistIdForTests => _returnState.PlaylistId;
     internal int? ReturnSecondsForTests => _returnState.LastKnownSeconds;
-    internal bool? ReturnPausedForTests => _returnState.Paused;
-    internal double? ReturnVolumeForTests => _returnState.Volume;
-    internal bool? ReturnMutedForTests => _returnState.Muted;
-    internal double? ReturnPlaybackRateForTests => _returnState.PlaybackRate;
     internal PlacementData? LaunchPlacementForTests => _placement;
 
     // Strip auto-hide seams (Wpf lane): drive the collapse/reveal state machine headlessly.
@@ -837,7 +837,7 @@ public partial class PlayerWindow : Window
     {
         _maximizedForFullScreenElement = false;
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-        UpdateExpandAffordance();
+        HandleWindowStateChanged();
         // Any expand path counts as activity (adopted from the parallel b35c0dd landing): an
         // auto-hidden strip un-collapses, so the restore affordance is immediately reachable in
         // the new state instead of waiting for the top-edge reveal.
@@ -854,6 +854,10 @@ public partial class PlayerWindow : Window
     {
         if (WindowState != WindowState.Maximized) _maximizedForFullScreenElement = false;
         UpdateExpandAffordance();
+        UpdatePopoutEdgeBorder();
+        UpdatePlayerResizeInset();
+        UpdatePlayerCanvasBackground();
+        RefreshFocusedSurfaceAppearance();
     }
 
     /// <summary>Keep glyph and tooltip truthful in both states; the UIA name stays state-neutral
@@ -880,7 +884,7 @@ public partial class PlayerWindow : Window
             if (WindowState == WindowState.Maximized) return;   // already the user's posture
             _maximizedForFullScreenElement = true;
             WindowState = WindowState.Maximized;
-            UpdateExpandAffordance();
+            HandleWindowStateChanged();
             OnUserActivity();   // reveal the strip in the new state (see ToggleExpandedState)
         }
         else if (_maximizedForFullScreenElement)
@@ -888,7 +892,7 @@ public partial class PlayerWindow : Window
             _maximizedForFullScreenElement = false;
             if (WindowState != WindowState.Maximized) return;   // user already restored it
             WindowState = WindowState.Normal;
-            UpdateExpandAffordance();
+            HandleWindowStateChanged();
             OnUserActivity();
         }
     }
@@ -906,7 +910,7 @@ public partial class PlayerWindow : Window
         if (WindowState != WindowState.Maximized) return false;
         _maximizedForFullScreenElement = false;
         WindowState = WindowState.Normal;
-        UpdateExpandAffordance();
+        HandleWindowStateChanged();
         OnUserActivity();
         return true;
     }
@@ -935,20 +939,50 @@ public partial class PlayerWindow : Window
     }
 
     /// <summary>
-    /// With the native strip collapsed, Focused needs its own four-sided WPF edge band so the
-    /// WebView2 child HWND does not swallow top-edge resize. Expanded stays truly full-bleed.
+    /// Whenever the native strip is collapsed (Focused mode or auto-hidden Standard mode), the
+    /// floating Popout needs its own four-sided WPF edge band so the WebView2 child HWND does not
+    /// swallow top-edge resize. Expanded stays truly full-bleed.
     /// </summary>
-    private void ApplyFocusedResizeInset()
+    private void UpdatePlayerResizeInset()
     {
-        if (_presentation != PopoutPresentation.Focused) return;
-        if (!_focusedSurfaceActive)
+        var stripHidden = _focusedSurfaceActive || ChromeStrip.Visibility == Visibility.Collapsed;
+        if (stripHidden && WindowState == WindowState.Normal)
+        {
+            Player.Margin = new Thickness(BorderlessResizeHitTestPolicy.ResizeBorderDip);
+        }
+        else
         {
             Player.ClearValue(FrameworkElement.MarginProperty);
-            return;
         }
-        Player.Margin = WindowState == WindowState.Maximized
-            ? new Thickness(0)
-            : new Thickness(BorderlessResizeHitTestPolicy.ResizeBorderDip);
+    }
+
+    private void UpdatePlayerCanvasBackground()
+    {
+        var borderlessVideo = _focusedSurfaceActive || ChromeStrip.Visibility == Visibility.Collapsed;
+        if (borderlessVideo)
+        {
+            Background = Brushes.Black;
+        }
+        else
+        {
+            SetResourceReference(Control.BackgroundProperty, "AccentLetterbox");
+        }
+    }
+
+    private void UpdatePopoutEdgeBorder()
+    {
+        var edgeAlpha = (PopoutEdgeBorder.BorderBrush as SolidColorBrush)?.Color.A
+            ?? (Application.Current?.TryFindResource("PopoutAccentEdge") as SolidColorBrush)?.Color.A
+            ?? 0xFF;
+        var show = RoundedWindowRegionPolicy.ShouldShowPopoutEdgeBorder(
+            WindowState == WindowState.Normal,
+            _isSnapLike,
+            _focusedSurfaceActive,
+            ChromeStrip.Visibility == Visibility.Collapsed,
+            _customWindowRegionApplied,
+            _dwmCornerMode,
+            edgeAlpha);
+        PopoutEdgeBorder.BorderThickness = show ? new Thickness(1) : new Thickness(0);
     }
 
     internal void ApplyAppearance(string? accentColor, int fadeIdleDelayMs, bool stripAutoHide = false)
@@ -981,11 +1015,13 @@ public partial class PlayerWindow : Window
         var accentBrush = ResolveAccentBrush(_accentColor);
         ToggleAccent.SetCheckedBrush(PinToggle, accentBrush);
         ToggleAccent.SetCheckedBrush(FadeToggle, accentBrush);
+        UpdatePopoutEdgeBorder();
     }
 
     private void RefreshFocusedSurfaceAppearance() =>
         _playerFirstSurfaceBridge?.ApplyAppearance(
-            _accentColor, _fadeEnabled, (int)_idleTimer.Interval.TotalMilliseconds, Topmost);
+            _accentColor, _fadeEnabled, (int)_idleTimer.Interval.TotalMilliseconds, Topmost,
+            WindowState == WindowState.Maximized);
 
     private static Brush ResolveAccentBrush(string? accentColor)
     {
@@ -1086,13 +1122,6 @@ public partial class PlayerWindow : Window
         UpdateActivityProbe();
     }
 
-    /// <summary>Live re-apply seam for the theme/override native corner shape, called by
-    /// MainWindow on settings changes (mirrors <see cref="ApplyWindowOpacity"/>).</summary>
-    internal void ApplyCornerMode(DwmCornerMode mode)
-    {
-        ApplyCornerAppearance(mode, _popoutCornerRadiusDip);
-    }
-
     private void SurfaceDragBridge_DragRequested(object? sender, EventArgs e)
     {
         if (_surfaceDragQueued || _closing) return;
@@ -1189,6 +1218,7 @@ public partial class PlayerWindow : Window
     private void ApplyCornerModeToHwnd(bool forceRegionRefresh = false, bool applyDwmAttributes = true)
     {
         if (_closing) return;
+        UpdatePopoutEdgeBorder();
         var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero) return;   // SourceInitialized applies the initial state
         if (applyDwmAttributes)
@@ -1197,6 +1227,9 @@ public partial class PlayerWindow : Window
             WindowOpacityApplier.SetBorderColor(hwnd, suppress: true); // P1 borderless: no Win11 frame hairline
         }
 
+        _isSnapLike = WindowState == WindowState.Normal && (_isDragging
+            ? _isSnapLike
+            : RoundedWindowRegionApplier.IsSnapLike(hwnd));
         var canApplyRegion = RoundedWindowRegionPolicy.CanApply(
             _dwmCornerMode,
             _popoutCornerRadiusDip,
@@ -1205,7 +1238,7 @@ public partial class PlayerWindow : Window
         // during a live move/resize, preserve the prior decision and classify once on native exit.
         var shouldApplyRegion = canApplyRegion && (_isDragging
             ? _customWindowRegionApplied
-            : !RoundedWindowRegionApplier.IsSnapLike(hwnd));
+            : !_isSnapLike);
 
         if (shouldApplyRegion)
         {
@@ -1224,6 +1257,8 @@ public partial class PlayerWindow : Window
         {
             if (RoundedWindowRegionApplier.Clear(hwnd)) _customWindowRegionApplied = false;
         }
+
+        UpdatePopoutEdgeBorder();
     }
 
     private static double NormalizeCornerRadius(double radiusDip) =>
@@ -1306,11 +1341,17 @@ public partial class PlayerWindow : Window
             _controlsVisible = false;
             ChromeStrip.IsHitTestVisible = false;
             ChromeStrip.Visibility = Visibility.Collapsed;
+            UpdatePopoutEdgeBorder();
+            UpdatePlayerResizeInset();
+            UpdatePlayerCanvasBackground();
             return;
         }
         // Un-collapse first (strip auto-hide): the reveal must restore the layout row before the
         // opacity fade-in has anything to fade in.
         if (ChromeStrip.Visibility != Visibility.Visible) ChromeStrip.Visibility = Visibility.Visible;
+        UpdatePopoutEdgeBorder();
+        UpdatePlayerResizeInset();
+        UpdatePlayerCanvasBackground();
         if (_controlsVisible && ChromeStrip.IsHitTestVisible) return;
         _controlsVisible = true;
         ChromeStrip.IsHitTestVisible = true;
@@ -1335,6 +1376,9 @@ public partial class PlayerWindow : Window
         // Strip auto-hide (Phase 4): once fully faded, also height-collapse so the video fills
         // the window; the top-edge hover band or any reveal path restores the row.
         if (_stripAutoHide) ChromeStrip.Visibility = Visibility.Collapsed;
+        UpdatePopoutEdgeBorder();
+        UpdatePlayerResizeInset();
+        UpdatePlayerCanvasBackground();
     }
 
     private void AnimateStripOpacity(double to, Action? onCompleted = null)

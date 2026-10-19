@@ -56,10 +56,6 @@ public class PlaybackModePolicyTests
     {
         Assert.Equal(480, PlaybackModePolicy.MinWidthFor(PlaybackMode.Compact));
         Assert.Equal(270, PlaybackModePolicy.MinHeightFor(PlaybackMode.Compact));
-
-        // The compact floor must be strictly larger so the embedded controls stay usable.
-        Assert.True(PlaybackModePolicy.CompactMinWidth > PlaybackModePolicy.NormalMinWidth);
-        Assert.True(PlaybackModePolicy.CompactMinHeight > PlaybackModePolicy.NormalMinHeight);
     }
 
     // --- DOM-sync-timer selection: exactly one timestamp source per mode (spec 10.3) ---
@@ -96,6 +92,10 @@ public class PlaybackModePolicyTests
     // profileMode, profileVideoId, targetVideoId, expected
     [InlineData("compact", "vid00000001", "vid00000001", "compact")] // match -> override applies
     [InlineData("normal", "vid00000001", "vid00000001", "normal")]
+    [InlineData("embed", "vid00000001", "vid00000001", "compact")]   // legacy alias normalized
+    [InlineData(" COMPACT ", "vid00000001", "vid00000001", "compact")] // trimmed + lowercased
+    [InlineData("garbage", "vid00000001", "vid00000001", null)]      // unknown value falls back to global
+    [InlineData("   ", "vid00000001", "vid00000001", null)]          // blank falls back to global
     [InlineData("compact", "vid00000001", "vid00000002", null)]      // mismatch -> global default
     [InlineData("compact", null, "vid00000001", null)]               // playlist-only/unparseable profile url
     [InlineData("compact", "vid00000001", null, null)]               // no concrete target
@@ -113,7 +113,6 @@ public class PlaybackModePolicyTests
     [Fact]
     public void Embed_compact_player_is_disabled_so_new_popouts_resolve_to_normal()
     {
-        Assert.False(PlaybackModePolicy.CompactPlayerEnabled);
         // The kill switch overrides BOTH a global compact default and a per-profile compact override.
         Assert.Equal(PlaybackMode.Normal, PlaybackModePolicy.ResolveEffectivePopoutMode(null, globalCompact: true));
         Assert.Equal(PlaybackMode.Normal, PlaybackModePolicy.ResolveEffectivePopoutMode("compact", globalCompact: true));

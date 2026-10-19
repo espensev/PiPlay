@@ -19,13 +19,15 @@ public class ColorMathTests
         Assert.Equal(1.0, v, 3);
     }
 
-    [Fact]
-    public void Gray_has_zero_saturation_and_hue_zero()
+    [Theory]
+    [InlineData(0x80, 0x80, 0x80, 0x80 / 255.0)]
+    [InlineData(0x00, 0x00, 0x00, 0.0)]
+    public void Gray_has_zero_saturation_and_hue_zero(byte r, byte g, byte b, double expectedValue)
     {
-        var (h, s, v) = ColorMath.RgbToHsv(Color.FromRgb(0x80, 0x80, 0x80));
+        var (h, s, v) = ColorMath.RgbToHsv(Color.FromRgb(r, g, b));
 
         Assert.Equal(0.0, s, 3);
-        Assert.Equal(0x80 / 255.0, v, 3);
+        Assert.Equal(expectedValue, v, 3);
         Assert.Equal(0.0, h, 3);
     }
 
@@ -33,6 +35,8 @@ public class ColorMathTests
     [InlineData(0xFF, 0x50, 0xC8)]
     [InlineData(0x00, 0xD4, 0xFF)]
     [InlineData(0x12, 0x34, 0x56)]
+    [InlineData(0x80, 0xFF, 0x00)]
+    [InlineData(0x80, 0x00, 0xFF)]
     public void HsvToRgb_inverts_RgbToHsv(byte r, byte g, byte b)
     {
         var original = Color.FromRgb(r, g, b);
@@ -45,6 +49,7 @@ public class ColorMathTests
     public void HsvToRgb_wraps_hue_and_clamps_sv()
     {
         Assert.Equal(ColorMath.HsvToRgb(0, 1, 1), ColorMath.HsvToRgb(360, 1, 1));
+        Assert.Equal(ColorMath.HsvToRgb(300, 1, 1), ColorMath.HsvToRgb(-60, 1, 1));
         Assert.Equal(Colors.White, ColorMath.HsvToRgb(0, -1, 2));
     }
 }

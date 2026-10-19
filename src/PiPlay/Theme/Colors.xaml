@@ -17,10 +17,10 @@
        base. The warmer pre-theme tones now live on as the Minimal preset. -->
   <Color x:Key="AppBackgroundColor">#FF050609</Color>
   <Color x:Key="SurfaceBaseColor">#FF0B0E12</Color>
-  <Color x:Key="SurfaceRaisedColor">#FF131820</Color>
-  <Color x:Key="SurfaceHoverColor">#FF1E2630</Color>
-  <Color x:Key="BorderSubtleColor">#FF181F29</Color>
-  <Color x:Key="BorderStrongColor">#FF262F3D</Color>
+  <Color x:Key="SurfaceRaisedColor">#FF12161D</Color>
+  <Color x:Key="SurfaceHoverColor">#FF1B212C</Color>
+  <Color x:Key="BorderSubtleColor">#FF1F2733</Color>
+  <Color x:Key="BorderStrongColor">#FF2E394A</Color>
   <Color x:Key="TextPrimaryColor">#FFF4F7FA</Color>
   <Color x:Key="TextSecondaryColor">#FF9AA2AD</Color>
   <Color x:Key="AccentCyanColor">#FF2BAED0</Color>
@@ -45,6 +45,7 @@
   <Color x:Key="AccentHoverColor">#FF51BDD8</Color>
   <Color x:Key="AccentPressedColor">#FF2492AF</Color>
   <Color x:Key="AccentBorderColor">#FF40B6D5</Color>
+  <Color x:Key="AccentSubtleColor">#222BAED0</Color>
   <Color x:Key="AccentShellTintColor">#FF12343F</Color>
   <!-- Toolbar glyph color at the DEFAULT accent intensity (50). Replaced at runtime by
        ThemeResourceApplier; this seed covers design time and the pre-Apply instant, so it must BE the
@@ -61,9 +62,6 @@
   <Color x:Key="AccentLetterboxColor">#FF010506</Color>
   <Color x:Key="AppBackgroundWashColor">#FF06090D</Color>
   <Color x:Key="PopoutAccentEdgeColor">#8040B6D5</Color>
-  <!-- Profile dropdown row wash alpha at the default theme (sharp-dark SubtleAlpha). Replaced by
-       ThemeResourceApplier with the active theme's value. -->
-  <sys:Byte x:Key="ProfileRowWashAlpha">34</sys:Byte>
 
   <SolidColorBrush x:Key="AppBackground" Color="{StaticResource AppBackgroundColor}" />
   <SolidColorBrush x:Key="SurfaceBase" Color="{StaticResource SurfaceBaseColor}" />
@@ -89,6 +87,7 @@
   <SolidColorBrush x:Key="AccentHover" Color="{StaticResource AccentHoverColor}" />
   <SolidColorBrush x:Key="AccentPressed" Color="{StaticResource AccentPressedColor}" />
   <SolidColorBrush x:Key="AccentBorder" Color="{StaticResource AccentBorderColor}" />
+  <SolidColorBrush x:Key="AccentSubtle" Color="{StaticResource AccentSubtleColor}" />
   <SolidColorBrush x:Key="AccentShellTint" Color="{StaticResource AccentShellTintColor}" />
   <SolidColorBrush x:Key="AccentChromeGlyph" Color="{StaticResource AccentChromeGlyphColor}" />
   <SolidColorBrush x:Key="OnAccent" Color="{StaticResource OnAccentColor}" />
