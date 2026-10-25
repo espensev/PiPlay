@@ -32,6 +32,10 @@ public class YouTubeDomBehaviorTests
                 Nonce, "#2BAED0", fadeEnabled: true, fadeDelayMs: 2500),
             focusedAuthorizeScript = YouTubeDomBridge.BuildPlayerFirstDocumentTokenScript(DocumentToken),
             focusedStateRequestScript = YouTubeDomBridge.BuildPlayerFirstStateRequestScript(),
+            focusedConfigurePinnedMaxScript = YouTubeDomBridge.BuildPlayerFirstConfigurationScript(
+                "#FF5500", fadeEnabled: true, fadeDelayMs: 1800, topmost: true, maximized: true),
+            focusedConfigureUnpinnedRestoreScript = YouTubeDomBridge.BuildPlayerFirstConfigurationScript(
+                "#2BAED0", fadeEnabled: true, fadeDelayMs: 2500, topmost: false, maximized: false),
         });
 
         var startInfo = new ProcessStartInfo
@@ -70,4 +74,30 @@ public class YouTubeDomBehaviorTests
             $"Node DOM behavior harness exited with code {process.ExitCode}.{Environment.NewLine}{diagnostics}");
         Assert.Contains("DOM HARNESS PASS", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Generated_surface_scripts_escape_tokens_format_thresholds_invariantly_and_clamp_fade_delay()
+    {
+        const string nonce = "nonce-with-\"quote";
+        const string documentToken = "document-token-with-\"quote";
+
+        var passiveScript = YouTubeDomBridge.BuildPassiveSurfaceDragScript(nonce, 4.25, 7.5);
+        var passiveAuthorize = YouTubeDomBridge.BuildPassiveSurfaceDocumentTokenScript(documentToken);
+        var focusedLowFade = YouTubeDomBridge.BuildPlayerFirstSurfaceScript(
+            nonce, "#2BAED0", fadeEnabled: true, fadeDelayMs: 100);
+        var focusedHighFade = YouTubeDomBridge.BuildPlayerFirstConfigurationScript(
+            "#2BAED0", fadeEnabled: false, fadeDelayMs: 25_000, topmost: true, maximized: true);
+        var focusedAuthorize = YouTubeDomBridge.BuildPlayerFirstDocumentTokenScript(documentToken);
+
+        Assert.Contains($"const nonce = {JsonSerializer.Serialize(nonce)};", passiveScript);
+        Assert.Contains("const thresholdX = 4.25;", passiveScript);
+        Assert.Contains("const thresholdY = 7.5;", passiveScript);
+        Assert.Contains($"const documentToken = {JsonSerializer.Serialize(documentToken)};", passiveAuthorize);
+
+        Assert.Contains($"const nonce = {JsonSerializer.Serialize(nonce)};", focusedLowFade);
+        Assert.Contains("fadeDelayMs: 500", focusedLowFade);
+        Assert.Contains("fadeDelayMs: 10000", focusedHighFade);
+        Assert.Contains($"const documentToken = {JsonSerializer.Serialize(documentToken)};", focusedAuthorize);
+    }
 }
+

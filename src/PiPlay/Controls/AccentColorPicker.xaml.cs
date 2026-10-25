@@ -63,7 +63,18 @@ public partial class AccentColorPicker : UserControl
 
     public bool IsSelectedReadable => (bool)GetValue(IsSelectedReadableProperty);
 
-    public void UseNearestReadable() => SelectedColor = AccentReadabilityPolicy.NearestReadable(SelectedColor);
+    public void UseNearestReadable()
+    {
+        var target = AccentReadabilityPolicy.NearestReadable(SelectedColor);
+        if (string.Equals(SelectedColor, target, StringComparison.Ordinal))
+        {
+            RefreshFromSelectedColor(target, recomputeHsv: true);
+        }
+        else
+        {
+            SelectedColor = target;
+        }
+    }
 
     protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
     {
@@ -97,6 +108,10 @@ public partial class AccentColorPicker : UserControl
     private void RefreshFromSelectedColor(string value, bool recomputeHsv)
     {
         var readable = AccentReadabilityPolicy.Evaluate(value).IsReadable;
+        if (!readable)
+        {
+            ReadabilityWarning.Text = "Enter a valid 6-digit hex color (#RRGGBB).";
+        }
         SetReadability(readable);
 
         _updating = true;
@@ -148,6 +163,7 @@ public partial class AccentColorPicker : UserControl
                 || !byte.TryParse(GInput.Text, out var g)
                 || !byte.TryParse(BInput.Text, out var b))
             {
+                ReadabilityWarning.Text = "Enter RGB values from 0 to 255.";
                 SetReadability(false);
                 return;
             }
@@ -157,7 +173,15 @@ public partial class AccentColorPicker : UserControl
             _h = h;
             _s = s;
             _v = v;
-            SelectedColor = Hex(color);
+            var hex = Hex(color);
+            if (string.Equals(SelectedColor, hex, StringComparison.Ordinal))
+            {
+                RefreshFromSelectedColor(hex, recomputeHsv: false);
+            }
+            else
+            {
+                SelectedColor = hex;
+            }
         }
         finally
         {
@@ -171,7 +195,16 @@ public partial class AccentColorPicker : UserControl
         _editingTextBox = HexInput;
         try
         {
-            SelectedColor = HexInput.Text.Trim();
+            var raw = HexInput.Text.Trim();
+            var next = ThemeCatalog.IsValidHex(raw) ? ThemeCatalog.NormalizeAccentColor(raw) : raw;
+            if (string.Equals(SelectedColor, next, StringComparison.Ordinal))
+            {
+                RefreshFromSelectedColor(next, recomputeHsv: true);
+            }
+            else
+            {
+                SelectedColor = raw;
+            }
         }
         finally
         {
@@ -222,7 +255,7 @@ public partial class AccentColorPicker : UserControl
     {
         var changed = IsSelectedReadable != readable;
         SetValue(IsSelectedReadablePropertyKey, readable);
-        ReadabilityRow.Visibility = readable ? Visibility.Collapsed : Visibility.Visible;
+        ReadabilityRow.Visibility = readable ? Visibility.Hidden : Visibility.Visible;
         ReadabilityWarning.Visibility = readable ? Visibility.Collapsed : Visibility.Visible;
         UseNearestReadableButton.Visibility = readable ? Visibility.Collapsed : Visibility.Visible;
         if (changed)
@@ -307,6 +340,7 @@ public partial class AccentColorPicker : UserControl
         var centerY = (pixelHeight - 1) / 2.0;
         var radiusX = Math.Max(centerX, 0.5);
         var radiusY = Math.Max(centerY, 0.5);
+        var radiusPx = Math.Min(radiusX, radiusY);
 
         for (var y = 0; y < pixelHeight; y++)
         {
@@ -317,7 +351,8 @@ public partial class AccentColorPicker : UserControl
                 var dx = (x - centerX) / radiusX;
                 var dy = (y - centerY) / radiusY;
                 var distance = Math.Sqrt(dx * dx + dy * dy);
-                if (distance > 1.0)
+                var alpha = Math.Clamp((1.0 - distance) * radiusPx + 0.5, 0.0, 1.0);
+                if (alpha <= 0.0)
                 {
                     pixels[y * pixelWidth + x] = 0x00000000;
                     continue;
@@ -326,8 +361,12 @@ public partial class AccentColorPicker : UserControl
                 var hue = ((Math.Atan2(dy, dx) * 180.0 / Math.PI) + 360.0) % 360.0;
                 var saturation = Math.Clamp(distance, 0.0, 1.0);
                 var color = ColorMath.HsvToRgb(hue, saturation, 1.0);
+                var a = (uint)Math.Round(alpha * 255.0);
+                var r = (uint)Math.Round(color.R * alpha);
+                var g = (uint)Math.Round(color.G * alpha);
+                var b = (uint)Math.Round(color.B * alpha);
                 pixels[y * pixelWidth + x] = unchecked(
-                    (int)(0xFF000000u | ((uint)color.R << 16) | ((uint)color.G << 8) | color.B));
+                    (int)((a << 24) | (r << 16) | (g << 8) | b));
             }
         }
 

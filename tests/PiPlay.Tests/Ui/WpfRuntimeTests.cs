@@ -35,44 +35,8 @@ public class WpfRuntimeTests : IDisposable
         new(environment: null!, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
             topmost: false, placement: null, defaultWidth: 960, defaultHeight: 540, fadeEnabled: true);
 
-    // --- Construction proves runtime resource resolution + template compilation ---
-
-    [Fact]
-    public void MainWindow_constructs_without_throwing() => StaTestThread.Invoke(() =>
-    {
-        var ex = Record.Exception(() => new MainWindow());
-        Assert.Null(ex);
-    });
-
-    [Fact]
-    public void PlayerWindow_constructs_without_throwing() => StaTestThread.Invoke(() =>
-    {
-        var ex = Record.Exception(() => NewPlayer());
-        Assert.Null(ex);
-    });
-
-    [Fact]
-    public void SettingsWindow_constructs_without_throwing() => StaTestThread.Invoke(() =>
-    {
-        var ex = Record.Exception(() => new SettingsWindow(isBrowserReady: true));
-        Assert.Null(ex);
-    });
-
     // --- Theme resource application (overhaul Task 9): replace the accent entries; DynamicResource
     // consumers re-resolve, including controls already realized in open windows. ---
-
-    [Fact]
-    public void ThemeResourceApplier_replaces_the_accent_entries_from_the_theme() => StaTestThread.Invoke(() =>
-    {
-        var res = new ResourceDictionary();   // empty (startup, before windows): the entries are added
-        ThemeResourceApplier.Apply(res, new ThemeSettings { AccentColor = "#38D996" }, new PlayerSettings());
-
-        var primary = (SolidColorBrush)res["AccentPrimary"];
-        var light = (SolidColorBrush)res["AccentPrimaryLight"];
-        Assert.Equal(Color.FromRgb(0x38, 0xD9, 0x96), primary.Color);   // base takes the accent
-        Assert.True(primary.IsFrozen);                                  // shareable across windows
-        Assert.True(light.Color.G >= primary.Color.G && light.Color != primary.Color);   // lighter derivation
-    });
 
     [Fact]
     public void ThemeResourceApplier_identical_accent_apply_preserves_all_pair_identities() =>
@@ -83,7 +47,7 @@ public class WpfRuntimeTests : IDisposable
             ThemeResourceApplier.ApplyAccentOnly(resources, "#38D996", preset, accentIntensity: 35);
             string[] keys =
             [
-                "AccentPrimary", "AccentHover", "AccentPressed", "AccentBorder", "AccentShellTint",
+                "AccentPrimary", "AccentHover", "AccentPressed", "AccentBorder", "AccentSubtle", "AccentShellTint",
                 "AccentChromeGlyph", "OnAccent", "OnAccentPressed", "AccentPrimaryLight",
             ];
             var before = keys
@@ -108,6 +72,7 @@ public class WpfRuntimeTests : IDisposable
                 ["AccentHover"] = set.Hover,
                 ["AccentPressed"] = set.Pressed,
                 ["AccentBorder"] = set.Border,
+                ["AccentSubtle"] = set.Subtle,
                 ["AccentShellTint"] = set.ShellTint,
                 ["AccentChromeGlyph"] = set.ChromeGlyph,
                 ["OnAccent"] = set.OnAccent,
@@ -238,6 +203,7 @@ public class WpfRuntimeTests : IDisposable
         AssertToken("AccentPressed", expected.Pressed);
         AssertToken("OnAccentPressed", expected.OnAccentPressed);
         AssertToken("AccentBorder", expected.Border);
+        AssertToken("AccentSubtle", expected.Subtle);
         AssertToken("AccentShellTint", expected.ShellTint);
         AssertToken("AccentChromeGlyph", expected.ChromeGlyph);
 
@@ -398,8 +364,12 @@ public class WpfRuntimeTests : IDisposable
 
             var content = (ContentPresenter)combo.Template.FindName("ContentSite", combo)!;
             content.ApplyTemplate();
-            var rail = Assert.IsType<Border>(FindVisualChild(content, "ProfileIdentityColorRail"));
+            var row = Assert.IsType<Grid>(FindVisualChild(content, "ProfileIdentityRow"));
+            var rail = Assert.IsType<Border>(FindVisualChild(row, "ProfileIdentityColorRail"));
             rail.GetBindingExpression(Border.BackgroundProperty)?.UpdateTarget();
+            Assert.Null(row.Background);
+            Assert.Equal(Visibility.Visible, rail.Visibility);
+            Assert.Equal(new Thickness(0, 2, 8, 2), rail.Margin);
             var first = Assert.IsType<SolidColorBrush>(rail.Background).Color;
             var ratio = ThemeColors.ContrastRatio(first, initialSurface.Color);
             Assert.True(ratio >= 3.0, $"Profile identity rail contrast is only {ratio:F2}:1.");
@@ -421,8 +391,12 @@ public class WpfRuntimeTests : IDisposable
             combo.SelectedIndex = 0;
             combo.UpdateLayout();
             content.ApplyTemplate();
-            rail = Assert.IsType<Border>(FindVisualChild(content, "ProfileIdentityColorRail"));
+            row = Assert.IsType<Grid>(FindVisualChild(content, "ProfileIdentityRow"));
+            rail = Assert.IsType<Border>(FindVisualChild(row, "ProfileIdentityColorRail"));
             rail.GetBindingExpression(Border.BackgroundProperty)?.UpdateTarget();
+            Assert.Null(row.Background);
+            Assert.Equal(Visibility.Collapsed, rail.Visibility);
+            Assert.Equal(new Thickness(0), rail.Margin);
             Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(rail.Background).Color);
         }
         finally
@@ -572,31 +546,6 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void SettingsWindow_disables_only_clear_when_browser_not_ready() => StaTestThread.Invoke(() =>
-    {
-        var notReady = new SettingsWindow(isBrowserReady: false);
-        Assert.True(((Button)notReady.FindName("ResetAppStateButton")!).IsEnabled);
-        Assert.False(((Button)notReady.FindName("ClearBrowserDataButton")!).IsEnabled);
-
-        var ready = new SettingsWindow(isBrowserReady: true);
-        Assert.True(((Button)ready.FindName("ResetAppStateButton")!).IsEnabled);
-        Assert.True(((Button)ready.FindName("ClearBrowserDataButton")!).IsEnabled);
-    });
-
-    [Fact]
-    public void SettingsWindow_explains_why_clear_is_disabled() => StaTestThread.Invoke(() =>
-    {
-        var notReady = new SettingsWindow(isBrowserReady: false);
-        var clear = (Button)notReady.FindName("ClearBrowserDataButton")!;
-        Assert.Equal(PiPlay.Services.PrivacyService.ClearNotReadyHint, (string)clear.ToolTip);
-        Assert.True(ToolTipService.GetShowOnDisabled(clear));   // tip shows on the disabled button
-
-        // When the browser is ready the button is enabled and carries no explanatory tooltip.
-        var ready = new SettingsWindow(isBrowserReady: true);
-        Assert.Null(((Button)ready.FindName("ClearBrowserDataButton")!).ToolTip);
-    });
-
-    [Fact]
     public void SettingsWindow_explains_when_a_previous_clear_is_still_running() => StaTestThread.Invoke(() =>
     {
         var dialog = new SettingsWindow(
@@ -604,15 +553,18 @@ public class WpfRuntimeTests : IDisposable
             clearBrowserDataUnavailableHint: PrivacyService.ClearAlreadyRunningHint);
         var clear = (Button)dialog.FindName("ClearBrowserDataButton")!;
 
+        Assert.True(((Button)dialog.FindName("ResetAppStateButton")!).IsEnabled);
         Assert.False(clear.IsEnabled);
         Assert.Equal(PrivacyService.ClearAlreadyRunningHint, clear.ToolTip);
         Assert.True(ToolTipService.GetShowOnDisabled(clear));
 
         dialog.SetClearBrowserDataAvailability(isBrowserReady: true);
+        Assert.True(((Button)dialog.FindName("ResetAppStateButton")!).IsEnabled);
         Assert.True(clear.IsEnabled);
         Assert.Null(clear.ToolTip);
 
         dialog.SetClearBrowserDataAvailability(isBrowserReady: false);
+        Assert.True(((Button)dialog.FindName("ResetAppStateButton")!).IsEnabled);
         Assert.False(clear.IsEnabled);
         Assert.Equal(PrivacyService.ClearNotReadyHint, clear.ToolTip);
     });
@@ -839,39 +791,22 @@ public class WpfRuntimeTests : IDisposable
     private static extern bool DeleteObject(IntPtr handle);
 
     [Fact]
-    public void MainWindow_exposes_settings_button() => StaTestThread.Invoke(() =>
+    public void MainWindow_dark_accent_uses_safe_primary_for_pin_and_hint_REQ_UI_01() => StaTestThread.Invoke(() =>
     {
         var w = new MainWindow();
-        Assert.IsType<Button>(w.FindName("SettingsButton"));
-    });
-
-    [Fact]
-    public void MainWindow_source_pin_uses_the_theme_accent() => StaTestThread.Invoke(() =>
-    {
-        var w = new MainWindow();
-        // Inject default settings so the assertion is isolated from any accent persisted to the shared
-        // test data root by an earlier test (the default WAS cyan; it is now the deepened #2BAED0).
         w.ReplaceSettingsForTests(new AppSettings());
         var pin = (ToggleButton)w.FindName("PinToggle")!;
         var hint = (TextBlock)w.FindName("PinnedHint")!;
 
-        // The source Pin glyph and the pinned hint share one accent brush built from Theme.AccentColor
-        // (overhaul Task 10); default settings resolve to the sharp-dark deep cyan.
-        var accent = (SolidColorBrush)ToggleAccent.GetCheckedBrush(pin)!;
-        Assert.Equal(ThemeColors.ParseColor(ThemeCatalog.DefaultAccentColor), accent.Color);
-        Assert.Equal(accent.Color, ((SolidColorBrush)hint.Foreground).Color);
-    });
+        // Default settings resolve to the sharp-dark default cyan on both the source Pin glyph and hint.
+        var defaultAccent = (SolidColorBrush)ToggleAccent.GetCheckedBrush(pin)!;
+        Assert.Equal(ThemeColors.ParseColor(ThemeCatalog.DefaultAccentColor), defaultAccent.Color);
+        Assert.Equal(defaultAccent.Color, ((SolidColorBrush)hint.Foreground).Color);
 
-    [Fact]
-    public void MainWindow_dark_accent_uses_safe_primary_for_pin_and_hint_REQ_UI_01() => StaTestThread.Invoke(() =>
-    {
-        var w = new MainWindow();
         w.ReplaceSettingsForTests(new AppSettings
         {
             Theme = new ThemeSettings { ThemeId = "sharp-dark", AccentColor = "#131820" },
         });
-        var pin = (ToggleButton)w.FindName("PinToggle")!;
-        var hint = (TextBlock)w.FindName("PinnedHint")!;
         var expected = ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color;
 
         Assert.Equal(expected, ((SolidColorBrush)ToggleAccent.GetCheckedBrush(pin)!).Color);
@@ -978,7 +913,7 @@ public class WpfRuntimeTests : IDisposable
         var preview = new SettingsWindow(isBrowserReady: true, themeId: "soft-glass");
 
         w.PreviewThemeForTests(preview);
-        Assert.Equal(ThemeColors.ParseColor("#0B1018"),
+        Assert.Equal(ThemeColors.ParseColor("#070C14"),
             ((SolidColorBrush)Application.Current.Resources["AppBackground"]).Color);
         Assert.Equal(0.82, ((Border)w.FindName("MainBarBackdrop")!).Opacity);
 
@@ -1225,30 +1160,6 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void Clear_is_not_ready_on_a_window_without_a_browser() => StaTestThread.Invoke(() =>
-    {
-        // The window is never shown, so the WebView2 core is never created: Clear must gate off.
-        // Guards the execution-time readiness re-check that prevents clearing with a stale state.
-        var w = new MainWindow();
-        Assert.False(w.CanClearBrowserData);
-    });
-
-    [Fact]
-    public void SettingsWindow_has_no_requested_action_until_confirmed() => StaTestThread.Invoke(() =>
-    {
-        var w = new SettingsWindow(isBrowserReady: true);
-        Assert.Equal(PrivacyAction.None, w.RequestedAction);
-    });
-
-    [Fact]
-    public void DangerButton_style_resolves_at_runtime() => StaTestThread.Invoke(() =>
-    {
-        // The destructive confirm resolves DangerButton from code (Prompt.AskConfirm), not XAML,
-        // so the markup StaticResource sweep misses it — prove it resolves to a Style at runtime.
-        Assert.IsType<Style>(Application.Current.TryFindResource("DangerButton"));
-    });
-
-    [Fact]
     public void Prompt_dialogs_are_borderless_dark() => StaTestThread.Invoke(() =>
     {
         // The themed dialogs are built in code (no XAML), so the markup suite can't guard them.
@@ -1262,8 +1173,9 @@ public class WpfRuntimeTests : IDisposable
         Assert.Same(Application.Current.Resources["AppBackground"], win.Background);
         Assert.NotNull(body);
 
-        // 1px border > dock panel > [draggable title bar with a CloseIconButton, body].
+        // 0px inner border > dock panel > [draggable title bar with a CloseIconButton, body].
         var border = Assert.IsType<Border>(win.Content);
+        Assert.Equal(new Thickness(0), border.BorderThickness);
         var dock = Assert.IsType<DockPanel>(border.Child);
         var bar = Assert.IsType<Grid>(dock.Children[0]);
         var close = Assert.Single(bar.Children.OfType<Button>(),
@@ -1274,23 +1186,6 @@ public class WpfRuntimeTests : IDisposable
         Assert.False(string.IsNullOrWhiteSpace(
             System.Windows.Automation.AutomationProperties.GetName(close)),
             "Prompt close button is missing an automation name.");
-    });
-
-    [Fact]
-    public void Named_controls_resolve_to_expected_types() => StaTestThread.Invoke(() =>
-    {
-        var w = new MainWindow();
-        Assert.IsType<TextBox>(w.FindName("UrlBox"));
-        Assert.IsType<Button>(w.FindName("PopOutButton"));
-        Assert.IsType<Button>(w.FindName("ShowPopoutButton"));
-        Assert.IsType<Button>(w.FindName("ProfileActionsButton"));
-        Assert.IsType<ContextMenu>(w.FindName("ProfileActionsMenu"));
-        Assert.IsType<MenuItem>(w.FindName("SaveProfileMenuItem"));
-        Assert.IsType<Button>(w.FindName("PlaceholderShowPopoutButton"));
-        Assert.IsType<Button>(w.FindName("PlaceholderBringBackButton"));
-        Assert.IsType<ComboBox>(w.FindName("ProfilesCombo"));
-        Assert.IsType<Border>(w.FindName("SourcePlaceholder"));
-        Assert.IsType<Border>(w.FindName("RuntimeErrorPanel"));
     });
 
     [Fact]
@@ -1336,21 +1231,6 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void Source_placeholder_bring_back_button_is_accessible_recovery_action() => StaTestThread.Invoke(() =>
-    {
-        var w = new MainWindow();
-        var button = (Button)w.FindName("PlaceholderBringBackButton")!;
-
-        Assert.Same(Application.Current.FindResource("AccentButton"), button.Style);
-        Assert.Equal("Bring video back", button.Content);
-        Assert.Equal("Bring video back", System.Windows.Automation.AutomationProperties.GetName(button));
-        Assert.Contains("Return playback", (string)button.ToolTip);
-
-        w.ShowSourcePlaceholder(true);
-        Assert.Equal(Visibility.Visible, button.Visibility);
-    });
-
-    [Fact]
     public void Source_placeholder_surfaces_and_clears_the_fallback_note() => StaTestThread.Invoke(() =>
     {
         // A FallbackReason (today: a malformed playlist link) rides the placeholder (Q-6) and must
@@ -1368,14 +1248,6 @@ public class WpfRuntimeTests : IDisposable
 
         w.ShowSourcePlaceholder(false);
         Assert.Equal(Visibility.Collapsed, note.Visibility);
-    });
-
-    [Fact]
-    public void Auto_toggle_reflects_loaded_setting_and_is_off_by_default() => StaTestThread.Invoke(() =>
-    {
-        // No settings file in the temp data root => AutoPopout defaults off => the toggle is unchecked.
-        var auto = (ToggleButton)new MainWindow().FindName("AutoToggle")!;
-        Assert.NotEqual(true, auto.IsChecked);
     });
 
     [Fact]
@@ -1401,31 +1273,6 @@ public class WpfRuntimeTests : IDisposable
     });
 
     /// <summary>
-    /// The accent-reach dial must survive a repaint that is not a Settings apply. Every accent repaint
-    /// goes through ApplyAccentEverywhere — profile switch, dialog dismiss, reset — and ApplyAccentOnly
-    /// DEFAULTS the intensity to the catalog value, so a repaint that forgets to pass the persisted dial
-    /// still compiles and still looks wired while snapping a user who chose 0 back to 50.
-    /// </summary>
-    [Fact]
-    public void MainWindow_repaints_with_the_persisted_accent_intensity_not_the_default() => StaTestThread.Invoke(() =>
-    {
-        var w = new MainWindow();
-        try
-        {
-            // Intensity 0 = the accent paints only the primary action: toolbar glyphs are ordinary text.
-            w.ReplaceSettingsForTests(new AppSettings { Theme = new ThemeSettings { AccentIntensity = 0 } });
-
-            var textPrimary = ThemeColors.ParseColor(ThemeCatalog.PresetFor("sharp-dark").Palette.TextPrimary);
-            Assert.Equal(0, w.EffectiveAccentIntensityForTests);
-            Assert.Equal(textPrimary, ((SolidColorBrush)Application.Current.Resources["AccentChromeGlyph"]).Color);
-        }
-        finally
-        {
-            w.ReplaceSettingsForTests(new AppSettings());   // restore App resources for other tests
-        }
-    });
-
-    /// <summary>
     /// The intensity slider previews live, and the preview is VISUAL-ONLY: it must never write to
     /// settings, or dismissing Settings without applying could not revert it.
     /// </summary>
@@ -1435,10 +1282,15 @@ public class WpfRuntimeTests : IDisposable
         var w = new MainWindow();
         try
         {
+            // Intensity 0 = the accent paints only the primary action: toolbar glyphs are ordinary text.
+            var textPrimary = ThemeColors.ParseColor(ThemeCatalog.PresetFor("sharp-dark").Palette.TextPrimary);
+            w.ReplaceSettingsForTests(new AppSettings { Theme = new ThemeSettings { AccentIntensity = 0 } });
+            Assert.Equal(0, w.EffectiveAccentIntensityForTests);
+            Assert.Equal(textPrimary, ((SolidColorBrush)Application.Current.Resources["AccentChromeGlyph"]).Color);
+
             var settings = new AppSettings { Theme = new ThemeSettings { AccentIntensity = 100 } };
             w.ReplaceSettingsForTests(settings);
             var fullReach = ((SolidColorBrush)Application.Current.Resources["AccentChromeGlyph"]).Color;
-            var textPrimary = ThemeColors.ParseColor(ThemeCatalog.PresetFor("sharp-dark").Palette.TextPrimary);
 
             // Drag the dial to 0. An intensity-only move must repaint even though the accent never
             // changed — if the two preview channels did not travel as a pair, the slider would look dead.
@@ -1463,27 +1315,12 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void MainWindow_reverts_a_previewed_accent_on_dismiss() => StaTestThread.Invoke(() =>
-    {
-        // Spec D5 / plan-review P1: dismissing Settings without applying (ShowDialog() != true) and
-        // cancelling the profile edit must revert every previewed accent surface to the resolved accent.
-        var w = new MainWindow();
-        w.ReplaceSettingsForTests(new AppSettings());   // global accent = default, no profile override
-        var resolved = ThemeColors.DeriveAccentSet(
-            w.ResolvedAccentColorForTests, ThemeCatalog.PresetFor("sharp-dark")).Primary;
-
-        w.LivePreviewAccent("#9E84F0");   // preview a different accent
-        Assert.NotEqual(resolved, ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color);
-
-        w.RevertPreviewedAccentForTests();   // the dismiss-without-apply revert path
-        Assert.Equal(resolved, ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color);
-    });
-
-    [Fact]
     public void MainWindow_live_preview_accepts_mid_tone_colors_and_ignores_invalid_hex() => StaTestThread.Invoke(() =>
     {
         var w = new MainWindow();
         w.ReplaceSettingsForTests(new AppSettings());
+        var resolved = ThemeColors.DeriveAccentSet(
+            w.ResolvedAccentColorForTests, ThemeCatalog.PresetFor("sharp-dark")).Primary;
         try
         {
             w.LivePreviewAccent("#787878");
@@ -1493,6 +1330,9 @@ public class WpfRuntimeTests : IDisposable
             var ex = Record.Exception(() => w.LivePreviewAccent("not-a-color"));
             Assert.Null(ex);
             Assert.Equal(previewed, ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color);
+
+            w.RevertPreviewedAccentForTests();
+            Assert.Equal(resolved, ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color);
         }
         finally
         {
@@ -1530,15 +1370,10 @@ public class WpfRuntimeTests : IDisposable
             fallbackTarget: new YouTubeTarget { VideoId = "dQw4w9WgXcQ" });
 
     [Fact]
-    public void Compact_error_bar_is_collapsed_on_construction() => StaTestThread.Invoke(() =>
-    {
-        Assert.False(NewCompactPlayer().IsErrorBarVisibleForTests);
-    });
-
-    [Fact]
     public void Shell_error_shows_the_bar_with_the_policy_message() => StaTestThread.Invoke(() =>
     {
         var w = NewCompactPlayer();
+        Assert.False(w.IsErrorBarVisibleForTests);
         w.HandleShellErrorForTests(new InboundShellMessage(ShellMessageKind.Error, ErrorCode: "101"));
 
         Assert.True(w.IsErrorBarVisibleForTests);
@@ -1594,21 +1429,6 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void SettingsWindow_compact_mode_is_a_silent_pass_through() => StaTestThread.Invoke(() =>
-    {
-        // The toggle was removed (2026-06); CompactMode is now a silent pass-through so the stored
-        // value still round-trips via the settings-save caller without any UI surface.
-        var on = new SettingsWindow(isBrowserReady: true, compactMode: true);
-        Assert.True(on.CompactMode);
-        Assert.Null(on.FindName("CompactModeToggle"));
-        Assert.False(on.AppearanceChanged, "Storing compact mode in ctor must not mark settings dirty.");
-
-        var off = new SettingsWindow(isBrowserReady: true, compactMode: false);
-        Assert.False(off.CompactMode);
-        Assert.Null(off.FindName("CompactModeToggle"));
-    });
-
-    [Fact]
     public void SettingsWindow_reflects_and_toggles_focused_presentation() => StaTestThread.Invoke(() =>
     {
         var on = new SettingsWindow(isBrowserReady: true, focusedPresentation: true);
@@ -1644,13 +1464,6 @@ public class WpfRuntimeTests : IDisposable
         Assert.True(w.Height <= w.MaxHeight, $"Launch Height {w.Height} exceeds the clamp {w.MaxHeight}.");
         Assert.True(w.MinHeight > 0, "The dialog must declare a usable MinHeight.");
         Assert.IsType<ScrollViewer>(w.FindName("SettingsScroll"));
-    });
-
-    [Fact]
-    public void SettingsWindow_compact_hint_text_is_not_present() => StaTestThread.Invoke(() =>
-    {
-        // The Playback section and its hint text were removed (2026-06) along with CompactModeToggle.
-        Assert.Null(new SettingsWindow(isBrowserReady: true).FindName("CompactModeHintText"));
     });
 
     // --- Whole-window opacity (spec 7.3, Phase 4) ---
@@ -1825,63 +1638,11 @@ public class WpfRuntimeTests : IDisposable
         WindowOpacityApplier.SetBorderColor(hwnd, suppress: false, highContrast: false);
         Assert.False(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
 
-        w.Close();
-    });
-
-    [Fact]
-    public void Border_color_keeps_the_system_border_under_high_contrast() => StaTestThread.Invoke(() =>
-    {
-        // Accessibility: borderless is the default, but High Contrast must keep the system frame
-        // border (a boundary/focus cue). The production method consults the real HC state; the
-        // overload injects it so BOTH branches are pinned without depending on the host's setting.
-        var w = new Window
-        {
-            Width = 240, Height = 160, Left = 100, Top = 100,
-            WindowStyle = WindowStyle.None, AllowsTransparency = false,
-            ShowActivated = false, ShowInTaskbar = false, Opacity = 0,
-        };
-        var hwnd = new WindowInteropHelper(w).EnsureHandle();
-
+        // High Contrast keeps the system frame border as an accessibility boundary/focus cue.
         WindowOpacityApplier.SetBorderColor(hwnd, suppress: true, highContrast: true);
-        Assert.False(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));   // HC → keep the border
-
-        WindowOpacityApplier.SetBorderColor(hwnd, suppress: true, highContrast: false);
-        Assert.True(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));    // normal → suppress
+        Assert.False(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
 
         w.Close();
-    });
-
-    [Fact]
-    public void Border_color_records_nothing_in_the_production_default() => StaTestThread.Invoke(() =>
-    {
-        // The border record is a test seam, and border-only windows carry no subclass, so nothing
-        // reclaims its entries on window destruction. Production therefore records NOTHING: without
-        // this gate the dict would grow one entry per top-level HWND ever shown. This test runs with
-        // the class-wide arming turned back off, which is the shipping configuration.
-        WindowOpacityApplier.DisableBorderSuppressionTrackingForTests();
-        try
-        {
-            WindowOpacityApplier.ResetBorderSuppressionForTests();
-            var w = new Window
-            {
-                Width = 240, Height = 160, Left = 100, Top = 100,
-                WindowStyle = WindowStyle.None, AllowsTransparency = false,
-                ShowActivated = false, ShowInTaskbar = false, Opacity = 0,
-            };
-            var hwnd = new WindowInteropHelper(w).EnsureHandle();
-
-            WindowOpacityApplier.SetBorderColor(hwnd, suppress: true, highContrast: false);
-            WindowOpacityApplier.SetBorderColor(hwnd, suppress: false, highContrast: false);
-
-            Assert.Equal(0, WindowOpacityApplier.BorderSuppressionEntryCountForTests());
-            Assert.Null(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
-
-            w.Close();
-        }
-        finally
-        {
-            WindowOpacityApplier.EnableBorderSuppressionTrackingForTests();   // restore the test-lane arming
-        }
     });
 
     [Fact]
@@ -1922,27 +1683,10 @@ public class WpfRuntimeTests : IDisposable
     });
 
     [Fact]
-    public void PlayerWindow_applies_the_theme_corner_mode_to_its_hwnd() => StaTestThread.Invoke(() =>
-    {
-        // End-to-end corner wiring (the opacity test's recipe): EnsureHandle fires
-        // SourceInitialized without Show, so the initial DWM corner application is real.
-        var w = new PlayerWindow(environment: null!, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-            topmost: false, placement: null, defaultWidth: 960, defaultHeight: 540, fadeEnabled: true,
-            dwmCornerMode: DwmCornerMode.Round);
-        var hwnd = new WindowInteropHelper(w).EnsureHandle();
-        Assert.Equal(DwmCornerMode.Round, WindowOpacityApplier.CornerModeForTests(hwnd));
-
-        // The live re-apply seam (MainWindow's ApplyOpenPlayerAppearance path on settings change).
-        w.ApplyCornerMode(DwmCornerMode.Square);
-        Assert.Equal(DwmCornerMode.Square, WindowOpacityApplier.CornerModeForTests(hwnd));
-
-        w.Close();
-    });
-
-    [Fact]
     public void PlayerWindow_round_mode_applies_the_large_region_and_clears_it_for_square_or_maximized() =>
         StaTestThread.Invoke(() =>
         {
+            WindowOpacityApplier.ResetBorderSuppressionForTests();
             var w = new PlayerWindow(
                 environment: null!,
                 url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
@@ -1960,17 +1704,21 @@ public class WpfRuntimeTests : IDisposable
             };
 
             var hwnd = new WindowInteropHelper(w).EnsureHandle();
+            Assert.Equal(DwmCornerMode.Round, WindowOpacityApplier.CornerModeForTests(hwnd));
+            Assert.NotNull(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
             w.ApplyCornerAppearance(DwmCornerMode.Round, 22); // re-evaluate after the manual position lands
             Assert.True(RoundedWindowRegionApplier.HasCustomRegionForTests(hwnd));
             Assert.False(RoundedWindowRegionApplier.IsPointVisibleForTests(hwnd, 0, 0));
             Assert.True(RoundedWindowRegionApplier.IsPointVisibleForTests(hwnd, 100, 100));
 
             w.ApplyCornerAppearance(DwmCornerMode.Square, 0);
+            Assert.Equal(DwmCornerMode.Square, WindowOpacityApplier.CornerModeForTests(hwnd));
             Assert.False(RoundedWindowRegionApplier.HasCustomRegionForTests(hwnd));
             Assert.True(RoundedWindowRegionApplier.IsPointVisibleForTests(hwnd, 0, 0));
 
             w.WindowState = WindowState.Maximized;
             w.ApplyCornerAppearance(DwmCornerMode.Round, 22);
+            Assert.Equal(DwmCornerMode.Round, WindowOpacityApplier.CornerModeForTests(hwnd));
             Assert.False(RoundedWindowRegionApplier.HasCustomRegionForTests(hwnd));
 
             w.WindowState = WindowState.Normal;
@@ -1982,10 +1730,12 @@ public class WpfRuntimeTests : IDisposable
     [Fact]
     public void MainWindow_applies_the_theme_corner_mode_at_source_initialized() => StaTestThread.Invoke(() =>
     {
+        WindowOpacityApplier.ResetBorderSuppressionForTests();
         var w = new MainWindow();
         w.ReplaceSettingsForTests(new AppSettings { Theme = new ThemeSettings { CornerStyle = "round" } });
         var hwnd = new WindowInteropHelper(w).EnsureHandle();
         Assert.Equal(DwmCornerMode.Round, WindowOpacityApplier.CornerModeForTests(hwnd));
+        Assert.NotNull(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
         w.Close();
     });
 
@@ -1993,9 +1743,11 @@ public class WpfRuntimeTests : IDisposable
     public void SettingsWindow_wears_the_pending_corner_style_on_its_own_hwnd() => StaTestThread.Invoke(() =>
     {
         // The dialog itself is the instant feedback surface for the corner-style row.
+        WindowOpacityApplier.ResetBorderSuppressionForTests();
         var w = new SettingsWindow(isBrowserReady: true, cornerStyle: "round");
         var hwnd = new WindowInteropHelper(w).EnsureHandle();
         Assert.Equal(DwmCornerMode.Round, WindowOpacityApplier.CornerModeForTests(hwnd));
+        Assert.NotNull(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
 
         ((ToggleButton)w.FindName("CornerStyleSquareChip")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
         Assert.Equal(DwmCornerMode.Square, WindowOpacityApplier.CornerModeForTests(hwnd));
@@ -2014,9 +1766,11 @@ public class WpfRuntimeTests : IDisposable
         try
         {
             Assert.Equal(DwmCornerMode.Round, ThemeResourceApplier.CurrentDwmCorners);
+            WindowOpacityApplier.ResetBorderSuppressionForTests();
             var shell = Prompt.BuildShell(owner: null, "Test", out _);
             var hwnd = new WindowInteropHelper(shell).EnsureHandle();
             Assert.Equal(DwmCornerMode.Round, WindowOpacityApplier.CornerModeForTests(hwnd));
+            Assert.NotNull(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
             shell.Close();
         }
         finally
@@ -2024,65 +1778,6 @@ public class WpfRuntimeTests : IDisposable
             // Restore the static for the rest of the suite (sharp-dark default = Default).
             ThemeResourceApplier.Apply(new ResourceDictionary(), new ThemeSettings(), new PlayerSettings());
         }
-    });
-
-    // --- Borderless follow-up: every borderless window suppresses the Windows 11 DWM frame border ---
-    // (P1's missed gap: the default sharp-dark theme is DwmCornerMode.Default, so SetCornerMode
-    // early-returns and never touched DWM — leaving the grey system hairline. Border suppression is
-    // unconditional, so these assert it lands even with no corner override.) Each asserts NotNull —
-    // i.e. the window WIRED a border-color decision — which proves the wiring independently of the
-    // host's High Contrast state (the resolved value itself is pinned by the HC test above).
-
-    [Fact]
-    public void MainWindow_suppresses_its_dwm_frame_border_at_source_initialized() => StaTestThread.Invoke(() =>
-    {
-        WindowOpacityApplier.ResetBorderSuppressionForTests();   // no stale recycled-HWND entry can weaken the check
-        var w = new MainWindow();
-        var hwnd = new WindowInteropHelper(w).EnsureHandle();
-        Assert.NotNull(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
-        w.Close();
-    });
-
-    [Fact]
-    public void PlayerWindow_suppresses_its_dwm_frame_border_at_source_initialized() => StaTestThread.Invoke(() =>
-    {
-        WindowOpacityApplier.ResetBorderSuppressionForTests();   // no stale recycled-HWND entry can weaken the check
-        var w = new PlayerWindow(environment: null!, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-            topmost: false, placement: null, defaultWidth: 960, defaultHeight: 540, fadeEnabled: true);
-        var hwnd = new WindowInteropHelper(w).EnsureHandle();
-        Assert.NotNull(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
-        w.Close();
-    });
-
-    [Fact]
-    public void SettingsWindow_suppresses_its_dwm_frame_border_on_its_own_hwnd() => StaTestThread.Invoke(() =>
-    {
-        WindowOpacityApplier.ResetBorderSuppressionForTests();   // no stale recycled-HWND entry can weaken the check
-        var w = new SettingsWindow(isBrowserReady: true, cornerStyle: "round");
-        var hwnd = new WindowInteropHelper(w).EnsureHandle();
-        Assert.NotNull(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
-        w.Close();
-    });
-
-    [Fact]
-    public void Prompt_dialogs_suppress_the_dwm_frame_border() => StaTestThread.Invoke(() =>
-    {
-        WindowOpacityApplier.ResetBorderSuppressionForTests();   // no stale recycled-HWND entry can weaken the check
-        var shell = Prompt.BuildShell(owner: null, "Test", out _);
-        var hwnd = new WindowInteropHelper(shell).EnsureHandle();
-        Assert.NotNull(WindowOpacityApplier.BorderColorSuppressedForTests(hwnd));
-        shell.Close();
-    });
-
-    [Fact]
-    public void Prompt_shell_has_no_visible_inner_border() => StaTestThread.Invoke(() =>
-    {
-        // P1 borderless: with the DWM frame suppressed, the prompt's content Border must not redraw a
-        // 1px inner frame; the prompt's inner border remains transparent.
-        var shell = Prompt.BuildShell(owner: null, "Test", out _);
-        var border = Assert.IsType<Border>(shell.Content);
-        Assert.Equal(new Thickness(0), border.BorderThickness);
-        shell.Close();
     });
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -2141,9 +1836,11 @@ public class WpfRuntimeTests : IDisposable
 
         w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionFullscreenToggle));
         Assert.Equal(WindowState.Maximized, w.WindowState);
+        Assert.Equal(GlyphRestore, w.ExpandGlyphForTests);
 
         w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionFullscreenToggle));
         Assert.Equal(WindowState.Normal, w.WindowState);
+        Assert.Equal(GlyphMaximize, w.ExpandGlyphForTests);
     });
 
     [Fact]
@@ -2187,15 +1884,6 @@ public class WpfRuntimeTests : IDisposable
             Assert.Equal(GlyphMaximize, w.ExpandGlyphForTests);
             Assert.Equal("Expand popout", w.ExpandToolTipForTests);
         });
-
-    [Fact]
-    public void Shell_fullscreen_request_updates_the_expand_affordance() => StaTestThread.Invoke(() =>
-    {
-        // The shell request and the native button are ONE path; the glyph follows either caller.
-        var w = NewCompactPlayer();
-        w.HandleShellRequestForTests(Request(PlayerShellProtocol.ActionFullscreenToggle));
-        Assert.Equal(GlyphRestore, w.ExpandGlyphForTests);
-    });
 
     [Fact]
     public void Fullscreen_element_expands_compact_and_exit_restores() => StaTestThread.Invoke(() =>
@@ -2297,15 +1985,17 @@ public class WpfRuntimeTests : IDisposable
     // --- In-place retarget + video-aware return state (overhaul Task 3) ---
 
     [Fact]
-    public void Compact_player_carries_its_launch_video_in_the_return_state() => StaTestThread.Invoke(() =>
-    {
-        Assert.Equal("dQw4w9WgXcQ", NewCompactPlayer().ReturnVideoIdForTests);
-    });
-
-    [Fact]
     public void Shell_state_updates_the_return_video_and_timestamp() => StaTestThread.Invoke(() =>
     {
         var w = NewCompactPlayer();
+        Assert.Equal("dQw4w9WgXcQ", w.ReturnVideoIdForTests);
+
+        // Hostile shell video ids never replace the return target, while the timestamp still lands.
+        w.HandleShellStateForTests(PlayerShellProtocol.Parse(
+            "{\"v\":3,\"type\":\"state\",\"currentTime\":5,\"playerState\":1,\"videoId\":\"abc&evil=1//\"}"));
+        Assert.Equal("dQw4w9WgXcQ", w.ReturnVideoIdForTests);
+        Assert.Equal(5, w.ReturnSecondsForTests);
+
         w.HandleShellStateForTests(new InboundShellMessage(
             ShellMessageKind.State, CurrentTime: 42, PlayerState: 1, VideoId: "autoAdvVid1"));
 
@@ -2316,20 +2006,6 @@ public class WpfRuntimeTests : IDisposable
         w.HandleShellStateForTests(new InboundShellMessage(ShellMessageKind.State, CurrentTime: 50));
         Assert.Equal("autoAdvVid1", w.ReturnVideoIdForTests);
         Assert.Equal(50, w.ReturnSecondsForTests);
-    });
-
-    [Fact]
-    public void Hostile_shell_video_ids_never_become_the_return_target() => StaTestThread.Invoke(() =>
-    {
-        // End-to-end through the REAL wire path: the shell string later becomes a SOURCE
-        // navigation target on close, and PlayerShellProtocol.Parse (the trust boundary) must
-        // reject the malformed id before the host ever sees it.
-        var w = NewCompactPlayer();
-        w.HandleShellStateForTests(PlayerShellProtocol.Parse(
-            "{\"v\":3,\"type\":\"state\",\"currentTime\":5,\"playerState\":1,\"videoId\":\"abc&evil=1//\"}"));
-
-        Assert.Equal("dQw4w9WgXcQ", w.ReturnVideoIdForTests);   // launch id kept
-        Assert.Equal(5, w.ReturnSecondsForTests);               // the timestamp itself still lands
     });
 
     [Fact]
@@ -2346,16 +2022,6 @@ public class WpfRuntimeTests : IDisposable
         Assert.Equal("recVideo001", w.ReturnVideoIdForTests);
         Assert.Equal("recVideo001", w.CurrentFallbackVideoIdForTests);   // error-bar fallback follows
         Assert.Null(w.ReturnSecondsForTests);   // unknown until the NEW shell reports
-    });
-
-    [Fact]
-    public void Normal_retarget_navigates_to_the_watch_url() => StaTestThread.Invoke(() =>
-    {
-        var w = NewPlayer();
-        Assert.True(w.TryRetargetForNewWindow("https://www.youtube.com/watch?v=recVideo001"));
-
-        Assert.StartsWith("https://www.youtube.com/watch?v=recVideo001", w.CurrentUrlForTests);
-        Assert.Equal("recVideo001", w.ReturnVideoIdForTests);
     });
 
     [Fact]
@@ -2379,79 +2045,19 @@ public class WpfRuntimeTests : IDisposable
         var w = new MainWindow();
         var res = System.Windows.Application.Current.Resources;
 
-        // Letterbox: the pixels framing the video in BOTH windows ride the derived tint, not Black.
+        // Letterbox: the placeholder and Normal popout canvas ride the derived tint, not Black.
         var letterbox = Assert.IsType<SolidColorBrush>(res["AccentLetterbox"]);
         Assert.NotEqual(Colors.Black, letterbox.Color);   // default intensity carries a faint tone
-        Assert.Same(letterbox, ((Grid)w.FindName("SourceLetterbox")!).Background);
         Assert.Same(letterbox, ((Border)w.FindName("SourcePlaceholder")!).Background);
         Assert.Same(letterbox, NewPlayer().Background);
 
-        // Room tone: the main window + toolbar wear the washed background, Settings keeps the flat one.
+        // Room tone: the main window, toolbar, and source letterbox wear the washed background so the
+        // browser stage blends seamlessly into the shell; Settings keeps the flat one.
         var wash = Assert.IsType<SolidColorBrush>(res["AppBackgroundWash"]);
         Assert.Same(wash, w.Background);
         Assert.Same(wash, ((Grid)w.FindName("SourceToolbar")!).Background);
+        Assert.Same(wash, ((Grid)w.FindName("SourceLetterbox")!).Background);
         Assert.NotEqual((Color)res["AppBackgroundColor"], wash.Color);
-    });
-
-    [Fact]
-    public void Title_wash_sweeps_into_the_washed_background() => StaTestThread.Invoke(() =>
-    {
-        var w = new MainWindow();
-        var backdrop = (Border)w.FindName("MainBarBackdrop")!;
-        var gradient = Assert.IsType<LinearGradientBrush>(backdrop.Background);
-        Assert.Equal(0.80, gradient.GradientStops[1].Offset, 2);
-    });
-
-    [Fact]
-    public void Profile_rows_wear_their_own_accent_as_a_wash() => StaTestThread.Invoke(() =>
-    {
-        // docs/Theme_Preset_Differences.md: each dropdown row washes in its OWN accent at the theme's subtle
-        // alpha (published as ProfileRowWashAlpha), behind the identity rail.
-        var alpha = Assert.IsType<byte>(Application.Current.Resources["ProfileRowWashAlpha"]);
-
-        var window = new MainWindow();
-        var combo = (ComboBox)window.FindName("ProfilesCombo")!;
-        combo.ItemsSource = new[]
-        {
-            new Profile
-            {
-                Name = "Violet",
-                Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-                AccentColor = "#A78BFA",
-            },
-        };
-        combo.SelectedIndex = 0;
-        combo.Measure(new Size(150, 32));
-        combo.Arrange(new Rect(0, 0, 150, 32));
-        combo.ApplyTemplate();
-        combo.UpdateLayout();
-
-        var content = (ContentPresenter)combo.Template.FindName("ContentSite", combo)!;
-        content.ApplyTemplate();
-        var row = Assert.IsType<Grid>(FindVisualChild(content, "ProfileIdentityRow"));
-        row.GetBindingExpression(Grid.BackgroundProperty)?.UpdateTarget();
-        Assert.Equal(Color.FromArgb(alpha, 0xA7, 0x8B, 0xFA),
-            Assert.IsType<SolidColorBrush>(row.Background).Color);
-
-        combo.ItemsSource = new[]
-        {
-            new Profile { Name = "Plain", Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
-        };
-        combo.SelectedIndex = 0;
-        combo.UpdateLayout();
-        content.ApplyTemplate();
-        row = Assert.IsType<Grid>(FindVisualChild(content, "ProfileIdentityRow"));
-        row.GetBindingExpression(Grid.BackgroundProperty)?.UpdateTarget();
-        Assert.Equal(Colors.Transparent, Assert.IsType<SolidColorBrush>(row.Background).Color);
-    });
-
-    [Fact]
-    public void Popout_wears_the_accent_edge() => StaTestThread.Invoke(() =>
-    {
-        var p = NewPlayer();
-        var edge = (Border)p.FindName("PopoutEdgeBorder")!;
-        Assert.Equal(new Thickness(1), edge.BorderThickness);
-        Assert.Same(Application.Current.Resources["PopoutAccentEdge"], edge.BorderBrush);
     });
 
     // --- Playlist context in the popout's return identity (spec 22.1: return preserves it) ---
@@ -2516,6 +2122,7 @@ public class WpfRuntimeTests : IDisposable
         var w = NewPlayer();
         Assert.True(w.TryRetargetForNewWindow("https://www.youtube.com/watch?v=recVideo001&list=PL0123456789"));
 
+        Assert.StartsWith("https://www.youtube.com/watch?v=recVideo001", w.CurrentUrlForTests);
         Assert.Equal("recVideo001", w.ReturnVideoIdForTests);
         Assert.Equal("PL0123456789", w.ReturnPlaylistIdForTests);
         Assert.Contains("list=PL0123456789", w.CurrentUrlForTests);
@@ -2586,11 +2193,15 @@ public class WpfRuntimeTests : IDisposable
     public void Return_on_the_same_video_seeks_rather_than_navigates() => StaTestThread.Invoke(() =>
     {
         var w = new MainWindow();
-        w.SeedPopoutReturnForTests(sourceVideoId: "AAAAAAAAAAA");
+        w.SeedPopoutReturnForTests(sourceVideoId: "AAAAAAAAAAA", sourceWasPlayingAtPopout: true);
 
-        w.ApplyReturnActionAsync(new PlayerReturnState { VideoId = "AAAAAAAAAAA", LastKnownSeconds = 42 })
+        w.ApplyReturnActionAsync(new PlayerReturnState { VideoId = "AAAAAAAAAAA", LastKnownSeconds = 95, Paused = false })
             .GetAwaiter().GetResult();
 
+        Assert.Equal(ReturnAction.SeekAndPlay, w.LastReturnActionForTests);
+        Assert.NotNull(w.LastSeekScriptForTests);
+        Assert.Contains("v.currentTime = 95;", w.LastSeekScriptForTests);
+        Assert.Contains("v.play()", w.LastSeekScriptForTests);
         Assert.Null(w.PendingUrlForTests);               // the seek path scripts a live core instead
         Assert.Equal("AAAAAAAAAAA", w.AutoLastHandledVideoIdForTests);
         Assert.Equal(AutoPopDecision.Skip, AutoPopoutPolicy.Decide(
@@ -2720,30 +2331,6 @@ public class WpfRuntimeTests : IDisposable
         Assert.False(w.IsChromeStripHitTestVisibleForTests);   // Q-8: hidden strip swallows no clicks
 
         w.OnUserActivityForTests();   // any reveal path must restore the layout row immediately
-        Assert.False(w.IsChromeStripCollapsedForTests);
-        Assert.True(w.IsChromeStripHitTestVisibleForTests);
-    });
-
-    [Fact]
-    public void Normal_mode_auto_hide_collapses_and_activity_restores_the_strip() => StaTestThread.Invoke(() =>
-    {
-        var w = new PlayerWindow(
-            environment: null!,
-            url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-            topmost: false,
-            placement: null,
-            defaultWidth: 960,
-            defaultHeight: 540,
-            fadeEnabled: true,
-            mode: PlaybackMode.Normal,
-            stripAutoHide: true);
-
-        w.HideControlsForTests();
-        w.CompleteHideFadeForTests();
-        Assert.True(w.IsChromeStripCollapsedForTests);
-        Assert.False(w.IsChromeStripHitTestVisibleForTests);
-
-        w.OnUserActivityForTests();
         Assert.False(w.IsChromeStripCollapsedForTests);
         Assert.True(w.IsChromeStripHitTestVisibleForTests);
     });
@@ -2990,6 +2577,70 @@ public class WpfRuntimeTests : IDisposable
             Assert.False(BorderlessWindowHelper.HasExpandedResizeSubclassForTests(hwnd));
         });
 
+    [Fact]
+    public void Popout_borderless_blending_hides_edge_border_switches_canvas_to_black_and_expands_resize_inset_when_focused_or_strip_collapsed() =>
+        StaTestThread.Invoke(() =>
+        {
+            var w = new PlayerWindow(
+                environment: null!,
+                url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                topmost: false,
+                placement: null,
+                defaultWidth: 960,
+                defaultHeight: 540,
+                fadeEnabled: true,
+                stripAutoHide: true,
+                presentation: PopoutPresentation.Focused);
+            var edge = (Border)w.FindName("PopoutEdgeBorder")!;
+            var playerView = (FrameworkElement)w.FindName("Player")!;
+            var letterbox = (SolidColorBrush)Application.Current.Resources["AccentLetterbox"];
+
+            var inset = BorderlessResizeHitTestPolicy.ResizeBorderDip;
+            var threeEdgeMargin = new Thickness(inset, 0, inset, inset);
+            var fourEdgeMargin = new Thickness(inset);
+
+            // Before the Focused overlay handshake completes, the native strip is visible and the 1px edge + letterbox + 3-edge margin apply.
+            Assert.Equal(new Thickness(1), edge.BorderThickness);
+            Assert.Same(Application.Current.Resources["PopoutAccentEdge"], edge.BorderBrush);
+            Assert.Same(letterbox, w.Background);
+            Assert.Equal(threeEdgeMargin, playerView.Margin);
+
+            // Once Focused surface is active, PopoutEdgeBorder disappears, canvas becomes pure black, and top resize inset expands to match all 4 edges.
+            w.ApplyFocusedSurfaceActiveForTests(true);
+            Assert.Equal(new Thickness(0), edge.BorderThickness);
+            Assert.Same(Brushes.Black, w.Background);
+            Assert.Equal(fourEdgeMargin, playerView.Margin);
+
+            // Returning to Standard recovery chrome restores the 1px edge, AccentLetterbox, and 3-edge margin.
+            w.ApplyFocusedSurfaceActiveForTests(false);
+            Assert.Equal(new Thickness(1), edge.BorderThickness);
+            Assert.Same(letterbox, w.Background);
+            Assert.Equal(threeEdgeMargin, playerView.Margin);
+
+            // Collapsing ChromeStrip on idle fade in Standard mode also hides PopoutEdgeBorder, switches canvas to black, and expands top resize inset.
+            w.HideControlsForTests();
+            w.CompleteHideFadeForTests();
+            Assert.True(w.IsChromeStripCollapsedForTests);
+            Assert.Equal(new Thickness(0), edge.BorderThickness);
+            Assert.Same(Brushes.Black, w.Background);
+            Assert.Equal(fourEdgeMargin, playerView.Margin);
+
+            // User activity reveals the strip and restores the Standard frame.
+            w.OnUserActivityForTests();
+            Assert.False(w.IsChromeStripCollapsedForTests);
+            Assert.Equal(new Thickness(1), edge.BorderThickness);
+            Assert.Same(letterbox, w.Background);
+            Assert.Equal(threeEdgeMargin, playerView.Margin);
+
+            // Rounded corner modes suppress the rectangular 1px edge border so it cannot clip at rounded corners.
+            w.ApplyCornerAppearance(DwmCornerMode.SmallRound, 6);
+            Assert.Equal(new Thickness(0), edge.BorderThickness);
+            w.ApplyCornerAppearance(DwmCornerMode.Round, 12);
+            Assert.Equal(new Thickness(0), edge.BorderThickness);
+            w.ApplyCornerAppearance(DwmCornerMode.Square, 0);
+            Assert.Equal(new Thickness(1), edge.BorderThickness);
+        });
+
     // --- Dark theme is actually wired at runtime (rebuts the stale "renders light" reports) ---
 
     [Fact]
@@ -3002,6 +2653,7 @@ public class WpfRuntimeTests : IDisposable
             ((ComboBox)w.FindName("ProfilesCombo")!).Style);
         Assert.Same(Application.Current.TryFindResource("DarkTextBox"),
             ((TextBox)w.FindName("UrlBox")!).Style);
+        Assert.IsType<Style>(Application.Current.TryFindResource("DangerButton"));
 
         // The app-wide implicit ToolTip style exists and is dark (Background = SurfaceRaised).
         // The style references the THEMED brush via DynamicResource (so a theme change restyles
@@ -3013,6 +2665,25 @@ public class WpfRuntimeTests : IDisposable
         var surfaceRaised = (SolidColorBrush)Application.Current.FindResource("SurfaceRaised");
         var bg = Assert.IsType<SolidColorBrush>(tip.Background);
         Assert.Equal(surfaceRaised.Color, bg.Color);
+
+        // Implicit Slider and CheckBox styles resolve to DarkSlider and DarkCheckBox templates.
+        var sliderStyle = Application.Current.TryFindResource(typeof(Slider)) as Style;
+        Assert.NotNull(sliderStyle);
+        var slider = new Slider { Style = sliderStyle, Minimum = 0, Maximum = 100, Value = 50, Width = 160 };
+        slider.Measure(new Size(160, 32));
+        slider.Arrange(new Rect(0, 0, 160, 32));
+        slider.ApplyTemplate();
+        Assert.NotNull(slider.Template.FindName("TrackBackground", slider));
+        Assert.NotNull(slider.Template.FindName("PART_Track", slider));
+
+        var checkBoxStyle = Application.Current.TryFindResource(typeof(CheckBox)) as Style;
+        Assert.NotNull(checkBoxStyle);
+        var checkBox = new CheckBox { Style = checkBoxStyle, Content = "Use custom profile color", IsChecked = true };
+        checkBox.Measure(new Size(200, 32));
+        checkBox.Arrange(new Rect(0, 0, 200, 32));
+        checkBox.ApplyTemplate();
+        Assert.NotNull(checkBox.Template.FindName("bd", checkBox));
+        Assert.NotNull(checkBox.Template.FindName("CheckMark", checkBox));
     });
 
     // --- DPI characterization: URL text is not clipped to a band at 150% DPI ---

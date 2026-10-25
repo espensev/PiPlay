@@ -160,13 +160,6 @@ public partial class App : Application
         }
     }
 
-    /// <summary>
-    /// Compatibility seam for command-line parsing tests. StartupArgumentPolicy owns help
-    /// precedence and the shared supported-YouTube-target boundary.
-    /// </summary>
-    internal static string? ExtractUrlArg(string[] args) =>
-        StartupArgumentPolicy.Parse(args).LaunchUrl;
-
     // --- Single-instance hand-off over a named pipe ---
 
     private void StartPipeServer()

@@ -123,7 +123,8 @@ public static class PlaybackModePolicy
     /// </summary>
     public static string? ResolveProfileOverride(string? profileMode, string? profileVideoId, string? targetVideoId)
     {
-        if (profileMode is null || string.IsNullOrEmpty(targetVideoId)) return null;
-        return profileVideoId == targetVideoId ? profileMode : null;
+        var normalized = NormalizeProfileMode(profileMode);
+        if (normalized is null || string.IsNullOrEmpty(targetVideoId)) return null;
+        return profileVideoId == targetVideoId ? normalized : null;
     }
 }

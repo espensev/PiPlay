@@ -16,12 +16,12 @@ public class ProfileServiceTests
     }
 
     [Fact]
-    public void Find_and_Exists_are_case_insensitive()
+    public void Find_is_case_insensitive()
     {
         var s = WithProfiles("Lo-fi");
-        Assert.True(ProfileService.Exists(s, "lo-fi"));
+        Assert.NotNull(ProfileService.Find(s, "lo-fi"));
         Assert.NotNull(ProfileService.Find(s, "LO-FI"));
-        Assert.False(ProfileService.Exists(s, "jazz"));
+        Assert.Null(ProfileService.Find(s, "jazz"));
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public class ProfileServiceTests
         };
 
         var quickSave = ProfileService.CreateQuickSaveProfile(
-            existing, "Violet", "https://youtu.be/new12345678", topmost: true);
+            existing, "Violet", "https://youtu.be/new12345678", topmost: true, defaultAccentColor: "#3F84C0");
 
         Assert.Equal("Violet", quickSave.Name);
         Assert.Equal("https://youtu.be/new12345678", quickSave.Url);
@@ -101,7 +101,9 @@ public class ProfileServiceTests
     [InlineData("https://youtu.be/dQw4w9WgXcQ", true)]
     public void ValidateUrl_accepts_only_supported_youtube_urls(string? url, bool ok)
     {
-        Assert.Equal(ok, ProfileService.ValidateUrl(url).Ok);
+        var (actualOk, error) = ProfileService.ValidateUrl(url);
+        Assert.Equal(ok, actualOk);
+        Assert.Equal(ok, error is null);
     }
 
     [Theory]
@@ -169,10 +171,92 @@ public class ProfileServiceTests
         var outcome = ProfileService.Update(s, "B",
             new Profile { Name = "A", Url = "https://youtu.be/new12345678" }, overwrite: true);
 
-        // The colliding "A" (before B) is removed; the edited profile keeps B's relative slot.
+        // The colliding "A" (collision < index) is removed; the edited profile keeps B's relative slot.
         Assert.Equal(ProfileUpdateOutcome.Updated, outcome);
         Assert.Equal(new[] { "A", "C" }, s.Profiles.Select(p => p.Name));
         Assert.Equal("https://youtu.be/new12345678", ProfileService.Find(s, "A")!.Url);
+
+        // Also cover collision > index: renaming "A" onto "C" removes "C" and keeps slot 0.
+        var s2 = WithProfiles("A", "B", "C");
+        var outcome2 = ProfileService.Update(s2, "A",
+            new Profile { Name = "C", Url = "https://youtu.be/after123456" }, overwrite: true);
+        Assert.Equal(ProfileUpdateOutcome.Updated, outcome2);
+        Assert.Equal(new[] { "C", "B" }, s2.Profiles.Select(p => p.Name));
+        Assert.Equal("https://youtu.be/after123456", ProfileService.Find(s2, "C")!.Url);
+    }
+
+    [Fact]
+    public void CreateQuickSaveProfile_seeds_default_accent_for_new_profile_and_preserves_existing_null_accent()
+    {
+        var created = ProfileService.CreateQuickSaveProfile(
+            existing: null, "Ambient", "https://youtu.be/dQw4w9WgXcQ", topmost: true, defaultAccentColor: "3f84c0");
+        Assert.Equal("#3F84C0", created.AccentColor);
+
+        var invalidDefault = ProfileService.CreateQuickSaveProfile(
+            existing: null, "Ambient", "https://youtu.be/dQw4w9WgXcQ", topmost: true, defaultAccentColor: "not-a-color");
+        Assert.Null(invalidDefault.AccentColor);
+
+        var colorlessExisting = new Profile
+        {
+            Name = "Plain",
+            Url = "https://youtu.be/dQw4w9WgXcQ",
+            AccentColor = null,
+        };
+        var preservedNull = ProfileService.CreateQuickSaveProfile(
+            colorlessExisting, "Plain", "https://youtu.be/new12345678", topmost: false, defaultAccentColor: "#3F84C0");
+        Assert.Null(preservedNull.AccentColor);
+    }
+
+    [Fact]
+    public void ResolveLaunchOverrides_applies_profile_overrides_only_when_target_matches()
+    {
+        var playerBounds = new PlacementData { X = 100, Y = 100, Width = 960, Height = 540 };
+        var profileBounds = new PlacementData { X = 24, Y = 48, Width = 640, Height = 360 };
+        var player = new PlayerSettings
+        {
+            Topmost = true,
+            FadeEnabled = true,
+            Placement = playerBounds,
+        };
+        var videoProfile = new Profile
+        {
+            Name = "Ambient",
+            Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            Topmost = false,
+            FadeEnabled = false,
+            Bounds = profileBounds,
+        };
+
+        Assert.Equal((false, false, profileBounds),
+            ProfileService.ResolveLaunchOverrides(videoProfile, "dQw4w9WgXcQ", player));
+        Assert.Equal((true, true, playerBounds),
+            ProfileService.ResolveLaunchOverrides(videoProfile, "otherVideo1", player));
+        Assert.Equal((true, true, playerBounds),
+            ProfileService.ResolveLaunchOverrides(null, "dQw4w9WgXcQ", player));
+
+        var partialProfile = new Profile
+        {
+            Name = "Partial",
+            Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            Topmost = false,
+            FadeEnabled = null,
+            Bounds = null,
+        };
+        Assert.Equal((false, true, playerBounds),
+            ProfileService.ResolveLaunchOverrides(partialProfile, "dQw4w9WgXcQ", player));
+
+        var playlistProfile = new Profile
+        {
+            Name = "Playlist",
+            Url = "https://www.youtube.com/playlist?list=PL0123456789",
+            Topmost = false,
+            FadeEnabled = false,
+            Bounds = profileBounds,
+        };
+        Assert.Equal((false, false, profileBounds),
+            ProfileService.ResolveLaunchOverrides(playlistProfile, "firstItem01", player, "PL0123456789"));
+        Assert.Equal((true, true, playerBounds),
+            ProfileService.ResolveLaunchOverrides(playlistProfile, "firstItem01", player, "PL_OTHER"));
     }
 
     [Fact]

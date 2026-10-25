@@ -205,8 +205,8 @@ public static class ThemeCatalog
             // with cool slate borders. The Colors.xaml seeds mirror these values.
             Palette: new(
                 AppBackground: "#050609", SurfaceBase: "#0B0E12",
-                SurfaceRaised: "#131820", SurfaceHover: "#1E2630",
-                BorderSubtle: "#181F29", BorderStrong: "#262F3D",
+                SurfaceRaised: "#12161D", SurfaceHover: "#1B212C",
+                BorderSubtle: "#1F2733", BorderStrong: "#2E394A",
                 TextPrimary: "#F4F7FA", TextSecondary: "#9AA2AD",
                 Danger: "#E45D75"),
             Radii: SharpRadii,
@@ -227,12 +227,12 @@ public static class ThemeCatalog
             DefaultStripAutoHide: true,
             DefaultActiveWindowOpacity: 0.94,
             DefaultIdleWindowOpacity: 0.86,
-            // Warm charcoal palette (docs/Theme_Preset_Differences.md).
+            // Warm espresso/obsidian palette with borderless resting surfaces (docs/Theme_Preset_Differences.md).
             Palette: new(
-                AppBackground: "#14120F", SurfaceBase: "#1C1A16",
-                SurfaceRaised: "#26231E", SurfaceHover: "#312D27",
-                BorderSubtle: "#2E2A23", BorderStrong: "#3C362D",
-                TextPrimary: "#F4F1EC", TextSecondary: "#B0A99E",
+                AppBackground: "#120E0B", SurfaceBase: "#1B1510",
+                SurfaceRaised: "#231C15", SurfaceHover: "#2E241C",
+                BorderSubtle: "#231C15", BorderStrong: "#3E3226",
+                TextPrimary: "#F5EFE6", TextSecondary: "#B5A895",
                 Danger: "#E8564C"),
             Radii: MinimalRadii,
             // Small native rounding: softer than Sharp's pristine HWND, calmer than Soft Glass.
@@ -252,13 +252,13 @@ public static class ThemeCatalog
             DefaultStripAutoHide: true,
             DefaultActiveWindowOpacity: 0.82,
             DefaultIdleWindowOpacity: 0.72,
-            // Blue/cool translucent-overlay palette with quieted borders and secondary text
+            // Midnight sapphire translucent-overlay palette with quieted borders and secondary text
             // (docs/Theme_Preset_Differences.md).
             Palette: new(
-                AppBackground: "#0B1018", SurfaceBase: "#121A26",
-                SurfaceRaised: "#1B2738", SurfaceHover: "#26354B",
-                BorderSubtle: "#2A3A52", BorderStrong: "#3A4D6A",
-                TextPrimary: "#F6F8FC", TextSecondary: "#C4CEDC",
+                AppBackground: "#070C14", SurfaceBase: "#0E1726",
+                SurfaceRaised: "#162338", SurfaceHover: "#243652",
+                BorderSubtle: "#18263C", BorderStrong: "#263B59",
+                TextPrimary: "#F2F6FC", TextSecondary: "#94A6C0",
                 Danger: "#E45D75"),
             Radii: SoftGlassRadii,
             DwmCorners: DwmCornerMode.Round,

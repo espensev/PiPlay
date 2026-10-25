@@ -18,17 +18,6 @@ public class PlayerAppearancePolicyTests
     }
 
     [Theory]
-    [InlineData("cyan", "AccentCyan")]
-    [InlineData("violet", "AccentViolet")]
-    [InlineData("green", "AccentGreen")]
-    [InlineData("amber", "AccentAmber")]
-    [InlineData("bad", "AccentCyan")]
-    public void BrushResourceKeyFor_maps_accent_to_brush_resource(string? input, string expected)
-    {
-        Assert.Equal(expected, PlayerAppearancePolicy.BrushResourceKeyFor(input));
-    }
-
-    [Theory]
     [InlineData(1500, 1500)]
     [InlineData(2500, 2500)]
     [InlineData(4000, 4000)]

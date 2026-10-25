@@ -149,8 +149,10 @@ try {
 finally {
     if ($null -ne $proc -and -not $proc.HasExited) {
         $proc.CloseMainWindow() | Out-Null
-        Start-Sleep -Seconds 1
-        if (-not $proc.HasExited) { $proc.Kill() }
+        if (-not $proc.WaitForExit(1000)) {
+            try { $proc.Kill($true) } catch { try { $proc.Kill() } catch { } }
+            try { [void]$proc.WaitForExit(5000) } catch { }
+        }
     }
     if ($previousDpiContext -ne [IntPtr]::Zero) {
         [void][PiPlayUiSmokeNative]::SetThreadDpiAwarenessContext($previousDpiContext)

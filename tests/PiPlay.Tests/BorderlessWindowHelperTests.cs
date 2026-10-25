@@ -73,6 +73,38 @@ public class BorderlessWindowHelperTests
     }
 
     [Fact]
+    public void Maximized_bounds_span_full_monitor_when_work_area_is_disabled()
+    {
+        var actual = BorderlessWindowHelper.CalculateMaximizedBoundsForTests(
+            monitorLeft: -1920,
+            monitorTop: -100,
+            monitorRight: 0,
+            monitorBottom: 1080,
+            workLeft: -1900,
+            workTop: -60,
+            workRight: -20,
+            workBottom: 1040,
+            useWorkArea: false);
+
+        Assert.Equal(0, actual.X);
+        Assert.Equal(0, actual.Y);
+        Assert.Equal(1920, actual.Width);
+        Assert.Equal(1180, actual.Height);
+    }
+
+    [Theory]
+    [InlineData(false, 0x01)]
+    [InlineData(true, 0x02)]
+    public void Primary_mouse_button_virtual_key_respects_button_swap_setting(
+        bool swapButtons,
+        int expectedVirtualKey)
+    {
+        Assert.Equal(
+            expectedVirtualKey,
+            BorderlessWindowHelper.PrimaryMouseButtonVirtualKey(swapButtons));
+    }
+
+    [Fact]
     public void Native_move_is_queued_as_an_asynchronous_system_command()
     {
         var expectedHwnd = new IntPtr(42);
@@ -98,7 +130,7 @@ public class BorderlessWindowHelperTests
         Assert.Equal(expectedHwnd, actualHwnd);
         Assert.Equal(0x0112, actualMessage); // WM_SYSCOMMAND
         Assert.Equal(0xF012, actualCommand.ToInt32()); // SC_MOVE | HTCAPTION
-        Assert.Equal(BorderlessWindowHelper.PackScreenPointForTests(-1920, 340), actualPoint);
+        Assert.Equal(new IntPtr((340 << 16) | (-1920 & 0xFFFF)), actualPoint);
     }
 
     [Fact]
@@ -145,13 +177,15 @@ public class BorderlessWindowHelperTests
     [Fact]
     public void Native_move_size_lifecycle_contains_callback_failures()
     {
+        var active = false;
         var exception = Record.Exception(() =>
-            BorderlessWindowHelper.ProcessMoveSizeMessageForTests(
+            active = BorderlessWindowHelper.ProcessMoveSizeMessageForTests(
                 inMoveSizeLoop: false,
                 message: 0x0231,
                 _ => throw new InvalidOperationException("test callback failure")));
 
         Assert.Null(exception);
+        Assert.True(active);
     }
 
     [Fact]

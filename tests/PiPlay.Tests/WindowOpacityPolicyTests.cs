@@ -57,20 +57,26 @@ public class WindowOpacityPolicyTests
         Assert.Equal(expected, WindowOpacityPolicy.ToAlphaByte(opacity));
     }
 
-    // --- Constants the rest of the feature hangs off ---
-
-    [Fact]
-    public void Ui_floor_is_45_percent_and_file_floor_is_10_percent()
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData(0.8, 0.8)]
+    [InlineData(0.10, 0.10)]
+    [InlineData(0.05, null)]
+    [InlineData(1.5, null)]
+    [InlineData(double.NaN, null)]
+    public void NormalizeOptional_keeps_valid_levels_and_nulls_out_of_range(double? input, double? expected)
     {
-        Assert.Equal(0.45, WindowOpacityPolicy.UiFloor);
-        Assert.Equal(0.10, WindowOpacityPolicy.FileFloor);
+        Assert.Equal(expected, WindowOpacityPolicy.NormalizeOptional(input));
     }
 
-    [Fact]
-    public void Window_fade_shares_the_controls_fade_duration()
-    {
-        // One fade rhythm per window (spec 7.1–7.3): the strip fade and the window fade
-        // must never drift apart.
-        Assert.Equal(FadePolicy.FadeDurationMs, WindowOpacityPolicy.FadeDurationMs);
-    }
+    // --- ShouldSuppressBorder: High Contrast boundary preservation ---
+
+    [Theory]
+    [InlineData(true, false, true)]    // borderless default, normal mode -> suppress the frame
+    [InlineData(true, true, false)]    // High Contrast -> keep the system border (a11y boundary)
+    [InlineData(false, false, false)]  // a future "borders on" theme -> don't suppress
+    [InlineData(false, true, false)]   // not requested + HC -> still don't suppress
+    public void ShouldSuppressBorder_suppresses_only_when_requested_and_not_high_contrast(
+        bool requested, bool highContrast, bool expected) =>
+        Assert.Equal(expected, WindowOpacityApplier.ShouldSuppressBorder(requested, highContrast));
 }

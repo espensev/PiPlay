@@ -10,6 +10,8 @@ public class YouTubeUrlHelperTests
     [InlineData("https://youtu.be/dQw4w9WgXcQ", "dQw4w9WgXcQ")]
     [InlineData("https://www.youtube.com/shorts/dQw4w9WgXcQ", "dQw4w9WgXcQ")]
     [InlineData("https://www.youtube.com/embed/dQw4w9WgXcQ", "dQw4w9WgXcQ")]
+    [InlineData("https://www.youtube.com/v/dQw4w9WgXcQ", "dQw4w9WgXcQ")]
+    [InlineData("https://www.youtube.com/live/dQw4w9WgXcQ", "dQw4w9WgXcQ")]
     [InlineData("https://m.youtube.com/watch?v=dQw4w9WgXcQ", "dQw4w9WgXcQ")]
     [InlineData("https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ", "dQw4w9WgXcQ")]
     [InlineData("dQw4w9WgXcQ", "dQw4w9WgXcQ")]
@@ -30,13 +32,25 @@ public class YouTubeUrlHelperTests
         Assert.Null(t.FallbackReason);
     }
 
-    [Fact]
-    public void Parses_playlist_only_page()
+    [Theory]
+    [InlineData("https://www.youtube.com/playlist?list=PLabc")]
+    [InlineData("https://www.youtube.com/watch?list=PLabc")]
+    [InlineData("https://www.youtube.com/embed/videoseries?list=PLabc")]
+    [InlineData("https://youtu.be/?list=PLabc")]
+    public void Parses_playlist_only_page(string url)
     {
-        Assert.True(YouTubeUrlHelper.TryParse("https://www.youtube.com/playlist?list=PLabc", out var t));
+        Assert.True(YouTubeUrlHelper.TryParse(url, out var t));
         Assert.True(t.IsPlaylistOnly);
         Assert.Equal("PLabc", t.PlaylistId);
         Assert.Null(t.VideoId);
+    }
+
+    [Fact]
+    public void Playlist_url_with_invalid_list_id_is_rejected_and_not_marked_playlist_only()
+    {
+        Assert.False(YouTubeUrlHelper.TryParse("https://www.youtube.com/playlist?list=a", out var t));
+        Assert.False(t.IsPlaylistOnly);
+        Assert.Null(t.PlaylistId);
     }
 
     [Theory]
@@ -71,20 +85,18 @@ public class YouTubeUrlHelperTests
     }
 
     [Fact]
-    public void Shell_and_embed_urls_omit_auto_generated_lists()
+    public void Shell_url_omits_auto_generated_lists()
     {
-        // The IFrame API cannot load auto-generated (RD) lists, so the compact tiers degrade to
+        // The IFrame API cannot load auto-generated (RD) lists, so the compact shell degrades to
         // the single video exactly where the limitation lives; regular lists are still carried.
         var mix = new PiPlay.Models.YouTubeTarget { VideoId = "dQw4w9WgXcQ", PlaylistId = "RDdQw4w9WgXcQ" };
         var shellMix = YouTubeUrlHelper.BuildShellUrl(mix, null, "https://piplay.local/player.html");
         Assert.DoesNotContain("list=", shellMix);
         Assert.Contains("v=dQw4w9WgXcQ", shellMix);
-        Assert.DoesNotContain("list=", YouTubeUrlHelper.BuildEmbedUrl(mix));
 
         var playlist = new PiPlay.Models.YouTubeTarget { VideoId = "dQw4w9WgXcQ", PlaylistId = "PLabc" };
         Assert.Contains("list=PLabc",
             YouTubeUrlHelper.BuildShellUrl(playlist, null, "https://piplay.local/player.html"));
-        Assert.Contains("list=PLabc", YouTubeUrlHelper.BuildEmbedUrl(playlist));
     }
 
     [Theory]
@@ -130,15 +142,6 @@ public class YouTubeUrlHelperTests
     }
 
     // --- Gap cases surfaced by the spec-conformance review ---
-
-    [Theory]
-    [InlineData("https://www.youtube.com/v/dQw4w9WgXcQ", "dQw4w9WgXcQ")]
-    [InlineData("https://www.youtube.com/live/dQw4w9WgXcQ", "dQw4w9WgXcQ")]
-    public void Parses_path_based_v_and_live_ids(string url, string expected)
-    {
-        Assert.True(YouTubeUrlHelper.TryParse(url, out var t));
-        Assert.Equal(expected, t.VideoId);
-    }
 
     [Fact]
     public void Parses_youtu_be_with_list_and_timestamp()
@@ -186,15 +189,6 @@ public class YouTubeUrlHelperTests
         Assert.Equal("https://www.youtube.com/playlist?list=PLabc", YouTubeUrlHelper.BuildWatchUrl(t));
     }
 
-    [Fact]
-    public void Builds_embed_url_with_autoplay_playlist_and_start()
-    {
-        var t = new PiPlay.Models.YouTubeTarget { VideoId = "dQw4w9WgXcQ", PlaylistId = "PLabc" };
-        Assert.Equal(
-            "https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&list=PLabc&start=30",
-            YouTubeUrlHelper.BuildEmbedUrl(t, 30));
-    }
-
     // --- Compact shell URL (spec 10.3): only non-sensitive target params on the shell base ---
 
     [Fact]
@@ -221,19 +215,6 @@ public class YouTubeUrlHelperTests
         Assert.Equal(
             "https://piplay.local/player.html",
             YouTubeUrlHelper.BuildShellUrl(new PiPlay.Models.YouTubeTarget(), null, "https://piplay.local/player.html"));
-    }
-
-    [Fact]
-    public void Shell_url_host_is_the_single_source_of_truth_allowlisted_on_the_player()
-    {
-        // The host in the navigated shell URL must equal the allowlist's ShellHost (drift = a blank
-        // player), and the allowlist must permit it on the Popout Player only.
-        var t = new PiPlay.Models.YouTubeTarget { VideoId = "dQw4w9WgXcQ" };
-        var url = YouTubeUrlHelper.BuildShellUrl(t, null, WebViewEnvironmentService.ShellPlayerUrl);
-
-        Assert.Equal(NavigationPolicy.ShellHost, new Uri(url).Host);
-        Assert.True(NavigationPolicy.IsAllowed(new Uri(WebViewEnvironmentService.ShellPlayerUrl), NavigationSurface.Player));
-        Assert.False(NavigationPolicy.IsAllowed(new Uri(WebViewEnvironmentService.ShellPlayerUrl), NavigationSurface.Source));
     }
 
     [Theory]

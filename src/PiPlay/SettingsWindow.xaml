@@ -14,46 +14,18 @@
         SnapsToDevicePixels="True">
 
   <Window.Resources>
-    <Style x:Key="SwatchToggle" TargetType="ToggleButton">
-      <Setter Property="Width" Value="34" />
-      <Setter Property="Height" Value="34" />
-      <Setter Property="Margin" Value="0,0,8,0" />
-      <Setter Property="Cursor" Value="Hand" />
-      <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="SnapsToDevicePixels" Value="True" />
-      <Setter Property="Template">
-        <Setter.Value>
-          <ControlTemplate TargetType="ToggleButton">
-            <Border x:Name="bd" Background="{TemplateBinding Background}"
-                    BorderBrush="{TemplateBinding BorderBrush}"
-                    BorderThickness="{TemplateBinding BorderThickness}"
-                    CornerRadius="{DynamicResource RadiusSwatch}" />
-            <ControlTemplate.Triggers>
-              <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource TextPrimary}" />
-              </Trigger>
-              <Trigger Property="IsChecked" Value="True">
-                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource TextPrimary}" />
-                <Setter TargetName="bd" Property="BorderThickness" Value="2" />
-              </Trigger>
-            </ControlTemplate.Triggers>
-          </ControlTemplate>
-        </Setter.Value>
-      </Setter>
-    </Style>
-
     <Style x:Key="PresetToggle" TargetType="ToggleButton">
       <Setter Property="MinWidth" Value="76" />
       <Setter Property="Height" Value="{DynamicResource DensityControlHeight}" />
       <Setter Property="Margin" Value="0,0,8,0" />
       <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
       <Setter Property="Background" Value="{DynamicResource SurfaceRaised}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtle}" />
-      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="{DynamicResource BorderThicknessDefault}" />
       <Setter Property="FontFamily" Value="Segoe UI" />
       <Setter Property="FontSize" Value="12" />
       <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="FocusVisualStyle" Value="{x:Null}" />
       <Setter Property="SnapsToDevicePixels" Value="True" />
       <Setter Property="Template">
         <Setter.Value>
@@ -68,10 +40,46 @@
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
                 <Setter TargetName="bd" Property="Background" Value="{DynamicResource SurfaceHover}" />
+                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource BorderStrong}" />
               </Trigger>
               <Trigger Property="IsChecked" Value="True">
                 <Setter Property="Foreground" Value="{DynamicResource AccentPrimary}" />
-                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource AccentPrimary}" />
+                <Setter TargetName="bd" Property="Background" Value="{DynamicResource AccentSubtle}" />
+                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource AccentBorder}" />
+              </Trigger>
+              <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource AccentBorder}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="ThemeCardToggle" TargetType="ToggleButton" BasedOn="{StaticResource PresetToggle}">
+      <Setter Property="Height" Value="58" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="Effect" Value="{DynamicResource ElevationPanel}" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ToggleButton">
+            <Border x:Name="bd" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="{DynamicResource RadiusPanel}" Padding="{DynamicResource DensityPresetChipPadding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                TextElement.Foreground="{TemplateBinding Foreground}" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource BorderStrong}" />
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource AccentPrimary}" />
+                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource AccentBorder}" />
+              </Trigger>
+              <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="bd" Property="BorderBrush" Value="{DynamicResource AccentBorder}" />
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -107,25 +115,6 @@
                     Focusable="False">
       <StackPanel Margin="20">
 
-        <!-- Privacy: distinct Reset app state vs Clear browser data wording/actions
-             (REQ-PRIVACY-01/-02; text sourced from PrivacyService so tests pin it). -->
-        <TextBlock x:Name="PrivacySectionHeader" Text="Privacy" FontSize="16" FontWeight="SemiBold"
-                   Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,2" />
-
-        <TextBlock x:Name="ResetDescriptionText" TextWrapping="Wrap" FontSize="12"
-                   Foreground="{DynamicResource TextSecondary}" Margin="0,10,0,8" />
-        <Button x:Name="ResetAppStateButton" Style="{StaticResource DarkButton}"
-                HorizontalAlignment="Left" Click="ResetAppStateButton_Click" />
-
-        <Border Height="1" Background="{DynamicResource BorderSubtle}" Margin="0,18" />
-
-        <TextBlock x:Name="ClearDescriptionText" TextWrapping="Wrap" FontSize="12"
-                   Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,8" />
-        <Button x:Name="ClearBrowserDataButton" Style="{StaticResource DarkButton}"
-                HorizontalAlignment="Left" Click="ClearBrowserDataButton_Click" />
-
-        <Border Height="1" Background="{DynamicResource BorderSubtle}" Margin="0,18" />
-
         <!-- Appearance (overhaul Task 10): one theme preset + one shared accent replace the separate
              Pin/Fade color swatches. The accent drives Source Pin, Popout Pin, and Popout Fade. -->
         <TextBlock x:Name="AppearanceSectionHeader" Text="Appearance" FontSize="16" FontWeight="SemiBold"
@@ -138,41 +127,51 @@
                    Text="Presets, accent, corners, and opacity preview live; Done keeps the changes."
                    TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,0,0,8" />
-        <UniformGrid Columns="3" Margin="0,0,0,14">
-          <ToggleButton x:Name="ThemeSharpDarkPreset" Style="{StaticResource PresetToggle}"
-                        Height="58" Background="#0B0E12" Tag="sharp-dark" Click="ThemePreset_Click"
+        <Grid Margin="0,0,0,14">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="8" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="8" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <ToggleButton x:Name="ThemeSharpDarkPreset" Grid.Column="0" Style="{StaticResource ThemeCardToggle}"
+                        Background="#0B0E12" Tag="sharp-dark" Click="ThemePreset_Click"
                         ToolTip="Crisp, compact, and fully opaque"
                         AutomationProperties.Name="Sharp Dark theme — crisp and opaque">
             <StackPanel>
               <TextBlock Text="Sharp Dark" HorizontalAlignment="Center" FontWeight="SemiBold" />
               <Border Width="24" Height="3" Margin="0,5,0,3" HorizontalAlignment="Center"
                       Background="#2BAED0" CornerRadius="{DynamicResource RadiusSwatch}" />
-              <TextBlock Text="Crisp · 100%" HorizontalAlignment="Center" FontSize="10" />
+              <TextBlock Text="Crisp · 100%" HorizontalAlignment="Center" FontSize="10"
+                         Foreground="{DynamicResource TextSecondary}" />
             </StackPanel>
           </ToggleButton>
-          <ToggleButton x:Name="ThemeMinimalPreset" Style="{StaticResource PresetToggle}"
-                        Height="58" Background="#1C1A16" Tag="minimal" Click="ThemePreset_Click"
+          <ToggleButton x:Name="ThemeMinimalPreset" Grid.Column="2" Style="{StaticResource ThemeCardToggle}"
+                        Background="#1B1510" Tag="minimal" Click="ThemePreset_Click"
                         ToolTip="Quiet, warm, and lightly translucent"
                         AutomationProperties.Name="Minimal theme — quiet and warm">
             <StackPanel>
               <TextBlock Text="Minimal" HorizontalAlignment="Center" FontWeight="SemiBold" />
               <Border Width="24" Height="3" Margin="0,5,0,3" HorizontalAlignment="Center"
                       Background="#3F84C0" CornerRadius="{DynamicResource RadiusSwatch}" />
-              <TextBlock Text="Quiet · 94%" HorizontalAlignment="Center" FontSize="10" />
+              <TextBlock Text="Quiet · 94%" HorizontalAlignment="Center" FontSize="10"
+                         Foreground="{DynamicResource TextSecondary}" />
             </StackPanel>
           </ToggleButton>
-          <ToggleButton x:Name="ThemeSoftGlassPreset" Style="{StaticResource PresetToggle}"
-                        Height="58" Margin="0" Background="#121A26" Tag="soft-glass" Click="ThemePreset_Click"
+          <ToggleButton x:Name="ThemeSoftGlassPreset" Grid.Column="4" Style="{StaticResource ThemeCardToggle}"
+                        Background="#0E1726" Tag="soft-glass" Click="ThemePreset_Click"
                         ToolTip="Airy, cool, and visibly translucent"
                         AutomationProperties.Name="Soft Glass theme — airy and translucent">
             <StackPanel>
               <TextBlock Text="Soft Glass" HorizontalAlignment="Center" FontWeight="SemiBold" />
               <Border Width="24" Height="3" Margin="0,5,0,3" HorizontalAlignment="Center"
                       Background="#9E84F0" CornerRadius="{DynamicResource RadiusSwatch}" />
-              <TextBlock Text="Glass · 82%" HorizontalAlignment="Center" FontSize="10" />
+              <TextBlock Text="Glass · 82%" HorizontalAlignment="Center" FontSize="10"
+                         Foreground="{DynamicResource TextSecondary}" />
             </StackPanel>
           </ToggleButton>
-        </UniformGrid>
+        </Grid>
 
         <TextBlock Text="Accent color" FontSize="12" Foreground="{DynamicResource TextSecondary}"
                    Margin="0,0,0,6" />
@@ -321,6 +320,25 @@
                       Content="Auto-hide top bar" Click="StripAutoHideToggle_Click"
                       ToolTip="Collapse the popout's top bar while idle so the video fills the window; hover the top edge to bring it back"
                       AutomationProperties.Name="Auto-hide popout top bar" />
+
+        <Border Height="1" Background="{DynamicResource BorderSubtle}" Margin="0,18" />
+
+        <!-- Privacy: distinct Reset app state vs Clear browser data wording/actions
+             (REQ-PRIVACY-01/-02; text sourced from PrivacyService so tests pin it). -->
+        <TextBlock x:Name="PrivacySectionHeader" Text="Privacy" FontSize="16" FontWeight="SemiBold"
+                   Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,2" />
+
+        <TextBlock x:Name="ResetDescriptionText" TextWrapping="Wrap" FontSize="12"
+                   Foreground="{DynamicResource TextSecondary}" Margin="0,10,0,8" />
+        <Button x:Name="ResetAppStateButton" Style="{StaticResource DarkButton}"
+                HorizontalAlignment="Left" Click="ResetAppStateButton_Click" />
+
+        <Border Height="1" Background="{DynamicResource BorderSubtle}" Margin="0,18" />
+
+        <TextBlock x:Name="ClearDescriptionText" TextWrapping="Wrap" FontSize="12"
+                   Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,8" />
+        <Button x:Name="ClearBrowserDataButton" Style="{StaticResource DarkButton}"
+                HorizontalAlignment="Left" Click="ClearBrowserDataButton_Click" />
       </StackPanel>
       </ScrollViewer>
 

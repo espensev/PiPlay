@@ -124,11 +124,9 @@ public static class YouTubeDomBridge
     /// Mute and pause Source playback. True means the script found a video and observed both
     /// post-command states; false means no video, script refusal, or host execution failure.
     /// </summary>
-    public static async Task<bool> SuppressPlaybackAsync(CoreWebView2 webView)
-    {
-        var result = await ExecuteRawAsync(webView, SuppressPlaybackScript, "source suppression");
-        return result.Succeeded && IsTrue(result.Value);
-    }
+    public static Task<bool> SuppressPlaybackAsync(CoreWebView2 webView) =>
+        SuppressPlaybackAsync(async script =>
+            (await ExecuteRawAsync(webView, script, "source suppression")).Value ?? string.Empty);
 
     /// <summary>Injected executor seam for the suppression acknowledgement contract.</summary>
     internal static async Task<bool> SuppressPlaybackAsync(
@@ -157,14 +155,16 @@ public static class YouTubeDomBridge
             "seek");
 
     public static Task SeekAndPauseAsync(CoreWebView2 webView, int seconds) =>
-        ExecuteVoidAsync(webView,
-            $"(() => {{ const v = {VideoSelector}; if (v) {{ try {{ v.currentTime = {seconds}; }} catch (e) {{}} v.pause(); }} }})()",
-            "seek-and-pause");
+        ExecuteVoidAsync(webView, BuildSeekAndPauseScript(seconds), "seek-and-pause");
 
     public static Task SeekAndPlayAsync(CoreWebView2 webView, int seconds) =>
-        ExecuteVoidAsync(webView,
-            $"(() => {{ const v = {VideoSelector}; if (v) {{ try {{ v.currentTime = {seconds}; }} catch (e) {{}} const p = v.play(); if (p && p.catch) p.catch(() => {{}}); }} }})()",
-            "seek-and-play");
+        ExecuteVoidAsync(webView, BuildSeekAndPlayScript(seconds), "seek-and-play");
+
+    internal static string BuildSeekAndPauseScript(int seconds) =>
+        $"(() => {{ const v = {VideoSelector}; if (v) {{ try {{ v.currentTime = {seconds}; }} catch (e) {{}} v.pause(); }} }})()";
+
+    internal static string BuildSeekAndPlayScript(int seconds) =>
+        $"(() => {{ const v = {VideoSelector}; if (v) {{ try {{ v.currentTime = {seconds}; }} catch (e) {{}} const p = v.play(); if (p && p.catch) p.catch(() => {{}}); }} }})()";
 
     public static Task ApplyPlaybackSettingsAsync(
         CoreWebView2 webView, double? volume, bool? muted, double? playbackRate)
@@ -367,7 +367,8 @@ public static class YouTubeDomBridge
         string accentColor,
         bool fadeEnabled,
         int fadeDelayMs,
-        bool topmost = false)
+        bool topmost = false,
+        bool maximized = false)
     {
         var nonceJson = JsonSerializer.Serialize(nonce);
         var accentJson = JsonSerializer.Serialize(accentColor);
@@ -383,7 +384,7 @@ public static class YouTubeDomBridge
   const STYLE_ID = "piplay-focused-surface-style";
   const ROOT_ID = "piplay-focused-overlay";
   const ACTIVE_CLASS = "piplay-focused-active";
-  const config = { accent: {{accentJson}}, fadeEnabled: {{fade}}, fadeDelayMs: {{delay}}, topmost: {{(topmost ? "true" : "false")}} };
+  const config = { accent: {{accentJson}}, fadeEnabled: {{fade}}, fadeDelayMs: {{delay}}, topmost: {{(topmost ? "true" : "false")}}, maximized: {{(maximized ? "true" : "false")}} };
   let root = null;
   let controls = null;
   let boundPlayer = null;
@@ -399,9 +400,11 @@ public static class YouTubeDomBridge
 
   const icons = {
     volume: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4zm12.2-.8a5.4 5.4 0 0 1 0 7.6M18.8 5.6a9 9 0 0 1 0 12.8"/></svg>',
+    muted: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4zM16 9l5 6M21 9l-5 6"/></svg>',
     pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8l-1 5 3 3v2h-5v8l-2-2v-6H6v-2l3-3-1-5z"/></svg>',
     settings: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>',
     expand: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg>',
+    restore: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14h5v5M20 10h-5V5M14 4v5h5M10 20v-5H5"/></svg>',
     close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>',
     play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M8 5l11 7-11 7z"/></svg>',
     pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>',
@@ -614,6 +617,7 @@ public static class YouTubeDomBridge
       mute: root.querySelector('[data-action="mute"]'),
       captions: root.querySelector('[data-action="captions"]'),
       pin: root.querySelector('[data-action="pinToggle"]'),
+      fullscreenToggle: root.querySelector('[data-action="fullscreenToggle"]'),
       next: root.querySelector('[data-action="next"]'),
       progress: root.querySelector('[data-action="seek"]'),
       current: root.querySelector('[data-time="current"]'),
@@ -658,8 +662,7 @@ public static class YouTubeDomBridge
     toggleClass(root, "is-ad", adActive);
     const length = media && Number.isFinite(media.duration) ? media.duration : 0;
     setDisabled(controls.progress, adActive || length <= 0);
-    if (media && !adActive && controls.progress &&
-        !controls.progress.matches(":active") && document.activeElement !== controls.progress) {
+    if (media && !adActive && controls.progress && !controls.progress.matches(":active")) {
       const ratio = length > 0 ? Math.max(0, Math.min(1, media.currentTime / length)) : 0;
       const value = String(Math.round(ratio * 1000));
       const fill = `${ratio * 100}%`;
@@ -717,7 +720,9 @@ public static class YouTubeDomBridge
 
   function hasInteractiveAttention() {
     if (!root) return false;
-    const focused = document.activeElement && root.contains(document.activeElement);
+    const focused = document.activeElement && root.contains(document.activeElement) &&
+      typeof document.activeElement.matches === "function" &&
+      document.activeElement.matches(":focus-visible,:active");
     const hovered = root.querySelector(".piplay-focused-button:hover,.piplay-focused-progress:hover");
     return !!focused || !!hovered;
   }
@@ -737,7 +742,7 @@ public static class YouTubeDomBridge
     root.classList.add("is-visible");
     clearHideTimer();
     const media = video();
-    if (config.fadeEnabled && media && !media.paused)
+    if (config.fadeEnabled && media)
       hideTimer = window.setTimeout(hideControlsWhenIdle, config.fadeDelayMs);
   }
 
@@ -766,6 +771,7 @@ public static class YouTubeDomBridge
     if (controls.mute) {
       const muted = media.muted || media.volume === 0;
       const label = muted ? "Unmute" : "Mute";
+      setIcon(controls.mute, muted ? "muted" : "volume", muted ? icons.muted : icons.volume);
       setAttribute(controls.mute, "aria-pressed", muted);
       setAttribute(controls.mute, "aria-label", label);
       if (controls.mute.title !== label) controls.mute.title = label;
@@ -775,6 +781,13 @@ public static class YouTubeDomBridge
       setAttribute(controls.pin, "aria-pressed", config.topmost);
       setAttribute(controls.pin, "aria-label", label);
       if (controls.pin.title !== label) controls.pin.title = label;
+    }
+    if (controls.fullscreenToggle) {
+      const isMax = !!config.maximized;
+      setIcon(controls.fullscreenToggle, isMax ? "restore" : "expand", isMax ? icons.restore : icons.expand);
+      setAttribute(controls.fullscreenToggle, "aria-pressed", isMax ? "true" : "false");
+      const expandTitle = isMax ? "Restore popout" : "Expand popout";
+      if (controls.fullscreenToggle.title !== expandTitle) controls.fullscreenToggle.title = expandTitle;
     }
     const nativeCaptions = document.querySelector(".ytp-subtitles-button");
     if (controls.captions) {
@@ -787,9 +800,10 @@ public static class YouTubeDomBridge
       setDisabled(controls.next, adActive || !nativeNext || nativeNext.getAttribute("aria-disabled") === "true");
 
     updateProgress();
+    const pausedChangedToPaused = lastPaused === false && media.paused;
     const pausedChangedToPlaying = lastPaused === true && !media.paused;
     lastPaused = media.paused;
-    if (media.paused) { clearHideTimer(); toggleClass(root, "is-visible", true); }
+    if (pausedChangedToPaused) revealControls();
     else if (pausedChangedToPlaying) revealControls();
   }
 
@@ -805,7 +819,12 @@ public static class YouTubeDomBridge
       if (media.paused) { const play = media.play(); if (play && play.catch) play.catch(() => {}); }
       else media.pause();
     } else if (action === "mute" && media) {
-      media.muted = !media.muted;
+      if (media.muted || media.volume === 0) {
+        media.muted = false;
+        if (media.volume === 0) media.volume = 0.5;
+      } else {
+        media.muted = true;
+      }
     } else if (action === "captions") {
       const native = document.querySelector(".ytp-subtitles-button");
       if (native) native.click();
@@ -818,6 +837,7 @@ public static class YouTubeDomBridge
     } else if (action === "close" || action === "fullscreenToggle" || action === "settings") {
       postWindowAction(action, event.isTrusted);
     }
+    if (event.detail && typeof control.blur === "function") control.blur();
     updateControls();
   }
 
@@ -827,6 +847,10 @@ public static class YouTubeDomBridge
     if (isAdActive()) return;
     const media = video();
     if (!media || !Number.isFinite(media.duration) || media.duration <= 0) return;
+    const ratio = Math.max(0, Math.min(1, Number(event.target.value) / 1000));
+    const fill = `${ratio * 100}%`;
+    if (event.target.style && event.target.style.getPropertyValue("--piplay-progress") !== fill)
+      event.target.style.setProperty("--piplay-progress", fill);
     media.currentTime = (Number(event.target.value) / 1000) * media.duration;
     revealControls();
   }
@@ -861,6 +885,13 @@ public static class YouTubeDomBridge
       if (!root.parentNode) document.body.appendChild(root);
       root.addEventListener("click", handleAction);
       root.addEventListener("input", handleSeek);
+      root.addEventListener("change", event => {
+        if (event.target && event.target.dataset && event.target.dataset.action === "seek" &&
+            typeof event.target.blur === "function" &&
+            (!event.target.matches || !event.target.matches(":focus-visible"))) {
+          event.target.blur();
+        }
+      });
       root.addEventListener("focusin", revealControls);
       created = true;
     }
@@ -922,6 +953,7 @@ public static class YouTubeDomBridge
       if (next && typeof next.fadeEnabled === "boolean") config.fadeEnabled = next.fadeEnabled;
       if (next && Number.isFinite(next.fadeDelayMs)) config.fadeDelayMs = Math.max(500, Math.min(10000, next.fadeDelayMs));
       if (next && typeof next.topmost === "boolean") config.topmost = next.topmost;
+      if (next && typeof next.maximized === "boolean") config.maximized = next.maximized;
       setAccent();
       revealControls();
       updateControls();
@@ -965,17 +997,19 @@ public static class YouTubeDomBridge
         string accentColor,
         bool fadeEnabled,
         int fadeDelayMs,
-        bool topmost)
+        bool topmost,
+        bool maximized = false)
     {
         var accentJson = JsonSerializer.Serialize(accentColor);
         var delay = Math.Clamp(fadeDelayMs, 500, 10_000);
         var fade = fadeEnabled ? "true" : "false";
         var pin = topmost ? "true" : "false";
+        var max = maximized ? "true" : "false";
         return $$"""
 (() => {
   const surface = window.__piplayFocusedSurface;
   if (surface && typeof surface.configure === "function")
-    surface.configure({ accent: {{accentJson}}, fadeEnabled: {{fade}}, fadeDelayMs: {{delay}}, topmost: {{pin}} });
+    surface.configure({ accent: {{accentJson}}, fadeEnabled: {{fade}}, fadeDelayMs: {{delay}}, topmost: {{pin}}, maximized: {{max}} });
 })()
 """;
     }

@@ -236,14 +236,18 @@ internal static class Prompt
         var urlBox = new TextBox { Text = url, Style = Style("DarkTextBox"), Margin = new Thickness(0, 0, 0, 12) };
         body.Children.Add(urlBox);
 
-        body.Children.Add(new TextBlock
-        {
-            Text = "Playback mode",
-            Foreground = Brush("TextSecondary"),
-            Margin = new Thickness(0, 0, 0, 4),
-        });
         var (modePicker, selectedMode) = BuildModePicker(mode);
-        body.Children.Add(modePicker);
+        var showModePicker = PlaybackModePolicy.CompactPlayerEnabled;
+        if (showModePicker)
+        {
+            body.Children.Add(new TextBlock
+            {
+                Text = "Playback mode",
+                Foreground = Brush("TextSecondary"),
+                Margin = new Thickness(0, 0, 0, 4),
+            });
+            body.Children.Add(modePicker);
+        }
 
         body.Children.Add(new TextBlock
         {

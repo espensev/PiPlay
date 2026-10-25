@@ -2,10 +2,9 @@
 //
 // Bridges the YouTube IFrame API player to the PiPlay host over WebView2 messaging, following the
 // PlayerShellProtocol contract (mirrored in src/PiPlay/Services/PlayerShellProtocol.cs):
-//   shell -> host : ready | state | error | request (allowlisted window actions)
-//   host  -> shell: play | pause | seek | requestState
-// Transport is JSON strings both ways (postMessage(JSON.stringify(...)) / JSON.parse(e.data)) so the
-// host reads with TryGetWebMessageAsString. No credentials, cookies, or tokens cross this channel.
+//   shell -> host : ready | state | error
+// Transport is JSON strings (postMessage(JSON.stringify(...))) so the host reads with
+// TryGetWebMessageAsString. No credentials, cookies, or tokens cross this channel.
 (function () {
   "use strict";
 
@@ -15,16 +14,6 @@
   function postToHost(message) {
     message.v = PROTOCOL_VERSION;
     try { if (host) host.postMessage(JSON.stringify(message)); } catch (e) { /* best-effort */ }
-  }
-
-  // Allowlisted shell -> host window actions (Phase 4). The host validates against the same
-  // closed set (PlayerShellProtocol); both sides allowlist so neither can widen the channel.
-  var REQUEST_ACTIONS = ["close", "pinToggle", "fullscreenToggle"];
-
-  // Overlay controls (Phase 4 Task 5) call this for window-level actions; transport-only here.
-  function postRequest(action) {
-    if (REQUEST_ACTIONS.indexOf(action) < 0) return;
-    postToHost({ type: "request", action: action });
   }
 
   // Only the non-sensitive playback target is carried in the shell URL.
@@ -100,21 +89,4 @@
       }
     });
   };
-
-  // Host -> shell commands.
-  if (host) {
-    host.addEventListener("message", function (e) {
-      var msg;
-      try { msg = JSON.parse(e.data); } catch (err) { return; }
-      if (!msg || !player) return;
-      try {
-        switch (msg.type) {
-          case "play": player.playVideo(); break;
-          case "pause": player.pauseVideo(); break;
-          case "seek": if (typeof msg.seconds === "number") player.seekTo(msg.seconds, true); break;
-          case "requestState": sendState(); break;
-        }
-      } catch (err) { /* best-effort: a bad command must never break the shell */ }
-    });
-  }
 })();

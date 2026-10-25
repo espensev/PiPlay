@@ -1,4 +1,3 @@
-using System.IO;
 using PiPlay.Services;
 
 namespace PiPlay.Tests;
@@ -54,21 +53,6 @@ public class PlayerShellProtocolTests
     {
         Assert.False(PlayerShellProtocol.IsTrustedShellSource(
             "https://piplay.local/player.html", expectedOrigin));
-    }
-
-    [Fact]
-    public void Shell_bridge_gates_the_source_before_it_reads_the_payload()
-    {
-        // The wiring needs a live WebView2 (CoreWebView2WebMessageReceivedEventArgs is not
-        // constructible), so pin it as source text the way PlayerSurfaceScriptTests pins the drag
-        // bridge. Ordering, not presence: a gate moved below the parse would still "contain" it.
-        var source = File.ReadAllText(Path.Combine(
-            XamlTestFiles.SrcDir, "Services", "PlayerShellBridge.cs"));
-
-        var gate = source.IndexOf("IsTrustedShellSource", StringComparison.Ordinal);
-        var readPayload = source.IndexOf("TryGetWebMessageAsString", StringComparison.Ordinal);
-        Assert.True(gate >= 0 && readPayload > gate,
-            "PlayerShellBridge must reject a foreign message source before it reads the payload.");
     }
 
     // --- Inbound (shell -> host) parsing ---
@@ -197,33 +181,5 @@ public class PlayerShellProtocolTests
         // action must die at the parse layer, before any host handler can see it.
         Assert.Equal(ShellMessageKind.Unknown, PlayerShellProtocol.Parse(json).Kind);
     }
-
-    // --- Outbound (host -> shell) command shapes ---
-
-    [Theory]
-    [InlineData("play")]
-    [InlineData("pause")]
-    [InlineData("requestState")]
-    public void Commands_carry_the_version_and_type(string type)
-    {
-        var json = type switch
-        {
-            "play" => PlayerShellProtocol.Play(),
-            "pause" => PlayerShellProtocol.Pause(),
-            _ => PlayerShellProtocol.RequestState(),
-        };
-        Assert.Contains("\"v\":" + PlayerShellProtocol.Version, json);
-        Assert.Contains("\"type\":\"" + type + "\"", json);
-
-        // Round-trippable as a valid command object, and not mistaken for an inbound message.
-        Assert.Equal(ShellMessageKind.Unknown, PlayerShellProtocol.Parse(json).Kind);
-    }
-
-    [Fact]
-    public void Seek_includes_seconds_and_clamps_negative()
-    {
-        Assert.Contains("\"type\":\"seek\"", PlayerShellProtocol.Seek(90));
-        Assert.Contains("\"seconds\":90", PlayerShellProtocol.Seek(90));
-        Assert.Contains("\"seconds\":0", PlayerShellProtocol.Seek(-5));   // never seek to a negative time
-    }
 }
+

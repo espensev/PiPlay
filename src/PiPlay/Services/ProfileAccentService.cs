@@ -76,4 +76,49 @@ public static class ProfileAccentService
         ActiveProfile(settings) is { } p && ProfileService.NormalizeAccentForStorage(p.AccentColor) is not null
             ? p
             : null;
+
+    /// <summary>
+    /// Picks a curated accent color from <see cref="ThemeCatalog.AccentOptions"/> for a newly quick-saved
+    /// profile that is distinct from <paramref name="globalAccent"/> (or <see cref="ThemeSettings.AccentColor"/>)
+    /// and not yet used by existing profiles, cycling through non-baseline options once all are in use.
+    /// </summary>
+    public static string PickDistinctProfileAccent(AppSettings settings, string? globalAccent = null)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        var baseline = ProfileService.NormalizeAccentForStorage(globalAccent)
+            ?? ProfileService.NormalizeAccentForStorage(settings.Theme?.AccentColor)
+            ?? ThemeCatalog.DefaultAccentColor;
+
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (settings.Profiles is not null)
+        {
+            foreach (var p in settings.Profiles)
+            {
+                if (ProfileService.NormalizeAccentForStorage(p?.AccentColor) is { } norm)
+                {
+                    used.Add(norm);
+                }
+            }
+        }
+
+        foreach (var option in ThemeCatalog.AccentOptions)
+        {
+            if (!string.Equals(option.HexColor, baseline, StringComparison.OrdinalIgnoreCase) &&
+                !used.Contains(option.HexColor))
+            {
+                return option.HexColor;
+            }
+        }
+
+        var nonBaseline = ThemeCatalog.AccentOptions
+            .Where(o => !string.Equals(o.HexColor, baseline, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (nonBaseline.Length > 0)
+        {
+            var count = settings.Profiles?.Count ?? 0;
+            return nonBaseline[count % nonBaseline.Length].HexColor;
+        }
+
+        return ThemeCatalog.DefaultAccentColor;
+    }
 }

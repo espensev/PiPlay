@@ -62,10 +62,13 @@ public class SettingsWindowAppearanceTests : IDisposable
             accentColor: ThemeCatalog.DefaultAccentColor,
             fadeIdleDelayMs: 1500, activeOpacityOverride: 1.0, idleOpacityOverride: 1.0,
             stripAutoHideOverride: true, cornerStyle: "square");
+        var previews = 0;
+        w.ThemePreviewChanged += () => previews++;
 
         ((ToggleButton)w.FindName("ThemeSoftGlassPreset")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
 
         var preset = ThemeCatalog.PresetFor("soft-glass");
+        Assert.Equal(1, previews);
         Assert.Equal("soft-glass", w.ThemeId);
         Assert.Equal(preset.DefaultAccentColor, w.AccentColor);
         Assert.Equal(ThemeCatalog.DefaultCornerStyle, w.CornerStyle);
@@ -111,25 +114,6 @@ public class SettingsWindowAppearanceTests : IDisposable
         Assert.Equal("soft-glass", w.ThemeId);
         Assert.Equal("#FFC857", w.AccentColor);
         Assert.Equal("#FFC857", ((AccentColorPicker)w.FindName("AccentPicker")!).SelectedColor);
-
-        ((AccentColorPicker)w.FindName("AccentPicker")!).SelectedColor = "#9E84F0";
-        ((ToggleButton)w.FindName("ThemeSharpDarkPreset")!).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-        Assert.Equal(ThemeCatalog.DefaultAccentColor, w.AccentColor);
-        Assert.Equal(ThemeCatalog.DefaultAccentColor, ((AccentColorPicker)w.FindName("AccentPicker")!).SelectedColor);
-    });
-
-    [Fact]
-    public void SettingsWindow_preset_click_requests_one_full_theme_preview() => StaTestThread.Invoke(() =>
-    {
-        var w = new SettingsWindow(isBrowserReady: true, themeId: "sharp-dark");
-        var previews = 0;
-        w.ThemePreviewChanged += () => previews++;
-
-        ((ToggleButton)w.FindName("ThemeSoftGlassPreset")!).RaiseEvent(
-            new RoutedEventArgs(ButtonBase.ClickEvent));
-
-        Assert.Equal(1, previews);
-        Assert.Equal("soft-glass", w.ThemeId);
     });
 
     [Fact]
@@ -213,7 +197,80 @@ public class SettingsWindowAppearanceTests : IDisposable
         var w = new SettingsWindow(isBrowserReady: true);
         Assert.Null(w.FindName("CompactModeToggle"));
         Assert.Null(w.FindName("CompactModeHintText"));
+        Assert.False(w.CompactMode);
+
+        var on = new SettingsWindow(isBrowserReady: true, compactMode: true);
+        Assert.True(on.CompactMode);
+        Assert.False(on.AppearanceChanged);
     });
+
+    [Fact]
+    public void AccentColorPicker_use_nearest_readable_recovers_after_invalid_rgb_input_and_keeps_readability_row_layout_stable() =>
+        StaTestThread.Invoke(() =>
+        {
+            var w = new SettingsWindow(isBrowserReady: true, accentColor: "#38D996");
+            var picker = (AccentColorPicker)w.FindName("AccentPicker")!;
+            var rInput = (TextBox)picker.FindName("RInput")!;
+            var readabilityRow = (FrameworkElement)picker.FindName("ReadabilityRow")!;
+            var warning = (TextBlock)picker.FindName("ReadabilityWarning")!;
+            var recoverBtn = (Button)picker.FindName("UseNearestReadableButton")!;
+
+            // When valid, ReadabilityRow stays Hidden (preserving its 28 DIP row height without layout jump).
+            Assert.Equal(Visibility.Hidden, readabilityRow.Visibility);
+
+            // Typing an out-of-range RGB value marks the picker unreadable with the RGB-specific hint,
+            // while SelectedColor remains "#38D996".
+            rInput.Text = "999";
+            Assert.Equal(Visibility.Visible, readabilityRow.Visibility);
+            Assert.Equal("Enter RGB values from 0 to 255.", warning.Text);
+            Assert.False(((Button)w.FindName("DoneButton")!).IsEnabled);
+
+            // Clicking "Use nearest valid color" recovers even though SelectedColor is already "#38D996".
+            recoverBtn.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Assert.Equal(Visibility.Hidden, readabilityRow.Visibility);
+            Assert.Equal("56", rInput.Text);
+            Assert.True(((Button)w.FindName("DoneButton")!).IsEnabled);
+        });
+
+    [Fact]
+    public void SettingsWindow_theme_preset_cards_preserve_distinct_preview_backgrounds_when_checked() =>
+        StaTestThread.Invoke(() =>
+        {
+            var w = new SettingsWindow(isBrowserReady: true, themeId: "minimal");
+            var sharpCard = (ToggleButton)w.FindName("ThemeSharpDarkPreset")!;
+            var minimalCard = (ToggleButton)w.FindName("ThemeMinimalPreset")!;
+            var glassCard = (ToggleButton)w.FindName("ThemeSoftGlassPreset")!;
+
+            Assert.Same(w.FindResource("ThemeCardToggle"), sharpCard.Style);
+            Assert.Same(w.FindResource("ThemeCardToggle"), minimalCard.Style);
+            Assert.Same(w.FindResource("ThemeCardToggle"), glassCard.Style);
+
+            sharpCard.ApplyTemplate();
+            minimalCard.ApplyTemplate();
+            glassCard.ApplyTemplate();
+            var sharpBd = (Border)sharpCard.Template.FindName("bd", sharpCard)!;
+            var minimalBd = (Border)minimalCard.Template.FindName("bd", minimalCard)!;
+            var glassBd = (Border)glassCard.Template.FindName("bd", glassCard)!;
+
+            void AssertCardVisuals(Border checkedBd)
+            {
+                Assert.Equal(ThemeColors.ParseColor("#0B0E12"), ((System.Windows.Media.SolidColorBrush)sharpBd.Background).Color);
+                Assert.Equal(ThemeColors.ParseColor("#1B1510"), ((System.Windows.Media.SolidColorBrush)minimalBd.Background).Color);
+                Assert.Equal(ThemeColors.ParseColor("#0E1726"), ((System.Windows.Media.SolidColorBrush)glassBd.Background).Color);
+                Assert.Same(Application.Current.FindResource("AccentBorder"), checkedBd.BorderBrush);
+            }
+
+            Assert.True(minimalCard.IsChecked);
+            AssertCardVisuals(minimalBd);
+
+            sharpCard.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Assert.True(sharpCard.IsChecked);
+            AssertCardVisuals(sharpBd);
+
+            glassCard.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Assert.True(glassCard.IsChecked);
+            AssertCardVisuals(glassBd);
+        });
 
     public void Dispose() => StaTestThread.Invoke(() =>
     {

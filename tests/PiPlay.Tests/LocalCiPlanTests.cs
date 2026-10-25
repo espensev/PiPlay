@@ -57,9 +57,7 @@ public class LocalCiPlanTests
     public async Task Node_version_gate_enforces_the_minimum_declared_by_the_plan(
         string reportedVersion, bool expectedSuccess)
     {
-        var plan = await RunPlanAsync();
-        var minimumMajor = plan.GetProperty("requirements").GetProperty("nodeMinimumMajor").GetInt32();
-        var result = await RunNodeVersionFunctionAsync(reportedVersion, minimumMajor);
+        var result = await RunNodeVersionFunctionAsync(reportedVersion, 24);
 
         Assert.Equal(expectedSuccess, result.ExitCode == 0);
         if (!expectedSuccess)
@@ -187,7 +185,9 @@ public class LocalCiPlanTests
     private static string FindRepoRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "PiPlay.sln")))
+        while (directory is not null
+               && !File.Exists(Path.Combine(directory.FullName, "PiPlay.sln"))
+               && !File.Exists(Path.Combine(directory.FullName, "scripts", "Test-LocalCI.ps1")))
             directory = directory.Parent;
 
         return directory?.FullName

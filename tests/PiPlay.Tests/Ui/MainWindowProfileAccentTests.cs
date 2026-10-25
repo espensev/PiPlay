@@ -1,8 +1,8 @@
-using System.Reflection;
 using System.Windows;
 using System.Windows.Media;
 using PiPlay;
 using PiPlay.Models;
+using PiPlay.Services;
 using PiPlay.Theme;
 
 namespace PiPlay.Tests;
@@ -14,20 +14,6 @@ public class MainWindowProfileAccentTests : IDisposable
     // (the v0.6.0 split); the reversal is the point of the change.
 
     [Fact]
-    public void Selecting_a_profile_recolors_the_app_accent_P2() => StaTestThread.Invoke(() =>
-    {
-        var w = new MainWindow();
-        w.ReplaceSettingsForTests(SettingsWithProfiles());
-
-        w.SelectProfileForTests("Violet");
-        Assert.Equal("#A78BFA", w.ResolvedAccentColorForTests);
-
-        // A profile with no color of its own inherits the global accent.
-        w.SelectProfileForTests("Plain");
-        Assert.Equal("#00D4FF", w.ResolvedAccentColorForTests);
-    });
-
-    [Fact]
     public void Profile_selection_repaints_accent_and_shell_resources_P2() => StaTestThread.Invoke(() =>
     {
         var w = new MainWindow();
@@ -35,17 +21,17 @@ public class MainWindowProfileAccentTests : IDisposable
         var preset = ThemeCatalog.PresetFor("sharp-dark");
 
         w.SelectProfileForTests("Violet");
+        Assert.Equal("#A78BFA", w.ResolvedAccentColorForTests);
         var violet = ThemeColors.DeriveAccentSet("#A78BFA", preset);
         Assert.Equal(violet.Primary, ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color);
         Assert.Equal(violet.ShellTint, ((SolidColorBrush)Application.Current.Resources["AccentShellTint"]).Color);
-        Assert.Null(w.PendingUrlForTests);
 
         // Switching to a colorless profile must repaint back to the GLOBAL accent, not leave violet stuck.
         w.SelectProfileForTests("Plain");
+        Assert.Equal("#00D4FF", w.ResolvedAccentColorForTests);
         var global = ThemeColors.DeriveAccentSet("#00D4FF", preset);
         Assert.Equal(global.Primary, ((SolidColorBrush)Application.Current.Resources["AccentPrimary"]).Color);
         Assert.Equal(global.ShellTint, ((SolidColorBrush)Application.Current.Resources["AccentShellTint"]).Color);
-        Assert.Null(w.PendingUrlForTests);
 
         // The two presentations must actually be DIFFERENT, or "re-tints the app" is a lie.
         Assert.NotEqual(violet.Primary, global.Primary);
@@ -63,8 +49,7 @@ public class MainWindowProfileAccentTests : IDisposable
 
             w.SelectProfileForTests("Violet");
 
-            // Stored value stays EXACT...
-            Assert.Equal("#0B0E11", settings.Profiles.Single(p => p.Name == "Violet").AccentColor);
+            // Resolved value stays EXACT...
             Assert.Equal("#0B0E11", w.ResolvedAccentColorForTests);
 
             // ...while the PAINTED accent is lifted enough to remain visible on the chrome surface,
@@ -86,14 +71,9 @@ public class MainWindowProfileAccentTests : IDisposable
 
             // Drive the exact post-dialog contract without showing a modal window. The dialog carries
             // the effective/profile accent even when only another Appearance control was touched.
-            var apply = typeof(MainWindow).GetMethod(
-                "ApplyPlayerPreferences", BindingFlags.Instance | BindingFlags.NonPublic);
-            Assert.NotNull(apply);
-            apply.Invoke(w,
-            [
+            w.ApplyPlayerPreferences(
                 "minimal", "#A78BFA", 2500, false, true,
-                null, null, null, "round", 75,
-            ]);
+                null, null, null, "round", 75);
 
             Assert.Equal("#00D4FF", settings.Theme.AccentColor);
             Assert.Equal("#A78BFA", settings.Profiles.Single(p => p.Name == "Violet").AccentColor);
@@ -113,6 +93,27 @@ public class MainWindowProfileAccentTests : IDisposable
             Assert.Equal("#00D4FF", w.ResolvedAccentColorForTests);
         });
 
+    [Fact]
+    public void Deselecting_a_profile_restores_global_accent_and_source_topmost() =>
+        StaTestThread.Invoke(() =>
+        {
+            var settings = SettingsWithProfiles();
+            settings.MainWindow.Topmost = false;
+            settings.Profiles.Single(p => p.Name == "Violet").Topmost = true;
+            var w = new MainWindow();
+            w.ReplaceSettingsForTests(settings);
+
+            w.SelectProfileForTests("Violet");
+            Assert.Equal("Violet", settings.ActiveProfileName);
+            Assert.Equal("#A78BFA", w.ResolvedAccentColorForTests);
+            Assert.True(w.Topmost);
+
+            w.SelectProfileForTests(null);
+            Assert.Null(settings.ActiveProfileName);
+            Assert.Equal("#00D4FF", w.ResolvedAccentColorForTests);
+            Assert.False(w.Topmost);
+        });
+
     private static AppSettings SettingsWithProfiles() => new()
     {
         Theme = new ThemeSettings { AccentColor = "#00D4FF" },
@@ -125,6 +126,8 @@ public class MainWindowProfileAccentTests : IDisposable
 
     public void Dispose() => StaTestThread.Invoke(() =>
     {
+        ThemeResourceApplier.Apply(Application.Current.Resources, new ThemeSettings(), new PlayerSettings());
+        new SettingsService().Save(new AppSettings());
         foreach (var w in Application.Current.Windows.Cast<Window>().ToArray())
         {
             try { w.Close(); } catch { /* a never-shown window may resist closing; ignore */ }

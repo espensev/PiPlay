@@ -26,19 +26,24 @@ public static class WindowPlacementService
             var wp = new WINDOWPLACEMENT { length = Marshal.SizeOf<WINDOWPLACEMENT>() };
             if (!GetWindowPlacement(hwnd, ref wp)) return null;
 
-            var r = wp.rcNormalPosition;
+            var workspace = ToRectI(wp.rcNormalPosition);
+            var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            var hasMonitor = TryGetMonitorInfo(monitor, out var mi);
+            var screen = hasMonitor
+                ? PlacementMath.WorkspaceToScreen(workspace, ToRectI(mi.rcMonitor), ToRectI(mi.rcWork))
+                : workspace;
+
             var data = new PlacementData
             {
-                X = r.Left,
-                Y = r.Top,
-                Width = r.Right - r.Left,
-                Height = r.Bottom - r.Top,
+                X = screen.Left,
+                Y = screen.Top,
+                Width = screen.Width,
+                Height = screen.Height,
                 Maximized = wp.showCmd == SW_SHOWMAXIMIZED,
                 DpiScale = GetDpiScaleSafe(window),
             };
 
-            var monitor = MonitorFromRect(ref r, MONITOR_DEFAULTTONEAREST);
-            if (TryGetMonitorInfo(monitor, out var mi))
+            if (hasMonitor)
             {
                 data.MonitorDeviceName = mi.szDevice;
                 data.MonitorWorkArea = ToRectData(mi.rcWork);
@@ -60,19 +65,18 @@ public static class WindowPlacementService
         {
             var hwnd = new WindowInteropHelper(window).EnsureHandle();
 
-            var work = ResolveWorkArea(data);
-            var target = new RECT
-            {
-                Left = data.X,
-                Top = data.Y,
-                Right = data.X + data.Width,
-                Bottom = data.Y + data.Height,
-            };
-            var clamped = Clamp(target, work);
+            var (monitorRect, workRect) = ResolveMonitorBounds(data);
+            var target = new RectI(
+                data.X,
+                data.Y,
+                data.X + data.Width,
+                data.Y + data.Height);
+            var clamped = PlacementMath.Clamp(target, workRect);
+            var workspace = PlacementMath.ScreenToWorkspace(clamped, monitorRect, workRect);
 
             var wp = new WINDOWPLACEMENT { length = Marshal.SizeOf<WINDOWPLACEMENT>() };
             GetWindowPlacement(hwnd, ref wp); // seed with current values
-            wp.rcNormalPosition = clamped;
+            wp.rcNormalPosition = ToRect(workspace);
             wp.showCmd = data.Maximized ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL;
             wp.flags = 0;
             SetPlacementAtTargetDpi(() => GetDpiForWindow(hwnd), () => SetWindowPlacement(hwnd, ref wp));
@@ -104,7 +108,7 @@ public static class WindowPlacementService
     internal static bool SetPlacementAtTargetDpiForTests(Func<uint> getDpi, Func<bool> setPlacement) =>
         SetPlacementAtTargetDpi(getDpi, setPlacement);
 
-    private static RECT ResolveWorkArea(PlacementData data)
+    private static (RectI Monitor, RectI Work) ResolveMonitorBounds(PlacementData data)
     {
         var monitors = EnumerateMonitors();
 
@@ -113,7 +117,7 @@ public static class WindowPlacementService
         {
             foreach (var m in monitors)
                 if (string.Equals(m.szDevice, data.MonitorDeviceName, StringComparison.Ordinal))
-                    return m.rcWork;
+                    return (ToRectI(m.rcMonitor), ToRectI(m.rcWork));
         }
 
         // Otherwise the nearest monitor to the saved rectangle.
@@ -125,22 +129,28 @@ public static class WindowPlacementService
             Bottom = data.Y + data.Height,
         };
         var hmon = MonitorFromRect(ref target, MONITOR_DEFAULTTONEAREST);
-        if (TryGetMonitorInfo(hmon, out var mi)) return mi.rcWork;
+        if (TryGetMonitorInfo(hmon, out var mi))
+            return (ToRectI(mi.rcMonitor), ToRectI(mi.rcWork));
 
         if (data.MonitorWorkArea is { } w)
-            return new RECT { Left = w.X, Top = w.Y, Right = w.X + w.Width, Bottom = w.Y + w.Height };
+        {
+            var fallback = new RectI(w.X, w.Y, w.X + w.Width, w.Y + w.Height);
+            return (fallback, fallback);
+        }
 
-        return new RECT { Left = 0, Top = 0, Right = 1920, Bottom = 1080 };
+        var defaultBounds = new RectI(0, 0, 1920, 1080);
+        return (defaultBounds, defaultBounds);
     }
 
-    private static RECT Clamp(RECT r, RECT work)
+    private static RectI ToRectI(RECT r) => new(r.Left, r.Top, r.Right, r.Bottom);
+
+    private static RECT ToRect(RectI r) => new()
     {
-        // Geometry lives in PlacementMath so it can be unit-tested without a Window/monitors.
-        var c = PlacementMath.Clamp(
-            new RectI(r.Left, r.Top, r.Right, r.Bottom),
-            new RectI(work.Left, work.Top, work.Right, work.Bottom));
-        return new RECT { Left = c.Left, Top = c.Top, Right = c.Right, Bottom = c.Bottom };
-    }
+        Left = r.Left,
+        Top = r.Top,
+        Right = r.Right,
+        Bottom = r.Bottom,
+    };
 
     private static List<MONITORINFOEX> EnumerateMonitors()
     {
@@ -218,6 +228,9 @@ public static class WindowPlacementService
 
     [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
 
     [DllImport("user32.dll")]
     private static extern IntPtr MonitorFromRect(ref RECT lprc, uint dwFlags);

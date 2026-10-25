@@ -113,6 +113,46 @@ function dataPropertyName(attributeName) {
   return attributeName.slice(5).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 }
 
+function parseHtmlInto(parent, html) {
+  const stack = [parent];
+  const tokenPattern = /<!--[\s\S]*?-->|<\/([a-zA-Z0-9-]+)\s*>|<([a-zA-Z0-9-]+)([\s\S]*?)(\/?)>|([^<]+)/g;
+  const attrPattern = /([a-zA-Z0-9_:-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+  const voidTags = new Set(["INPUT", "PATH", "CIRCLE", "BR", "HR", "IMG", "META", "LINK"]);
+
+  let match;
+  while ((match = tokenPattern.exec(String(html))) !== null) {
+    const [, closeTag, openTag, rawAttrs, selfClose, textNode] = match;
+    if (closeTag) {
+      if (stack.length > 1 && stack[stack.length - 1].tagName === closeTag.toUpperCase()) {
+        stack.pop();
+      }
+      continue;
+    }
+    if (openTag) {
+      const element = new FakeElement(openTag);
+      attrPattern.lastIndex = 0;
+      let attrMatch;
+      while ((attrMatch = attrPattern.exec(rawAttrs)) !== null) {
+        const attrName = attrMatch[1];
+        const attrValue = attrMatch[2] ?? attrMatch[3] ?? attrMatch[4] ?? "";
+        element.setAttribute(attrName, attrValue);
+      }
+      stack[stack.length - 1].appendChild(element);
+      if (!selfClose && !voidTags.has(element.tagName)) {
+        stack.push(element);
+      }
+      continue;
+    }
+    if (textNode !== undefined) {
+      const trimmed = textNode.trim();
+      if (trimmed) {
+        const current = stack[stack.length - 1];
+        current.textContent = (current.textContent || "") + trimmed;
+      }
+    }
+  }
+}
+
 class FakeElement extends EventHub {
   constructor(tagName = "div", options = {}) {
     super();
@@ -134,6 +174,10 @@ class FakeElement extends EventHub {
     this._innerHTML = "";
     this._connected = false;
     this.clickCount = 0;
+    this.blurCount = 0;
+    this.active = false;
+    this.focusVisible = false;
+    this.hovered = false;
     this.pointerCaptureId = null;
 
     for (const [name, value] of Object.entries(options.attributes || {})) {
@@ -155,6 +199,9 @@ class FakeElement extends EventHub {
 
   set innerHTML(value) {
     this._innerHTML = String(value);
+    this.children = [];
+    this.textContent = "";
+    parseHtmlInto(this, this._innerHTML);
   }
 
   get isConnected() {
@@ -183,6 +230,8 @@ class FakeElement extends EventHub {
     this.attributes.set(name, text);
     if (name === "id") this.id = text;
     else if (name === "class") this.className = text;
+    else if (name === "title") this.title = text;
+    else if (name === "value") this.value = text;
     else if (name.startsWith("data-")) this.dataset[dataPropertyName(name)] = text;
   }
 
@@ -197,7 +246,12 @@ class FakeElement extends EventHub {
   }
 
   matchesOne(selector) {
-    if (!selector || selector === ":active" || selector.endsWith(":hover")) return false;
+    if (!selector) return false;
+    if (selector === ":active") return !!this.active;
+    if (selector === ":focus-visible") return !!this.focusVisible;
+    if (selector.endsWith(":hover")) {
+      return !!this.hovered && this.matchesOne(selector.slice(0, -6));
+    }
 
     const notAttribute = selector.match(/^(.*):not\(\[([^=]+)=['"]([^'"]+)['"]\]\)$/);
     if (notAttribute) {
@@ -242,6 +296,11 @@ class FakeElement extends EventHub {
 
   click() {
     this.clickCount++;
+  }
+
+  blur() {
+    this.blurCount++;
+    this.focusVisible = false;
   }
 }
 
@@ -298,7 +357,7 @@ function querySelectorWithin(root, selectorList) {
 }
 
 class FakeDocument extends EventHub {
-  constructor({ includePlayer = true, includeFocusedRoot = false, adClass = null } = {}) {
+  constructor({ includePlayer = true, adClass = null } = {}) {
     super();
     this.readyState = "complete";
     this.activeElement = null;
@@ -316,7 +375,6 @@ class FakeDocument extends EventHub {
     this.nativeCaptions = null;
     this.nativeNext = null;
     this.nativeAdControl = null;
-    this.focused = null;
 
     if (includePlayer) {
       this.player = new FakeElement("div", { id: "movie_player", classes: ["html5-video-player"] });
@@ -333,11 +391,18 @@ class FakeDocument extends EventHub {
       this.player.appendChild(this.nativeAdControl);
       this.body.appendChild(this.player);
     }
+  }
 
-    if (includeFocusedRoot) {
-      this.focused = buildFocusedRoot();
-      this.body.appendChild(this.focused.root);
+  get focused() {
+    const root = this.getElementById("piplay-focused-overlay");
+    if (!root) return null;
+    const controls = {};
+    for (const action of ["mute", "captions", "settings", "pinToggle", "fullscreenToggle", "close", "playPause", "next", "seek"]) {
+      controls[action] = root.querySelector(`[data-action="${action}"]`);
     }
+    controls.current = root.querySelector('[data-time="current"]');
+    controls.duration = root.querySelector('[data-time="duration"]');
+    return { root, controls };
   }
 
   createElement(tagName) {
@@ -380,36 +445,6 @@ class FakeMutationObserver {
   disconnect() {
     this.connected = false;
   }
-}
-
-function buildFocusedRoot() {
-  const root = new FakeElement("div", {
-    id: "piplay-focused-overlay",
-    classes: ["piplay-focused-overlay", "is-visible"],
-    attributes: { "data-piplay-no-drag": "true" },
-  });
-  const controls = {};
-  const buttonActions = ["mute", "captions", "settings", "pinToggle", "fullscreenToggle", "close", "playPause", "next"];
-  for (const action of buttonActions) {
-    const button = new FakeElement("button", {
-      classes: ["piplay-focused-button"],
-      attributes: { "data-action": action, "data-piplay-no-drag": "true" },
-    });
-    root.appendChild(button);
-    controls[action] = button;
-  }
-
-  controls.seek = new FakeElement("input", {
-    classes: ["piplay-focused-progress"],
-    attributes: { "data-action": "seek", "data-piplay-no-drag": "true" },
-    value: "0",
-  });
-  controls.current = new FakeElement("span", { attributes: { "data-time": "current" } });
-  controls.duration = new FakeElement("span", { attributes: { "data-time": "duration" } });
-  root.appendChild(controls.current);
-  root.appendChild(controls.seek);
-  root.appendChild(controls.duration);
-  return { root, controls };
 }
 
 function createEnvironment(options = {}) {
@@ -490,6 +525,15 @@ function actionEvent(target, trusted) {
     preventDefault() { this.defaultPrevented = true; },
     stopImmediatePropagation() {},
   };
+}
+
+function runNextTimeout(environment) {
+  const entry = [...environment.timers.entries()].find(([, timer]) => !timer.interval);
+  assert(entry, "expected a scheduled timeout");
+  const [id, timer] = entry;
+  environment.timers.delete(id);
+  timer.callback();
+  return timer.delay;
 }
 
 function authorizePassive(environment) {
@@ -622,6 +666,17 @@ scenario("passive drag excludes every declared interactive YouTube and PiPlay su
     environment.window.emit("pointerup", pointerEvent(target, player));
   }
   equal(environment.messages.length, 0, "interactive targets must never arm passive dragging");
+
+  for (const className of ["ytp-chrome-bottom", "ytp-chrome-top"]) {
+    const blankChrome = new FakeElement("div", { classes: [className] });
+    player.appendChild(blankChrome);
+    environment.window.emit("pointerdown", pointerEvent(blankChrome, player));
+    environment.window.emit("pointermove", pointerEvent(blankChrome, player, { clientX: 20 }));
+    environment.window.emit("pointerup", pointerEvent(blankChrome, player));
+  }
+  equal(environment.messages.length, 2, "blank YouTube chrome containers must remain draggable");
+  equal(JSON.parse(environment.messages[0]).type, "dragStart", "bottom chrome drag message type");
+  equal(JSON.parse(environment.messages[1]).type, "dragStart", "top chrome drag message type");
 });
 
 scenario("passive drag document-token rotation clears an armed stale gesture", () => {
@@ -645,7 +700,7 @@ scenario("passive drag document-token rotation clears an armed stale gesture", (
 });
 
 scenario("Focused surface rejects synthetic media and native actions", () => {
-  const environment = createEnvironment({ includeFocusedRoot: true });
+  const environment = createEnvironment();
   execute(environment, input.focusedScript);
   authorizeFocused(environment);
   environment.messages.length = 0;
@@ -671,7 +726,7 @@ scenario("Focused surface rejects synthetic media and native actions", () => {
 
 scenario("Focused surface blocks seek and Next for every recognized ad state", () => {
   for (const adClass of ["ad-showing", "ad-interrupting"]) {
-    const environment = createEnvironment({ includeFocusedRoot: true, adClass });
+    const environment = createEnvironment({ adClass });
     execute(environment, input.focusedScript);
     authorizeFocused(environment);
     environment.messages.length = 0;
@@ -696,7 +751,7 @@ scenario("Focused surface blocks seek and Next for every recognized ad state", (
 });
 
 scenario("Focused non-ad trusted branches work and emit only the closed native action", () => {
-  const environment = createEnvironment({ includeFocusedRoot: true });
+  const environment = createEnvironment();
   execute(environment, input.focusedScript);
   authorizeFocused(environment);
   environment.messages.length = 0;
@@ -722,8 +777,99 @@ scenario("Focused non-ad trusted branches work and emit only the closed native a
     "Focused request must retain its exact closed schema");
 });
 
+scenario("Focused surface buildRoot, configure, zero-volume unmute, seek fill, and idle-fade attention gating", () => {
+  const environment = createEnvironment();
+  equal(environment.document.getElementById("piplay-focused-overlay"), null,
+    "overlay must not exist before Focused script runs");
+
+  execute(environment, input.focusedScript);
+  authorizeFocused(environment);
+
+  const focused = environment.document.focused;
+  assert(focused && focused.root, "buildRoot() must create and attach #piplay-focused-overlay");
+  const { root, controls } = focused;
+
+  for (const name of ["mute", "captions", "settings", "pinToggle", "fullscreenToggle", "close", "playPause", "next", "seek", "current", "duration"]) {
+    assert(controls[name] && controls[name].isConnected, `buildRoot() must populate connected control '${name}'`);
+  }
+  equal(controls.pinToggle.title, "Pin popout on top", "initial pin title");
+  equal(controls.pinToggle.getAttribute("aria-label"), "Pin popout on top", "initial pin aria-label");
+  equal(controls.pinToggle.getAttribute("aria-pressed"), "false", "initial pin aria-pressed");
+  equal(controls.fullscreenToggle.title, "Expand popout", "initial fullscreen title");
+  equal(controls.fullscreenToggle.getAttribute("aria-pressed"), "false", "initial fullscreen aria-pressed");
+  equal(controls.fullscreenToggle.dataset.piplayIcon, "expand", "initial fullscreen icon");
+  equal(controls.playPause.title, "Play", "initial play title");
+  equal(controls.playPause.getAttribute("aria-label"), "Play", "initial play aria-label");
+  equal(controls.mute.title, "Mute", "initial mute title");
+  equal(controls.mute.getAttribute("aria-label"), "Mute", "initial mute aria-label");
+
+  const style = environment.document.getElementById("piplay-focused-surface-style");
+  assert(style && style.textContent.includes("object-fit: contain !important"),
+    "Focused style must preserve aspect ratio with object-fit: contain !important");
+  assert(!style.textContent.toLowerCase().includes("object-fit: cover"),
+    "Focused style must never crop with object-fit: cover");
+
+  execute(environment, input.focusedConfigurePinnedMaxScript);
+  equal(root.style.getPropertyValue("--piplay-accent"), "#FF5500", "configured accent color");
+  equal(controls.pinToggle.getAttribute("aria-pressed"), "true", "pinned aria-pressed");
+  equal(controls.pinToggle.getAttribute("aria-label"), "Unpin popout from top", "pinned aria-label");
+  equal(controls.pinToggle.title, "Unpin popout from top", "pinned title");
+  equal(controls.fullscreenToggle.getAttribute("aria-pressed"), "true", "maximized aria-pressed");
+  equal(controls.fullscreenToggle.title, "Restore popout", "maximized title");
+  equal(controls.fullscreenToggle.dataset.piplayIcon, "restore", "maximized icon");
+
+  execute(environment, input.focusedConfigureUnpinnedRestoreScript);
+  equal(controls.pinToggle.getAttribute("aria-pressed"), "false", "unpinned aria-pressed");
+  equal(controls.pinToggle.getAttribute("aria-label"), "Pin popout on top", "unpinned aria-label");
+  equal(controls.pinToggle.title, "Pin popout on top", "unpinned title");
+  equal(controls.fullscreenToggle.getAttribute("aria-pressed"), "false", "restored aria-pressed");
+  equal(controls.fullscreenToggle.title, "Expand popout", "restored title");
+  equal(controls.fullscreenToggle.dataset.piplayIcon, "expand", "restored icon");
+
+  const media = environment.document.media;
+  media.volume = 0;
+  media.muted = false;
+  media.emit("volumechange", { isTrusted: true, target: media });
+  equal(controls.mute.dataset.piplayIcon, "muted", "zero volume must show muted icon");
+  root.emit("click", Object.assign(actionEvent(controls.mute, true), { detail: 1 }));
+  equal(media.volume, 0.5, "zero-volume unmute must restore volume to 0.5");
+  equal(media.muted, false, "zero-volume unmute must keep muted false");
+  equal(controls.mute.dataset.piplayIcon, "volume", "zero-volume unmute must restore volume icon");
+  equal(controls.mute.blurCount, 1, "pointer click on mute must blur control");
+
+  controls.seek.value = "250";
+  root.emit("input", actionEvent(controls.seek, true));
+  equal(controls.seek.style.getPropertyValue("--piplay-progress"), "25%", "seek must update --piplay-progress");
+  equal(media.currentTime, 30, "seek must update media.currentTime");
+  controls.seek.focusVisible = false;
+  root.emit("change", actionEvent(controls.seek, true));
+  equal(controls.seek.blurCount, 1, "seek change without focus-visible must blur seek input");
+
+  controls.playPause.hovered = true;
+  runNextTimeout(environment);
+  assert(root.classList.contains("is-visible"), "hovered control must prevent idle fade");
+
+  controls.playPause.hovered = false;
+  environment.document.activeElement = controls.playPause;
+  controls.playPause.focusVisible = true;
+  equal(runNextTimeout(environment), 250, "attention hold must poll after 250ms");
+  assert(root.classList.contains("is-visible"), "focus-visible control must prevent idle fade");
+
+  controls.playPause.focusVisible = false;
+  environment.document.activeElement = null;
+  runNextTimeout(environment);
+  assert(!root.classList.contains("is-visible"), "clearing attention must allow idle fade to hide overlay");
+
+  media.play();
+  assert(root.classList.contains("is-visible"), "transition to playing must reveal overlay");
+  runNextTimeout(environment);
+  assert(!root.classList.contains("is-visible"), "idle fade must hide overlay during playback");
+  media.pause();
+  assert(root.classList.contains("is-visible"), "transition to paused must reveal overlay");
+});
+
 scenario("Focused selector failure withdraws harmlessly and reports inactive", () => {
-  const environment = createEnvironment({ includePlayer: false, includeFocusedRoot: false });
+  const environment = createEnvironment({ includePlayer: false });
   execute(environment, input.focusedScript);
   authorizeFocused(environment);
 
@@ -743,3 +889,4 @@ if (failures.length) {
 } else {
   process.stdout.write(`DOM HARNESS PASS (${passed} scenarios)\n`);
 }
+

@@ -212,9 +212,16 @@ public sealed class SettingsService
 
     private static bool HasThemeBlock(JsonElement root)
     {
-        return root.ValueKind == JsonValueKind.Object
-            && root.TryGetProperty("theme", out var theme)
-            && theme.ValueKind != JsonValueKind.Null;
+        if (root.ValueKind != JsonValueKind.Object) return false;
+        foreach (var property in root.EnumerateObject())
+        {
+            if (string.Equals(property.Name, "theme", StringComparison.OrdinalIgnoreCase)
+                && property.Value.ValueKind != JsonValueKind.Null)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static double? NormalizeOptionalOpacity(double? value) =>

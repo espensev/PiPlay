@@ -63,28 +63,22 @@ public class StartupArgumentPolicyTests
     }
 
     [Fact]
-    public void Empty_argument_list_starts_normally_without_a_url()
+    public void Arguments_with_no_launch_candidate_start_normally_without_a_url()
     {
-        var request = StartupArgumentPolicy.Parse([]);
+        var empty = StartupArgumentPolicy.Parse([]);
+        Assert.Equal(StartupAction.Launch, empty.Action);
+        Assert.Null(empty.LaunchUrl);
 
-        Assert.Equal(StartupAction.Launch, request.Action);
-        Assert.Null(request.LaunchUrl);
-    }
-
-    [Fact]
-    public void No_launch_candidate_starts_normally_without_a_url()
-    {
-        var request = StartupArgumentPolicy.Parse(["unknown", "--not-an-option"]);
-
-        Assert.Equal(StartupAction.Launch, request.Action);
-        Assert.Null(request.LaunchUrl);
+        var nonTargets = StartupArgumentPolicy.Parse(["--verbose", "unknown", "https://example.com"]);
+        Assert.Equal(StartupAction.Launch, nonTargets.Action);
+        Assert.Null(nonTargets.LaunchUrl);
     }
 
     [Fact]
     public void First_launch_candidate_wins()
     {
         var request = StartupArgumentPolicy.Parse(
-            ["unknown", "https://example.com/", "youtu.be/dQw4w9WgXcQ"]);
+            ["--verbose", "unknown", "https://example.com/", "youtu.be/dQw4w9WgXcQ"]);
 
         Assert.Equal(StartupAction.Launch, request.Action);
         Assert.Equal("youtu.be/dQw4w9WgXcQ", request.LaunchUrl);
@@ -93,22 +87,19 @@ public class StartupArgumentPolicyTests
     [Theory]
     [InlineData("http://www.youtube.com/watch?v=dQw4w9WgXcQ")]
     [InlineData("https://www.youtube.com/watch?v=dQw4w9WgXcQ")]
+    [InlineData("https://youtu.be/dQw4w9WgXcQ")]
     [InlineData("https://youtu.be/dQw4w9WgXcQ?t=42")]
+    [InlineData("https://m.youtube.com/watch?v=dQw4w9WgXcQ")]
+    [InlineData("https://www.youtube.com/shorts/dQw4w9WgXcQ")]
+    [InlineData("https://www.youtube.com/live/dQw4w9WgXcQ")]
     [InlineData("https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ")]
-    public void Supported_explicit_target_is_preserved(string url)
-    {
-        var request = StartupArgumentPolicy.Parse([url]);
-
-        Assert.Equal(StartupAction.Launch, request.Action);
-        Assert.Equal(url, request.LaunchUrl);
-    }
-
-    [Theory]
+    [InlineData("https://www.youtube.com/playlist?list=PL1234567890")]
     [InlineData("youtube.com/watch?v=dQw4w9WgXcQ")]
+    [InlineData("www.youtube.com/watch?v=dQw4w9WgXcQ")]
     [InlineData("youtu.be/dQw4w9WgXcQ")]
     [InlineData("www.youtube-nocookie.com/embed/dQw4w9WgXcQ")]
     [InlineData("dQw4w9WgXcQ")]
-    public void Supported_scheme_less_target_is_preserved_for_shared_navigation_parsing(string url)
+    public void Supported_youtube_target_is_preserved_as_launch_url(string url)
     {
         var request = StartupArgumentPolicy.Parse([url]);
 
@@ -117,7 +108,18 @@ public class StartupArgumentPolicyTests
     }
 
     [Theory]
+    [InlineData("")]
+    [InlineData("--verbose")]
     [InlineData("youtube")]
+    [InlineData("youtu.be")]
+    [InlineData("https://youtu.be/")]
+    [InlineData("youtube.com/evil")]
+    [InlineData("https://www.youtube.com/")]
+    [InlineData("https://www.youtube.com/results?search_query=cats")]
+    [InlineData("https://www.youtube.com/playlist")]
+    [InlineData("https://example.com")]
+    [InlineData("https://example.com/watch?v=dQw4w9WgXcQ")]
+    [InlineData("https://youtube.com.evil.test/watch?v=dQw4w9WgXcQ")]
     [InlineData("youtu-not-a-url")]
     [InlineData("http://example.com/watch?v=1")]
     [InlineData("https://example.com/watch?v=1")]
@@ -127,7 +129,7 @@ public class StartupArgumentPolicyTests
     [InlineData("youtube.com@evil.test/watch?v=dQw4w9WgXcQ")]
     [InlineData("ftp://youtube.com/watch?v=dQw4w9WgXcQ")]
     [InlineData("youtube://evil.test/path")]
-    public void Scheme_less_youtube_lookalike_is_not_a_launch_candidate(string argument)
+    public void Unsupported_or_lookalike_argument_is_not_a_launch_candidate(string argument)
     {
         var request = StartupArgumentPolicy.Parse([argument]);
 

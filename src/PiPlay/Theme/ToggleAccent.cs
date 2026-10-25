@@ -65,12 +65,10 @@ public static class ToggleAccent
         if (toggle.IsChecked == true && GetCheckedBrush(toggle) is { } brush)
         {
             toggle.Foreground = brush;
-            toggle.BorderBrush = brush;
         }
         else
         {
             toggle.ClearValue(Control.ForegroundProperty);
-            toggle.ClearValue(Control.BorderBrushProperty);
         }
     }
 }

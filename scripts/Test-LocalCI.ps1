@@ -35,6 +35,9 @@ $testDataRoot = Join-Path ([System.IO.Path]::GetTempPath()) (
 
 function New-LocalCiPlan {
     $buildScript = Join-Path $repoRoot "Build-PiPlay.ps1"
+    if (-not (Test-Path -LiteralPath $buildScript -PathType Leaf)) {
+        $buildScript = Join-Path $PSScriptRoot "Build-PiPlay.ps1"
+    }
 
     return [ordered]@{
         schemaVersion = 2
@@ -195,11 +198,15 @@ if ($Plan) {
     exit 0
 }
 
-foreach ($relativePath in @("PiPlay.sln", "global.json", "Build-PiPlay.ps1")) {
+foreach ($relativePath in @("PiPlay.sln", "global.json")) {
     $requiredPath = Join-Path $repoRoot $relativePath
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
         throw "Required local CI input not found: $requiredPath"
     }
+}
+$resolvedBuildScript = [string]$localCiPlan.steps[4].arguments[2]
+if (-not (Test-Path -LiteralPath $resolvedBuildScript -PathType Leaf)) {
+    throw "Required local CI input not found: $resolvedBuildScript"
 }
 
 foreach ($commandName in @("dotnet", "node", "pwsh")) {

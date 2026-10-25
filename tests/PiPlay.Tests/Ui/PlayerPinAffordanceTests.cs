@@ -7,7 +7,7 @@ using PiPlay;
 namespace PiPlay.Tests;
 
 [Trait(TestCategories.Key, TestCategories.Wpf)]
-public class PlayerPinAffordanceTests
+public class PlayerPinAffordanceTests : IDisposable
 {
     private static PlayerWindow NewPlayer(bool topmost) =>
         new(environment: null!, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
@@ -19,24 +19,31 @@ public class PlayerPinAffordanceTests
         StaTestThread.Invoke(() =>
         {
             var window = NewPlayer(topmost: false);
-            var pin = (ToggleButton)window.FindName("PinToggle")!;
+            try
+            {
+                var pin = (ToggleButton)window.FindName("PinToggle")!;
 
-            Assert.Equal("Pin popout on top", pin.ToolTip);
-            Assert.Equal("Pin popout on top", AutomationProperties.GetName(pin));
+                Assert.Equal("Pin popout on top", pin.ToolTip);
+                Assert.Equal("Pin popout on top", AutomationProperties.GetName(pin));
 
-            pin.IsChecked = true;
-            pin.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                pin.IsChecked = true;
+                pin.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
 
-            Assert.True(window.Topmost);
-            Assert.Equal("Unpin popout from top", pin.ToolTip);
-            Assert.Equal("Unpin popout from top", AutomationProperties.GetName(pin));
+                Assert.True(window.Topmost);
+                Assert.Equal("Unpin popout from top", pin.ToolTip);
+                Assert.Equal("Unpin popout from top", AutomationProperties.GetName(pin));
 
-            pin.IsChecked = false;
-            pin.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                pin.IsChecked = false;
+                pin.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
 
-            Assert.False(window.Topmost);
-            Assert.Equal("Pin popout on top", pin.ToolTip);
-            Assert.Equal("Pin popout on top", AutomationProperties.GetName(pin));
+                Assert.False(window.Topmost);
+                Assert.Equal("Pin popout on top", pin.ToolTip);
+                Assert.Equal("Pin popout on top", AutomationProperties.GetName(pin));
+            }
+            finally
+            {
+                window.Close();
+            }
         });
 
     [Fact]
@@ -44,11 +51,26 @@ public class PlayerPinAffordanceTests
         StaTestThread.Invoke(() =>
         {
             var window = NewPlayer(topmost: true);
-            var pin = (ToggleButton)window.FindName("PinToggle")!;
+            try
+            {
+                var pin = (ToggleButton)window.FindName("PinToggle")!;
 
-            Assert.True(window.Topmost);
-            Assert.True(pin.IsChecked);
-            Assert.Equal("Unpin popout from top", pin.ToolTip);
-            Assert.Equal("Unpin popout from top", AutomationProperties.GetName(pin));
+                Assert.True(window.Topmost);
+                Assert.True(pin.IsChecked);
+                Assert.Equal("Unpin popout from top", pin.ToolTip);
+                Assert.Equal("Unpin popout from top", AutomationProperties.GetName(pin));
+            }
+            finally
+            {
+                window.Close();
+            }
         });
+
+    public void Dispose() => StaTestThread.Invoke(() =>
+    {
+        foreach (var w in Application.Current.Windows.Cast<Window>().ToArray())
+        {
+            try { w.Close(); } catch { /* a never-shown window may resist closing; ignore */ }
+        }
+    });
 }
