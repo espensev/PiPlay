@@ -6,8 +6,10 @@
 .DESCRIPTION
   Thin wrapper over scripts\Build-PiPlay.ps1 that:
     0. takes a publish lock (per repo + per deploy root) so two publishes cannot interleave, and - for
-       an exact-source release - PREFLIGHTS the stable tag it is about to create. A tag collision is a
-       one-second failure now instead of a failure after the deployed copy has already been replaced;
+       an exact-source release - PREFLIGHTS the stable tag it is about to create and PROVES that HEAD is
+       on origin's published main line (fetch + merge-base). A tag collision or an off-main-line commit is a
+       one-second failure now instead of a failure (or a diverged Stable) after the deployed copy has
+       already been replaced;
     1. (optionally) runs the deterministic test lane as a gate;
     2. builds + publishes a Release with the Stable channel baked in - giving the deployed copy its
        own data root (PiPlayData beside the exe), its own single-instance identity, and a
@@ -205,6 +207,53 @@ creation. Choose the version move, edit VERSION/BUILD_NUMBER, commit the stamps,
         Write-Host "  Tag '$expectedTag' already points at HEAD - this is an idempotent republish." -ForegroundColor Green
     } else {
         Write-Host "  Tag '$expectedTag' is free and will be created after the deploy verifies." -ForegroundColor Green
+    }
+
+    # Main-line preflight. v0.14.0-b40 was tested, verified, deployed, and tagged from a commit that was
+    # NOT on origin's main line, so main and Stable diverged and had to be re-merged (PR #52). README's
+    # promotion rule - promote only a merged, committed release - is enforced here, before anything
+    # expensive or destructive: the exact source must already be on the published main line.
+    Write-Step 0 "Main-line preflight (exact source must already be on the published main line)..."
+    $remoteLine = Invoke-Git @("symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+    if (-not $remoteLine) { $remoteLine = "origin/main" }
+
+    $previousGitTerminalPrompt = $env:GIT_TERMINAL_PROMPT
+    $env:GIT_TERMINAL_PROMPT = "0"   # a credential prompt inside the quiet wrapper would hang silently
+    try {
+        Invoke-NativeCommandQuiet { & git -C $repoRoot fetch --quiet origin } | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not fetch 'origin' to confirm that HEAD is on '$remoteLine'. An exact-source stable publish must see the published main line; restore connectivity/credentials and re-run, or pass -AllowDirty for a diagnostic deploy that is NOT release evidence."
+        }
+    } finally {
+        $env:GIT_TERMINAL_PROMPT = $previousGitTerminalPrompt
+    }
+
+    $remoteLineCommit = Invoke-Git @("rev-parse", "--verify", "--quiet", "$remoteLine^{commit}")
+    if (-not $remoteLineCommit) {
+        throw "Could not resolve '$remoteLine' after fetching; an exact-source stable publish needs the published main line."
+    }
+
+    Invoke-NativeCommandQuiet { & git -C $repoRoot merge-base --is-ancestor $headCommit $remoteLineCommit } | Out-Null
+    $ancestry = $LASTEXITCODE
+    if ($ancestry -gt 1) {
+        throw "git merge-base failed (exit $ancestry) while checking whether HEAD $headCommit is on '$remoteLine'."
+    }
+    if ($ancestry -eq 1) {
+        throw @"
+HEAD $headCommit is not on '$remoteLine' ($remoteLineCommit).
+Publishing Stable from a commit that is not on the published main line is how v0.14.0-b40 diverged from main.
+Land this work through a pull request, fast-forward main, and publish from there.
+"@
+    }
+    if ($remoteLineCommit -ne $headCommit) {
+        $behindCount = Invoke-Git @("rev-list", "--count", "$headCommit..$remoteLineCommit")
+        if ($existingTagCommit -eq $headCommit) {
+            Write-Warning "HEAD is $behindCount commit(s) behind '$remoteLine'; continuing because '$expectedTag' already points at HEAD (republish/rollback of a verified release)."
+        } else {
+            throw "HEAD $headCommit is $behindCount commit(s) behind '$remoteLine' ($remoteLineCommit). Fast-forward to the published main line (git pull --ff-only) before an exact-source stable publish."
+        }
+    } else {
+        Write-Host "  HEAD is current with '$remoteLine'." -ForegroundColor Green
     }
 }
 

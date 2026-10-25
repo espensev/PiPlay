@@ -20,7 +20,7 @@ pwsh -NoProfile -File .\scripts\Test-LocalCI.ps1
 
 SND-HOST owns routine feature work: start from current `main`, use a machine-namespaced `snd-host/...` branch, run the local gate, and open a pull request. GitHub-hosted `Build and test (Windows)` is the required merge check.
 
-SND-DESK owns clean validation and Stable acceptance. Fast-forward a clean test worktree, keep automated test/UI data disposable through the repository scripts, and never replace the Stable runtime with source or feature-branch output. Promote only a merged, committed release through the Stable scripts below.
+SND-DESK owns clean validation and Stable acceptance. Fast-forward a clean test worktree, keep automated test/UI data disposable through the repository scripts, and never replace the Stable runtime with source or feature-branch output. Promote only a merged, committed release through the Stable scripts below; `Publish-Stable.ps1` refuses an exact-source publish whose `HEAD` is not on origin's main line.
 
 ## Stable acceptance
 
