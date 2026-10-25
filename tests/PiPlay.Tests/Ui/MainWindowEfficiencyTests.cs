@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using PiPlay;
@@ -8,7 +9,7 @@ using PiPlay.Theme;
 namespace PiPlay.Tests;
 
 [Trait(TestCategories.Key, TestCategories.Wpf)]
-public class MainWindowEfficiencyTests
+public class MainWindowEfficiencyTests : IDisposable
 {
     [Fact]
     public void Injected_boot_settings_are_used_by_the_first_MainWindow()
@@ -22,9 +23,18 @@ public class MainWindowEfficiencyTests
             };
 
             var window = new MainWindow(settings);
-
-            Assert.True(((ToggleButton)window.FindName("AutoToggle")!).IsChecked);
-            Assert.Equal("#38D996", window.EffectivePlayerPreferencesForTests.AccentColor);
+            try
+            {
+                Assert.True(((ToggleButton)window.FindName("AutoToggle")!).IsChecked);
+                Assert.Equal("#38D996", window.EffectivePlayerPreferencesForTests.AccentColor);
+                Assert.Equal(
+                    ThemeCatalog.PresetFor("minimal").DefaultActiveWindowOpacity,
+                    ((Border)window.FindName("MainBarBackdrop")!).Opacity);
+            }
+            finally
+            {
+                window.Close();
+            }
         });
     }
 
@@ -67,7 +77,16 @@ public class MainWindowEfficiencyTests
             {
                 if (window.HasPendingAccentPreviewForTests) window.FlushAccentPreviewForTests();
                 window.RevertPreviewedAccentForTests();
+                window.Close();
             }
         });
     }
+
+    public void Dispose() => StaTestThread.Invoke(() =>
+    {
+        foreach (var w in Application.Current.Windows.Cast<Window>().ToArray())
+        {
+            try { w.Close(); } catch { /* a never-shown window may resist closing; ignore */ }
+        }
+    });
 }

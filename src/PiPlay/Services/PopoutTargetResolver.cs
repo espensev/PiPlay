@@ -11,15 +11,13 @@ public static class PopoutTargetResolver
 {
     public static YouTubeTarget? Resolve(string? currentSource, string? canonical)
     {
-        var hasSource = YouTubeUrlHelper.TryParse(currentSource, out var fromSource);
-        if (hasSource && !string.IsNullOrEmpty(fromSource.VideoId)) return fromSource;
+        if (YouTubeUrlHelper.TryParse(currentSource, out var fromSource))
+            return fromSource;
 
-        var hasCanonical = YouTubeUrlHelper.TryParse(canonical, out var fromCanonical);
-        if (hasCanonical && !string.IsNullOrEmpty(fromCanonical.VideoId)) return fromCanonical;
+        if (YouTubeUrlHelper.TryParse(canonical, out var fromCanonical))
+            return fromCanonical;
 
-        // Preserve the older playlist/fallback behavior when neither surface exposes a video id.
-        if (hasSource) return fromSource;
-        return hasCanonical ? fromCanonical : null;
+        return null;
     }
 
     /// <summary>

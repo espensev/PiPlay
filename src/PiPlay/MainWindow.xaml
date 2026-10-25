@@ -64,6 +64,7 @@
                   WindowChrome.IsHitTestVisibleInChrome="True">
         <Button x:Name="SettingsButton" Style="{StaticResource IconButton}" Click="SettingsButton_Click"
                 Content="&#xE713;" ToolTip="Settings" AutomationProperties.Name="Settings" />
+        <Border Width="1" Height="14" Background="{DynamicResource BorderSubtle}" Margin="4,0" VerticalAlignment="Center" IsHitTestVisible="False" />
         <Button x:Name="MinimizeButton" Style="{StaticResource IconButton}" Click="MinimizeButton_Click"
                 Content="&#xE921;" ToolTip="Minimize" AutomationProperties.Name="Minimize" />
         <!-- State-neutral name: the glyph flips Maximize/Restore in code, the name must stay true. -->
@@ -89,7 +90,7 @@
       </Grid.ColumnDefinitions>
 
       <StackPanel x:Name="SourceNavigationGroup" Grid.Column="0" Orientation="Horizontal"
-                  Margin="8,0,4,0" VerticalAlignment="Center">
+                  Margin="12,0,4,0" VerticalAlignment="Center">
         <Button x:Name="BackButton" Style="{StaticResource AccentIconButton}" Click="BackButton_Click"
                 Content="&#xE72B;" ToolTip="Back" AutomationProperties.Name="Back" />
         <Button x:Name="ReloadButton" Style="{StaticResource AccentIconButton}" Click="ReloadButton_Click"
@@ -111,24 +112,25 @@
                   ToolTip="Saved profiles" AutomationProperties.Name="Saved profiles">
           <ComboBox.ItemTemplate>
             <DataTemplate>
-              <!-- Row wash (docs/Theme_Preset_Differences.md): the row wears its OWN accent at the theme's
-                   subtle alpha, behind the identity rail. Tag carries the theme-published alpha
-                   so a live theme change reconverts, same trick as the rail's surface Tag. -->
-              <Grid x:Name="ProfileIdentityRow" MinWidth="0"
-                    Tag="{DynamicResource ProfileRowWashAlpha}">
-                <Grid.Background>
-                  <MultiBinding Converter="{StaticResource AccentWashBrushConverter}">
-                    <Binding Path="AccentColor" />
-                    <Binding Path="Tag" RelativeSource="{RelativeSource Self}" />
-                  </MultiBinding>
-                </Grid.Background>
+              <Grid x:Name="ProfileIdentityRow" MinWidth="0">
                 <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="12" />
+                  <ColumnDefinition Width="Auto" />
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Border x:Name="ProfileIdentityColorRail" Width="4" MinHeight="16"
-                        Margin="0,2,8,2" CornerRadius="{DynamicResource RadiusSwatch}"
+                        CornerRadius="{DynamicResource RadiusSwatch}"
                         Tag="{DynamicResource SurfaceHover}">
+                  <Border.Style>
+                    <Style TargetType="Border">
+                      <Setter Property="Margin" Value="0,2,8,2" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding AccentColor}" Value="{x:Null}">
+                          <Setter Property="Visibility" Value="Collapsed" />
+                          <Setter Property="Margin" Value="0" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Border.Style>
                   <Border.Background>
                     <MultiBinding Converter="{StaticResource ContrastBrushConverter}">
                       <Binding Path="AccentColor" />
@@ -162,6 +164,13 @@
                   <TextBlock Text="&#xE70F;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" />
                 </MenuItem.Icon>
               </MenuItem>
+              <MenuItem x:Name="ClearProfileMenuItem" Style="{StaticResource DarkMenuItem}"
+                        Header="_Clear active profile" Click="ClearProfileButton_Click" IsEnabled="False"
+                        AutomationProperties.Name="Clear active profile">
+                <MenuItem.Icon>
+                  <TextBlock Text="&#xE894;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" />
+                </MenuItem.Icon>
+              </MenuItem>
               <MenuItem x:Name="DeleteProfileMenuItem" Style="{StaticResource DarkMenuItem}"
                         Header="_Delete selected profile" Click="DeleteProfileButton_Click" IsEnabled="False"
                         AutomationProperties.Name="Delete selected profile">
@@ -179,19 +188,19 @@
                     ToolTip="Pin Source Window on top" AutomationProperties.Name="Pin Source Window on top" />
 
       <ToggleButton x:Name="AutoToggle" Grid.Column="4" Style="{StaticResource PinToggle}"
-                    Margin="6,0" Content="&#xE768;" Click="AutoToggle_Click"
+                    Margin="6,0" Content="&#xE945;" Click="AutoToggle_Click"
                     ToolTip="Automatically pop out videos when playback starts"
                     AutomationProperties.Name="Auto popout" />
 
       <!-- ADR-0005 recovery is deliberately separate from transfer: Show restores/focuses the
            existing player without closing it; the primary action moves playback in either direction. -->
       <Button x:Name="ShowPopoutButton" Grid.Column="5" Style="{StaticResource AccentIconButton}"
-              Margin="2,0" Content="&#xE8A7;" Click="ShowPopoutButton_Click"
+              Margin="2,0" Content="&#xE78B;" Click="ShowPopoutButton_Click"
               Visibility="Collapsed" ToolTip="Show the existing Popout Player"
               AutomationProperties.Name="Show Popout Player" />
 
       <Button x:Name="PopOutButton" Grid.Column="6" Style="{StaticResource AccentButton}"
-              Margin="6,6,10,6" Click="PopOutButton_Click" IsEnabled="False"
+              Margin="6,6,12,6" Click="PopOutButton_Click" IsEnabled="False"
               ToolTip="Pop out the current video" AutomationProperties.Name="Pop out video">
         <StackPanel Orientation="Horizontal">
           <TextBlock x:Name="PopOutButtonIcon" Text="&#xE8A7;"
@@ -211,9 +220,9 @@
       </Button>
     </Grid>
 
-    <!-- Content: browser + overlays. The letterbox pixels around the video wear the derived
-         near-black room tint (docs/Theme_Preset_Differences.md), never a hard-coded black. -->
-    <Grid x:Name="SourceLetterbox" Grid.Row="2" Background="{DynamicResource AccentLetterbox}">
+    <!-- Content: browser + overlays. SourceLetterbox blends into AppBackgroundWash behind the
+         12 DIP resize band while SourcePlaceholder keeps the derived near-black room tint. -->
+    <Grid x:Name="SourceLetterbox" Grid.Row="2" Background="{DynamicResource AppBackgroundWash}">
       <!-- Resize inset band (REQ-WINDOW-02, overhaul Task 1): the WebView2 child HWND swallows
            WM_NCHITTEST, so the top-level window must own the edge pixels for the resize subclass
            to see them. Left/right/bottom margin == BorderlessResizeHitTestPolicy.ResizeBorderDip
@@ -235,7 +244,8 @@
 
       <!-- Tier-1 Source Placeholder: shown (and the WebView hidden) while popped out (spec 13.3). -->
       <Border x:Name="SourcePlaceholder" Background="{DynamicResource AccentLetterbox}" Visibility="Collapsed">
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Effect="{DynamicResource ElevationPanel}">
           <TextBlock Text="&#xE8A7;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="40"
                      Foreground="{DynamicResource AccentPrimary}" HorizontalAlignment="Center" />
           <TextBlock Text="Playing in Video Popout" FontSize="18" Margin="0,14,0,0"
@@ -245,7 +255,7 @@
                      Foreground="{DynamicResource TextSecondary}" HorizontalAlignment="Center" />
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0">
             <Button x:Name="PlaceholderShowPopoutButton" Style="{StaticResource DarkButton}"
-                    Content="Show popout" Click="PlaceholderShowPopoutButton_Click"
+                    Content="Show Popout" Click="PlaceholderShowPopoutButton_Click"
                     ToolTip="Restore and focus the existing Popout Player"
                     AutomationProperties.Name="Show Popout Player" />
             <Button x:Name="PlaceholderBringBackButton" Style="{StaticResource AccentButton}"
@@ -266,13 +276,13 @@
       <!-- WebView2 runtime-missing / init-failure recovery panel (spec 15.4, Q-6). -->
       <Border x:Name="RuntimeErrorPanel" Background="{DynamicResource AppBackground}" Visibility="Collapsed">
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
-          <TextBlock Text="WebView2 Runtime is required" FontSize="20" FontWeight="SemiBold"
+          <TextBlock x:Name="RuntimeErrorTitle" Text="WebView2 Runtime is required" FontSize="20" FontWeight="SemiBold"
                      Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center" />
           <TextBlock x:Name="RuntimeErrorText" TextWrapping="Wrap" TextAlignment="Center"
                      FontSize="13" Margin="0,12,0,0" Foreground="{DynamicResource TextSecondary}"
                      Text="PiPlay needs the Microsoft Edge WebView2 Evergreen Runtime to display YouTube. Install it, then reopen PiPlay." />
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0">
-            <Button Content="Get WebView2 Runtime" Style="{StaticResource AccentButton}"
+            <Button x:Name="DownloadRuntimeButton" Content="Get WebView2 Runtime" Style="{StaticResource AccentButton}"
                     Click="DownloadRuntime_Click" />
             <Button Content="Retry" Style="{StaticResource DarkButton}" Margin="10,0,0,0"
                     Click="RetryRuntime_Click" />

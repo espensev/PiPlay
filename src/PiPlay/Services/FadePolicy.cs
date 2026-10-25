@@ -33,15 +33,4 @@ public static class FadePolicy
         if (isDragging) return false;     // never hide mid-drag
         return idleElapsed;               // hide only once idle
     }
-
-    /// <summary>
-    /// Whether the chrome strip should be fully visible and hit-testable right now.
-    /// Always true when fade is disabled; otherwise true whenever the user is engaging
-    /// (pointer over or dragging) so controls are ready the moment they are needed.
-    /// </summary>
-    public static bool ShouldShow(bool fadeEnabled, bool isPointerOver, bool isDragging)
-    {
-        if (!fadeEnabled) return true;
-        return isPointerOver || isDragging;
-    }
 }

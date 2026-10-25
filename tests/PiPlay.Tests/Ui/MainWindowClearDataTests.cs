@@ -115,6 +115,7 @@ public class MainWindowClearDataTests : IDisposable
             var popOut = (Button)window.FindName("PopOutButton")!;
             var url = (TextBox)window.FindName("UrlBox")!;
             var settings = (Button)window.FindName("SettingsButton")!;
+            var runtimeError = (FrameworkElement)window.FindName("RuntimeErrorPanel")!;
             window.SetBrowserReadyForTests(true);
 
             var core = window.BeginPopoutLaunchForTests();
@@ -140,9 +141,15 @@ public class MainWindowClearDataTests : IDisposable
 
             // Rollback's Source restore first-shows this test window, and its browser init cannot
             // succeed in the test host, so Pop out's readiness gate is covered by the never-completes
-            // test instead. The gates that do not depend on the browser reopen here.
-            Assert.True(url.IsEnabled);
+            // test instead. Settings does not depend on the browser and reopens here; the URL box
+            // stays closed only because the failed init left the runtime-error panel up (UI-05).
             Assert.True(settings.IsEnabled);
+            Assert.Equal(Visibility.Visible, runtimeError.Visibility);
+            Assert.False(url.IsEnabled);
+
+            runtimeError.Visibility = Visibility.Collapsed;
+            window.UpdateSourceCommandAvailabilityForTests();
+            Assert.True(url.IsEnabled);
         });
     }
 

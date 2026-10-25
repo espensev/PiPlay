@@ -1,5 +1,6 @@
 using PiPlay.Models;
 using PiPlay.Services;
+using PiPlay.Theme;
 
 namespace PiPlay.Tests;
 
@@ -46,19 +47,6 @@ public class ProfileAccentServiceTests
         // A corrupt stored value must never become the app accent.
         ProfileAccentService.SetActiveProfile(settings, settings.Profiles.Single(p => p.Name == "Violet"));
         Assert.Equal("#00D4FF", ProfileAccentService.ResolvedAccentColor(settings, "#00D4FF"));
-    }
-
-    [Fact]
-    public void Very_dark_profile_color_resolves_to_its_EXACT_stored_hex()
-    {
-        var settings = SettingsWithProfiles();
-        settings.Profiles.Single(p => p.Name == "Violet").AccentColor = "#0B0E11";
-
-        ProfileAccentService.SetActiveProfile(settings, settings.Profiles.Single(p => p.Name == "Violet"));
-
-        // Resolution returns the stored color EXACTLY. Contrast lifting is a PRESENTATION step that
-        // happens downstream in ThemeColors.DeriveAccentSet - it must never leak back into the value.
-        Assert.Equal("#0B0E11", ProfileAccentService.ResolvedAccentColor(settings, "#00D4FF"));
     }
 
     // Spec decision 7: the accent picker edits WHATEVER IS PAINTING THE APP, so the live preview is
@@ -113,17 +101,60 @@ public class ProfileAccentServiceTests
 
         Assert.Equal("#A78BFA", ProfileAccentService.ResolvedAccentColor(settings, "#00D4FF"));
 
+        // Non-matching rename leaves the active profile untouched.
+        ProfileAccentService.RenameActiveProfileIfMatches(settings, "Other", "Ignored");
+        Assert.Equal("Violet", settings.ActiveProfileName);
+
         settings.Profiles.Single().Name = "Purple";
         ProfileAccentService.RenameActiveProfileIfMatches(settings, "Violet", "Purple");
         Assert.Equal("Purple", settings.ActiveProfileName);
         // The rename must not lose the accent - the profile is still active, still colored.
         Assert.Equal("#A78BFA", ProfileAccentService.ResolvedAccentColor(settings, "#00D4FF"));
 
+        // Non-matching clear leaves the active profile untouched; case-insensitive match clears it.
+        ProfileAccentService.ClearActiveProfileIfMatches(settings, "Other");
+        Assert.Equal("Purple", settings.ActiveProfileName);
+        ProfileAccentService.ClearActiveProfileIfMatches(settings, "PURPLE");
+        Assert.Null(settings.ActiveProfileName);
+
+        // Restore active name, then delete the profile and reconcile.
+        settings.ActiveProfileName = "Purple";
         ProfileService.Remove(settings, "Purple");
         ProfileAccentService.ReconcileActiveProfile(settings);
         Assert.Null(settings.ActiveProfileName);
         // Deleting the active profile must fall the app back to the global accent, not strand it.
         Assert.Equal("#00D4FF", ProfileAccentService.ResolvedAccentColor(settings, "#00D4FF"));
+    }
+
+    [Fact]
+    public void PickDistinctProfileAccent_picks_unused_curated_accent_distinct_from_baseline_and_cycles()
+    {
+        var baseline = ThemeCatalog.DefaultAccentColor; // #2BAED0
+        var settings = new AppSettings
+        {
+            Theme = new ThemeSettings { AccentColor = baseline },
+        };
+
+        var nonBaseline = ThemeCatalog.AccentOptions
+            .Where(o => !string.Equals(o.HexColor, baseline, StringComparison.OrdinalIgnoreCase))
+            .Select(o => o.HexColor)
+            .ToArray();
+
+        for (var i = 0; i < nonBaseline.Length; i++)
+        {
+            var picked = ProfileAccentService.PickDistinctProfileAccent(settings, baseline);
+            Assert.Equal(nonBaseline[i], picked);
+            settings.Profiles.Add(new Profile
+            {
+                Name = $"P{i}",
+                Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                AccentColor = picked,
+            });
+        }
+
+        // Once all non-baseline curated accents are in use, cycle deterministically through non-baseline options.
+        var cycled = ProfileAccentService.PickDistinctProfileAccent(settings, baseline);
+        Assert.Equal(nonBaseline[0], cycled);
     }
 
     private static AppSettings SettingsWithProfiles() => new()

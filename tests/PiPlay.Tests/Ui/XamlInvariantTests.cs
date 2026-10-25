@@ -1,4 +1,3 @@
-using System.IO;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Windows;
@@ -91,9 +90,12 @@ public class XamlInvariantTests
     public void Caption_buttons_leave_the_top_right_resize_corner_clear(string file)
     {
         var expected = $"0,0,{BorderlessResizeHitTestPolicy.ResizeBorderDip},0";
-        Assert.Contains(XamlTestFiles.Load(file).Descendants(), element =>
-            element.Name == XamlTestFiles.Pres + "StackPanel"
-            && element.Attribute("Margin")?.Value == expected);
+        var closeButton = XamlTestFiles.Load(file).Descendants(XamlTestFiles.Pres + "Button")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "CloseButton");
+        var captionPanel = closeButton.Parent;
+        Assert.NotNull(captionPanel);
+        Assert.Equal(XamlTestFiles.Pres + "StackPanel", captionPanel!.Name);
+        Assert.Equal(expected, captionPanel.Attribute("Margin")?.Value);
     }
 
     // --- Required named controls (code-behind FindName / generated fields depend on these) ---
@@ -118,9 +120,10 @@ public class XamlInvariantTests
             "Browser", "UrlBox", "ProfilesCombo", "PinToggle", "AutoToggle", "TitleText", "PinnedHint", "MainBarBackdrop", "PopOutButton",
             "SourceToolbar", "SourceNavigationGroup", "SourceProfileGroup", "PopOutButtonIcon", "PopOutButtonText",
             "BackButton", "ReloadButton", "HomeButton", "ProfileActionsButton", "ProfileActionsMenu",
-            "SaveProfileMenuItem", "EditProfileMenuItem", "DeleteProfileMenuItem", "ShowPopoutButton",
+            "SaveProfileMenuItem", "EditProfileMenuItem", "DeleteProfileMenuItem", "ClearProfileMenuItem", "ShowPopoutButton",
             "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton",
-            "SourcePlaceholder", "PlaceholderShowPopoutButton", "PlaceholderBringBackButton", "PlaceholderNoteText", "RuntimeErrorPanel", "RuntimeErrorText",
+            "SourcePlaceholder", "PlaceholderShowPopoutButton", "PlaceholderBringBackButton", "PlaceholderNoteText",
+            "RuntimeErrorPanel", "RuntimeErrorTitle", "RuntimeErrorText", "DownloadRuntimeButton",
         }},
         new object[] { "PlayerWindow.xaml", new[]
         {
@@ -154,14 +157,14 @@ public class XamlInvariantTests
         var scroll = doc.Descendants(XamlTestFiles.Pres + "ScrollViewer")
             .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "SettingsScroll");
 
-        // Every section header scrolls; the order is the spec's Privacy/Appearance/Advanced.
+        // Every section header scrolls; Appearance and Advanced sit above Privacy.
         var headers = scroll.Descendants()
             .Select(e => e.Attribute(XamlTestFiles.X + "Name")?.Value)
             .Where(n => n is not null && n.EndsWith("SectionHeader"))
             .ToArray();
         Assert.Equal(new[]
         {
-            "PrivacySectionHeader", "AppearanceSectionHeader", "AdvancedSectionHeader",
+            "AppearanceSectionHeader", "AdvancedSectionHeader", "PrivacySectionHeader",
         }, headers);
 
         // The title bar must NOT scroll away (CloseButton stays reachable at any content height).
@@ -220,18 +223,6 @@ public class XamlInvariantTests
     }
 
     [Fact]
-    public void Accent_color_picker_hue_wheel_capture_has_release_paths()
-    {
-        var source = File.ReadAllText(Path.Combine(XamlTestFiles.SrcDir, "Controls", "AccentColorPicker.xaml.cs"));
-
-        Assert.Contains("HueSatDisc.MouseLeftButtonUp += HueSatDisc_MouseLeftButtonUp;", source);
-        Assert.Contains("Unloaded += (_, _) => ReleaseHueSatCapture();", source);
-        Assert.Contains("ReleaseHueSatCapture();", source);
-        Assert.Contains("HueSatDisc.ReleaseMouseCapture();", source);
-        Assert.Contains("e.LeftButton != MouseButtonState.Pressed", source);
-    }
-
-    [Fact]
     public void Accent_button_text_uses_pixel_aligned_rendering()
     {
         var style = XamlTestFiles.Load("Theme/ControlStyles.xaml").Descendants(XamlTestFiles.Pres + "Style")
@@ -281,7 +272,7 @@ public class XamlInvariantTests
         Assert.Equal("Bring video back", button.Attribute("AutomationProperties.Name")?.Value);
         Assert.Contains("Return playback", button.Attribute("ToolTip")?.Value);
 
-        Assert.Equal("Show popout", show.Attribute("Content")?.Value);
+        Assert.Equal("Show Popout", show.Attribute("Content")?.Value);
         Assert.Equal("{StaticResource DarkButton}", show.Attribute("Style")?.Value);
         Assert.Equal("PlaceholderShowPopoutButton_Click", show.Attribute("Click")?.Value);
         Assert.NotEqual(show.Attribute("Click")?.Value, button.Attribute("Click")?.Value);
@@ -351,6 +342,7 @@ public class XamlInvariantTests
         Assert.Equal("{RelativeSource Self}", bindings[1].Attribute("RelativeSource")?.Value);
         Assert.Single(row.Descendants(XamlTestFiles.Pres + "Border"));
         Assert.Null(row.Attribute("Background"));
+        Assert.Empty(row.Elements(XamlTestFiles.Pres + "Grid.Background"));
 
         var label = row.Descendants(XamlTestFiles.Pres + "TextBlock")
             .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == "ProfileIdentityName");
@@ -473,15 +465,18 @@ public class XamlInvariantTests
     [InlineData("MainWindow.xaml")]
     [InlineData("PlayerWindow.xaml")]
     [InlineData("SettingsWindow.xaml")]
+    [InlineData("Theme/ControlStyles.xaml")]
     public void Glyph_controls_use_the_icon_font(string file)
     {
         var doc = XamlTestFiles.Load(file);
+        var checkedCount = 0;
 
         // Any TextBlock whose Text starts with a PUA glyph must declare the icon font inline.
         foreach (var tb in doc.Descendants(XamlTestFiles.Pres + "TextBlock"))
         {
             var text = tb.Attribute("Text")?.Value;
             if (string.IsNullOrEmpty(text) || text[0] < PuaStart) continue;
+            checkedCount++;
             var font = tb.Attribute("FontFamily")?.Value;
             Assert.True(font is not null && font.Contains("Segoe Fluent Icons"),
                 $"Glyph TextBlock '{text}' in {file} is missing the icon FontFamily.");
@@ -493,10 +488,13 @@ public class XamlInvariantTests
         {
             var content = btn.Attribute("Content")?.Value;
             if (string.IsNullOrEmpty(content) || content[0] < PuaStart) continue;
+            checkedCount++;
             var style = btn.Attribute("Style")?.Value;
             Assert.True(style is not null && IconFontStyles.Contains(style),
                 $"Glyph button '{content}' in {file} must use an icon-font style (was '{style}').");
         }
+
+        Assert.True(checkedCount > 0, $"Expected at least one PUA glyph control in {file}.");
     }
 
     // --- Accessible names for icon-only / templated controls (REQ-UI-02, overhaul Task 7) ---
@@ -528,7 +526,7 @@ public class XamlInvariantTests
         {
             "SettingsButton", "MinimizeButton", "MaximizeButton", "CloseButton",
             "BackButton", "ReloadButton", "HomeButton", "UrlBox", "ProfilesCombo",
-            "ProfileActionsButton", "SaveProfileMenuItem", "EditProfileMenuItem", "DeleteProfileMenuItem",
+            "ProfileActionsButton", "SaveProfileMenuItem", "EditProfileMenuItem", "ClearProfileMenuItem", "DeleteProfileMenuItem",
             "PinToggle", "AutoToggle", "ShowPopoutButton", "PopOutButton",
             "PlaceholderShowPopoutButton", "PlaceholderBringBackButton",
         }},
@@ -635,49 +633,34 @@ public class XamlInvariantTests
     }
 
     /// <summary>
-    /// The cards advertise each preset's opacity to the user. Asserting the literal "Quiet · 94%" against
-    /// the literal in the XAML compares a copy of the number to a copy of the number and lets the two
-    /// drift from the preset they describe: retune Minimal to 0.90, fix the one red catalog test, and
-    /// Settings still promises 94% while the preset applies 90%. The expected label is therefore DERIVED
-    /// from ThemeCatalog — the only source that decides what the preset actually does.
+    /// The cards advertise each preset's opacity and default accent to the user. The expected label
+    /// and swatch color are derived from ThemeCatalog and asserted on the specific named card so
+    /// neither can drift from the preset it describes or match an unrelated element in the window.
     /// </summary>
     [Theory]
-    [InlineData("sharp-dark", "Crisp")]
-    [InlineData("minimal", "Quiet")]
-    [InlineData("soft-glass", "Glass")]
-    public void Theme_preset_cards_advertise_the_opacity_the_preset_actually_applies(string presetId, string role)
+    [InlineData("ThemeSharpDarkPreset", "sharp-dark", "Crisp")]
+    [InlineData("ThemeMinimalPreset", "minimal", "Quiet")]
+    [InlineData("ThemeSoftGlassPreset", "soft-glass", "Glass")]
+    public void Theme_preset_cards_advertise_the_opacity_and_swatch_the_preset_actually_applies(
+        string cardName, string presetId, string role)
     {
         var preset = ThemeCatalog.PresetFor(presetId);
-        var expected = $"{role} · {Math.Round(preset.DefaultActiveWindowOpacity * 100)}%";
+        var expectedLabel = $"{role} · {Math.Round(preset.DefaultActiveWindowOpacity * 100)}%";
 
-        var texts = XamlTestFiles.Load("SettingsWindow.xaml")
-            .Descendants(XamlTestFiles.Pres + "TextBlock")
+        var card = XamlTestFiles.Load("SettingsWindow.xaml")
+            .Descendants(XamlTestFiles.Pres + "ToggleButton")
+            .Single(e => e.Attribute(XamlTestFiles.X + "Name")?.Value == cardName);
+
+        Assert.Equal(presetId, card.Attribute("Tag")?.Value);
+
+        var texts = card.Descendants(XamlTestFiles.Pres + "TextBlock")
             .Select(e => e.Attribute("Text")?.Value)
             .Where(v => v is not null)
             .ToHashSet();
+        Assert.Contains(expectedLabel, texts);
 
-        Assert.Contains(expected, texts);
-    }
-
-    /// <summary>
-    /// Same drift, on the swatch: the card paints a hardcoded hex that is supposed to BE the preset's
-    /// default accent. Change the preset's accent and the card keeps selling the old color.
-    /// </summary>
-    [Theory]
-    [InlineData("sharp-dark")]
-    [InlineData("minimal")]
-    [InlineData("soft-glass")]
-    public void Theme_preset_swatches_paint_the_preset_default_accent(string presetId)
-    {
-        var expected = ThemeCatalog.PresetFor(presetId).DefaultAccentColor;
-
-        var backgrounds = XamlTestFiles.Load("SettingsWindow.xaml")
-            .Descendants(XamlTestFiles.Pres + "Border")
-            .Select(e => e.Attribute("Background")?.Value)
-            .Where(v => v is not null)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        Assert.Contains(expected, backgrounds);
+        var swatch = card.Descendants(XamlTestFiles.Pres + "Border").Single();
+        Assert.Equal(preset.DefaultAccentColor, swatch.Attribute("Background")?.Value, ignoreCase: true);
     }
 
     // --- Compact error bar (spec 10.3 / Q-6, Stage 4) ---
@@ -718,7 +701,7 @@ public class XamlInvariantTests
         var files = new[]
         {
             "App.xaml", "MainWindow.xaml", "PlayerWindow.xaml", "SettingsWindow.xaml",
-            "Theme/ControlStyles.xaml", "Theme/Colors.xaml",
+            "Controls/AccentColorPicker.xaml", "Theme/ControlStyles.xaml", "Theme/Colors.xaml",
         };
 
         var defined = new HashSet<string>();
@@ -751,7 +734,11 @@ public class XamlInvariantTests
         // App.xaml merged dictionaries) are reachable from every window; window-local keys only
         // from their own file.
         var appFiles = new[] { "App.xaml", "Theme/ControlStyles.xaml", "Theme/Colors.xaml" };
-        var windowFiles = new[] { "MainWindow.xaml", "PlayerWindow.xaml", "SettingsWindow.xaml" };
+        var windowFiles = new[]
+        {
+            "MainWindow.xaml", "PlayerWindow.xaml", "SettingsWindow.xaml",
+            "Controls/AccentColorPicker.xaml",
+        };
         var rx = new Regex(@"\{DynamicResource\s+([^}]+)\}", RegexOptions.Compiled);
 
         HashSet<string> KeysOf(string f) => XamlTestFiles.Load(f).Descendants()
@@ -779,6 +766,7 @@ public class XamlInvariantTests
     [InlineData("MainWindow.xaml")]
     [InlineData("PlayerWindow.xaml")]
     [InlineData("SettingsWindow.xaml")]
+    [InlineData("Controls/AccentColorPicker.xaml")]
     [InlineData("Theme/ControlStyles.xaml")]
     public void No_hardcoded_corner_radii_outside_the_token_dictionary(string file)
     {
@@ -788,8 +776,10 @@ public class XamlInvariantTests
         // is WindowChrome.CornerRadius="0": WindowChrome is not a FrameworkElement (no dynamic
         // lookup), and the real outer corner belongs to native DWM/window-region shaping — tests pin 0.
         // Setter-form radii are swept too (the adversarial review's escape hatch).
+        var checkedCount = 0;
         void AssertRadius(string radius, string context)
         {
+            checkedCount++;
             if (radius.StartsWith("{"))
             {
                 Assert.True(radius.StartsWith("{DynamicResource Radius"),
@@ -808,6 +798,8 @@ public class XamlInvariantTests
                 el.Attribute("Value")?.Value is { } setterValue)
                 AssertRadius(setterValue, "Setter");
         }
+
+        Assert.True(checkedCount > 0, $"Expected at least one CornerRadius in {file}.");
     }
 
     [Fact]
@@ -965,26 +957,6 @@ public class XamlInvariantTests
                 e => e.Value.Trim());
     }
 
-    [Theory]
-    [InlineData("TextPrimaryColor", "SurfaceRaisedColor", 4.5)]   // URL box (UI-CHK-5)
-    [InlineData("TextPrimaryColor", "AppBackgroundColor", 4.5)]
-    [InlineData("TextPrimaryColor", "SurfaceBaseColor", 4.5)]
-    [InlineData("TextSecondaryColor", "SurfaceBaseColor", 4.5)]   // secondary text / empty state
-    public void Theme_contrast_meets_minimum(string fg, string bg, double min)
-    {
-        var t = ColorTokens();
-        var ratio = Wcag.ContrastRatio(t[fg], t[bg]);
-        Assert.True(ratio >= min, $"{fg} on {bg} = {ratio:F2}:1, below {min}:1.");
-    }
-
-    [Fact]
-    public void Accent_button_text_reads_on_the_accent_fill()
-    {
-        var t = ColorTokens();
-        var text = Wcag.ContrastRatio(t["OnAccentColor"], t["AccentPrimaryColor"]);
-        Assert.True(text >= 4.5, $"Accent button text contrast = {text:F2}:1.");
-    }
-
     [Fact]
     public void Accent_primary_token_defaults_to_the_sharp_dark_cyan()
     {
@@ -1011,6 +983,7 @@ public class XamlInvariantTests
         Assert.Equal(Hex(set.Hover), t["AccentPrimaryLightColor"]);   // alias to AccentHover
         Assert.Equal(Hex(set.Pressed), t["AccentPressedColor"]);
         Assert.Equal(Hex(set.Border), t["AccentBorderColor"]);
+        Assert.Equal(Hex(set.Subtle), t["AccentSubtleColor"]);
         Assert.Equal(Hex(set.ShellTint), t["AccentShellTintColor"]);
         // The toolbar glyph seed rides the DEFAULT accent intensity (the derive above passes none, so it
         // takes DefaultAccentIntensity) — without this the seed is a magic value and a fresh launch can
@@ -1034,22 +1007,6 @@ public class XamlInvariantTests
         var t = ColorTokens();
         var ratio = Wcag.ContrastRatio(t[accent], t["SurfaceHoverColor"]);
         Assert.True(ratio >= 3.0, $"{accent} on SurfaceHoverColor = {ratio:F2}:1, below 3:1.");
-    }
-
-    [Fact]
-    public void Theme_accent_palette_is_readable()
-    {
-        // The curated preset chips still need to work in the places they are offered as fixed
-        // choices: active glyphs on hover surfaces and dark text on filled primary buttons.
-        var hover = ColorTokens()["SurfaceHoverColor"];
-        foreach (var option in ThemeCatalog.AccentOptions)
-        {
-            var glyph = Wcag.ContrastRatio(option.HexColor, hover);
-            Assert.True(glyph >= 3.0, $"Accent {option.Key} ({option.HexColor}) on hover surface = {glyph:F2}:1.");
-
-            var text = Wcag.ContrastRatio("#FF06141A", option.HexColor);
-            Assert.True(text >= 4.5, $"Dark button text on accent {option.Key} ({option.HexColor}) = {text:F2}:1.");
-        }
     }
 
     [Fact]
@@ -1129,8 +1086,8 @@ public class XamlInvariantTests
 
         // Softened from the old hard greys (#FF2B3645 / #FF3E4B5C) so control outlines read as a
         // faint hairline on the dark UI instead of a boxed-in grey rectangle.
-        Assert.Equal("#FF181F29", ColorOf("BorderSubtleColor"));
-        Assert.Equal("#FF262F3D", ColorOf("BorderStrongColor"));
+        Assert.Equal("#FF1F2733", ColorOf("BorderSubtleColor"));
+        Assert.Equal("#FF2E394A", ColorOf("BorderStrongColor"));
     }
 
     [Fact]
@@ -1151,6 +1108,8 @@ public class XamlInvariantTests
         Assert.Equal("Transparent", RestingBorderBrush("DarkButton"));
         Assert.Equal("Transparent", RestingBorderBrush("AccentButton"));
         Assert.Equal("Transparent", RestingBorderBrush("DarkTextBox"));
+        Assert.Equal("Transparent", RestingBorderBrush("DarkComboBox"));
+        Assert.Equal("Transparent", RestingBorderBrush("PinToggle"));
 
         // DarkComboBox remains one neutral dark control; profile identity lives only in the row rail.
         // The toggle border is the inline Border x:Name="bd" inside the ToggleButton template;

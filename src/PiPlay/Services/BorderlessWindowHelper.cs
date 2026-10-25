@@ -22,6 +22,7 @@ public static class BorderlessWindowHelper
     private const int SC_MOVE = 0xF010;
     private const int HTCAPTION = 2;
     private const int VK_LBUTTON = 0x01;
+    private const int VK_RBUTTON = 0x02;
     private const uint DefaultDpi = 96;
     private const uint MONITOR_DEFAULTTOPRIMARY = 1;
     private const uint MONITOR_DEFAULTTONEAREST = 2;
@@ -30,25 +31,25 @@ public static class BorderlessWindowHelper
     private static readonly Dictionary<IntPtr, ResizeSubclassState> ResizeSubclassStates = new();
     private static readonly Dictionary<IntPtr, FullMonitorSubclassState> FullMonitorSubclassStates = new();
 
-    public static void EnableProperMaximize(Window window)
+    public static void EnableProperMaximize(Window window, bool useWorkArea = true)
     {
-        void Hook()
-        {
-            if (PresentationSource.FromVisual(window) is HwndSource src)
-            {
-                src.AddHook((
-                    IntPtr hwnd,
-                    int msg,
-                    IntPtr wParam,
-                    IntPtr lParam,
-                    ref bool handled) => WndProc(window, hwnd, msg, wParam, lParam, ref handled));
-            }
-        }
-
         if (PresentationSource.FromVisual(window) is not null)
-            Hook();
+            HookMaximize(window, useWorkArea);
         else
-            window.SourceInitialized += (_, _) => Hook();
+            window.SourceInitialized += (_, _) => HookMaximize(window, useWorkArea);
+    }
+
+    private static void HookMaximize(Window window, bool useWorkArea)
+    {
+        if (PresentationSource.FromVisual(window) is HwndSource src)
+        {
+            src.AddHook((
+                IntPtr hwnd,
+                int msg,
+                IntPtr wParam,
+                IntPtr lParam,
+                ref bool handled) => WndProc(window, hwnd, msg, wParam, lParam, ref handled, useWorkArea));
+        }
     }
 
     public static void EnableExpandedResizeZones(Window window, Action<bool>? moveSizeStateChanged = null)
@@ -178,7 +179,11 @@ public static class BorderlessWindowHelper
         return QueueWindowMove(hwnd, point.X, point.Y, PostMessage);
     }
 
-    internal static bool IsLeftButtonDown() => (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+    internal static bool IsLeftButtonDown() =>
+        (GetAsyncKeyState(PrimaryMouseButtonVirtualKey(SystemParameters.SwapButtons)) & 0x8000) != 0;
+
+    internal static int PrimaryMouseButtonVirtualKey(bool swapButtons) =>
+        swapButtons ? VK_RBUTTON : VK_LBUTTON;
 
     internal static IntPtr PackScreenPointForTests(int x, int y) => PackScreenPoint(x, y);
 
@@ -212,7 +217,8 @@ public static class BorderlessWindowHelper
         int msg,
         IntPtr wParam,
         IntPtr lParam,
-        ref bool handled)
+        ref bool handled,
+        bool useWorkArea = true)
     {
         if (msg != WM_GETMINMAXINFO) return IntPtr.Zero;
 
@@ -225,7 +231,7 @@ public static class BorderlessWindowHelper
         var mmi = Marshal.PtrToStructure<MINMAXINFO>(lParam);
         var work = info.rcWork;
         var area = info.rcMonitor;
-        var maxBounds = CalculateMaximizedBounds(area, work);
+        var maxBounds = CalculateMaximizedBounds(area, work, useWorkArea);
         mmi.ptMaxPosition = maxBounds.Position;
         mmi.ptMaxSize = maxBounds.Size;
         mmi.ptMinTrackSize = CalculateMinimumTrackSize(
@@ -239,18 +245,33 @@ public static class BorderlessWindowHelper
         return IntPtr.Zero;
     }
 
-    private static (POINT Position, POINT Size) CalculateMaximizedBounds(RECT monitor, RECT work) =>
-        (
-            new POINT
-            {
-                X = work.Left - monitor.Left,
-                Y = work.Top - monitor.Top,
-            },
-            new POINT
-            {
-                X = work.Right - work.Left,
-                Y = work.Bottom - work.Top,
-            });
+    private static (POINT Position, POINT Size) CalculateMaximizedBounds(
+        RECT monitor,
+        RECT work,
+        bool useWorkArea = true) =>
+        useWorkArea
+            ? (
+                new POINT
+                {
+                    X = work.Left - monitor.Left,
+                    Y = work.Top - monitor.Top,
+                },
+                new POINT
+                {
+                    X = work.Right - work.Left,
+                    Y = work.Bottom - work.Top,
+                })
+            : (
+                new POINT
+                {
+                    X = 0,
+                    Y = 0,
+                },
+                new POINT
+                {
+                    X = monitor.Right - monitor.Left,
+                    Y = monitor.Bottom - monitor.Top,
+                });
 
     private static POINT CalculateMinimumTrackSize(
         POINT existing,
@@ -296,7 +317,8 @@ public static class BorderlessWindowHelper
         int workLeft,
         int workTop,
         int workRight,
-        int workBottom)
+        int workBottom,
+        bool useWorkArea = true)
     {
         var result = CalculateMaximizedBounds(
             new RECT
@@ -312,7 +334,8 @@ public static class BorderlessWindowHelper
                 Top = workTop,
                 Right = workRight,
                 Bottom = workBottom,
-            });
+            },
+            useWorkArea);
         return (result.Position.X, result.Position.Y, result.Size.X, result.Size.Y);
     }
 

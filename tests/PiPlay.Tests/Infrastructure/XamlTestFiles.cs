@@ -18,7 +18,9 @@ internal static class XamlTestFiles
     private static string ResolveSrcDir()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "PiPlay.sln")))
+        while (dir is not null
+               && !File.Exists(Path.Combine(dir.FullName, "PiPlay.sln"))
+               && !File.Exists(Path.Combine(dir.FullName, "src", "PiPlay", "PiPlay.csproj")))
             dir = dir.Parent;
         if (dir is null)
             throw new InvalidOperationException("Could not locate repo root (PiPlay.sln) from " + AppContext.BaseDirectory);

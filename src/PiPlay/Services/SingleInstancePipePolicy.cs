@@ -1,3 +1,5 @@
+using System.IO.Pipes;
+
 namespace PiPlay.Services;
 
 /// <summary>Identity and failure policy for the single-instance named-pipe server.</summary>
@@ -6,6 +8,8 @@ internal static class SingleInstancePipePolicy
     private static readonly TimeSpan InitialRetryDelay = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan MaximumRetryDelay = TimeSpan.FromSeconds(30);
     public static readonly TimeSpan ClientReadTimeout = TimeSpan.FromSeconds(2);
+    public const PipeOptions ServerPipeOptions = PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly;
+    public const PipeOptions ClientPipeOptions = PipeOptions.CurrentUserOnly;
 
     /// <summary>
     /// Match the <c>Local\</c> mutex boundary: each logon session gets its own primary and pipe,

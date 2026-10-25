@@ -24,10 +24,7 @@ public enum ReturnAction
 /// </summary>
 public static class ReturnPolicy
 {
-    public static ReturnAction Decide(int? lastKnownSeconds, bool sourceWasPlaying)
-        => Decide(lastKnownSeconds, sourceWasPlaying, returnedPaused: null);
-
-    public static ReturnAction Decide(int? lastKnownSeconds, bool sourceWasPlaying, bool? returnedPaused)
+    private static ReturnAction Decide(int? lastKnownSeconds, bool sourceWasPlaying, bool? returnedPaused)
     {
         var shouldResume = returnedPaused.HasValue ? !returnedPaused.Value : sourceWasPlaying;
         if (lastKnownSeconds is not null)
@@ -41,10 +38,6 @@ public static class ReturnPolicy
     /// to the new video's timestamp is the corruption this fixes. Either id unknown (null/empty)
     /// falls back to the timestamp-only decision above, preserving pre-Task-3 behavior.
     /// </summary>
-    public static ReturnAction Decide(
-        int? lastKnownSeconds, bool sourceWasPlaying, string? returnedVideoId, string? sourceVideoIdAtPopout)
-        => Decide(lastKnownSeconds, sourceWasPlaying, returnedPaused: null, returnedVideoId, sourceVideoIdAtPopout);
-
     /// <remarks>
     /// Spec 14: a different video OR list navigates. On the same video, a returned list that
     /// differs from <paramref name="sourcePlaylistIdAtPopout"/> (null = the Source had no list)

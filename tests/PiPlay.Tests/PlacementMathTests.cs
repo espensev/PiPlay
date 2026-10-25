@@ -20,9 +20,7 @@ public class PlacementMathTests
     {
         var r = new RectI(1900, 100, 2860, 640); // 960 wide, starts past the right edge
         var c = PlacementMath.Clamp(r, Work);
-        Assert.True(c.Right <= Work.Right);
-        Assert.Equal(960, c.Width); // size preserved
-        Assert.Equal(100, c.Top);   // vertical position unchanged
+        Assert.Equal(new RectI(960, 100, 1920, 640), c);
     }
 
     [Fact]
@@ -30,8 +28,7 @@ public class PlacementMathTests
     {
         var r = new RectI(-500, -500, 460, 40);
         var c = PlacementMath.Clamp(r, Work);
-        Assert.Equal(0, c.Left);
-        Assert.Equal(0, c.Top);
+        Assert.Equal(new RectI(0, 0, 960, 540), c);
     }
 
     [Fact]
@@ -39,8 +36,7 @@ public class PlacementMathTests
     {
         var r = new RectI(0, 0, 4000, 3000);
         var c = PlacementMath.Clamp(r, Work);
-        Assert.Equal(1920, c.Width);
-        Assert.Equal(1080, c.Height);
+        Assert.Equal(Work, c);
     }
 
     [Fact]
@@ -50,8 +46,7 @@ public class PlacementMathTests
         var work2 = new RectI(1920, 0, 3840, 1080);
         var r = new RectI(3800, 1000, 4760, 1540); // hanging off the bottom-right of monitor 2
         var c = PlacementMath.Clamp(r, work2);
-        Assert.True(c.Left >= work2.Left && c.Right <= work2.Right);
-        Assert.True(c.Top >= work2.Top && c.Bottom <= work2.Bottom);
+        Assert.Equal(new RectI(2880, 540, 3840, 1080), c);
     }
 
     // --- EnsureMinSize: raise a saved sub-minimum placement up to the mode floor (compact 480x270) ---
@@ -59,8 +54,19 @@ public class PlacementMathTests
     [Fact]
     public void EnsureMinSize_raises_a_sub_minimum_placement_to_the_floor()
     {
-        // A normal-mode 320x180 placement reopened in compact mode (480x270) must clamp up.
-        var saved = new PlacementData { X = 100, Y = 50, Width = 320, Height = 180, DpiScale = 1.0 };
+        // A normal-mode 320x180 placement reopened in compact mode (480x270) must clamp up
+        // while preserving position, monitor, and maximized metadata.
+        var saved = new PlacementData
+        {
+            X = 100,
+            Y = 50,
+            Width = 320,
+            Height = 180,
+            Maximized = true,
+            MonitorDeviceName = @"\\.\DISPLAY2",
+            MonitorWorkArea = new RectData { X = 1920, Y = 0, Width = 1920, Height = 1080 },
+            DpiScale = 1.0,
+        };
 
         var clamped = PlacementMath.EnsureMinSize(saved, 480, 270);
 
@@ -68,6 +74,10 @@ public class PlacementMathTests
         Assert.Equal(270, clamped.Height);
         Assert.Equal(100, clamped.X);   // position preserved
         Assert.Equal(50, clamped.Y);
+        Assert.True(clamped.Maximized);
+        Assert.Equal(@"\\.\DISPLAY2", clamped.MonitorDeviceName);
+        Assert.NotNull(clamped.MonitorWorkArea);
+        Assert.Equal(1920, clamped.MonitorWorkArea!.X);
     }
 
     [Fact]
@@ -89,33 +99,18 @@ public class PlacementMathTests
         Assert.Equal(405, clamped.Height);
     }
 
-    [Fact]
-    public void EnsureMinSize_treats_a_non_positive_dpi_scale_as_one()
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(-1.0)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void EnsureMinSize_treats_a_non_positive_dpi_scale_as_one(double dpiScale)
     {
-        // Older/partial saved data with DpiScale = 0 must not zero the floor.
-        var saved = new PlacementData { Width = 100, Height = 100, DpiScale = 0 };
+        // Older/partial saved data with invalid DpiScale must not zero or blow up the floor.
+        var saved = new PlacementData { Width = 100, Height = 100, DpiScale = dpiScale };
         var clamped = PlacementMath.EnsureMinSize(saved, 480, 270);
         Assert.Equal(480, clamped.Width);
         Assert.Equal(270, clamped.Height);
-    }
-
-    [Fact]
-    public void EnsureMinSize_preserves_monitor_and_maximized_metadata()
-    {
-        var saved = new PlacementData
-        {
-            X = 10, Y = 20, Width = 100, Height = 100, Maximized = true,
-            MonitorDeviceName = @"\\.\DISPLAY2",
-            MonitorWorkArea = new RectData { X = 1920, Y = 0, Width = 1920, Height = 1080 },
-            DpiScale = 1.0,
-        };
-
-        var clamped = PlacementMath.EnsureMinSize(saved, 480, 270);
-
-        Assert.True(clamped.Maximized);
-        Assert.Equal(@"\\.\DISPLAY2", clamped.MonitorDeviceName);
-        Assert.NotNull(clamped.MonitorWorkArea);
-        Assert.Equal(1920, clamped.MonitorWorkArea!.X);
     }
 
     // --- ForNextLaunch: a closed-expanded popout must not relaunch expanded (overhaul Task 4) ---
@@ -201,5 +196,71 @@ public class PlacementMathTests
         // Writing 2560x1440 for a 1440p secondary would come back as 3200x1800: the manager adds
         // the 640x360 difference.
         Assert.Equal((0, 0, 1920, 1080), PlacementMath.FullMonitorMaximize(Primary));
+    }
+
+    // --- WorkspaceToScreen / ScreenToWorkspace: taskbar-offset coordinate translation ---
+
+    [Fact]
+    public void Workspace_and_screen_coordinates_roundtrip_with_top_docked_taskbar()
+    {
+        var monitor = new RectI(0, 0, 1920, 1080);
+        var work = new RectI(0, 48, 1920, 1080); // 48px top-docked taskbar
+        var workspace = new RectI(100, 0, 1060, 540); // flush with top of work area
+
+        var screen = PlacementMath.WorkspaceToScreen(workspace, monitor, work);
+        Assert.Equal(new RectI(100, 48, 1060, 588), screen);
+
+        var clamped = PlacementMath.Clamp(screen, work);
+        Assert.Equal(screen, clamped);
+
+        var restoredWorkspace = PlacementMath.ScreenToWorkspace(clamped, monitor, work);
+        Assert.Equal(workspace, restoredWorkspace);
+    }
+
+    [Fact]
+    public void Workspace_and_screen_coordinates_roundtrip_with_left_docked_taskbar()
+    {
+        var monitor = new RectI(-1920, 0, 0, 1080);
+        var work = new RectI(-1860, 0, 0, 1080); // 60px left-docked taskbar on left monitor
+        var workspace = new RectI(-1920, 50, -960, 590); // flush with left of work area
+
+        var screen = PlacementMath.WorkspaceToScreen(workspace, monitor, work);
+        Assert.Equal(new RectI(-1860, 50, -900, 590), screen);
+
+        var clamped = PlacementMath.Clamp(screen, work);
+        Assert.Equal(screen, clamped);
+
+        var restoredWorkspace = PlacementMath.ScreenToWorkspace(clamped, monitor, work);
+        Assert.Equal(workspace, restoredWorkspace);
+    }
+
+    // --- ToDipSize: convert physical pixel placement dimensions back to DIP ---
+
+    [Theory]
+    [InlineData(960, 540, 1.0, 960, 540)]
+    [InlineData(1200, 675, 1.25, 960, 540)]
+    [InlineData(1440, 810, 1.5, 960, 540)]
+    [InlineData(960, 540, 0.0, 960, 540)]
+    [InlineData(960, 540, -1.0, 960, 540)]
+    [InlineData(960, 540, double.NaN, 960, 540)]
+    [InlineData(960, 540, double.PositiveInfinity, 960, 540)]
+    public void ToDipSize_divides_physical_dimensions_by_valid_dpi_scale(
+        int widthPx,
+        int heightPx,
+        double dpiScale,
+        int expectedWidthDip,
+        int expectedHeightDip)
+    {
+        var data = new PlacementData
+        {
+            Width = widthPx,
+            Height = heightPx,
+            DpiScale = dpiScale,
+        };
+
+        var (widthDip, heightDip) = PlacementMath.ToDipSize(data);
+
+        Assert.Equal(expectedWidthDip, widthDip);
+        Assert.Equal(expectedHeightDip, heightDip);
     }
 }

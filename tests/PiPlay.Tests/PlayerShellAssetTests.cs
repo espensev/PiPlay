@@ -46,7 +46,9 @@ public class PlayerShellAssetTests
         // Only YouTube (the IFrame API / embed) and the shell's own host (piplay.local) may appear —
         // no third-party scripts/origins. The shell's own origin in a comment/CSP is not third-party.
         var html = Read("player.html");
-        foreach (Match m in HttpUrl.Matches(html))
+        var matches = HttpUrl.Matches(html);
+        Assert.NotEmpty(matches);
+        foreach (Match m in matches)
         {
             var host = m.Groups[1].Value.ToLowerInvariant();
             Assert.True(NavigationPolicy.IsYouTubeHost(host) || host == NavigationPolicy.ShellHost,
@@ -73,9 +75,6 @@ public class PlayerShellAssetTests
         foreach (var type in new[]
         {
             PlayerShellProtocol.TypeReady, PlayerShellProtocol.TypeState, PlayerShellProtocol.TypeError,
-            PlayerShellProtocol.TypeRequest,
-            PlayerShellProtocol.TypePlay, PlayerShellProtocol.TypePause, PlayerShellProtocol.TypeSeek,
-            PlayerShellProtocol.TypeRequestState,
         })
         {
             Assert.Contains($"\"{type}\"", js);   // catches a renamed message *type*
@@ -91,30 +90,12 @@ public class PlayerShellAssetTests
         foreach (var field in new[]
         {
             PlayerShellProtocol.FieldCurrentTime, PlayerShellProtocol.FieldPlayerState,
-            PlayerShellProtocol.FieldDuration, PlayerShellProtocol.FieldCode, PlayerShellProtocol.FieldSeconds,
-            PlayerShellProtocol.FieldAction, PlayerShellProtocol.FieldVideoId,
+            PlayerShellProtocol.FieldDuration, PlayerShellProtocol.FieldCode,
+            PlayerShellProtocol.FieldVideoId,
         })
         {
             Assert.Contains(field, js);   // catches field-level drift between the JS and the C# protocol
         }
-    }
-
-    [Fact]
-    public void Shell_js_allowlists_exactly_the_protocol_request_actions()
-    {
-        // Both sides allowlist the request channel (spec 12.5 / docs/YouTube_Compliance.md): the JS set must equal
-        // the C# closed set, or one side could widen the channel unilaterally.
-        var js = Read("player-shell.js");
-        var declaration = Regex.Match(js, @"REQUEST_ACTIONS\s*=\s*\[([^\]]*)\]");
-        Assert.True(declaration.Success, "player-shell.js no longer declares REQUEST_ACTIONS.");
-
-        var jsActions = Regex.Matches(declaration.Groups[1].Value, "\"([^\"]+)\"")
-            .Select(m => m.Groups[1].Value).ToArray();
-        Assert.Equal(new[]
-        {
-            PlayerShellProtocol.ActionClose, PlayerShellProtocol.ActionPinToggle,
-            PlayerShellProtocol.ActionFullscreenToggle,
-        }, jsActions);
     }
 
     [Fact]

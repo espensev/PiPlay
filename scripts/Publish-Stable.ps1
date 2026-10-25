@@ -84,6 +84,7 @@ if (-not [System.IO.Path]::IsPathRooted($DeployRoot)) {
     # publish tree into a junk folder next to this script. Use Get-Help for usage.
     throw "DeployRoot must be an absolute path (got '$DeployRoot'). For usage, run: Get-Help $PSCommandPath"
 }
+$DeployRoot = [System.IO.Path]::GetFullPath($DeployRoot).TrimEnd('\', '/')
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $buildScript = Join-Path $PSScriptRoot "Build-PiPlay.ps1"
@@ -180,8 +181,13 @@ try {
 # check it now, while nothing has been touched.
 if (-not $AllowDirty -and -not $AllowVersionBump) {
     Write-Step 0 "Tag preflight (before tests, build, or deploy)..."
-    $repoVersion = (Get-Content -LiteralPath (Join-Path $repoRoot "VERSION") -Raw).Trim()
-    $repoBuildNumber = (Get-Content -LiteralPath (Join-Path $repoRoot "BUILD_NUMBER") -Raw).Trim()
+    $versionPath = Join-Path $repoRoot "VERSION"
+    $buildNumberPath = Join-Path $repoRoot "BUILD_NUMBER"
+    if (-not (Test-Path -LiteralPath $versionPath) -or -not (Test-Path -LiteralPath $buildNumberPath)) {
+        throw "VERSION and BUILD_NUMBER must exist at '$repoRoot' before running an exact-source stable publish."
+    }
+    $repoVersion = (Get-Content -LiteralPath $versionPath -Raw).Trim()
+    $repoBuildNumber = (Get-Content -LiteralPath $buildNumberPath -Raw).Trim()
     $expectedTag = "stable-v$repoVersion-b$repoBuildNumber"
 
     $headCommit = Invoke-Git @("rev-parse", "HEAD")
@@ -235,6 +241,7 @@ foreach ($proc in @(Get-Process -Name $projectName -ErrorAction SilentlyContinue
         if ($proc.Path -and $proc.Path.StartsWith($repoRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
             Write-Host "  Stopping repo build-tree instance (pid $($proc.Id))..." -ForegroundColor DarkGray
             $proc | Stop-Process -Force -ErrorAction SilentlyContinue
+            [void]$proc.WaitForExit(5000)
             $stoppedBuildTreeInstance = $true
         }
     } catch { <# Path may be inaccessible; ignore and continue #> }
@@ -316,15 +323,18 @@ Write-Step 4 "Deploying to '$DeployRoot' (staged swap, preserving $dataFolderNam
 
 # Stop only the stable instance running from THIS deploy root so its exe/dlls can be replaced.
 $deployExe = Join-Path $DeployRoot "$projectName.exe"
+$stoppedDeployInstance = $false
 foreach ($proc in @(Get-Process -Name $projectName -ErrorAction SilentlyContinue)) {
     try {
         if ($proc.Path -and ($proc.Path -ieq $deployExe)) {
             Write-Host "  Stopping running stable instance (pid $($proc.Id))..." -ForegroundColor DarkGray
             $proc | Stop-Process -Force -ErrorAction SilentlyContinue
+            [void]$proc.WaitForExit(5000)
+            $stoppedDeployInstance = $true
         }
     } catch { <# Path may be inaccessible; ignore and continue #> }
 }
-Start-Sleep -Milliseconds 400
+if ($stoppedDeployInstance) { Start-Sleep -Milliseconds 400 }
 
 # An earlier publish killed mid-swap leaves the old payload in a sibling backup. Complete or reverse
 # that before staging anything new, so an interrupted run can never degrade into a broken install.

@@ -24,12 +24,11 @@ public sealed record InboundShellMessage(
     string? VideoId = null);
 
 /// <summary>
-/// The pure, versioned host&lt;-&gt;shell message contract for compact (PiPlay shell) mode
+/// The pure, versioned shell-&gt;host message contract for compact (PiPlay shell) mode
 /// (spec 10.3). The single source of truth both <see cref="PlayerShellBridge"/> (host) and
 /// <c>player-shell.js</c> (shell) follow. Minimal and local-only: the shell reports ready / state /
-/// error; the host commands play / pause / seek / requestState. No credentials, cookies, or tokens
-/// ever cross this channel. All parsing is best-effort (Q-3/Q-6): malformed input yields
-/// <see cref="ShellMessageKind.Unknown"/>, never an exception.
+/// error / request. No credentials, cookies, or tokens ever cross this channel. All parsing is
+/// best-effort (Q-3/Q-6): malformed input yields <see cref="ShellMessageKind.Unknown"/>, never an exception.
 /// </summary>
 public static class PlayerShellProtocol
 {
@@ -44,12 +43,6 @@ public static class PlayerShellProtocol
     public const string TypeError = "error";
     public const string TypeRequest = "request";
 
-    // Host -> shell command types.
-    public const string TypePlay = "play";
-    public const string TypePause = "pause";
-    public const string TypeSeek = "seek";
-    public const string TypeRequestState = "requestState";
-
     // Wire field names — the single source of truth for the JS<->host payload contract. Both this
     // parser and player-shell.js use these exact names; PlayerShellAssetTests pins them in the JS.
     public const string KeyVersion = "v";
@@ -58,14 +51,13 @@ public static class PlayerShellProtocol
     public const string FieldPlayerState = "playerState";
     public const string FieldDuration = "duration";
     public const string FieldCode = "code";
-    public const string FieldSeconds = "seconds";
     public const string FieldAction = "action";
     public const string FieldVideoId = "videoId";
 
     // Allowlisted shell -> host window actions (spec 12.5 / docs/YouTube_Compliance.md): the shell may
     // REQUEST these; the host validates against this closed set and maps each to the existing
     // native handler. Anything else parses to Unknown — never an exception, never a new
-    // capability. Both sides allowlist (player-shell.js mirrors this set).
+    // capability.
     public const string ActionClose = "close";
     public const string ActionPinToggle = "pinToggle";
     public const string ActionFullscreenToggle = "fullscreenToggle";
@@ -125,21 +117,6 @@ public static class PlayerShellProtocol
             return new InboundShellMessage(ShellMessageKind.Unknown);
         }
     }
-
-    /// <summary>Host -> shell: resume playback.</summary>
-    public static string Play() => Command(TypePlay);
-
-    /// <summary>Host -> shell: pause playback.</summary>
-    public static string Pause() => Command(TypePause);
-
-    /// <summary>Host -> shell: request an immediate state message.</summary>
-    public static string RequestState() => Command(TypeRequestState);
-
-    /// <summary>Host -> shell: seek to <paramref name="seconds"/> (clamped to non-negative).</summary>
-    public static string Seek(int seconds) =>
-        $"{{\"{KeyVersion}\":{Version},\"{KeyType}\":\"{TypeSeek}\",\"{FieldSeconds}\":{Math.Max(0, seconds)}}}";
-
-    private static string Command(string type) => $"{{\"{KeyVersion}\":{Version},\"{KeyType}\":\"{type}\"}}";
 
     /// <summary>A request is only a request when its action is on the allowlist; anything else
     /// degrades to Unknown so an injected or future action can never reach a host handler.</summary>

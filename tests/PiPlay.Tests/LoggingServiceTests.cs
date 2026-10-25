@@ -13,35 +13,14 @@ namespace PiPlay.Tests;
 public class LoggingServiceTests
 {
     [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    public void RedactUrl_handles_empty(string? url)
+    [InlineData(null, "(none)")]
+    [InlineData("", "(none)")]
+    [InlineData("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=30s", "https://www.youtube.com/watch")]
+    [InlineData("https://accounts.google.com/signin?token=SUPERSECRET", "https://accounts.google.com/signin")]
+    [InlineData("not a url?token=SUPERSECRET", "not a url?<redacted>")]
+    public void RedactUrl_redacts_query_strings_and_handles_empty(string? input, string expected)
     {
-        Assert.Equal("(none)", Log.RedactUrl(url));
-    }
-
-    [Fact]
-    public void RedactUrl_drops_the_query_string_for_valid_urls()
-    {
-        var redacted = Log.RedactUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=30s");
-        Assert.Equal("https://www.youtube.com/watch", redacted);
-        Assert.DoesNotContain("dQw4w9WgXcQ", redacted); // the video id lives in the query
-    }
-
-    [Fact]
-    public void RedactUrl_never_leaks_an_auth_token()
-    {
-        var redacted = Log.RedactUrl("https://accounts.google.com/signin?token=SUPERSECRET");
-        Assert.Equal("https://accounts.google.com/signin", redacted);
-        Assert.DoesNotContain("SUPERSECRET", redacted);
-    }
-
-    [Fact]
-    public void RedactUrl_redacts_query_even_when_url_is_unparseable()
-    {
-        var redacted = Log.RedactUrl("not a url?token=SUPERSECRET");
-        Assert.DoesNotContain("SUPERSECRET", redacted);
-        Assert.Contains("<redacted>", redacted);
+        Assert.Equal(expected, Log.RedactUrl(input));
     }
 }
 
@@ -85,12 +64,14 @@ public class LoggingServiceDeliveryTests : IDisposable
         Log.Info("hello from the queue");
         Log.Warn("a warning");
         Log.Error("a failure");
+        Log.Error("while doing the thing", new InvalidOperationException("boom"));
         Assert.True(Log.FlushForTests(TimeSpan.FromSeconds(10)), "the writer did not drain in time");
 
         var text = File.ReadAllText(LogFile);
         Assert.Contains("[INFO] hello from the queue", text);
         Assert.Contains("[WARN] a warning", text);
         Assert.Contains("[ERROR] a failure", text);
+        Assert.Contains("[ERROR] while doing the thing :: InvalidOperationException: boom", text);
     }
 
     [Fact]
@@ -106,19 +87,6 @@ public class LoggingServiceDeliveryTests : IDisposable
         var lines = File.ReadAllLines(LogFile);
         Assert.Equal(200, lines.Count(l => l.Contains("[INFO] entry ")));
         Assert.Contains(lines, l => l.Contains("[INFO] entry 199"));
-    }
-
-    [Fact]
-    public void Exception_overload_records_the_type_and_message()
-    {
-        InitInTempRoot();
-
-        Log.Error("while doing the thing", new InvalidOperationException("boom"));
-        Assert.True(Log.FlushForTests(TimeSpan.FromSeconds(10)));
-
-        Assert.Contains(
-            "[ERROR] while doing the thing :: InvalidOperationException: boom",
-            File.ReadAllText(LogFile));
     }
 
     [Fact]

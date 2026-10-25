@@ -213,6 +213,10 @@ public class PlayerSurfaceProtocolTests
     [Fact]
     public void Focused_protocol_accepts_only_its_four_allowlisted_actions()
     {
+        Assert.Equal(PlayerShellProtocol.ActionClose, PlayerFirstSurfaceProtocol.ActionClose);
+        Assert.Equal(PlayerShellProtocol.ActionPinToggle, PlayerFirstSurfaceProtocol.ActionPinToggle);
+        Assert.Equal(PlayerShellProtocol.ActionFullscreenToggle, PlayerFirstSurfaceProtocol.ActionFullscreenToggle);
+
         foreach (var action in PlayerFirstSurfaceProtocol.AllowedActions)
         {
             var json = Focused(action);

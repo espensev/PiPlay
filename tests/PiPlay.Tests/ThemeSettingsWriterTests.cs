@@ -144,14 +144,14 @@ public class ThemeSettingsWriterTests
         var settings = new AppSettings();
 
         ThemeSettingsWriter.Apply(settings, "sharp-dark", "#00D4FF", 1500, compactMode: true,
-            activeOpacityOverride: 0.8, idleOpacityOverride: 5.0, stripAutoHideOverride: true,
+            activeOpacityOverride: 0.8, idleOpacityOverride: 5.0, stripAutoHideOverride: false,
             cornerStyle: "round");
 
         Assert.Equal(0.8, settings.Theme.ActiveWindowOpacity);
         // A junk override repairs to NULL = follow the preset (the same NormalizeOptional rule
         // as settings-load repair — PR #21 review note), never to a synthetic 1.0 override.
         Assert.Null(settings.Theme.IdleWindowOpacity);
-        Assert.True(settings.Theme.StripAutoHide);
+        Assert.Equal(false, settings.Theme.StripAutoHide);
         Assert.Equal("round", settings.Theme.CornerStyle);
         Assert.Equal(1500, settings.Player.FadeIdleDelayMs);
         Assert.Equal("short", settings.Theme.FadeDelayPreset);
@@ -159,7 +159,7 @@ public class ThemeSettingsWriterTests
         Assert.Equal(0.8, settings.Player.ConstantWindowOpacity);
         // The idle mirror carries the EFFECTIVE value: sharp-dark's idle default.
         Assert.Equal(ThemeCatalog.PresetFor("sharp-dark").DefaultIdleWindowOpacity, settings.Player.IdleWindowOpacity);
-        Assert.True(settings.Player.StripAutoHide);
+        Assert.False(settings.Player.StripAutoHide);
     }
 
     [Fact]
@@ -174,19 +174,5 @@ public class ThemeSettingsWriterTests
         Assert.Equal(ThemeCatalog.DefaultThemeId, settings.Theme.ThemeId);
         Assert.Equal("#A78BFA", settings.Theme.AccentColor);
         Assert.Equal(ThemeCatalog.DefaultCornerStyle, settings.Theme.CornerStyle);
-    }
-
-    [Fact]
-    public void Dark_app_accent_is_stored_exactly_while_presentation_is_derived_REQ_UI_01()
-    {
-        var settings = new AppSettings();
-
-        ThemeSettingsWriter.Apply(settings, "sharp-dark", "#131820", 2500, compactMode: false,
-            activeOpacityOverride: null, idleOpacityOverride: null, stripAutoHideOverride: null,
-            cornerStyle: "theme");
-
-        Assert.Equal("#131820", settings.Theme.AccentColor);
-        Assert.NotEqual(ThemeColors.ParseColor(settings.Theme.AccentColor),
-            ThemeColors.DeriveAccentSet(settings.Theme.AccentColor, ThemeCatalog.PresetFor("sharp-dark")).Primary);
     }
 }

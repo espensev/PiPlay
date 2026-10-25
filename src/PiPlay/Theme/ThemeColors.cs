@@ -37,16 +37,6 @@ public static class ThemeColors
         return Color.FromRgb(r, g, b);
     }
 
-    /// <summary>Blend a color toward white by <paramref name="amount"/> (0..1) for a hover/light variant.</summary>
-    public static Color Lighten(Color color, double amount)
-    {
-        var t = Math.Clamp(amount, 0.0, 1.0);
-        return Color.FromRgb(
-            Mix(color.R, 255, t),
-            Mix(color.G, 255, t),
-            Mix(color.B, 255, t));
-    }
-
     /// <summary>A frozen exact-color brush for picker swatches and other raw-color previews.</summary>
     public static SolidColorBrush Brush(string? hex)
     {

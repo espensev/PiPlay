@@ -203,9 +203,6 @@ public static class WindowOpacityApplier
     internal static void ResetBorderSuppressionForTests() => BorderSuppression.Clear();
     /// <summary>Arm the test-only border record. Production never calls this, so it records nothing.</summary>
     internal static void EnableBorderSuppressionTrackingForTests() => _trackBorderSuppression = true;
-    /// <summary>Restore the production default (record nothing) so the no-footprint invariant is testable.</summary>
-    internal static void DisableBorderSuppressionTrackingForTests() => _trackBorderSuppression = false;
-    internal static int BorderSuppressionEntryCountForTests() => BorderSuppression.Count;
     internal static bool LastExStyleWriteCarriedTransparentBitForTests(IntPtr hwnd) =>
         States.TryGetValue(hwnd, out var s) && (s.LastExStyleWritten & WS_EX_TRANSPARENT) != 0;
 

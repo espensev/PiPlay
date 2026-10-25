@@ -13,32 +13,44 @@ public class MainWindowLifecycleTests : IDisposable
     [Fact]
     public void Source_restore_raises_a_stale_short_placement_to_the_declared_minimum()
     {
-        var saved = new PlacementData
+        StaTestThread.Invoke(() =>
         {
-            X = 240,
-            Y = 135,
-            Width = 760,
-            Height = 321,
-            Maximized = true,
-            MonitorDeviceName = @"\\.\DISPLAY2",
-            MonitorWorkArea = new RectData { X = 1920, Y = 0, Width = 2560, Height = 1440 },
-            DpiScale = 1.0,
-        };
+            var window = new MainWindow();
+            try
+            {
+                var saved = new PlacementData
+                {
+                    X = 240,
+                    Y = 135,
+                    Width = 760,
+                    Height = 321,
+                    Maximized = true,
+                    MonitorDeviceName = @"\\.\DISPLAY2",
+                    MonitorWorkArea = new RectData { X = 1920, Y = 0, Width = 2560, Height = 1440 },
+                    DpiScale = 1.0,
+                };
 
-        var normalized = MainWindow.NormalizeSourcePlacementForRestoreForTests(saved);
+                var normalized = MainWindow.NormalizeSourcePlacementForRestoreForTests(
+                    saved, window.MinWidth, window.MinHeight);
 
-        Assert.NotNull(normalized);
-        Assert.Equal(240, normalized!.X);
-        Assert.Equal(135, normalized.Y);
-        Assert.Equal(760, normalized.Width);
-        Assert.Equal(480, normalized.Height);
-        Assert.True(normalized.Maximized);
-        Assert.Equal(@"\\.\DISPLAY2", normalized.MonitorDeviceName);
-        Assert.Equal(1.0, normalized.DpiScale);
-        Assert.NotNull(normalized.MonitorWorkArea);
-        Assert.Equal(1920, normalized.MonitorWorkArea!.X);
-        Assert.Equal(2560, normalized.MonitorWorkArea.Width);
-        Assert.Equal(1440, normalized.MonitorWorkArea.Height);
+                Assert.NotNull(normalized);
+                Assert.Equal(240, normalized!.X);
+                Assert.Equal(135, normalized.Y);
+                Assert.Equal(760, normalized.Width);
+                Assert.Equal(480, normalized.Height);
+                Assert.True(normalized.Maximized);
+                Assert.Equal(@"\\.\DISPLAY2", normalized.MonitorDeviceName);
+                Assert.Equal(1.0, normalized.DpiScale);
+                Assert.NotNull(normalized.MonitorWorkArea);
+                Assert.Equal(1920, normalized.MonitorWorkArea!.X);
+                Assert.Equal(2560, normalized.MonitorWorkArea.Width);
+                Assert.Equal(1440, normalized.MonitorWorkArea.Height);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
     }
 
     [Fact]
@@ -190,6 +202,7 @@ public class MainWindowLifecycleTests : IDisposable
                     },
                 },
             });
+            window.SetCanGoBackForTests(true);
 
             var back = (Button)window.FindName("BackButton")!;
             var reload = (Button)window.FindName("ReloadButton")!;
@@ -199,6 +212,7 @@ public class MainWindowLifecycleTests : IDisposable
             var profileActions = (Button)window.FindName("ProfileActionsButton")!;
             var saveProfile = (MenuItem)window.FindName("SaveProfileMenuItem")!;
             var editProfile = (MenuItem)window.FindName("EditProfileMenuItem")!;
+            var clearProfile = (MenuItem)window.FindName("ClearProfileMenuItem")!;
             var deleteProfile = (MenuItem)window.FindName("DeleteProfileMenuItem")!;
 
             Assert.True(back.IsEnabled);
@@ -209,6 +223,7 @@ public class MainWindowLifecycleTests : IDisposable
             Assert.True(profileActions.IsEnabled);
             Assert.True(saveProfile.IsEnabled);
             Assert.True(editProfile.IsEnabled);
+            Assert.True(clearProfile.IsEnabled);
             Assert.True(deleteProfile.IsEnabled);
 
             window.ShowSourcePlaceholder(true);
@@ -221,6 +236,7 @@ public class MainWindowLifecycleTests : IDisposable
             Assert.False(profileActions.IsEnabled);
             Assert.False(saveProfile.IsEnabled);
             Assert.False(editProfile.IsEnabled);
+            Assert.False(clearProfile.IsEnabled);
             Assert.False(deleteProfile.IsEnabled);
 
             window.ShowSourcePlaceholder(false);
@@ -233,6 +249,7 @@ public class MainWindowLifecycleTests : IDisposable
             Assert.True(profileActions.IsEnabled);
             Assert.True(saveProfile.IsEnabled);
             Assert.True(editProfile.IsEnabled);
+            Assert.True(clearProfile.IsEnabled);
             Assert.True(deleteProfile.IsEnabled);
         });
     }

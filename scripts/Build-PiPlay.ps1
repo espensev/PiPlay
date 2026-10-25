@@ -64,6 +64,8 @@ $ErrorActionPreference = "Stop"
 
 $ProjectName = "PiPlay"
 $ProjectRelativePath = "src\PiPlay\PiPlay.csproj"
+$DefaultProjectVersion = "0.14.0"
+$DefaultBuildNumber = 40
 # Release-archive documentation. The consolidated product spec carries the security and privacy
 # guidance (spec section 19) that used to ship as a standalone privacy map, and DECISIONS.md holds
 # the ADR-0007 data-root reference that guidance depends on. Theme_Preset_Differences.md and
@@ -75,6 +77,8 @@ $PublishExtras = @(
     "docs\PiPlay_Product_Engineering_Spec.md",
     "docs\DECISIONS.md",
     "docs\Theme_Preset_Differences.md",
+    "docs\UI_Profile_and_Borderless_Review.md",
+    "docs\Test_Suite_Audit_and_Remediation_Plan.md",
     "docs\AGENTS.md"
 )
 
@@ -157,15 +161,22 @@ function Invoke-External {
 }
 
 function Get-ProjectVersion {
-    param([Parameter(Mandatory = $true)][string]$VersionFile)
+    param(
+        [Parameter(Mandatory = $true)][string]$VersionFile,
+        [switch]$AllowCreate
+    )
 
     if (-not (Test-Path -LiteralPath $VersionFile)) {
-        Write-TextNoBom -Path $VersionFile -Value "0.1.0" -NoNewline
+        if ($AllowCreate) {
+            Write-TextNoBom -Path $VersionFile -Value $DefaultProjectVersion -NoNewline
+        } else {
+            return $DefaultProjectVersion
+        }
     }
 
     $value = (Get-Content -LiteralPath $VersionFile -Raw).Trim()
     if ($value -notmatch '^\d+\.\d+\.\d+(-[A-Za-z0-9.\-]+)?$') {
-        throw "Invalid VERSION value '$value'. Expected semantic version like 0.1.0 or 0.1.0-beta."
+        throw "Invalid VERSION value '$value'. Expected semantic version like $DefaultProjectVersion or $DefaultProjectVersion-beta."
     }
 
     return $value
@@ -236,10 +247,17 @@ function Get-NumericVersionParts {
 }
 
 function Get-BuildNumberValue {
-    param([Parameter(Mandatory = $true)][string]$BuildNumberFile)
+    param(
+        [Parameter(Mandatory = $true)][string]$BuildNumberFile,
+        [switch]$AllowCreate
+    )
 
     if (-not (Test-Path -LiteralPath $BuildNumberFile)) {
-        Write-TextNoBom -Path $BuildNumberFile -Value "0" -NoNewline
+        if ($AllowCreate) {
+            Write-TextNoBom -Path $BuildNumberFile -Value ([string]$DefaultBuildNumber) -NoNewline
+        } else {
+            return $DefaultBuildNumber
+        }
     }
 
     $raw = (Get-Content -LiteralPath $BuildNumberFile -Raw).Trim()
@@ -378,8 +396,13 @@ function Stop-RunningProcess {
     if ($procs.Count -eq 0) { return }
 
     Write-Host "Stopping $($procs.Count) running $ProcessName process(es)..." -ForegroundColor Yellow
-    $procs | Stop-Process -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Milliseconds 500
+    foreach ($proc in $procs) {
+        try {
+            $proc | Stop-Process -Force -ErrorAction SilentlyContinue
+            [void]$proc.WaitForExit(5000)
+        } catch { }
+    }
+    Start-Sleep -Milliseconds 200
 }
 
 function Copy-PublishExtras {
@@ -425,12 +448,17 @@ function Write-BuildInfo {
         [bool]$SigningEnabled = $false,
         [string]$SignScript,
         [string]$NonReleaseReason,
+        [string]$SourceCommit,
         [Parameter(Mandatory = $true)][string]$RepositoryRoot
     )
 
     $artifactHashes = @(Get-HashEntries -Root $VersionRoot)
     $publishedArtifacts = @(Get-PublishedArtifacts -VersionRoot $VersionRoot -ProjectName $ProjectName)
-    $sourceCommit = Get-SourceCommit -RepositoryRoot $RepositoryRoot
+    $sourceCommit = if (-not [string]::IsNullOrWhiteSpace($SourceCommit)) {
+        $SourceCommit
+    } else {
+        Get-SourceCommit -RepositoryRoot $RepositoryRoot
+    }
     $sourceDirtyEntries = @(Get-SourceDirtyEntries -RepositoryRoot $RepositoryRoot)
     $sourceDirty = $sourceDirtyEntries.Count -gt 0
     # Release evidence requires BOTH a clean source tree AND no explicit non-release reason. An
@@ -790,12 +818,16 @@ if ($PSBoundParameters.ContainsKey("BuildNumber") -and $BuildNumber -lt 0) {
     throw "-BuildNumber cannot be negative."
 }
 
-$originalVersion = Get-ProjectVersion -VersionFile $versionFile
-$originalBuildNumber = Get-BuildNumberValue -BuildNumberFile $buildNumberFile
+$versionFileExistedBefore = Test-Path -LiteralPath $versionFile
+$buildNumberFileExistedBefore = Test-Path -LiteralPath $buildNumberFile
+$allowVersionStampCreate = -not $NoVersionBump
+$allowBuildNumberStampCreate = ($Stage -ne "Build") -and (-not $NoBuildNumberBump) -and (-not $PSBoundParameters.ContainsKey("BuildNumber"))
+$originalVersion = Get-ProjectVersion -VersionFile $versionFile -AllowCreate:$allowVersionStampCreate
+$originalBuildNumber = Get-BuildNumberValue -BuildNumberFile $buildNumberFile -AllowCreate:$allowBuildNumberStampCreate
 $resolvedVersion = $originalVersion
 $resolvedBuildNumber = $originalBuildNumber
-$versionFileUpdated = $false
-$buildNumberUpdated = $false
+$versionFileUpdated = (-not $versionFileExistedBefore) -and (Test-Path -LiteralPath $versionFile)
+$buildNumberUpdated = (-not $buildNumberFileExistedBefore) -and (Test-Path -LiteralPath $buildNumberFile)
 $artifactProduced = $false
 $versionRoot = $null
 $versionRootCreated = $false
@@ -975,6 +1007,7 @@ try {
         -SigningEnabled ([bool]$signScriptResolved) `
         -SignScript $signScriptResolved `
         -NonReleaseReason $NonReleaseReason `
+        -SourceCommit $sourceCommit `
         -RepositoryRoot $repoRoot
 
     $archivePath = $null
@@ -995,15 +1028,15 @@ try {
         Copy-Item -LiteralPath $versionTablePath -Destination (Join-Path $versionRoot "VERSION_TABLE.json") -Force
     }
 
+    if ($archivePath) {
+        Sync-ReleaseMetadataIntoArchive -ArchivePath $archivePath -VersionRoot $versionRoot
+    }
+
     $latestRoot = $null
     if (-not $NoLatest) {
         Write-Host ""
         Write-Host "[7] Updating latest snapshot..." -ForegroundColor Yellow
         $latestRoot = Set-LatestSnapshot -PublishRoot $publishRootResolved -VersionRoot $versionRoot
-    }
-
-    if ($archivePath) {
-        Sync-ReleaseMetadataIntoArchive -ArchivePath $archivePath -VersionRoot $versionRoot
     }
 
     $timer.Stop()
@@ -1035,8 +1068,13 @@ try {
     } else {
         if ($versionFileUpdated) {
             try {
-                Set-ProjectVersion -VersionFile $versionFile -NewVersion $originalVersion
-                Write-Warning "Build failed before publishing; restored VERSION to $originalVersion."
+                if ($versionFileExistedBefore) {
+                    Set-ProjectVersion -VersionFile $versionFile -NewVersion $originalVersion
+                    Write-Warning "Build failed before publishing; restored VERSION to $originalVersion."
+                } elseif (Test-Path -LiteralPath $versionFile) {
+                    Remove-Item -LiteralPath $versionFile -Force
+                    Write-Warning "Build failed before publishing; removed newly created VERSION file."
+                }
             } catch {
                 Write-Warning "Build failed and VERSION could not be restored automatically: $($_.Exception.Message)"
             }
@@ -1044,8 +1082,13 @@ try {
 
         if ($buildNumberUpdated) {
             try {
-                Set-BuildNumberValue -BuildNumberFile $buildNumberFile -Value $originalBuildNumber
-                Write-Warning "Build failed before publishing; restored BUILD_NUMBER to $originalBuildNumber."
+                if ($buildNumberFileExistedBefore) {
+                    Set-BuildNumberValue -BuildNumberFile $buildNumberFile -Value $originalBuildNumber
+                    Write-Warning "Build failed before publishing; restored BUILD_NUMBER to $originalBuildNumber."
+                } elseif (Test-Path -LiteralPath $buildNumberFile) {
+                    Remove-Item -LiteralPath $buildNumberFile -Force
+                    Write-Warning "Build failed before publishing; removed newly created BUILD_NUMBER file."
+                }
             } catch {
                 Write-Warning "Build failed and BUILD_NUMBER could not be restored automatically: $($_.Exception.Message)"
             }

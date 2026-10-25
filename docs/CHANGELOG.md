@@ -1,13 +1,22 @@
 # Changelog
 
-## Unreleased
+## 0.14.1 — 2026-10-25 (build 41)
 
 - **Bring video back** after starting a Mix or playlist on the same video in the Popout now opens the Source in that Mix or playlist instead of seeking the bare video and dropping the queue.
 - A second launch waits for the running PiPlay to acknowledge its link. The link is applied once even while the running window is briefly busy, and a launch that gets no answer says PiPlay did not respond instead of dropping the link silently.
 - Clear browser data is unavailable, with a reason, while a Popout is still opening or returning, and a Popout launch overtaken by Clear browser data or closing PiPlay rolls back instead of opening.
-- `PiPlay.exe --help`, `-h`, and `/?` show native usage and exit before normal startup; command-line launch targets remain limited to values accepted by the shared YouTube parser.
 - Expanding the Popout covers the whole monitor, taskbar included, in every corner style; the chrome strip, video edges, and YouTube's control bar are no longer cropped.
 - A window restored onto a monitor with a different display scale keeps its saved size instead of being rescaled.
+- Reconciles the 0.14.0 Stable build, which was cut from a branch that predated the changes above, with the main line; 0.14.0 is superseded.
+
+## 0.14.0 — 2026-10-19 (build 40)
+
+- `PiPlay.exe --help`, `-h`, and `/?` show native usage and exit before normal startup; command-line launch targets remain limited to values accepted by the shared YouTube parser.
+- Refreshed the `sharp-dark`, `minimal`, and `soft-glass` theme palettes with distinct temperature/elevation hierarchies, live `AccentSubtle` selection tokens, and side-by-side Settings preset cards.
+- Improved profile identity and workflow: quick-saving a new profile auto-seeds a distinct curated accent, active profiles can be cleared from the profile menu, canceling or aborting Edit Profile restores the live accent preview, and Popout launches honor matching profile `Topmost`, `FadeEnabled`, and `Placement` overrides.
+- Removed Popout edge borders in borderless/auto-hidden/focused/rounded states via `RoundedWindowRegionPolicy.ShouldShowPopoutEdgeBorder`, switched borderless Popout letterboxing to pure black and Source letterboxing to neutral `AppBackgroundWash`, added 6 DIP resize insets when the Popout strip collapses, and enabled full-monitor maximize (`useWorkArea: false`) for `PlayerWindow`.
+- Refined the Focused DOM overlay (`:focus-visible,:active` attention gating, distinct muted/restore icons, zero-volume unmute recovery, immediate seek fill), added `DarkSlider` and `DarkCheckBox` control styles with keyboard focus rings, and fixed non-primary taskbar and mixed-DPI window placement math.
+- Hardened the build/release pipeline and test suite: synced `build-info.json` and `VERSION_TABLE.json` into release archives prior to latest-snapshot promotion, removed uncalled production shims, added `ContrastBrushConverterTests`, wired real Focused DOM `buildRoot()`/`configure` execution into the Node VM harness, and wired behavioral PowerShell lock/swap/metadata test harnesses into `dotnet test`.
 
 ## 0.13.2 — 2026-08-23 (build 39)
 

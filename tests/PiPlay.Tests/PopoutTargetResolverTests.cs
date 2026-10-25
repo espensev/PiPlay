@@ -3,6 +3,7 @@ using PiPlay.Services;
 
 namespace PiPlay.Tests;
 
+[Trait(TestCategories.Key, TestCategories.Logic)]
 public class PopoutTargetResolverTests
 {
     [Fact]
@@ -31,11 +32,28 @@ public class PopoutTargetResolverTests
     public void Source_playlist_fallback_is_preserved_when_neither_surface_has_a_video()
     {
         var target = PopoutTargetResolver.Resolve(
-            "https://www.youtube.com/playlist?list=PLabc",
-            "https://www.youtube.com/");
+            "https://www.youtube.com/",
+            "https://www.youtube.com/playlist?list=PLabc");
 
         Assert.NotNull(target);
         Assert.True(target!.IsPlaylistOnly);
+        Assert.Equal("PLabc", target.PlaylistId);
+
+        Assert.Null(PopoutTargetResolver.Resolve(
+            "https://www.youtube.com/",
+            "https://www.youtube.com/"));
+    }
+
+    [Fact]
+    public void Current_source_playlist_wins_over_a_stale_spa_canonical_video()
+    {
+        var target = PopoutTargetResolver.Resolve(
+            "https://www.youtube.com/playlist?list=PLabc",
+            "https://www.youtube.com/watch?v=AAAAAAAAAAA");
+
+        Assert.NotNull(target);
+        Assert.True(target!.IsPlaylistOnly);
+        Assert.Null(target.VideoId);
         Assert.Equal("PLabc", target.PlaylistId);
     }
 
@@ -186,7 +204,9 @@ public class PopoutTargetResolverTests
         Assert.False(PopoutTargetResolver.CapturedTargetStillMatchesSource(
             null, "https://www.youtube.com/watch?v=AAAAAAAAAAA"));
         Assert.False(PopoutTargetResolver.CapturedTargetStillMatchesSource(
-            Target("https://www.youtube.com/playlist?list=PLabc"), "https://www.youtube.com/watch?v=AAAAAAAAAAA"));
+            new YouTubeTarget(), "https://www.youtube.com/watch?v=AAAAAAAAAAA"));
+        Assert.False(PopoutTargetResolver.CapturedTargetStillMatchesSource(
+            new YouTubeTarget { IsPlaylistOnly = true }, "https://www.youtube.com/playlist?list=PLabc"));
     }
 
     private static YouTubeTarget Target(string url)

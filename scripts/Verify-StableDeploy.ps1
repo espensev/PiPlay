@@ -250,18 +250,24 @@ if (-not $commit) {
 }
 
 # 6. Repo working-tree context (how the deploy relates to what you would build NOW).
-$dirty = Invoke-Git @("status", "--porcelain")
-if ($dirty) {
-    Write-ProvenanceIssue "Repo working tree is DIRTY ($(@($dirty).Count) path(s)) - a build made now would not match any commit."
+$dirty = @(Invoke-Git @("status", "--porcelain", "--untracked-files=all") | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+if ($dirty.Count -gt 0) {
+    Write-ProvenanceIssue "Repo working tree is DIRTY ($($dirty.Count) path(s)) - a build made now would not match any commit."
 } else {
     Write-Ok "Repo working tree is clean."
 }
-$repoVersion = (Get-Content -LiteralPath (Join-Path $repoRoot "VERSION") -Raw).Trim()
-$repoBuildNumber = (Get-Content -LiteralPath (Join-Path $repoRoot "BUILD_NUMBER") -Raw).Trim()
-if ($repoVersion -eq [string]$buildInfo.version -and $repoBuildNumber -eq [string]$buildInfo.buildNumber) {
-    Write-Ok "Repo VERSION/BUILD_NUMBER ($repoVersion/b$repoBuildNumber) match the deploy."
+$versionPath = Join-Path $repoRoot "VERSION"
+$buildNumberPath = Join-Path $repoRoot "BUILD_NUMBER"
+if ((Test-Path -LiteralPath $versionPath) -and (Test-Path -LiteralPath $buildNumberPath)) {
+    $repoVersion = (Get-Content -LiteralPath $versionPath -Raw).Trim()
+    $repoBuildNumber = (Get-Content -LiteralPath $buildNumberPath -Raw).Trim()
+    if ($repoVersion -eq [string]$buildInfo.version -and $repoBuildNumber -eq [string]$buildInfo.buildNumber) {
+        Write-Ok "Repo VERSION/BUILD_NUMBER ($repoVersion/b$repoBuildNumber) match the deploy."
+    } else {
+        Write-ProvenanceIssue "Repo VERSION/BUILD_NUMBER ($repoVersion/b$repoBuildNumber) differ from the deploy (v$($buildInfo.version)/b$($buildInfo.buildNumber))."
+    }
 } else {
-    Write-ProvenanceIssue "Repo VERSION/BUILD_NUMBER ($repoVersion/b$repoBuildNumber) differ from the deploy (v$($buildInfo.version)/b$($buildInfo.buildNumber))."
+    Write-ProvenanceIssue "Repo VERSION/BUILD_NUMBER files are missing under '$repoRoot' - cannot compare against the deploy (v$($buildInfo.version)/b$($buildInfo.buildNumber))."
 }
 
 # Identity block + verdict.

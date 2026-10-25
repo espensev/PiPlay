@@ -60,6 +60,7 @@ public static class ThemeResourceApplier
         SetColorPair(resources, "AccentHover", set.Hover);
         SetColorPair(resources, "AccentPressed", set.Pressed);
         SetColorPair(resources, "AccentBorder", set.Border);
+        SetColorPair(resources, "AccentSubtle", set.Subtle);
         SetColorPair(resources, "AccentShellTint", set.ShellTint);
         // The accent-reach dial's other half: toolbar glyphs ride this, not AccentPrimary, so intensity 0
         // returns them to ordinary text color instead of leaving them stuck on the accent.
@@ -73,10 +74,6 @@ public static class ThemeResourceApplier
         SetColorPair(resources, "AccentLetterbox", set.Letterbox);
         SetColorPair(resources, "AppBackgroundWash", set.BackgroundWash);
         SetColorPair(resources, "PopoutAccentEdge", set.PopoutEdge);
-        // The profile dropdown row wash borrows the theme's subtle alpha (each row supplies its
-        // OWN accent, so only the alpha travels through resources).
-        if (resources["ProfileRowWashAlpha"] is not byte alpha || alpha != set.Subtle.A)
-            resources["ProfileRowWashAlpha"] = set.Subtle.A;
     }
 
     private static void SetColorPair(ResourceDictionary resources, string key, Color color)
