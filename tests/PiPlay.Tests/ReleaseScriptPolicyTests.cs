@@ -324,6 +324,35 @@ public class ReleaseScriptPolicyTests
     }
 
     [Fact]
+    public void Publish_refuses_an_exact_source_release_that_is_not_on_the_published_main_line()
+    {
+        var publish = Script("scripts/Publish-Stable.ps1");
+
+        // v0.14.0-b40 was published from a commit that was not on origin's main line, so main and
+        // Stable diverged (re-merged in PR #52). The exact-source path must prove ancestry up front.
+        Assert.Contains("merge-base --is-ancestor $headCommit $remoteLineCommit", publish);
+        Assert.Contains("is not on '$remoteLine'", publish);
+        Assert.Contains("behind '$remoteLine'", publish);
+        // Fetch fails closed and can never hang on a credential prompt inside the quiet wrapper.
+        Assert.Contains("$env:GIT_TERMINAL_PROMPT = \"0\"", publish);
+        Assert.Contains("Could not fetch 'origin'", publish);
+        // Republishing or rolling back an already-tagged release stays legal after main moves on.
+        Assert.Contains("already points at HEAD (republish/rollback of a verified release)", publish);
+
+        var tagPreflight = publish.IndexOf("$expectedTag = \"stable-v$repoVersion-b$repoBuildNumber\"", StringComparison.Ordinal);
+        var ancestry = publish.IndexOf("merge-base --is-ancestor", StringComparison.Ordinal);
+        var testGate = publish.IndexOf("& dotnet test", StringComparison.Ordinal);
+        var build = publish.IndexOf("& $buildScript @buildParams", StringComparison.Ordinal);
+        var deploy = publish.IndexOf("Invoke-StagedDeploy", StringComparison.Ordinal);
+
+        Assert.True(ancestry >= 0, "Publish should prove HEAD is on the published main line.");
+        Assert.True(tagPreflight < ancestry, "The tag preflight supplies $existingTagCommit to the main-line preflight.");
+        Assert.True(ancestry < testGate, "Main-line preflight must run before the test lane.");
+        Assert.True(ancestry < build, "Main-line preflight must run before the build.");
+        Assert.True(ancestry < deploy, "Main-line preflight must run before the deploy.");
+    }
+
+    [Fact]
     public void Publish_wires_lock_and_staged_deploy_helpers_into_the_release_flow()
     {
         var publish = Script("scripts/Publish-Stable.ps1");
@@ -429,14 +458,18 @@ public class ReleaseScriptPolicyTests
         var script = Script("scripts/Build-PiPlay.ps1");
         var csproj = Script("src/PiPlay/PiPlay.csproj");
         var changelog = Script("docs/CHANGELOG.md");
+        // The committed stamps are the release identity; the script/csproj defaults and the
+        // changelog heading must follow them, so a release bump cannot leave them behind.
+        var version = Script("VERSION").Trim();
+        var buildNumber = Script("BUILD_NUMBER").Trim();
 
-        Assert.Contains("$DefaultProjectVersion = \"0.14.0\"", script);
-        Assert.Contains("$DefaultBuildNumber = 40", script);
-        Assert.Contains("<Version>0.14.0</Version>", csproj);
-        Assert.Contains("<AssemblyVersion>0.14.0.40</AssemblyVersion>", csproj);
-        Assert.Contains("<FileVersion>0.14.0.40</FileVersion>", csproj);
-        Assert.Contains("<InformationalVersion>0.14.0</InformationalVersion>", csproj);
-        Assert.Contains("## 0.14.0 —", changelog);
+        Assert.Contains($"$DefaultProjectVersion = \"{version}\"", script);
+        Assert.Contains($"$DefaultBuildNumber = {buildNumber}", script);
+        Assert.Contains($"<Version>{version}</Version>", csproj);
+        Assert.Contains($"<AssemblyVersion>{version}.{buildNumber}</AssemblyVersion>", csproj);
+        Assert.Contains($"<FileVersion>{version}.{buildNumber}</FileVersion>", csproj);
+        Assert.Contains($"<InformationalVersion>{version}</InformationalVersion>", csproj);
+        Assert.Contains($"## {version} —", changelog);
 
         Assert.Contains("[switch]$AllowCreate", script);
         Assert.Contains("-AllowCreate:$allowVersionStampCreate", script);

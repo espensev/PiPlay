@@ -200,7 +200,7 @@ Every icon-only control has an accessible name and keyboard focus. Pin/transfer 
 
 ## 21. Packaging and release
 
-Exact-source Stable publishing requires committed `VERSION`, `BUILD_NUMBER`, a clean tree, and a Stable deployment root supplied by `PIPLAY_STABLE_ROOT` or `-DeployRoot`. The verifier checks manifest hashes and source identity. Signing is optional through `-SignScript` and runs before hashes. (`Build-PiPlay.ps1`, `Publish-Stable.ps1`, `Verify-StableDeploy.ps1`.)
+Exact-source Stable publishing requires committed `VERSION`, `BUILD_NUMBER`, a clean tree, a `HEAD` that is already on origin's published main line (fetched and proven by ancestry before the test lane; a commit that main has since moved past is accepted only when its stable tag already points at it), and a Stable deployment root supplied by `PIPLAY_STABLE_ROOT` or `-DeployRoot`. The verifier checks manifest hashes and source identity. Signing is optional through `-SignScript` and runs before hashes. (`Build-PiPlay.ps1`, `Publish-Stable.ps1`, `Verify-StableDeploy.ps1`.)
 
 ## 22. Quality gates
 

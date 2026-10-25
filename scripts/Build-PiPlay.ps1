@@ -64,8 +64,8 @@ $ErrorActionPreference = "Stop"
 
 $ProjectName = "PiPlay"
 $ProjectRelativePath = "src\PiPlay\PiPlay.csproj"
-$DefaultProjectVersion = "0.14.0"
-$DefaultBuildNumber = 40
+$DefaultProjectVersion = "0.14.1"
+$DefaultBuildNumber = 41
 # Release-archive documentation. The consolidated product spec carries the security and privacy
 # guidance (spec section 19) that used to ship as a standalone privacy map, and DECISIONS.md holds
 # the ADR-0007 data-root reference that guidance depends on. Theme_Preset_Differences.md and

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- An exact-source Stable publish now proves, before the test lane, that the source commit is already on origin's main line, so a Stable build can no longer be cut from an unmerged branch.
+
 ## 0.14.1 — 2026-10-25 (build 41)
 
 - **Bring video back** after starting a Mix or playlist on the same video in the Popout now opens the Source in that Mix or playlist instead of seeking the bare video and dropping the queue.
