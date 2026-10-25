@@ -8,8 +8,9 @@ public class AppInfoTests
     [Fact]
     public void Reads_version_and_build_number_from_piplay_assembly()
     {
-        Assert.Equal("0.14.0", AppInfo.Version);
-        Assert.Equal(40, AppInfo.BuildNumber);
+        // The csproj stamps the plain build; the committed VERSION / BUILD_NUMBER are the source of truth.
+        Assert.Equal(RepoStamps.Version, AppInfo.Version);
+        Assert.Equal(RepoStamps.BuildNumber, AppInfo.BuildNumber);
     }
 
     [Theory]
